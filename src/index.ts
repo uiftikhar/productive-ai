@@ -1,10 +1,10 @@
 import dotenv from 'dotenv';
 
-import { generateSummary } from './summarizer.js';
+import { generateSummary } from './summaryGenerator.ts';
 
 dotenv.config();
 
-async function main() {
+async function main(): Promise<void> {
   try {
     const summary = await generateSummary();
     console.log('Summary Output:\n', summary);
