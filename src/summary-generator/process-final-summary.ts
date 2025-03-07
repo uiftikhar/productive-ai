@@ -7,9 +7,7 @@ import OpenAI from 'openai';
  * @param client - The OpenAI client instance.
  * @returns A promise that resolves to the final detailed summary.
  */
-export async function processFinalSummary(partialSummaries: string[], client: OpenAI): Promise<string> {
-  const combinedSummaries = partialSummaries.join('\n\n');
-
+export async function processFinalSummary(combinedSummaries: string, client: OpenAI): Promise<string> {
   const finalPrompt = `
 You are a seasoned Agile Coach and SCRUM Master. Combine the following partial summaries from a SCRUM meeting transcript into a final, cohesive summary.
 Your final output must include two distinct sections with the following exact titles:
@@ -18,13 +16,14 @@ Summary:
 ..... Here is the final summary generated .....
 
 Decisions:
-Decision made: A detailed summary of the decision
+(A key title for the decision that was made): A detailed summary of the decision including the context, who made it and what action item can be derived from this
 
 Ensure that:
   - The "Summary:" section provides a comprehensive overall recap of the meeting.
-  - The "Decisions:" section lists each decision made during the meeting along with detailed explanations.
+  - The "Decisions:" section lists each decision made during the meeting along with detailed explanations. The minimum length for decisions needs to be at least 3 sentences,
+  - The "Decisions" section contains at least 3 key decisions made. Generate as many context aware decisions as you dem necessary
   - The final summary is context-aware and integrates speaker-specific details.
-  - The output is between 150-250 words.
+  - The output has no word limit.
 
 Partial Summaries:
 \`\`\`

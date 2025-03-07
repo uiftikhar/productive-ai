@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { processChunk } from './process-chunk.ts';
+import { processAllChunks } from './process-chunk.ts';
 import { processFinalSummary } from './process-final-summary.ts';
 import { splitTranscript } from './split-transcript.ts';
 
@@ -33,17 +33,13 @@ export async function generateSummary(): Promise<string> {
     const __dirname = path.dirname(__filename);
 
     // TODO: This should be an input from the user, ideally coming from a front end network request
-    const transcriptPath = path.resolve(__dirname, '../data/Transcript-CPL-BTO-Tech-Handover.txt');
+    const transcriptPath = path.resolve(__dirname, '../../data/Transcript-CPL-BTO-Tech-Handover.txt');
     const transcript = await fs.readFile(transcriptPath, 'utf8');
 
     const chunks = splitTranscript(transcript, 2000, 3);
     const client = new OpenAI();
 
-    const partialSummaries: string[] = [];
-    for (const [index, chunk] of chunks.entries()) {
-      const summary = await processChunk(chunk, index, client);
-      partialSummaries.push(summary);
-    }
+    const partialSummaries = await processAllChunks(chunks, client);
 
     const finalSummary = await processFinalSummary(partialSummaries, client);
     return finalSummary;

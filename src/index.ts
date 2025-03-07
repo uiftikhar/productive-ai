@@ -1,16 +1,20 @@
 import dotenv from 'dotenv';
 
-import { generateSummary } from './summaryGenerator.ts';
+// async function main(): Promise<void> {
+//   try {
+//     const summary = await generateSummary();
+//     console.log('Summary Output:\n', summary);
+//   } catch (error) {
+//     console.error('Error in main:', error);
+//   }
+// }
+// main();
+import app from './app.ts';
 
 dotenv.config();
 
-async function main(): Promise<void> {
-  try {
-    const summary = await generateSummary();
-    console.log('Summary Output:\n', summary);
-  } catch (error) {
-    console.error('Error in main:', error);
-  }
-}
+const PORT = process.env.PORT || 3000;
 
-main();
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
