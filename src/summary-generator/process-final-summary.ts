@@ -7,7 +7,10 @@ import OpenAI from 'openai';
  * @param client - The OpenAI client instance.
  * @returns A promise that resolves to the final detailed summary.
  */
-export async function processFinalSummary(combinedSummaries: string, client: OpenAI): Promise<string> {
+export async function processFinalSummary(
+  combinedSummaries: string,
+  client: OpenAI,
+): Promise<string> {
   const finalPrompt = `
 You are a seasoned Agile Coach and SCRUM Master. Combine the following partial summaries from a SCRUM meeting transcript into a final, cohesive summary.
 Your final output must include two distinct sections with the following exact titles:
@@ -31,24 +34,28 @@ ${combinedSummaries}
 \`\`\`
   `;
 
-  const { data: finalCompletion, response: finalResponse } = await client.chat.completions
-    .create({
-      messages: [
-        { role: 'system', content: 'You are a helpful assistant.' },
-        { role: 'user', content: finalPrompt },
-      ],
-      model: 'gpt-4',
-      max_tokens: 500,
-      temperature: 0.2,
-    })
-    .withResponse();
+  const { data: finalCompletion, response: finalResponse } =
+    await client.chat.completions
+      .create({
+        messages: [
+          { role: 'system', content: 'You are a helpful assistant.' },
+          { role: 'user', content: finalPrompt },
+        ],
+        model: 'gpt-4',
+        max_tokens: 500,
+        temperature: 0.2,
+      })
+      .withResponse();
 
-  console.log('Final Summary Headers:', Object.fromEntries(finalResponse.headers.entries()));
+  console.log(
+    'Final Summary Headers:',
+    Object.fromEntries(finalResponse.headers.entries()),
+  );
   const finalSummary = finalCompletion.choices[0].message?.content?.trim();
   if (!finalSummary) {
     throw new Error('Received empty final summary');
   }
 
-  console.log("FINAL SUMMARY:", finalSummary);
+  console.log('FINAL SUMMARY:', finalSummary);
   return finalSummary;
 }

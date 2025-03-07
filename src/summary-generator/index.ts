@@ -1,1 +1,1 @@
-export * from './summary-generator.ts'
+export { generateSummary } from './summary-generator.js';

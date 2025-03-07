@@ -33,17 +33,20 @@ export async function generateSummary(): Promise<string> {
     const __dirname = path.dirname(__filename);
 
     // TODO: This should be an input from the user, ideally coming from a front end network request
-    const transcriptPath = path.resolve(__dirname, '../../data/Transcript-CPL-BTO-Tech-Handover.txt');
+    const transcriptPath = path.resolve(
+      __dirname,
+      '../../data/Transcript-CPL-BTO-Tech-Handover.txt',
+    );
     const transcript = await fs.readFile(transcriptPath, 'utf8');
 
     const chunks = splitTranscript(transcript, 2000, 3);
     const client = new OpenAI();
 
     const partialSummaries = await processAllChunks(chunks, client);
+    const combinedSummaries = partialSummaries.join('\n\n');
 
-    const finalSummary = await processFinalSummary(partialSummaries, client);
+    const finalSummary = await processFinalSummary(combinedSummaries, client);
     return finalSummary;
-  
   } catch (error) {
     console.error('Error in generateSummary:', error);
     throw error;

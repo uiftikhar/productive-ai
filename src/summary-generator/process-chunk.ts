@@ -6,8 +6,13 @@ import OpenAI from 'openai';
  * @param client - The OpenAI client instance.
  * @returns A promise that resolves to an array of summaries.
  */
-export async function processAllChunks(chunks: string[], client: OpenAI): Promise<string[]> {
-  return await Promise.all(chunks.map((chunk, index) => processChunk(chunk, index, client)));
+export async function processAllChunks(
+  chunks: string[],
+  client: OpenAI,
+): Promise<string[]> {
+  return await Promise.all(
+    chunks.map((chunk, index) => processChunk(chunk, index, client)),
+  );
 }
 
 /**
@@ -17,7 +22,11 @@ export async function processAllChunks(chunks: string[], client: OpenAI): Promis
  * @param client - The OpenAI client instance.
  * @returns A promise that resolves to the detailed summary for the chunk.
  */
-async function processChunk(chunk: string, index: number, client: OpenAI): Promise<string> {
+async function processChunk(
+  chunk: string,
+  index: number,
+  client: OpenAI,
+): Promise<string> {
   const chunkPrompt = `
 You are a seasoned Agile Coach and SCRUM Master with expert-level knowledge in agile methodologies.
 Your task is to produce a detailed and context-aware summary for the following portion of a SCRUM meeting transcript.

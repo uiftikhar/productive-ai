@@ -36,7 +36,8 @@ const fakeClient = {
     completions: {
       create: (_: any) => {
         return {
-          withResponse: async () => createFakeResponse('Test summary for chunk.'),
+          withResponse: async () =>
+            createFakeResponse('Test summary for chunk.'),
         };
       },
     },
@@ -44,7 +45,8 @@ const fakeClient = {
 } as unknown as OpenAI;
 
 describe('processChunk', () => {
-  const testChunk = "Speaker A: Let's discuss the project roadmap.\nSpeaker B: I have concerns about the timeline.";
+  const testChunk =
+    "Speaker A: Let's discuss the project roadmap.\nSpeaker B: I have concerns about the timeline.";
 
   it('should return a summary when a valid summary is provided', async () => {
     const summary = await processChunk(testChunk, 0, fakeClient);
@@ -65,8 +67,8 @@ describe('processChunk', () => {
       },
     } as unknown as OpenAI;
 
-    await expect(processChunk(testChunk, 0, fakeClientEmpty))
-      .rejects
-      .toThrow('Received empty summary for chunk 1');
+    await expect(processChunk(testChunk, 0, fakeClientEmpty)).rejects.toThrow(
+      'Received empty summary for chunk 1',
+    );
   });
 });

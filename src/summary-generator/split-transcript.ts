@@ -16,8 +16,12 @@ function countTokens(text: string): number {
  * @param overlapLines - Number of overlapping lines between chunks.
  * @returns An array of transcript chunks.
  */
-export function splitTranscript(transcript: string, maxTokens = 2000, overlapLines = 3): string[] {
-  const lines = transcript.split('\n').filter(line => line.trim().length > 0);
+export function splitTranscript(
+  transcript: string,
+  maxTokens = 2000,
+  overlapLines = 3,
+): string[] {
+  const lines = transcript.split('\n').filter((line) => line.trim().length > 0);
   const chunks: string[] = [];
   let currentChunk: string[] = [];
   let currentTokens = 0;
