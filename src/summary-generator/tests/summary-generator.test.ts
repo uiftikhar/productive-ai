@@ -1,74 +1,95 @@
+// tests/summary-generator.test.ts
+
 import OpenAI from 'openai';
 
-import { processChunk } from '../process-chunk.ts';
+import { generateSummary } from '../summary-generator.ts';
 
-// tests/summarizer.test.ts
+jest.mock('url', () => ({
+  fileURLToPath: () => '/fake/path/index.js',
+}));
 
-// Create a fake Headers object (as returned by response.headers.entries())
-function createFakeHeaders(headersObj: Record<string, string>): Headers {
-  return new Map(Object.entries(headersObj)) as unknown as Headers;
-}
+// *********************************************************************************************************/
 
-// Create a fake response structure for withResponse()
-function createFakeResponse(summaryText: string | null): any {
-  return {
-    data: {
-      choices: [
-        {
-          message: {
-            content: summaryText,
-          },
-        },
-      ],
-    },
-    response: {
-      headers: createFakeHeaders({
-        'x-ratelimit-limit-tokens': '10000',
-        'x-ratelimit-remaining-tokens': '5000',
-      }),
-    },
-  };
-}
+jest.mock('fs/promises', () => ({
+  readFile: jest.fn(),
+}));
 
-// Create a fake OpenAI client with a chat.completions.create method that returns an object with a withResponse() function.
-const fakeClient = {
-  chat: {
-    completions: {
-      create: (_: any) => {
-        return {
-          withResponse: async () =>
-            createFakeResponse('Test summary for chunk.'),
-        };
+// Dummy transcript text for testing.
+const dummyTranscript = 'Dummy transcript text for testing purposes';
+
+const fakeTranscript = 'Fake transcript text';
+
+// Mock fs.readFile so that generateSummary doesn't hit the file system.
+
+// Spy on helper functions.
+const splitTranscriptMock = jest.spyOn(
+  require('../split-transcript.ts'),
+  'splitTranscript',
+) as unknown as jest.Mock<string[], [string, number?, number?]>;
+splitTranscriptMock.mockImplementation(
+  (transcript: string, maxTokens?: number, overlapLines?: number) => {
+    return ['fake chunk 1', 'fake chunk 2'];
+  },
+);
+
+const processAllChunksMock2 = jest.spyOn(
+  require('../process-chunk.ts'),
+  'processAllChunks',
+) as unknown as jest.Mock<Promise<string[]>, [string[], OpenAI]>;
+processAllChunksMock2.mockResolvedValue([
+  'partial summary 1',
+  'partial summary 2',
+]);
+
+const processFinalSummaryMock = jest.spyOn(
+  require('../process-final-summary.ts'),
+  'processFinalSummary',
+) as unknown as jest.Mock<Promise<string>, [string, OpenAI]>;
+processFinalSummaryMock.mockResolvedValue('Final summary text');
+
+// Mock OpenAI so that no real API calls are made.
+jest.mock('openai', () => {
+  return jest.fn().mockImplementation(() => ({
+    chat: {
+      completions: {
+        create: jest.fn(),
       },
     },
-  },
-} as unknown as OpenAI;
+  }));
+});
+describe('generateSummary', () => {
+  const fakeTranscriptPath = '/fake/path/Transcript-CPL-BTO-Tech-Handover.txt';
+  const { readFile: readFileMock } = require('fs/promises');
+  beforeEach(() => {
+    // Reset mocks between tests.
+    readFileMock.mockReset();
+  });
+  it('should return the final summary text when everything succeeds', async () => {
+    readFileMock.mockResolvedValue(fakeTranscript);
 
-describe('processChunk', () => {
-  const testChunk =
-    "Speaker A: Let's discuss the project roadmap.\nSpeaker B: I have concerns about the timeline.";
+    const summary = await generateSummary();
 
-  it('should return a summary when a valid summary is provided', async () => {
-    const summary = await processChunk(testChunk, 0, fakeClient);
-    expect(summary).toBe('Test summary for chunk.');
+    expect(summary).toBe('Final summary text');
+    expect(readFileMock).toHaveBeenCalled();
+
+    // Verify that splitTranscript was called correctly.
+    expect(splitTranscriptMock).toHaveBeenCalledWith(fakeTranscript, 2000, 3);
+
+    // Verify that processAllChunks was called with our fake chunks.
+    expect(processAllChunksMock2).toHaveBeenCalledWith(
+      ['fake chunk 1', 'fake chunk 2'],
+      expect.any(Object),
+    );
+
+    // Verify that processFinalSummary was called with combined partial summaries.
+    expect(processFinalSummaryMock).toHaveBeenCalledWith(
+      'partial summary 1\n\npartial summary 2',
+      expect.any(Object),
+    );
   });
 
-  it('should throw an error when an empty summary is returned', async () => {
-    // Override the fake client to return empty summary
-    const fakeClientEmpty = {
-      chat: {
-        completions: {
-          create: (_: any) => {
-            return {
-              withResponse: async () => createFakeResponse(null),
-            };
-          },
-        },
-      },
-    } as unknown as OpenAI;
-
-    await expect(processChunk(testChunk, 0, fakeClientEmpty)).rejects.toThrow(
-      'Received empty summary for chunk 1',
-    );
+  it('should throw an error if reading the transcript fails', async () => {
+    readFileMock.mockRejectedValue(new Error('File not found'));
+    await expect(generateSummary()).rejects.toThrow('File not found');
   });
 });
