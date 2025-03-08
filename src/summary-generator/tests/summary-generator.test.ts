@@ -50,11 +50,23 @@ jest.mock('openai', () => {
 });
 
 describe('generateSummary', () => {
+  let errorSpy: jest.SpyInstance<
+    void,
+    [message?: any, ...optionalParams: any[]]
+  >;
   const fakeTranscriptPath = '/fake/path/Transcript-CPL-BTO-Tech-Handover.txt';
   const { readFile: readFileMock } = require('fs/promises');
 
   beforeEach(() => {
     readFileMock.mockReset();
+  });
+
+  beforeAll(() => {
+    errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterAll(() => {
+    errorSpy.mockRestore();
   });
 
   it('should return the final summary text when everything succeeds', async () => {

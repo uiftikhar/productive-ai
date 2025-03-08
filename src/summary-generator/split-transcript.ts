@@ -1,6 +1,3 @@
-interface ChunkResponse {
-  content: string;
-}
 /**
  * Approximates token count using a simple word-count heuristic.
  * @param text - The text to estimate token count.
@@ -9,6 +6,7 @@ interface ChunkResponse {
 function countTokens(text: string): number {
   return text.split(/\s+/).length;
 }
+
 /**
  * Splits the transcript into overlapping chunks to preserve context.
  * @param transcript - Full transcript text.
