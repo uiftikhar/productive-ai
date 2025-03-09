@@ -1,7 +1,4 @@
-import fs from 'fs/promises'; // or 'fs' with promises
 import OpenAI from 'openai';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
 import { processAllChunks } from './process-chunk.ts';
 import { processFinalSummary } from './process-final-summary.ts';
@@ -25,20 +22,8 @@ import { splitTranscript } from './split-transcript.ts';
  *
  * @returns {Promise<string>} The generated summary.
  */
-export async function generateSummary(): Promise<string> {
+export async function generateSummary(transcript: string): Promise<string> {
   try {
-    // Read transcript from file
-
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-
-    // TODO: This should be an input from the user, ideally coming from a front end network request
-    const transcriptPath = path.resolve(
-      __dirname,
-      '../../data/Transcript-CPL-BTO-Tech-Handover.txt',
-    );
-    const transcript = await fs.readFile(transcriptPath, 'utf8');
-
     const chunks = splitTranscript(transcript, 2000, 3);
     const client = new OpenAI();
 

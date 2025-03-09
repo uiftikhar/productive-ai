@@ -2,10 +2,6 @@ import OpenAI from 'openai';
 
 import { generateSummary } from '../summary-generator.ts';
 
-jest.mock('url', () => ({
-  fileURLToPath: () => '/fake/path/index.js',
-}));
-
 jest.mock('fs/promises', () => ({
   readFile: jest.fn(),
 }));
@@ -60,12 +56,6 @@ describe('generateSummary', () => {
     void,
     [message?: any, ...optionalParams: any[]]
   >;
-  const fakeTranscriptPath = '/fake/path/Transcript-CPL-BTO-Tech-Handover.txt';
-  const { readFile: readFileMock } = require('fs/promises');
-
-  beforeEach(() => {
-    readFileMock.mockReset();
-  });
 
   beforeAll(() => {
     errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -76,12 +66,9 @@ describe('generateSummary', () => {
   });
 
   it('should return the final summary text when everything succeeds', async () => {
-    readFileMock.mockResolvedValue(fakeTranscript);
-
-    const summary = await generateSummary();
+    const summary = await generateSummary(fakeTranscript);
 
     expect(summary).toBe('Final summary text');
-    expect(readFileMock).toHaveBeenCalled();
 
     expect(splitTranscriptMock).toHaveBeenCalledWith(fakeTranscript, 2000, 3);
 
@@ -94,10 +81,5 @@ describe('generateSummary', () => {
       'partial summary 1\n\npartial summary 2',
       expect.any(Object),
     );
-  });
-
-  it('should throw an error if reading the transcript fails', async () => {
-    readFileMock.mockRejectedValue(new Error('File not found'));
-    await expect(generateSummary()).rejects.toThrow('File not found');
   });
 });
