@@ -2,6 +2,12 @@ import OpenAI from 'openai';
 
 import { processAllChunks } from '../process-chunk.ts';
 
+jest.mock('p-limit', () => {
+  return jest.fn(() => {
+    return (fn: any) => fn();
+  });
+});
+
 describe('processAllChunks: mocked', () => {
   const dummyProcessChunk = jest.fn(
     (chunk: string, index: number, client: OpenAI) =>

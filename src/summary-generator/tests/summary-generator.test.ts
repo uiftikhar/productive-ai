@@ -10,6 +10,12 @@ jest.mock('fs/promises', () => ({
   readFile: jest.fn(),
 }));
 
+jest.mock('p-limit', () => {
+  return jest.fn(() => {
+    return (fn: any) => fn();
+  });
+});
+
 const dummyTranscript = 'Dummy transcript text for testing purposes';
 
 const fakeTranscript = 'Fake transcript text';

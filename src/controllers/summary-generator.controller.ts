@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import express from 'express';
 
-import { generateSummary } from '../summary-generator/index.ts';
+import { generateSummary } from '../summary-generator/summary-generator.ts';
 
 export const getSummary = async (
   req: Request,

@@ -2,13 +2,7 @@ module.exports = {
   preset: 'ts-jest/presets/default-esm',
   testEnvironment: 'node',
   transform: {
-    // '^.+\\.(ts|tsx)$': [
-    //   'ts-jest',
-    //   {
-
-    //   },
-    // ],
-    '^.+\\.tsx?$': [
+    '^.+\\.(ts|js)?$': [
       'ts-jest',
       {
         useESM: true,
@@ -19,7 +13,7 @@ module.exports = {
         astTransformers: {
           before: [
             {
-              path: 'node_modules/ts-jest-mock-import-meta', // or, alternatively, 'ts-jest-mock-import-meta' directly, without node_modules.
+              path: 'ts-jest-mock-import-meta',
               options: {
                 metaObjectReplacement: { url: 'https://www.url.com' },
               },
@@ -29,6 +23,8 @@ module.exports = {
       },
     ],
   },
+  // Tell Jest not to ignore ESM modules from p-limit
+  transformIgnorePatterns: ['/node_modules/(?!(p-limit|yocto-queue)/)'],
 
   extensionsToTreatAsEsm: ['.ts'],
   testMatch: ['**/*.test.ts'],

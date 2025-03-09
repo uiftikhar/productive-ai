@@ -5,6 +5,8 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
+    "build": "esbuild src/index.ts --bundle --minify --platform=node --target=node16 --format=cjs --outfile=dist/index.cjs",
+    "start:build": "node dist/index.cjs",
     "start": "ts-node src/index.ts",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
@@ -25,6 +27,7 @@
     "@types/node": "^22.13.9",
     "@typescript-eslint/eslint-plugin": "^8.26.0",
     "@typescript-eslint/parser": "^8.26.0",
+    "esbuild": "^0.25.0",
     "eslint": "^9.21.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-prettier": "^5.2.3",
