@@ -1,6 +1,6 @@
 import express from 'express';
 
-import summaryRoutes from './routes/summary-generator.routes.js';
+import summaryRoutes from './routes/summary-generator.routes.ts';
 
 const app = express();
 

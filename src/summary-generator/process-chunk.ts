@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import pLimit from 'p-limit';
 
 /**
  * Processes all transcript chunks concurrently.
@@ -10,9 +11,13 @@ export async function processAllChunks(
   chunks: string[],
   client: OpenAI,
 ): Promise<string[]> {
-  return await Promise.all(
-    chunks.map((chunk, index) => processChunk(chunk, index, client)),
+  const limit = pLimit(5);
+
+  const promises = chunks.map((chunk, index) =>
+    limit(() => processChunk(chunk, index, client)),
   );
+
+  return await Promise.all(promises);
 }
 
 /**
@@ -31,16 +36,19 @@ async function processChunk(
 You are a seasoned Agile Coach and SCRUM Master with expert-level knowledge in agile methodologies.
 Your task is to produce a detailed and context-aware summary for the following portion of a SCRUM meeting transcript.
 For each speaker, identify:
-  - Who presented a topic or rollout.
-  - Who raised concerns or questions.
-  - Key discussion themes, decisions, and action items.
-Also indicate the meeting type (e.g., Planning, Grooming, Handover, Technical Refinement).
-Your output should include the following sections:
-  - Overall Summary: A detailed recap of this transcript portion.
-  - Speaker Details: Specific contributions by each speaker.
-  - Key Discussion Points.
-  - Decisions and Action Items.
-Ensure the response is between 150-250 words.
+  - 1. Their role in the team (e.g., Product Owner, Developer, Tester, Stakeholder, etc).
+  - 2. Topics or rollouts they presented.
+  - 3. Concerns, questions, or suggestions they raised.
+  - 4. Contributions to key discussion themes, decisions, and action items.
+Also, identify and elaborate on the meeting type (e.g., Planning, Grooming, Handover, Technical Refinement)
+and its objectives. Your output should include the following sections
+  - 1. Overall Summary: A thorough recap of this transcript portion emphasizing the main objectives and outcomes of the meeting.
+  - 2. Speaker Details: Specific contributions and roles of each speaker.
+  - 3. Key Discussion Points: Highlight the central themes, any significant discussions, and their context within the broader project.
+  - 4. Decisions and Action Items: Clearly list any decisions made, action items assigned, and their respective due dates or responsible parties.
+  - 5. Meeting Context: Briefly outline the context of this discussion within the ongoing sprint or project milestone.
+
+There is no limit on the response
 Transcript:
 \`\`\`
 ${chunk}
