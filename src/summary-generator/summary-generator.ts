@@ -25,7 +25,7 @@ import { splitTranscript } from './split-transcript.ts';
 export async function generateSummary(transcript: string): Promise<string> {
   try {
     const chunks = splitTranscript(transcript, 2000, 3);
-    const client = new OpenAI();
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const partialSummaries = await processAllChunks(chunks, client);
     const combinedSummaries = partialSummaries.join('\n\n');

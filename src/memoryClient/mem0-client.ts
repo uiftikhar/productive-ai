@@ -33,7 +33,7 @@ export async function initMemory(memoryId: string): Promise<Memory> {
     console.log(
       `Memory with id "${memoryId}" not found. Creating new memory record...`,
     );
-    // Use the a, MemoryOptionsdd method. The add method accepts a message (here, an empty string as initial content)
+    // Use the add method. The add method accepts a message (here, an empty string as initial content)
     // and options. We use the user_id option to tag this record.
     const options = { user_id: memoryId };
     const result = await mem0Client.add('', options);
