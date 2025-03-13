@@ -1,6 +1,5 @@
 import * as dotenv from 'dotenv';
 import type { Memory } from 'mem0ai';
-// src/mem0Client.ts
 import { MemoryClient } from 'mem0ai';
 
 dotenv.config();
