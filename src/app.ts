@@ -1,5 +1,6 @@
 import express from 'express';
 
+import ticketGeneratorRoutes from './routes/jira-ticket-generator.routes.ts';
 import summaryRoutes from './routes/summary-generator.routes.ts';
 
 const app = express();
@@ -7,6 +8,7 @@ const app = express();
 app.use(express.json());
 
 app.use('/api/generate-summary', summaryRoutes);
+app.use('/api/generate-tickets', ticketGeneratorRoutes);
 
 app.get('/api/health', (_req: express.Request, res: express.Response) => {
   res.json({ status: 'OK' });
