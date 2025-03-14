@@ -191,7 +191,6 @@ export async function generateJiraTickets(
   Transcript to Analyze:\n
     `;
     const partialTickets = await processAllChunks(chunks, client, prompt);
-    const combinedTickets = partialTickets.join('\n\n');
     const cleanedTickets: Ticket[] = [];
     partialTickets.forEach(async (partialTicket) => {
       const cleanedPartialTickets: Ticket[] =
