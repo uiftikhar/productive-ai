@@ -82,32 +82,6 @@ function cleanJsonArray<T = unknown>(input: string): T[] {
   return [];
 }
 
-// This block is an add on for open AI to generate the remaining invalid JSON.
-// This does not work yet.
-async function completeJSON(client: OpenAI, incompleteJSON: string) {
-  const completionPrompt = `
-The previous response was an incomplete or invalid JSON array.
-Below is the incomplete JSON:
-${incompleteJSON}
-
-Please provide only the missing portion required to complete the JSON array so that it is valid JSON.
-Do not include any extra text.
-  `;
-  const { data: completion, response } = await client.chat.completions
-    .create({
-      messages: [
-        { role: 'system', content: 'You are a helpful assistant.' },
-        { role: 'user', content: completionPrompt },
-      ],
-      model: 'gpt-3.5-turbo',
-      max_tokens: 800,
-      temperature: 0.2,
-    })
-    .withResponse();
-
-  return completion.choices[0].message?.content?.trim();
-}
-
 export async function generateJiraTickets(
   transcript: string,
 ): Promise<Ticket[]> {
@@ -157,6 +131,15 @@ export async function generateJiraTickets(
     - This should ensure that the array is an array of VALID JSON objects.
     - Output must strictly match this JSON array format without any explanations or additional text.
     - If there are no tickets to generate, you return an empty array.
+    - Never truncate JSON objects or arrays. 
+    - If necessary, reduce the number of tickets instead of truncating.
+    - Ensure a minimum of 5 Tickets created
+    - DO NOT limit the number of tickets arbitrarily.
+    - Generate as many VALID JSON tickets as are supported by the context provided.
+    - If the response is too long, return tickets in batches clearly stating 
+      : "batch": X of {totalNumberOfBatches}, "totalBatches": X. 
+    - instruct how to continue generating subsequent batches if necessary. 
+
     - Output must strictly be just a JSON Array of the format:
         [
           {
@@ -190,14 +173,27 @@ export async function generateJiraTickets(
     
   Transcript to Analyze:\n
     `;
-    const partialTickets = await processAllChunks(chunks, client, prompt);
+    const partialTickets = await processAllChunks(
+      chunks,
+      client,
+      prompt,
+      'gpt-4',
+      5000,
+      0,
+      { response_format: { type: 'json_object' } },
+    );
     const cleanedTickets: Ticket[] = [];
+    console.log(
+      '\n*******************\n',
+      partialTickets,
+      '\n*******************\n',
+    );
     partialTickets.forEach(async (partialTicket) => {
       const cleanedPartialTickets: Ticket[] =
         cleanJsonArray<Ticket>(partialTicket);
       cleanedTickets.push(...cleanedPartialTickets);
     });
-    console.log('-----------------------------------------\n', cleanedTickets);
+    // console.log('-----------------------------------------\n', cleanedTickets);
 
     return cleanedTickets;
   } catch (error) {

@@ -11,6 +11,10 @@ export async function processAllChunks(
   chunks: string[],
   client: OpenAI,
   chunkPrompt: string,
+  model = 'gpt-4',
+  max_tokens = 700,
+  temperature = 0,
+  otherParams?: any,
 ): Promise<string[]> {
   const limit = pLimit(5);
 
@@ -26,7 +30,17 @@ ${chunk}
   };
 
   const promises = chunks.map((chunk, index) =>
-    limit(() => processChunk(index, client, getChunkPrompt(chunk))),
+    limit(() =>
+      processChunk(
+        index,
+        client,
+        getChunkPrompt(chunk),
+        model,
+        max_tokens,
+        temperature,
+        otherParams,
+      ),
+    ),
   );
 
   return await Promise.all(promises);
@@ -43,6 +57,10 @@ async function processChunk(
   index: number,
   client: OpenAI,
   chunkPrompt: string,
+  model = 'gpt-4',
+  max_tokens = 700,
+  temperature = 0,
+  otherParams?: any,
 ): Promise<string> {
   const { data: completion, response } = await client.chat.completions
     .create({
@@ -50,9 +68,10 @@ async function processChunk(
         { role: 'system', content: 'You are a helpful assistant.' },
         { role: 'user', content: chunkPrompt },
       ],
-      model: 'gpt-4',
-      max_tokens: 500,
-      temperature: 0.2,
+      model,
+      max_tokens,
+      temperature,
+      ...otherParams,
     })
     .withResponse();
 
