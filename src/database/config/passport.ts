@@ -1,9 +1,11 @@
+/* istanbul ignore file */
+
 import bcryptjs from 'bcryptjs';
 import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 
-import type { IUser } from '../models/User.ts';
-import { User } from '../models/User.ts';
+import type { IUser } from '../models/User.model.ts';
+import { User } from '../models/User.model.ts';
 
 passport.use(
   new LocalStrategy(

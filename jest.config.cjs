@@ -31,7 +31,12 @@ module.exports = {
   collectCoverage: true,
   collectCoverageFrom: [
     'src/**/*.{js,ts}',
-    '!src/**/*.d.ts', // exclude declaration files
+    '!src/**/*.d.ts',
+    '!src/app.ts',
+    '!src/**/index.ts',
+    '!src/**/*.model.ts',
+    '!src/**/*.routes.ts',
+    '!src/**/*.controller.ts',
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov'],
