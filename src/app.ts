@@ -3,11 +3,10 @@ import express from 'express';
 import session from 'express-session';
 
 import { authRoutes } from './auth/index.ts';
-import { connectDB, passportClient } from './database/index.ts';
+import { passportClient } from './database/index.ts';
 import { summaryRoutes } from './summary-generator/index.ts';
 
 dotenv.config();
-connectDB();
 
 const app = express();
 
