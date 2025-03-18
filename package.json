@@ -5,7 +5,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --minify --platform=node --target=node16 --format=cjs --outfile=dist/index.cjs",
+    "build": "node build.mjs",
     "start:build": "node dist/index.cjs",
     "start": "ts-node src/index.ts",
     "lint": "eslint . --ext .ts",
@@ -16,7 +16,7 @@
     "dev": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/index.ts"
   },
   "dependencies": {
-    "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.2",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-session": "^1.18.1",

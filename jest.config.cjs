@@ -28,4 +28,12 @@ module.exports = {
 
   extensionsToTreatAsEsm: ['.ts'],
   testMatch: ['**/*.test.ts'],
+  collectCoverage: true,
+  collectCoverageFrom: [
+    'src/**/*.{js,ts}',
+    '!src/**/*.d.ts', // exclude declaration files
+  ],
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov'],
+  extensionsToTreatAsEsm: ['.ts'],
 };

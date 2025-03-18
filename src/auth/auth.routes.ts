@@ -1,4 +1,4 @@
-import bcrypt from 'bcrypt';
+import bcryptjs from 'bcryptjs';
 import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
 
@@ -30,7 +30,7 @@ router.post(
 
       // Hash the password
       const saltRounds = 10;
-      const hashedPassword = await bcrypt.hash(password, saltRounds);
+      const hashedPassword = await bcryptjs.hash(password, saltRounds);
 
       // Create and save the new user
       const newUser: IUser = new User({

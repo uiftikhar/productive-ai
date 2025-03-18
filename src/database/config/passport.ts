@@ -1,5 +1,4 @@
-import bcrypt from 'bcrypt';
-// src/config/passport.ts
+import bcryptjs from 'bcryptjs';
 import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 
@@ -17,7 +16,7 @@ passport.use(
         }
 
         // Compare passwords (ensure passwords are hashed during registration)
-        const isMatch = await bcrypt.compare(password, user.password);
+        const isMatch = await bcryptjs.compare(password, user.password);
         if (!isMatch) {
           return done(null, false, { message: 'Incorrect password.' });
         }
