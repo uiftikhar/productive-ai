@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import multer from 'multer';
 
-import { getTickets } from '../controllers/jira-ticket-generator.controller.ts';
+import { getTickets } from './jira-ticket-generator.controller.ts';
 
 const upload = multer({ dest: 'uploads/' });
 const router = Router();
 
 router.post('/', upload.single('transcript'), getTickets);
 
-export default router;
+export { router as ticketGeneratorRoutes };

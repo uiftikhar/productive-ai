@@ -180,20 +180,14 @@ export async function generateJiraTickets(
       'gpt-4',
       5000,
       0,
-      { response_format: { type: 'json_object' } },
+      // { response_format: { type: 'json_object' } },
     );
     const cleanedTickets: Ticket[] = [];
-    console.log(
-      '\n*******************\n',
-      partialTickets,
-      '\n*******************\n',
-    );
     partialTickets.forEach(async (partialTicket) => {
       const cleanedPartialTickets: Ticket[] =
         cleanJsonArray<Ticket>(partialTicket);
       cleanedTickets.push(...cleanedPartialTickets);
     });
-    // console.log('-----------------------------------------\n', cleanedTickets);
 
     return cleanedTickets;
   } catch (error) {
