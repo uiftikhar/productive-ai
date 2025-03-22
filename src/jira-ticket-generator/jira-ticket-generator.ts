@@ -88,6 +88,12 @@ export async function generateJiraTickets(
   try {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const chunks = splitTranscript(transcript, 1600, 4);
+
+    // - DO NOT limit the number of tickets arbitrarily.
+    // - Generate as many VALID JSON tickets as are supported by the context provided.
+    // - If the response is too long, return tickets in batches clearly stating
+    //   : "batch": X of {totalNumberOfBatches}, "totalBatches": X.
+    // - instruct how to continue generating subsequent batches if necessary.
     const prompt = `
   Role: 
     You are an expert Agile Coach and Scrum Master with deep expertise in Agile methodologies, 
@@ -134,11 +140,9 @@ export async function generateJiraTickets(
     - Never truncate JSON objects or arrays. 
     - If necessary, reduce the number of tickets instead of truncating.
     - Ensure a minimum of 5 Tickets created
-    - DO NOT limit the number of tickets arbitrarily.
-    - Generate as many VALID JSON tickets as are supported by the context provided.
-    - If the response is too long, return tickets in batches clearly stating 
-      : "batch": X of {totalNumberOfBatches}, "totalBatches": X. 
-    - instruct how to continue generating subsequent batches if necessary. 
+    - DO NOT GIVE MORE THAN 5 TICKETS.
+    - Your output should be a maximum of 5 tickets
+    
 
     - Output must strictly be just a JSON Array of the format:
         [
