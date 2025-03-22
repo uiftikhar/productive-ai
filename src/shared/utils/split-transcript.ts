@@ -19,6 +19,8 @@ export function splitTranscript(
   maxTokens = 2000,
   overlapLines = 3,
 ): string[] {
+  //  TODO: This is a very basic algorithm.
+  // Improve this to split based on conversation themes perhaps
   const lines = transcript.split('\n').filter((line) => line.trim().length > 0);
   const chunks: string[] = [];
   let currentChunk: string[] = [];
