@@ -1,9 +1,13 @@
 /* istanbul ignore file */
 
+// Import the User type declarations
+import '../../types/user.types.ts';
+
 import bcryptjs from 'bcryptjs';
 import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 
+import { mapUserFromDb } from '../../types/user.types.ts';
 import type { IUser } from '../models/User.model.ts';
 import { User } from '../models/User.model.ts';
 
@@ -22,7 +26,8 @@ passport.use(
         if (!isMatch) {
           return done(null, false, { message: 'Incorrect password.' });
         }
-        return done(null, user);
+
+        return done(null, mapUserFromDb(user));
       } catch (error) {
         return done(error);
       }
@@ -31,15 +36,19 @@ passport.use(
 );
 
 // Serialize user instance to the session
-passport.serializeUser((user, done) => {
-  done(null, (user as IUser).id);
+// Set any for now as the types are complex with passport
+passport.serializeUser((user: any, done) => {
+  done(null, user.id);
 });
 
 // Deserialize user instance from the session
-passport.deserializeUser(async (id, done) => {
+passport.deserializeUser(async (id: string, done) => {
   try {
     const user = await User.findById(id);
-    done(null, user);
+    if (!user) {
+      return done(null, null);
+    }
+    done(null, mapUserFromDb(user));
   } catch (error) {
     done(error, null);
   }

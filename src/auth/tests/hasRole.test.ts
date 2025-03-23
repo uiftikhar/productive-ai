@@ -16,9 +16,14 @@ describe('hasRole middleware', () => {
     };
     mockNext = jest.fn();
   });
-
   it('calls next if the user has the required role', () => {
-    mockReq.user = { role: 'admin' };
+    mockReq.user = {
+      id: '1',
+      email: 'test@test.com',
+      isAdmin: true,
+      roles: ['admin'],
+      role: 'admin',
+    };
 
     const middleware = hasRole('admin');
     middleware(mockReq as Request, mockRes as Response, mockNext);
@@ -29,7 +34,13 @@ describe('hasRole middleware', () => {
   });
 
   it('returns 403 if the user does not have the required role', () => {
-    mockReq.user = { role: 'user' };
+    mockReq.user = {
+      id: '1',
+      email: 'test@test.com',
+      isAdmin: true,
+      roles: ['user'],
+      role: 'user',
+    };
 
     const middleware = hasRole('admin');
     middleware(mockReq as Request, mockRes as Response, mockNext);

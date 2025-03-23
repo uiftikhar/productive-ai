@@ -1,5 +1,4 @@
-import type { Request, Response } from 'express';
-import express from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { promises as fs } from 'fs';
 
 import { generateSummary } from './summary-generator.ts';
@@ -7,7 +6,7 @@ import { generateSummary } from './summary-generator.ts';
 export const getSummary = async (
   req: Request,
   res: Response,
-  next: express.NextFunction,
+  next: NextFunction,
 ) => {
   try {
     // Optionally, you can accept transcript data from the request body.

@@ -11,6 +11,7 @@ export async function processFinalSummary(
   combinedSummaries: string,
   client: OpenAI,
 ): Promise<string> {
+  //  TODO get meeting title from the transcript
   const meetingTitle = 'CPL+ Handover';
 
   const finalPrompt = `

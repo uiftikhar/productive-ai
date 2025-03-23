@@ -15,30 +15,75 @@ export const mem0Client = new MemoryClient({
 });
 
 /**
+ * Interface for the memory operations we need
+ */
+export interface MemoryOperations {
+  add: (content: string, options?: any) => Promise<any>;
+  search: (query: string, options?: any) => Promise<any[]>;
+  get: () => Promise<Memory>;
+}
+
+/**
  * Retrieves a memory store by name. If it does not exist, creates a new memory.
  * This function can be used to manage per-user or per-project memory.
  *
  * @param memoryId - A unique name for the memory store (e.g., `user-memory-<userId>`).
- * @returns The memory store instance.
+ * @returns An object with operations bound to this memory context.
  */
-export async function initMemory(memoryId: string): Promise<Memory> {
+export async function initMemory(memoryId: string): Promise<MemoryOperations> {
   try {
     // Try to retrieve the memory store.
     const memory = await mem0Client.get(memoryId);
     console.log(`Memory "${memoryId}" retrieved.`);
-    return memory;
+
+    // Return an object with operations bound to this memory context
+    return {
+      // Add content to this memory context
+      add: (content: string, options?: any) =>
+        mem0Client.add(content, {
+          ...options,
+          user_id: memoryId,
+        }),
+
+      // Search within this memory context
+      search: (query: string, options?: any) =>
+        mem0Client.search(query, {
+          ...options,
+          user_id: memoryId,
+        }),
+
+      // Get the raw memory object if needed
+      get: () => Promise.resolve(memory),
+    };
   } catch (error: any) {
     // If the memory record does not exist, create one.
     console.log(
       `Memory with id "${memoryId}" not found. Creating new memory record...`,
     );
+
     // Use the add method. The add method accepts a message (here, an empty string as initial content)
     // and options. We use the user_id option to tag this record.
     const options = { user_id: memoryId };
     const result = await mem0Client.add('', options);
+
     if (result && result.length > 0) {
       console.log(`Memory with id "${memoryId}" created.`);
-      return result[0];
+      const memory = result[0];
+
+      // Return the same interface for newly created memory
+      return {
+        add: (content: string, options?: any) =>
+          mem0Client.add(content, {
+            ...options,
+            user_id: memoryId,
+          }),
+        search: (query: string, options?: any) =>
+          mem0Client.search(query, {
+            ...options,
+            user_id: memoryId,
+          }),
+        get: () => Promise.resolve(memory),
+      };
     } else {
       throw new Error('Failed to create memory record.');
     }

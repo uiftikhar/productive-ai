@@ -17,7 +17,7 @@ const dummyTranscript = 'Dummy transcript text for testing purposes';
 const fakeTranscript = 'Fake transcript text';
 
 const splitTranscriptMock = jest.spyOn(
-  require('../split-transcript.ts'),
+  require('../../shared/utils/split-transcript.ts'),
   'splitTranscript',
 ) as unknown as jest.Mock<string[], [string, number?, number?]>;
 splitTranscriptMock.mockImplementation(

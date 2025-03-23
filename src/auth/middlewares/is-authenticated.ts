@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 
 /**
- * Middleware: isAuthenticated
+ * Middleware to check if user is authenticated
  */
 export function isAuthenticated(
   req: Request,
