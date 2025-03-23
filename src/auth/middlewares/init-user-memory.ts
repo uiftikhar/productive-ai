@@ -2,6 +2,10 @@ import type { NextFunction, Request, Response } from 'express';
 
 import { initMemory } from '../../memory-client/mem0-client.ts';
 
+/**
+ * Middleware to initialize mem0 memory for authenticated users
+ * This can be added to routes that need mem0 integration
+ */
 export async function initUserMemory(
   req: Request,
   res: Response,
@@ -13,11 +17,14 @@ export async function initUserMemory(
       return next();
     }
 
-    // Initialize mem0 memories for this user - using our strongly typed User
-    (req as any).userMemory = await initMemory(`user-tickets-${req.user.id}`);
-    (req as any).userPreferences = await initMemory(
-      `user-preferences-${req.user.id}`,
-    );
+    // Check if user has id property to avoid type errors
+    if (req.user && 'id' in req.user) {
+      // Initialize mem0 memories for this user
+      (req as any).userMemory = await initMemory(`user-tickets-${req.user.id}`);
+      (req as any).userPreferences = await initMemory(
+        `user-preferences-${req.user.id}`,
+      );
+    }
 
     next();
   } catch (error) {

@@ -27,7 +27,7 @@ splitTranscriptMock.mockImplementation(
 );
 
 const processAllChunksMock2 = jest.spyOn(
-  require('../process-chunk.ts'),
+  require('../../shared/utils/process-chunk.ts'),
   'processAllChunks',
 ) as unknown as jest.Mock<Promise<string[]>, [string[], OpenAI]>;
 processAllChunksMock2.mockResolvedValue([
@@ -75,6 +75,7 @@ describe('generateSummary', () => {
     expect(processAllChunksMock2).toHaveBeenCalledWith(
       ['fake chunk 1', 'fake chunk 2'],
       expect.any(Object),
+      expect.stringContaining('You are a seasoned Agile Coach'),
     );
 
     expect(processFinalSummaryMock).toHaveBeenCalledWith(

@@ -33,7 +33,11 @@ describe('processAllChunks: mocked', () => {
   it('should process all chunks concurrently and return their summaries', async () => {
     const chunks = ['chunk one', 'chunk two', 'chunk three'];
     const fakeClient = {} as OpenAI;
-    const summaries = await processAllChunks(chunks, fakeClient);
+    const summaries = await processAllChunks(
+      chunks,
+      fakeClient,
+      'Summarize the following text chunk concisely.',
+    );
     expect(summaries).toEqual([
       'Processed chunk 1: chunk one',
       'Processed chunk 2: chunk two',
