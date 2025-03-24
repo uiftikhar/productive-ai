@@ -57,35 +57,81 @@ export async function initMemory(memoryId: string): Promise<MemoryOperations> {
     };
   } catch (error: any) {
     // If the memory record does not exist, create one.
-    console.log(
-      `Memory with id "${memoryId}" not found. Creating new memory record...`,
-    );
+    // console.log(
+    //   `Memory with id "${memoryId}" not found. Creating new memory record...`,
+    // );
 
-    // Use the add method. The add method accepts a message (here, an empty string as initial content)
-    // and options. We use the user_id option to tag this record.
-    const options = { user_id: memoryId };
-    const result = await mem0Client.add('', options);
+    // // Use the add method. The add method accepts a message (here, an empty string as initial content)
+    // // and options. We use the user_id option to tag this record.
+    // const options = { user_id: memoryId };
+    // const result = await mem0Client.add('', options);
 
-    if (result && result.length > 0) {
-      console.log(`Memory with id "${memoryId}" created.`);
-      const memory = result[0];
+    // if (result && result.length > 0) {
+    //   console.log(`Memory with id "${memoryId}" created.`);
+    //   const memory = result[0];
 
-      // Return the same interface for newly created memory
-      return {
-        add: (content: string, options?: any) =>
-          mem0Client.add(content, {
-            ...options,
-            user_id: memoryId,
-          }),
-        search: (query: string, options?: any) =>
-          mem0Client.search(query, {
-            ...options,
-            user_id: memoryId,
-          }),
-        get: () => Promise.resolve(memory),
-      };
-    } else {
-      throw new Error('Failed to create memory record.');
+    //   // Return the same interface for newly created memory
+    //   return {
+    //     add: (content: string, options?: any) =>
+    //       mem0Client.add(content, {
+    //         ...options,
+    //         user_id: memoryId,
+    //       }),
+    //     search: (query: string, options?: any) =>
+    //       mem0Client.search(query, {
+    //         ...options,
+    //         user_id: memoryId,
+    //       }),
+    //     get: () => Promise.resolve(memory),
+    //   };
+    // } else {
+    //   throw new Error('Failed to create memory record.');
+    // }
+
+    try {
+      // If the memory record does not exist, create one.
+      console.log(
+        `Memory with id "${memoryId}" not found. Creating new memory record...`,
+      );
+
+      // Use the add method
+      const options = { user_id: memoryId };
+      try {
+        const result = await mem0Client.add('', options);
+
+        if (result && result.length > 0) {
+          console.log(`Memory with id "${memoryId}" created.`);
+          const memory = result[0];
+
+          // Return the interface for the new memory
+          //   // Return the same interface for newly created memory
+          return {
+            add: (content: string, options?: any) =>
+              mem0Client.add(content, {
+                ...options,
+                user_id: memoryId,
+              }),
+            search: (query: string, options?: any) =>
+              mem0Client.search(query, {
+                ...options,
+                user_id: memoryId,
+              }),
+            get: () => Promise.resolve(memory),
+          };
+        } else {
+          throw new Error('Failed to create memory record.');
+        }
+      } catch (addError) {
+        // Rethrow the original error from the add operation
+        throw addError;
+      }
+    } catch (error: any) {
+      // Only wrap errors that aren't already Error objects
+      if (error instanceof Error) {
+        throw error;
+      } else {
+        throw new Error('Failed to create memory record.');
+      }
     }
   }
 }

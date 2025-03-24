@@ -3091,10 +3091,10 @@ media-typer@0.3.0:
   resolved "https://registry.yarnpkg.com/media-typer/-/media-typer-0.3.0.tgz#8710d7af0aa626f8fffa1ce00168545263255748"
   integrity sha512-dq+qelQ9akHpcOl/gUVRTxVIOkAJ1wR3QAvb4RsVjS8oVoFjDGTc679wJYmUmknUF5HwMLOgb5O+a3KxfWapPQ==
 
-mem0ai@^2.1.2:
-  version "2.1.2"
-  resolved "https://registry.yarnpkg.com/mem0ai/-/mem0ai-2.1.2.tgz#90f9c5206e2a1f77f2f55836ddf2870a09d2e5d2"
-  integrity sha512-vFKGTdGoWpzf3wT7TbQhTW1+acta0w2oO0pPjGp+X7Qnek2/OZHE3qY/F/NJ7WCXxZps+XYq0EZ4hp0CiDpcyg==
+mem0ai@^2.1.8:
+  version "2.1.8"
+  resolved "https://registry.yarnpkg.com/mem0ai/-/mem0ai-2.1.8.tgz#41691320b6b1be8e6213688e8dfec0ff8e5931c3"
+  integrity sha512-e2Sj1eLTDPMaBpy3TMLRF+5zBqVLxKx1l03sKlknqkz46TrOCAscABm7cT/Qgosp6MmLnvkn+IGnIcyD23ZQcg==
   dependencies:
     axios "1.7.7"
     neo4j-driver "^5.28.1"
