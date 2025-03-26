@@ -11,8 +11,6 @@ export async function processFinalSummary(
   combinedSummaries: string,
   client: OpenAI,
 ): Promise<string> {
-  const meetingTitle = 'CPL+ Handover';
-
   const finalPrompt = `
 You are a seasoned Agile Coach and SCRUM Master. You are an also expert in extracting detailed information and
 creating precise meeting summaries. Your task is to generate a final, 
@@ -20,8 +18,7 @@ cohesive meeting summary by combining the provided partial summaries.
 
 Your final output must include two distinct sections with the following exact titles:
 
-Meeting Title:
-${meetingTitle}
+Meeting Title: The title of the meeting.
 
 Summary:
 Provide a comprehensive overall recap of the meeting that integrates speaker-specific 

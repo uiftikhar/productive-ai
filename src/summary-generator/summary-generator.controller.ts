@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import express from 'express';
 import { promises as fs } from 'fs';
 
-import { generateSummary } from './summary-generator.ts';
+import { generateSummary } from './summary-generator-modular.ts';
 
 export const getSummary = async (
   req: Request,
