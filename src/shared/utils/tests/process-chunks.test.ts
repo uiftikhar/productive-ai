@@ -17,9 +17,9 @@ describe('processAllChunks: mocked', () => {
   const processAllChunksMock = jest.spyOn(
     require('../process-chunk.ts'),
     'processAllChunks',
-  ) as unknown as jest.Mock<Promise<string[]>, [string[], OpenAI]>;
+  ) as unknown as jest.Mock<Promise<string[]>, [string[], OpenAI, string]>;
   processAllChunksMock.mockImplementation(
-    async (chunks: string[], client: OpenAI) => {
+    async (chunks: string[], client: OpenAI, chunkPrompt: string) => {
       return Promise.all(
         chunks.map((chunk, index) => dummyProcessChunk(chunk, index, client)),
       );
@@ -33,7 +33,8 @@ describe('processAllChunks: mocked', () => {
   it('should process all chunks concurrently and return their summaries', async () => {
     const chunks = ['chunk one', 'chunk two', 'chunk three'];
     const fakeClient = {} as OpenAI;
-    const summaries = await processAllChunks(chunks, fakeClient);
+    const chunkPrompt = 'Summarize the following transcript:';
+    const summaries = await processAllChunks(chunks, fakeClient, chunkPrompt);
     expect(summaries).toEqual([
       'Processed chunk 1: chunk one',
       'Processed chunk 2: chunk two',
@@ -47,6 +48,11 @@ describe('processAllChunks: ActualData', () => {
   let processAllChunksActual: (
     chunks: string[],
     client: any,
+    chunkPrompt: string,
+    model?: string,
+    max_tokens?: number,
+    temperature?: number,
+    otherParams?: any,
   ) => Promise<string[]>;
   let consoleLogSpy: jest.SpyInstance;
 
@@ -81,7 +87,8 @@ describe('processAllChunks: ActualData', () => {
     };
 
     const chunks = ['chunk 1', 'chunk 2'];
-    const summaries = await processAllChunksActual(chunks, fakeClient);
+    const chunkPrompt = 'Summarize the following transcript:';
+    const summaries = await processAllChunksActual(chunks, fakeClient, chunkPrompt);
     expect(summaries).toEqual(['Valid summary', 'Valid summary']);
 
     expect(consoleLogSpy).toHaveBeenCalledTimes(2);
@@ -115,7 +122,8 @@ describe('processAllChunks: ActualData', () => {
     };
 
     const chunks = ['chunk 1'];
-    await expect(processAllChunksActual(chunks, fakeClient)).rejects.toThrow(
+    const chunkPrompt = 'Summarize the following transcript:';
+    await expect(processAllChunksActual(chunks, fakeClient, chunkPrompt)).rejects.toThrow(
       'Received empty summary for chunk 1',
     );
   });
@@ -140,7 +148,8 @@ describe('processAllChunks: ActualData', () => {
     };
 
     const chunks = ['chunk 1'];
-    await expect(processAllChunksActual(chunks, fakeClient)).rejects.toThrow(
+    const chunkPrompt = 'Summarize the following transcript:';
+    await expect(processAllChunksActual(chunks, fakeClient, chunkPrompt)).rejects.toThrow(
       'Received empty summary for chunk 1',
     );
   });

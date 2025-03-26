@@ -17,7 +17,7 @@ const dummyTranscript = 'Dummy transcript text for testing purposes';
 const fakeTranscript = 'Fake transcript text';
 
 const splitTranscriptMock = jest.spyOn(
-  require('../split-transcript.ts'),
+  require('../../shared/utils/split-transcript.ts'),
   'splitTranscript',
 ) as unknown as jest.Mock<string[], [string, number?, number?]>;
 splitTranscriptMock.mockImplementation(
@@ -27,16 +27,16 @@ splitTranscriptMock.mockImplementation(
 );
 
 const processAllChunksMock2 = jest.spyOn(
-  require('../process-chunk.ts'),
+  require('../../shared/utils/process-chunk.ts'),
   'processAllChunks',
-) as unknown as jest.Mock<Promise<string[]>, [string[], OpenAI]>;
+) as unknown as jest.Mock<Promise<string[]>, [string[], OpenAI, string]>;
 processAllChunksMock2.mockResolvedValue([
   'partial summary 1',
   'partial summary 2',
 ]);
 
 const processFinalSummaryMock = jest.spyOn(
-  require('../process-final-summary.ts'),
+  require('../process-final-summary'),
   'processFinalSummary',
 ) as unknown as jest.Mock<Promise<string>, [string, OpenAI]>;
 processFinalSummaryMock.mockResolvedValue('Final summary text');
@@ -75,6 +75,7 @@ describe('generateSummary', () => {
     expect(processAllChunksMock2).toHaveBeenCalledWith(
       ['fake chunk 1', 'fake chunk 2'],
       expect.any(Object),
+      expect.stringContaining('You are a seasoned Agile Coach and SCRUM Master'),
     );
 
     expect(processFinalSummaryMock).toHaveBeenCalledWith(
