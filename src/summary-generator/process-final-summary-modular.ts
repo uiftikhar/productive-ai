@@ -10,7 +10,7 @@ export async function processFinalSummary(
 
   const prompt = PromptManager.createPrompt(
     'MEETING_CHUNK_SUMMARIZER',
-    'FINAL_SUMMARY',
+    'FINAL_MEETING_SUMMARY',
     combinedSummaries,
     `Meeting Title: ${meetingTitle}`,
   );

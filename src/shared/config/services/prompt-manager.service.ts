@@ -1,4 +1,7 @@
-import { InstructionTemplates } from '../prompts/instruction-templates.ts';
+import {
+  InstructionTemplateName,
+  InstructionTemplates,
+} from '../prompts/instruction-templates.ts';
 import type {
   InstructionTemplate,
   SystemMessage,
@@ -17,7 +20,7 @@ export class PromptManager {
 
   static createPrompt(
     role: SystemRole,
-    templateName: string,
+    templateName: InstructionTemplateName,
     content: string,
     userContext?: string,
   ): { messages: Array<{ role: string; content: string }> } {
