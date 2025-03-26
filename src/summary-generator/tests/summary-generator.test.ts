@@ -75,7 +75,9 @@ describe('generateSummary', () => {
     expect(processAllChunksMock2).toHaveBeenCalledWith(
       ['fake chunk 1', 'fake chunk 2'],
       expect.any(Object),
-      expect.stringContaining('You are a seasoned Agile Coach and SCRUM Master'),
+      expect.stringContaining(
+        'You are a seasoned Agile Coach and SCRUM Master',
+      ),
     );
 
     expect(processFinalSummaryMock).toHaveBeenCalledWith(

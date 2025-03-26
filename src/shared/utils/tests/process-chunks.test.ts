@@ -88,7 +88,11 @@ describe('processAllChunks: ActualData', () => {
 
     const chunks = ['chunk 1', 'chunk 2'];
     const chunkPrompt = 'Summarize the following transcript:';
-    const summaries = await processAllChunksActual(chunks, fakeClient, chunkPrompt);
+    const summaries = await processAllChunksActual(
+      chunks,
+      fakeClient,
+      chunkPrompt,
+    );
     expect(summaries).toEqual(['Valid summary', 'Valid summary']);
 
     expect(consoleLogSpy).toHaveBeenCalledTimes(2);
@@ -123,9 +127,9 @@ describe('processAllChunks: ActualData', () => {
 
     const chunks = ['chunk 1'];
     const chunkPrompt = 'Summarize the following transcript:';
-    await expect(processAllChunksActual(chunks, fakeClient, chunkPrompt)).rejects.toThrow(
-      'Received empty summary for chunk 1',
-    );
+    await expect(
+      processAllChunksActual(chunks, fakeClient, chunkPrompt),
+    ).rejects.toThrow('Received empty summary for chunk 1');
   });
 
   it('should throw an error when the message property is undefined', async () => {
@@ -149,8 +153,8 @@ describe('processAllChunks: ActualData', () => {
 
     const chunks = ['chunk 1'];
     const chunkPrompt = 'Summarize the following transcript:';
-    await expect(processAllChunksActual(chunks, fakeClient, chunkPrompt)).rejects.toThrow(
-      'Received empty summary for chunk 1',
-    );
+    await expect(
+      processAllChunksActual(chunks, fakeClient, chunkPrompt),
+    ).rejects.toThrow('Received empty summary for chunk 1');
   });
 });

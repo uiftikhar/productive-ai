@@ -24,27 +24,24 @@ async function processChunk(
     userContext,
   );
 
-  console.log('Prompt:', prompt.messages);
+  const { data: completion, response } = await client.chat.completions
+    .create({
+      messages: prompt.messages,
+      model,
+      max_tokens,
+      temperature,
+      ...otherParams,
+    })
+    .withResponse();
 
-  return '';
-  // const { data: completion, response } = await client.chat.completions
-  //   .create({
-  //     messages: prompt.messages,
-  //     model,
-  //     max_tokens,
-  //     temperature,
-  //     ...otherParams,
-  //   })
-  //   .withResponse();
+  const headers = Object.fromEntries(response.headers.entries());
+  console.log(`Chunk ${index + 1} Headers:`, headers);
 
-  // const headers = Object.fromEntries(response.headers.entries());
-  // console.log(`Chunk ${index + 1} Headers:`, headers);
-
-  // const chunkSummary = completion.choices[0].message?.content?.trim();
-  // if (!chunkSummary) {
-  //   throw new Error(`Received empty summary for chunk ${index + 1}`);
-  // }
-  // return chunkSummary;
+  const chunkSummary = completion.choices[0].message?.content?.trim();
+  if (!chunkSummary) {
+    throw new Error(`Received empty summary for chunk ${index + 1}`);
+  }
+  return chunkSummary;
 }
 
 /**
