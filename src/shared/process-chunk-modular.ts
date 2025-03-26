@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import pLimit from 'p-limit';
 
+import { InstructionTemplateName } from './config/prompts/instruction-templates.ts';
 import type { SystemRole } from './config/prompts/prompt-types.ts';
 import { PromptManager } from './config/services/prompt-manager.service.ts';
 
@@ -9,7 +10,7 @@ async function processChunk(
   client: OpenAI,
   content: string,
   role: SystemRole,
-  templateName: string,
+  templateName: InstructionTemplateName,
   userContext?: string,
   model = 'gpt-4',
   max_tokens = 700,
@@ -56,7 +57,7 @@ export async function processAllChunks(
   chunks: string[],
   client: OpenAI,
   role: SystemRole, // Changed from chunkPrompt: string
-  templateName: string, // Added this parameter
+  templateName: InstructionTemplateName, // Added this parameter
   userContext?: string, // Changed from model parameter
   model = 'gpt-4', // Made this a default parameter
   max_tokens = 700,

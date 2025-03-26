@@ -6,13 +6,10 @@ export async function processFinalSummary(
   combinedSummaries: string,
   client: OpenAI,
 ): Promise<string> {
-  const meetingTitle = 'CPL+ Handover';
-
   const prompt = PromptManager.createPrompt(
     'MEETING_CHUNK_SUMMARIZER',
     'FINAL_MEETING_SUMMARY',
     combinedSummaries,
-    `Meeting Title: ${meetingTitle}`,
   );
 
   const { data: finalCompletion, response: finalResponse } =
