@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import { processAllChunks } from '../shared/utils/process-chunk-modular.ts';
 import { splitTranscript } from '../shared/utils/split-transcript.ts';
 
-interface Ticket {
+export interface Ticket {
   ticketType: string;
   summary: string;
   description: string;
@@ -19,7 +19,7 @@ interface Ticket {
  * @param jsonString - The JSON string to validate.
  * @returns true if valid JSON; false otherwise.
  */
-function isValidJSON(jsonString: string): boolean {
+export function isValidJSON(jsonString: string): boolean {
   try {
     JSON.parse(jsonString);
     return true;
@@ -34,17 +34,28 @@ function isValidJSON(jsonString: string): boolean {
  * @param input - The input string potentially containing JSON objects.
  * @returns An array of parsed objects of type T.
  */
-function extractValidObjects<T = unknown>(input: string): T[] {
+export function extractValidObjects<T = unknown>(input: string): T[] {
   const validObjects: T[] = [];
-  // Regex finds any substring that starts with { and ends with }
+  
+  // First try to find complete valid objects
   const regex = /{[^{}]*}/g;
   let match: RegExpExecArray | null;
+  
   while ((match = regex.exec(input)) !== null) {
     const potentialObject: string = match[0];
-    if (isValidJSON(potentialObject)) {
-      validObjects.push(JSON.parse(potentialObject) as T);
+    
+    // Try to clean up common JSON issues before parsing
+    let cleanedObject = potentialObject;
+    
+    // Remove trailing commas in objects
+    cleanedObject = cleanedObject.replace(/,\s*(})/g, '$1');
+    
+    // Try to parse the cleaned object
+    if (isValidJSON(cleanedObject)) {
+      validObjects.push(JSON.parse(cleanedObject) as T);
     }
   }
+  
   return validObjects;
 }
 
@@ -56,8 +67,13 @@ function extractValidObjects<T = unknown>(input: string): T[] {
  * @param input - The JSON array string (which might be malformed).
  * @returns An array of parsed objects of type T.
  */
-function cleanJsonArray<T = unknown>(input: string): T[] {
+export function cleanJsonArray<T = unknown>(input: string): T[] {
   let cleanedInput = input.trim();
+
+  // For a single object without brackets, simply use extractValidObjects
+  if (cleanedInput.startsWith('{') && !cleanedInput.startsWith('[')) {
+    return extractValidObjects<T>(cleanedInput);
+  }
 
   // Ensure the input starts with '[' and ends with ']'
   if (!cleanedInput.startsWith('[')) {
@@ -69,6 +85,9 @@ function cleanJsonArray<T = unknown>(input: string): T[] {
 
   // Remove trailing commas before the closing bracket
   cleanedInput = cleanedInput.replace(/,(\s*\])/g, '$1');
+  
+  // Replace any invalid commas between objects
+  cleanedInput = cleanedInput.replace(/}(\s*),(\s*){/g, '},{');
 
   try {
     const parsed: unknown = JSON.parse(cleanedInput);
@@ -76,7 +95,7 @@ function cleanJsonArray<T = unknown>(input: string): T[] {
       return parsed as T[];
     }
   } catch (e) {
-    // If parsing fails, extract valid objects individually.
+    // If parsing fails, extract valid objects individually
     return extractValidObjects<T>(cleanedInput);
   }
   return [];
@@ -99,7 +118,7 @@ export async function generateJiraTickets(
     );
 
     const cleanedTickets: Ticket[] = [];
-    partialTickets.forEach(async (partialTicket) => {
+    partialTickets.forEach((partialTicket) => {
       const cleanedPartialTickets: Ticket[] =
         cleanJsonArray<Ticket>(partialTicket);
       cleanedTickets.push(...cleanedPartialTickets);
