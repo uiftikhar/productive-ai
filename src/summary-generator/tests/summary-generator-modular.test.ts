@@ -71,7 +71,7 @@ splitTranscriptMock.mockImplementation(
 
 // Update the mock to match the new function signature
 const processAllChunksMock = jest.spyOn(
-  require('../../shared/process-chunk-modular.ts'),
+  require('../../shared/utils/process-chunk-modular.ts'),
   'processAllChunks',
 ) as unknown as jest.Mock<
   Promise<string[]>,

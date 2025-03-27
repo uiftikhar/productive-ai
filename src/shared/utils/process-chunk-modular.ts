@@ -1,9 +1,9 @@
 import OpenAI from 'openai';
 import pLimit from 'p-limit';
 
-import type { InstructionTemplateName } from './config/prompts/instruction-templates.ts';
-import type { SystemRole } from './config/prompts/prompt-types.ts';
-import { PromptManager } from './config/services/prompt-manager.service.ts';
+import type { InstructionTemplateName } from '../config/prompts/instruction-templates.ts';
+import type { SystemRole } from '../config/prompts/prompt-types.ts';
+import { PromptManager } from '../config/services/prompt-manager.service.ts';
 
 async function processChunk(
   index: number,
