@@ -1,5 +1,7 @@
-import {
+import type {
   InstructionTemplateName,
+} from '../prompts/instruction-templates.ts';
+import {
   InstructionTemplates,
 } from '../prompts/instruction-templates.ts';
 import type {
