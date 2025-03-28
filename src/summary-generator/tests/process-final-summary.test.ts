@@ -1,181 +1,188 @@
-// process-final-summary.test.ts
-
+import OpenAI from 'openai';
 import { processFinalSummary } from '../process-final-summary.ts';
+import { PromptManager } from '../../shared/config/services/prompt-manager.service.ts';
 
-const fakeFinalSummaryObject = {
-  meetingTitle: 'Test Meeting Title',
-  summary: 'Valid final summary',
-  decisions: [
-    {
-      title: 'Decision 1',
-      content:
-        'Decision content with more than three sentences. Sentence one. Sentence two. Sentence three.',
-    },
-  ],
-};
-const fakeFinalSummaryString = JSON.stringify(fakeFinalSummaryObject);
+// Mock the PromptManager
+jest.mock('../../shared/config/services/prompt-manager.service.ts', () => ({
+  PromptManager: {
+    createPrompt: jest.fn(() => ({
+      messages: [{ role: 'user', content: 'mocked prompt content' }],
+    })),
+  },
+}));
 
 describe('processFinalSummary', () => {
   let consoleLogSpy: jest.SpyInstance;
 
   beforeEach(() => {
+    // Mock console.log to avoid cluttering test output
     consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    jest.clearAllMocks();
+    consoleLogSpy.mockRestore();
   });
 
-  it('returns the trimmed final summary if a valid response is returned', async () => {
-    const fakeClient = {
+  it('should process combined summaries and return valid JSON response', async () => {
+    // Mock data
+    const combinedSummaries = 'Summary 1, Summary 2, Summary 3';
+    const mockResponse = {
+      summary: 'Final processed summary',
+      key_points: ['Point 1', 'Point 2'],
+    };
+
+    // Mock OpenAI client
+    const mockClient = {
       chat: {
         completions: {
-          create: jest.fn(() => ({
+          create: jest.fn().mockReturnValue({
             withResponse: () =>
               Promise.resolve({
                 data: {
                   choices: [
-                    { message: { content: `   ${fakeFinalSummaryString}   ` } },
+                    {
+                      message: {
+                        content: JSON.stringify(mockResponse),
+                      },
+                    },
                   ],
                 },
                 response: {
                   headers: new Map([['Content-Type', 'application/json']]),
                 },
               }),
-          })),
+          }),
         },
       },
-    };
+    } as unknown as OpenAI;
 
-    const combinedSummaries = 'Dummy combined summary text';
-    const result = await processFinalSummary(
+    // Call the function
+    const result = await processFinalSummary(combinedSummaries, mockClient);
+
+    // Assertions
+    expect(PromptManager.createPrompt).toHaveBeenCalledWith(
+      'MEETING_CHUNK_SUMMARIZER',
+      'FINAL_MEETING_SUMMARY',
       combinedSummaries,
-      fakeClient as any,
     );
 
-    expect(result).toEqual(fakeFinalSummaryObject);
+    expect(mockClient.chat.completions.create).toHaveBeenCalledWith({
+      messages: [{ role: 'user', content: 'mocked prompt content' }],
+      model: 'gpt-4',
+      max_tokens: 1500,
+      temperature: 0.2,
+    });
+
     expect(consoleLogSpy).toHaveBeenCalledWith('Final Summary Headers:', {
       'Content-Type': 'application/json',
     });
-    expect(consoleLogSpy).toHaveBeenCalledWith(
-      'RESPONSE:\n',
-      fakeFinalSummaryString,
-    );
+
+    expect(result).toEqual(mockResponse);
   });
 
-  it('throws an error when the final summary is empty after trimming', async () => {
-    const fakeClient = {
+  it('should throw an error when response is not valid JSON', async () => {
+    // Mock data
+    const combinedSummaries = 'Summary 1, Summary 2, Summary 3';
+
+    // Mock OpenAI client with non-JSON response
+    const mockClient = {
       chat: {
         completions: {
-          create: jest.fn(() => ({
+          create: jest.fn().mockReturnValue({
             withResponse: () =>
               Promise.resolve({
                 data: {
                   choices: [
-                    { message: { content: '    ' } }, // only whitespace
+                    {
+                      message: {
+                        content: 'This is not JSON',
+                      },
+                    },
                   ],
                 },
                 response: {
-                  headers: new Map(),
+                  headers: new Map([['Content-Type', 'application/json']]),
                 },
               }),
-          })),
+          }),
         },
       },
-    };
+    } as unknown as OpenAI;
 
-    const combinedSummaries = 'Some dummy text';
+    // Assertions
     await expect(
-      processFinalSummary(combinedSummaries, fakeClient as any),
-    ).rejects.toThrow('Received empty final summary');
+      processFinalSummary(combinedSummaries, mockClient),
+    ).rejects.toThrow('Error generating and formatting the summary.');
   });
 
-  it('throws an error when the message property is undefined', async () => {
-    const fakeClient = {
+  it('should throw an error when response is empty', async () => {
+    // Mock data
+    const combinedSummaries = 'Summary 1, Summary 2, Summary 3';
+
+    // Mock OpenAI client with empty response
+    const mockClient = {
       chat: {
         completions: {
-          create: jest.fn(() => ({
+          create: jest.fn().mockReturnValue({
             withResponse: () =>
               Promise.resolve({
                 data: {
-                  choices: [{ message: undefined }],
+                  choices: [
+                    {
+                      message: {
+                        content: '   ', // This will trim to empty string
+                      },
+                    },
+                  ],
                 },
                 response: {
-                  headers: new Map(),
+                  headers: new Map([['Content-Type', 'application/json']]),
                 },
               }),
-          })),
+          }),
         },
       },
-    };
+    } as unknown as OpenAI;
 
-    const combinedSummaries = 'Another dummy text';
+    // Assertions
     await expect(
-      processFinalSummary(combinedSummaries, fakeClient as any),
+      processFinalSummary(combinedSummaries, mockClient),
     ).rejects.toThrow('Received empty final summary');
   });
 
-  it('calls client.chat.completions.create with the correct parameters', async () => {
-    type CreateArgs = {
-      messages: { role: string; content: string }[];
-      model: string;
-      max_tokens: number;
-      temperature: number;
-    };
+  it('should throw an error when message content is undefined', async () => {
+    // Mock data
+    const combinedSummaries = 'Summary 1, Summary 2, Summary 3';
 
-    const createSpy = jest.fn(() => ({
-      withResponse: () =>
-        Promise.resolve({
-          data: {
-            choices: [
-              { message: { content: `   ${fakeFinalSummaryString}   ` } },
-            ],
-          },
-          response: {
-            headers: new Map([['Custom-Header', 'value']]),
-          },
-        }),
-    }));
-
-    const fakeClient = {
+    // Mock OpenAI client with undefined content
+    const mockClient = {
       chat: {
         completions: {
-          create: createSpy,
+          create: jest.fn().mockReturnValue({
+            withResponse: () =>
+              Promise.resolve({
+                data: {
+                  choices: [
+                    {
+                      message: {
+                        content: undefined,
+                      },
+                    },
+                  ],
+                },
+                response: {
+                  headers: new Map([['Content-Type', 'application/json']]),
+                },
+              }),
+          }),
         },
       },
-    };
+    } as unknown as OpenAI;
 
-    const combinedSummaries = 'Combined summary content';
-    const result = await processFinalSummary(
-      combinedSummaries,
-      fakeClient as any,
-    );
-    expect(result).toStrictEqual(fakeFinalSummaryObject);
-
-    expect(createSpy).toHaveBeenCalledTimes(1);
-
-    // Get the call arguments for create.
-    const calls = createSpy.mock.calls as unknown as Array<[CreateArgs]>;
-    expect(calls.length).toBeGreaterThan(0);
-
-    const createArgs = calls[0][0];
-
-    // Check the properties.
-    expect(createArgs).toHaveProperty('messages');
-    expect(Array.isArray(createArgs.messages)).toBe(true);
-    expect(createArgs.messages[0]).toEqual({
-      role: 'system',
-      content: 'You are a helpful assistant.',
-    });
-    expect(createArgs).toHaveProperty('model', 'gpt-4');
-    expect(createArgs).toHaveProperty('max_tokens', 1500);
-    expect(createArgs).toHaveProperty('temperature', 0.2);
-
-    // Verify that the final prompt contains the combinedSummaries wrapped in triple backticks under "Partial Summaries:".
-    const expectedSubstring = `Partial Summaries:
-\`\`\`
-${combinedSummaries}
-\`\`\``;
-    expect(createArgs.messages[1].content).toContain(expectedSubstring);
+    // Assertions
+    await expect(
+      processFinalSummary(combinedSummaries, mockClient),
+    ).rejects.toThrow('Received empty final summary');
   });
 });

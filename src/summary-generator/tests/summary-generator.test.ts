@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 
-import { generateSummary } from '../summary-generator-modular.ts';
+import { generateSummary } from '../summary-generator.ts';
 import { SystemRole } from '../../shared/config/prompts/prompt-types.ts';
 import { InstructionTemplateName } from '../../shared/config/prompts/instruction-templates.ts';
 
@@ -71,7 +71,7 @@ splitTranscriptMock.mockImplementation(
 
 // Update the mock to match the new function signature
 const processAllChunksMock = jest.spyOn(
-  require('../../shared/utils/process-chunk-modular.ts'),
+  require('../../shared/utils/process-chunk.ts'),
   'processAllChunks',
 ) as unknown as jest.Mock<
   Promise<string[]>,
@@ -93,7 +93,7 @@ processAllChunksMock.mockResolvedValue([
 ]);
 
 const processFinalSummaryMock = jest.spyOn(
-  require('../../summary-generator/process-final-summary-modular.ts'),
+  require('../../summary-generator/process-final-summary.ts'),
   'processFinalSummary',
 ) as unknown as jest.Mock<Promise<string>, [string, OpenAI]>;
 processFinalSummaryMock.mockResolvedValue('Final summary text');

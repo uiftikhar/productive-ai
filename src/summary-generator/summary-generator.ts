@@ -1,8 +1,8 @@
 import OpenAI from 'openai';
 
-import { processAllChunks } from '../shared/utils/process-chunk-modular.ts';
+import { processAllChunks } from '../shared/utils/process-chunk.ts';
 import { splitTranscript } from '../shared/utils/split-transcript.ts';
-import { processFinalSummary } from './process-final-summary-modular.ts';
+import { processFinalSummary } from './process-final-summary.ts';
 
 /**
  * Generates a summary for a SCRUM meeting transcript.

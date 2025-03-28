@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 
-import { processAllChunks } from '../shared/utils/process-chunk-modular.ts';
+import { processAllChunks } from '../shared/utils/process-chunk.ts';
 import { splitTranscript } from '../shared/utils/split-transcript.ts';
 
 export interface Ticket {

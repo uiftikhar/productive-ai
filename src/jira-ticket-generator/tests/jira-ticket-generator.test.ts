@@ -5,8 +5,8 @@ import {
   extractValidObjects, 
   cleanJsonArray,
   Ticket 
-} from '../jira-ticket-generator-modular.ts';
-import * as processChunkModule from '../../shared/utils/process-chunk-modular.ts';
+} from '../jira-ticket-generator.ts';
+import * as processChunkModule from '../../shared/utils/process-chunk.ts';
 import * as splitTranscriptModule from '../../shared/utils/split-transcript.ts';
 
 
@@ -17,10 +17,10 @@ jest.mock('p-limit', () => {
 });
 // Mock the dependencies
 jest.mock('openai');
-jest.mock('../../shared/utils/process-chunk-modular.ts');
+jest.mock('../../shared/utils/process-chunk.ts');
 jest.mock('../../shared/utils/split-transcript.ts');
 
-describe('jira-ticket-generator-modular', () => {
+describe('jira-ticket-generator', () => {
   // Store the original environment variable
   const originalEnv = process.env.OPENAI_API_KEY;
   
