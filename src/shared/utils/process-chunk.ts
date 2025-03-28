@@ -53,10 +53,10 @@ async function processChunk(
 export async function processAllChunks(
   chunks: string[],
   client: OpenAI,
-  role: SystemRole, // Changed from chunkPrompt: string
-  templateName: InstructionTemplateName, // Added this parameter
-  userContext?: string, // Changed from model parameter
-  model = 'gpt-4', // Made this a default parameter
+  role: SystemRole,
+  templateName: InstructionTemplateName,
+  userContext?: string,
+  model = 'gpt-4',
   max_tokens = 700,
   temperature = 0,
   otherParams?: any,
@@ -68,7 +68,7 @@ export async function processAllChunks(
       processChunk(
         index,
         client,
-        chunk, // Pass the chunk directly
+        chunk,
         role,
         templateName,
         userContext,
