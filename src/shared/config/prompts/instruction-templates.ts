@@ -19,15 +19,36 @@ export const InstructionTemplates: Record<
         'dependencies',
         'labels',
       ],
-      emptyFields: ['assignees', 'estimate'],
       outputFormat: 'json_array',
     },
     rules: [
-      'Generate only developer-focused tickets',
-      'Include technical details and UX/UI requirements',
-      'Use bullet-points for acceptance criteria',
-      'Maximum 5 tickets per response',
+      `
+        - Clearly define Ticket Types: Epic | Story | Task | Sub-task | Spike | Bug.
+        - Summarize the purpose concisely and clearly.
+        - Provide detailed descriptions including technical details, UX/UI requirements, expectations, and relevant context.
+        - Define clear Acceptance Criteria in bullet-point form.
+        - Explicitly list Dependencies when applicable, clearly identifying dependent tickets or tasks.
+        - Suggest meaningful labels relevant to the ticket 
+          (frontend, backend, UX, urgent, payments, elasticsearch, wishlist, performance, synchronization, etc.).
+        - Clearly differentiate between frontend, backend, UX/UI, and integration tasks.
+        - Identify spikes separately from actionable tasks.
+        - Explicitly highlight performance, scalability, or UX issues mentioned.
+        - Document any scope reduction, iterative approaches, or key technical solutions 
+          agreed upon (e.g., Elasticsearch integration, idempotency keys, wishlist syncing).
+        - Prioritize urgent or critical issues explicitly (e.g., duplicate payments), including interim and long-term solutions.
+      `,
     ],
+    outputRequirements: [
+      `
+        - There is no limit on the response
+        - All sections must be complete and detailed
+        - Each object in the Output Array is a complete valid object.
+        - If an item is not a fully valid JSON Object, remove it from the output array. 
+        - Make sure you perform this JSON Object validation check on each and every object.
+        - If there are no tickets to generate, you return an empty array.
+        - Never truncate JSON objects or arrays.  
+      `
+    ]
   },
   MEETING_CHUNK_SUMMARY: {
     format: {

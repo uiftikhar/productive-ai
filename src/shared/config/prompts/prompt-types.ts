@@ -11,7 +11,7 @@ export type SystemMessage = {
 export type TicketFormat = {
   ticketType: string[];
   requiredFields: string[];
-  emptyFields: string[];
+  emptyFields?: string[];
   outputFormat: 'json_array' | 'json_object';
 };
 

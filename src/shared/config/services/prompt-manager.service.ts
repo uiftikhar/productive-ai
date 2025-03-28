@@ -69,7 +69,7 @@ ${content}`;
     return `Format Requirements:
 ${template.format.ticketType.length > 0 ? `- Valid types: ${template.format.ticketType.join(' | ')}` : ''}
 - Required fields: ${template.format.requiredFields.join(', ')}
-${template.format.emptyFields.length > 0 ? `- Empty fields: ${template.format.emptyFields.join(', ')}` : ''}
+${template.format.emptyFields && template.format.emptyFields.length > 0 ? `- Empty fields: ${template.format.emptyFields.join(', ')}` : ''}
 - Output format: ${template.format.outputFormat}
 
 Rules:
