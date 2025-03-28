@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import express from 'express';
 import { promises as fs } from 'fs';
 
-import { generateJiraTickets } from '../jira-ticket-generator/jira-ticket-generator.ts';
+import { generateJiraTickets } from './jira-ticket-generator.ts';
 
 export const getTickets = async (
   req: Request,
