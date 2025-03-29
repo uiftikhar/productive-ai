@@ -1,11 +1,17 @@
 // src/shared/config/services/pinecone-index.service.ts
-import { Pinecone, Index, ServerlessSpec, IndexList, ServerlessSpecCloudEnum } from '@pinecone-database/pinecone';
+import {
+  Pinecone,
+  Index,
+  ServerlessSpec,
+  IndexList,
+  ServerlessSpecCloudEnum,
+} from '@pinecone-database/pinecone';
 import { PineconeConfig } from './pincone-config.service.ts';
 
 export enum VectorIndexes {
   USER_CONTEXT = 'user-context',
   USER_FEEDBACK = 'user-feedback',
-  TRANSCRIPT_EMBEDDINGS = 'transcript-embeddings'
+  TRANSCRIPT_EMBEDDINGS = 'transcript-embeddings',
 }
 
 export interface IndexConfig {
@@ -14,7 +20,10 @@ export interface IndexConfig {
   serverless: boolean;
   cloud: string; // e.g., 'aws' or 'gcp'
   region: string; // e.g., 'us-west-1'
-  embeddingModel?: 'multilingual-e5-large' | 'pinecone-sparse-english-v0' | 'text-embedding-ada-002';
+  embeddingModel?:
+    | 'multilingual-e5-large'
+    | 'pinecone-sparse-english-v0'
+    | 'text-embedding-ada-002';
   tags?: Record<string, string>;
 }
 
@@ -37,7 +46,9 @@ export class PineconeIndexService {
    */
   async indexExists(indexName: string): Promise<boolean> {
     const indexList = await this.listIndexes();
-    return indexList.indexes?.some(index => index.name === indexName) || false;
+    return (
+      indexList.indexes?.some((index) => index.name === indexName) || false
+    );
   }
 
   /**
@@ -45,7 +56,7 @@ export class PineconeIndexService {
    */
   async ensureIndexExists(
     indexName: VectorIndexes | string,
-    config: IndexConfig
+    config: IndexConfig,
   ): Promise<void> {
     const exists = await this.indexExists(indexName);
 
@@ -59,10 +70,10 @@ export class PineconeIndexService {
         region: config.region,
         embed: {
           model: config.embeddingModel || 'multilingual-e5-large',
-          metric: config.metric || 'cosine'
+          metric: config.metric || 'cosine',
         },
         waitUntilReady: true,
-        tags: config.tags || { 'project': 'transcript-analysis' }
+        tags: config.tags || { project: 'transcript-analysis' },
       });
 
       console.log(`Index ${indexName} created and ready.`);
