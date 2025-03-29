@@ -36,26 +36,26 @@ export function isValidJSON(jsonString: string): boolean {
  */
 export function extractValidObjects<T = unknown>(input: string): T[] {
   const validObjects: T[] = [];
-  
+
   // First try to find complete valid objects
   const regex = /{[^{}]*}/g;
   let match: RegExpExecArray | null;
-  
+
   while ((match = regex.exec(input)) !== null) {
     const potentialObject: string = match[0];
-    
+
     // Try to clean up common JSON issues before parsing
     let cleanedObject = potentialObject;
-    
+
     // Remove trailing commas in objects
     cleanedObject = cleanedObject.replace(/,\s*(})/g, '$1');
-    
+
     // Try to parse the cleaned object
     if (isValidJSON(cleanedObject)) {
       validObjects.push(JSON.parse(cleanedObject) as T);
     }
   }
-  
+
   return validObjects;
 }
 
@@ -85,7 +85,7 @@ export function cleanJsonArray<T = unknown>(input: string): T[] {
 
   // Remove trailing commas before the closing bracket
   cleanedInput = cleanedInput.replace(/,(\s*\])/g, '$1');
-  
+
   // Replace any invalid commas between objects
   cleanedInput = cleanedInput.replace(/}(\s*),(\s*){/g, '},{');
 

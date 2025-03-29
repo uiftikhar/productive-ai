@@ -47,8 +47,8 @@ export const InstructionTemplates: Record<
         - Make sure you perform this JSON Object validation check on each and every object.
         - If there are no tickets to generate, you return an empty array.
         - Never truncate JSON objects or arrays.  
-      `
-    ]
+      `,
+    ],
   },
   MEETING_CHUNK_SUMMARY: {
     format: {

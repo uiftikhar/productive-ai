@@ -770,6 +770,11 @@
     "@nodelib/fs.scandir" "2.1.5"
     fastq "^1.6.0"
 
+"@pinecone-database/pinecone@^5.1.1":
+  version "5.1.1"
+  resolved "https://registry.yarnpkg.com/@pinecone-database/pinecone/-/pinecone-5.1.1.tgz#cc66ae873dcd76f2947ac72bc16a8f75e0bba684"
+  integrity sha512-2JwnY28qb2AQi3fLlBfiXhV6e4ZEF0/0HNLdoFWoSPcty6Eu7+354M8mo/Hj0Hi7y3TCDkSCXq2dgmbcDSmCFQ==
+
 "@pkgr/core@^0.1.0":
   version "0.1.1"
   resolved "https://registry.yarnpkg.com/@pkgr/core/-/core-0.1.1.tgz#1ec17e2edbec25c8306d424ecfbf13c7de1aaa31"
