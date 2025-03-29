@@ -14,6 +14,8 @@ export interface IndexConfig {
   serverless: boolean;
   cloud: string; // e.g., 'aws' or 'gcp'
   region: string; // e.g., 'us-west-1'
+  embeddingModel?: 'multilingual-e5-large' | 'pinecone-sparse-english-v0' | 'text-embedding-ada-002';
+  tags?: Record<string, string>;
 }
 
 export class PineconeIndexService {
@@ -56,13 +58,11 @@ export class PineconeIndexService {
         cloud: config.cloud as ServerlessSpecCloudEnum,
         region: config.region,
         embed: {
-          model: 'multilingual-e5-large', // High-quality embedding model
+          model: config.embeddingModel || 'multilingual-e5-large',
           metric: config.metric || 'cosine'
         },
-        waitUntilReady: true, // Will wait until index is ready
-        tags: {
-          'project': 'transcript-analysis'
-        }
+        waitUntilReady: true,
+        tags: config.tags || { 'project': 'transcript-analysis' }
       });
 
       console.log(`Index ${indexName} created and ready.`);
@@ -75,7 +75,7 @@ export class PineconeIndexService {
    * Gets an index instance
    */
   getIndex(indexName: VectorIndexes | string): Index {
-    return this.pinecone.Index(indexName);
+    return this.pinecone.index(indexName);
   }
 
   /**
