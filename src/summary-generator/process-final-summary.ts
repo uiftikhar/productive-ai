@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 
-import { PromptManager } from '../shared/config/services/prompt-manager.service.ts';
+import { PromptManager } from '../shared/services/prompt-manager.service.ts';
 
 export async function processFinalSummary(
   combinedSummaries: string,

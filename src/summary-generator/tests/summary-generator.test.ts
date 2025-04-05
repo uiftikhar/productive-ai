@@ -1,8 +1,8 @@
 import OpenAI from 'openai';
 
 import { generateSummary } from '../summary-generator.ts';
-import { SystemRole } from '../../shared/config/prompts/prompt-types.ts';
-import { InstructionTemplateName } from '../../shared/config/prompts/instruction-templates.ts';
+import { SystemRole } from '../../shared/prompts/prompt-types.ts';
+import { InstructionTemplateName } from '../../shared/prompts/instruction-templates.ts';
 
 // All jest.mock calls need to be at the top level, before any other code
 jest.mock('fs/promises', () => ({
@@ -41,7 +41,7 @@ jest.mock('openai', () => {
 });
 
 // Mock the prompt manager service to avoid dependency issues
-jest.mock('../../shared/config/services/prompt-manager.service.ts', () => ({
+jest.mock('../../shared/services/prompt-manager.service.ts', () => ({
   PromptManager: {
     createPrompt: jest.fn().mockReturnValue({
       messages: [

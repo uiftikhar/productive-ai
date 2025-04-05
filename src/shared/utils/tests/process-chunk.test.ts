@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import pLimit from 'p-limit';
-import { PromptManager } from '../../config/services/prompt-manager.service.ts';
+import { PromptManager } from '../../services/prompt-manager.service.ts';
 import { processAllChunks } from '../process-chunk.ts';
 // Mock dependencies
 jest.mock('p-limit', () => {
@@ -9,7 +9,7 @@ jest.mock('p-limit', () => {
   });
 });
 
-jest.mock('../../config/services/prompt-manager.service', () => ({
+jest.mock('../../services/prompt-manager.service', () => ({
   PromptManager: {
     createPrompt: jest.fn(() => ({
       messages: [
