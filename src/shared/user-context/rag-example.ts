@@ -1,4 +1,4 @@
-import { UserContextService, ContextType } from './user-context.service';
+import { UserContextService, ContextType } from './user-context.service.ts';
 import { RecordMetadata } from '@pinecone-database/pinecone';
 
 /**
@@ -106,6 +106,7 @@ async function ragExample() {
     await contextService.storeDocumentChunk(
       userId,
       documentId,
+      'ML Framework Comparison', // Document title
       documentChunks[i].content,
       documentChunks[i].embedding,
       i,
