@@ -1,7 +1,10 @@
 import OpenAI from 'openai';
 import { generateRagTickets } from '../../jira-ticket-generator/rag-ticket-generator.ts';
 import { generateRagSummary } from '../../summary-generator/rag-summary-generator.ts';
-import { UserContextService, ContextType } from '../user-context/user-context.service.ts';
+import {
+  UserContextService,
+  ContextType,
+} from '../user-context/user-context.service.ts';
 import { VectorIndexes } from '../../pinecone/pinecone-index.service.ts';
 import { RagRetrievalStrategy } from '../services/rag-prompt-manager.service.ts';
 
@@ -13,12 +16,12 @@ async function ragIntegrationExample() {
   // Initialize services
   const userContextService = new UserContextService();
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  
+
   // Set up user and project information
   const userId = 'user123';
   const projectId = 'project456';
   const conversationId = `meeting-${Date.now()}`;
-  
+
   // Sample transcript
   const transcript = `
   Team Lead: Alright everyone, let's begin our sprint planning. We need to discuss the new user authentication feature.
@@ -32,97 +35,89 @@ async function ragIntegrationExample() {
   Team Lead: Let's add a day for code review and potential refactoring.
   Product Owner: Perfect. We'll need proper documentation for the OAuth setup too.
   `;
-  
+
   // Step 1: Generate embeddings for the transcript
   // In a real application, you would use an embedding model
-  console.log("Generating embeddings for transcript...");
+  console.log('Generating embeddings for transcript...');
   const embeddingResponse = await openai.embeddings.create({
-    model: "text-embedding-ada-002",
+    model: 'text-embedding-ada-002',
     input: transcript,
   });
-  
+
   const embeddings = embeddingResponse.data[0].embedding;
-  
+
   // Step 2: Store some example context in Pinecone
-  console.log("Storing context data for demonstration...");
-  
+  console.log('Storing context data for demonstration...');
+
   // Ensure index exists (in real app, would be done during setup)
   // This is simplified - you'd normally use the PineconeIndexService
-  console.log("Setting up index (simulated)...");
-  
+  console.log('Setting up index (simulated)...');
+
   // Store example document
   await userContextService.storeDocumentChunk(
     userId,
     'auth-requirements-doc',
     'OAuth 2.0 implementation requires registering the application with identity providers. Google requires setting up API keys and redirect URIs in Google Cloud Console.',
-    embeddings.slice(0, embeddings.length/2), // Simplified for demo
+    embeddings.slice(0, embeddings.length / 2), // Simplified for demo
     0,
     1,
     {
       category: 'requirements',
-      source: 'Authentication Requirements Doc'
-    }
+      source: 'Authentication Requirements Doc',
+    },
   );
-  
+
   // Store previous meeting context
   await userContextService.storeConversationTurn(
     userId,
     'previous-meeting',
     'We should follow the security team guidelines for authentication implementation',
-    embeddings.slice(embeddings.length/2), // Simplified for demo
+    embeddings.slice(embeddings.length / 2), // Simplified for demo
     'user', // Changed from 'team_lead' to valid role
     undefined,
     {
       category: 'meeting',
-      source: 'Previous Sprint Planning'
-    }
+      source: 'Previous Sprint Planning',
+    },
   );
-  
+
   // Step 3: Generate tickets with RAG
-  console.log("Generating tickets with RAG...");
-  const tickets = await generateRagTickets(
-    transcript,
-    userId,
-    embeddings,
-    {
-      projectId,
-      conversationId,
-      retrievalStrategy: RagRetrievalStrategy.HYBRID
-    }
-  );
-  
+  console.log('Generating tickets with RAG...');
+  const tickets = await generateRagTickets(transcript, userId, embeddings, {
+    projectId,
+    conversationId,
+    retrievalStrategy: RagRetrievalStrategy.HYBRID,
+  });
+
   console.log(`Generated ${tickets.length} tickets with RAG:`);
   console.log(JSON.stringify(tickets, null, 2));
-  
+
   // Step 4: Generate meeting summary with RAG
-  console.log("\nGenerating meeting summary with RAG...");
-  const summary = await generateRagSummary(
-    transcript,
-    userId,
-    embeddings,
-    {
-      projectId,
-      conversationId,
-      retrievalStrategy: RagRetrievalStrategy.HYBRID
-    }
-  );
-  
-  console.log("Generated meeting summary with RAG:");
+  console.log('\nGenerating meeting summary with RAG...');
+  const summary = await generateRagSummary(transcript, userId, embeddings, {
+    projectId,
+    conversationId,
+    retrievalStrategy: RagRetrievalStrategy.HYBRID,
+  });
+
+  console.log('Generated meeting summary with RAG:');
   console.log(JSON.stringify(summary, null, 2));
-  
+
   // Step 5: Retrieve and display user context stats
-  console.log("\nRetrieving user context statistics...");
+  console.log('\nRetrieving user context statistics...');
   const stats = await userContextService.getUserContextStats(userId);
-  
-  console.log("User Context Statistics:");
+
+  console.log('User Context Statistics:');
   console.log(`Total context entries: ${stats.totalContextEntries}`);
   console.log(`Context types: ${JSON.stringify(stats.contextTypeCounts)}`);
   console.log(`Categories: ${JSON.stringify(stats.categoryCounts)}`);
-  
-  console.log("\nRAG Integration Example Complete!");
+
+  console.log('\nRAG Integration Example Complete!');
 }
 
 // Note: This function is for demonstration only and not meant to be run directly
 // In a real application, you would call the RAG functions from your controllers
-console.log("This is a demonstration file showing how to use RAG functions.");
-console.log("To use in your application, import the functions and call them with appropriate parameters."); 
+console.log('This is a demonstration file showing how to use RAG functions.');
+console.log(
+  'To use in your application, import the functions and call them with appropriate parameters.',
+);

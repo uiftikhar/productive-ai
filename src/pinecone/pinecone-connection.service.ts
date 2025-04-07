@@ -1,12 +1,13 @@
 import {
   Index,
   RecordMetadata,
-  FetchOptions,
 } from '@pinecone-database/pinecone';
 import {
   PineconeIndexService,
   VectorIndexes,
 } from './pinecone-index.service.ts';
+import { Logger } from '../shared/logger/logger.interface.ts';
+import { ConsoleLogger } from '../shared/logger/console-logger.ts';
 
 export interface VectorRecord<T extends RecordMetadata = RecordMetadata> {
   id: string;
@@ -25,32 +26,45 @@ export class PineconeConnectionService {
   private indexService: PineconeIndexService;
   private indexCache: Map<string, Index> = new Map();
   private maxRetries = 3;
+  private logger: Logger;
 
-  constructor() {
-    this.indexService = new PineconeIndexService();
+  constructor(
+    indexService?: PineconeIndexService,
+    logger?: Logger
+  ) {
+    this.indexService = indexService || new PineconeIndexService();
+    this.logger = logger || new ConsoleLogger();
   }
-
   /**
    * Execute an operation with retry logic
    */
   async executeWithRetry<T>(
     operation: () => Promise<T>,
+    operationName: string,
     retries: number = this.maxRetries,
   ): Promise<T> {
     try {
       return await operation();
     } catch (error) {
       if (retries <= 0) {
-        console.error('Max retries reached for Pinecone operation:', error);
+        this.logger.error(`Max retries reached for Pinecone operation: ${operationName}`, {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          operation: operationName,
+        });
         throw error;
       }
 
       // Exponential backoff
       const delay = Math.pow(2, this.maxRetries - retries) * 1000;
-      console.log(`Retrying Pinecone operation in ${delay}ms...`);
+      this.logger.warn(`Retrying Pinecone operation ${operationName}`, {
+        retriesLeft: retries - 1,
+        delayMs: delay,
+        error: error instanceof Error ? error.message : String(error),
+      });
 
       await new Promise((resolve) => setTimeout(resolve, delay));
-      return this.executeWithRetry(operation, retries - 1);
+      return this.executeWithRetry(operation, operationName, retries - 1);
     }
   }
 
@@ -90,6 +104,11 @@ export class PineconeConnectionService {
     records: VectorRecord<T>[],
     namespace?: string,
   ): Promise<void> {
+    this.logger.info(`Upserting vectors to index`, {
+      indexName,
+      recordCount: records.length,
+      namespace: namespace || 'default',
+    });
     // Get the base index without namespace to follow the official pattern
     let index = this.indexService.getIndex(indexName);
 
@@ -102,16 +121,24 @@ export class PineconeConnectionService {
     const batchSize = 100;
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
+      const batchNumber = Math.floor(i / batchSize) + 1;
+      const totalBatches = Math.ceil(records.length / batchSize);
 
+      this.logger.debug(`Processing batch ${batchNumber}/${totalBatches}`, {
+        batchSize: batch.length,
+        indexName,
+        namespace: namespace || 'default',
+      });
       await this.executeWithRetry(async () => {
         await index.upsert(batch);
+      }, `upsertVectors:${indexName}:batch${batchNumber}`);
+
+      this.logger.info(`Successfully upserted vectors`, {
+        indexName,
+        recordCount: records.length,
+        namespace: namespace || 'default',
       });
     }
-
-    const namespaceStr = namespace ? ` to namespace '${namespace}'` : '';
-    console.log(
-      `Upserted ${records.length} vectors to ${indexName}${namespaceStr}`,
-    );
   }
 
   /**
@@ -143,7 +170,7 @@ export class PineconeConnectionService {
         includeMetadata: options.includeMetadata !== false,
         includeValues: options.includeValues || false,
       });
-    });
+    }, `queryVectors:${indexName}`, 3);
   }
 
   /**
@@ -167,12 +194,15 @@ export class PineconeConnectionService {
 
     await this.executeWithRetry(async () => {
       await index.deleteMany(ids);
-    });
+    }, `deleteVectors:${indexName}`, 3);
 
-    const namespaceStr = namespace ? ` from namespace '${namespace}'` : '';
-    console.log(
-      `Deleted ${ids.length} vectors from ${indexName}${namespaceStr}`,
-    );
+
+    this.logger.info(`Successfully Deleted vectors by ids`, {
+      totalIds: ids.length,
+      ids: ids.toString(),
+      indexName,
+      namespace: namespace || 'default',
+    });
   }
 
   /**
@@ -196,10 +226,12 @@ export class PineconeConnectionService {
 
     await this.executeWithRetry(async () => {
       await index.deleteMany(filter);
-    });
+    }, `deleteVectorsByFilter:${indexName}`, 3);
 
-    const namespaceStr = namespace ? ` from namespace '${namespace}'` : '';
-    console.log(`Deleted vectors by filter from ${indexName}${namespaceStr}`);
+    this.logger.info(`Successfully Deleted vectors by filter`, {
+      indexName,
+      namespace: namespace || 'default',
+    });
   }
 
   /**
@@ -216,11 +248,12 @@ export class PineconeConnectionService {
 
     await this.executeWithRetry(async () => {
       await index.deleteAll();
-    });
+    }, `deleteAllVectorsInNamespace:${indexName}`, 3);
 
-    console.log(
-      `Deleted all vectors from namespace '${namespace}' in index ${indexName}`,
-    );
+    this.logger.info(`Successfully Deleted all vectors from namespace`, {
+      indexName,
+      namespace: namespace || 'default',
+    });
   }
 
   /**
@@ -232,7 +265,7 @@ export class PineconeConnectionService {
 
     return this.executeWithRetry(async () => {
       return await index.describeIndexStats();
-    });
+    }, `describeIndexStats:${indexName}`, 3);
   }
 
   /**
@@ -255,8 +288,7 @@ export class PineconeConnectionService {
     }
 
     return this.executeWithRetry(async () => {
-      // FetchOptions is actually defined as an array of IDs, not an object
       return await index.fetch(ids);
-    });
+    }, `fetchVectors:${indexName}`, 3);
   }
 }
