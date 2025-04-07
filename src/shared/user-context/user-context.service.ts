@@ -1,8 +1,8 @@
 import { RecordMetadata } from '@pinecone-database/pinecone';
 import {
   PineconeConnectionService,
-  VectorRecord,
 } from '../../pinecone/pinecone-connection.service.ts';
+import { VectorRecord } from '../../pinecone/pinecone.type.ts';
 
 /**
  * The index name for user context data in Pinecone

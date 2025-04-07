@@ -9,19 +9,8 @@ import {
 import { Logger } from '../shared/logger/logger.interface.ts';
 import { ConsoleLogger } from '../shared/logger/console-logger.ts';
 import { PineconeConnectionConfig, DEFAULT_CONFIG } from './pinecone-connection.config.ts';
+import { VectorRecord, QueryOptions, QueryResponse } from './pinecone.type.ts';
 
-export interface VectorRecord<T extends RecordMetadata = RecordMetadata> {
-  id: string;
-  values: number[];
-  metadata?: T;
-}
-
-export interface QueryOptions {
-  topK?: number;
-  filter?: Record<string, any>;
-  includeMetadata?: boolean;
-  includeValues?: boolean;
-}
 
 export class PineconeConnectionService {
   private indexService: PineconeIndexService;
@@ -63,7 +52,7 @@ export class PineconeConnectionService {
 
     return Promise.resolve();
   }
-  
+
   /**
    * Execute an operation with retry logic
    */
@@ -188,6 +177,16 @@ export class PineconeConnectionService {
     }
   }
 
+
+  private getTypedIndex<T extends RecordMetadata>(
+    indexName: string | VectorIndexes,
+    namespace?: string
+  ): Promise<Index<T>> {
+    return this.getIndex(indexName).then(index => {
+      return namespace ? index.namespace(namespace) as Index<T> : index as Index<T>;
+    });
+  }
+
   /**
    * Query vectors from an index
    * @param indexName The name of the index
@@ -200,16 +199,11 @@ export class PineconeConnectionService {
     queryVector: number[],
     options: QueryOptions = {},
     namespace?: string,
-  ) {
+  ): Promise<QueryResponse<T>> {
     // Get the base index without namespace
-    let index = this.indexService.getIndex(indexName);
+    const index = await this.getTypedIndex<T>(indexName, namespace);
 
-    // If namespace is provided, use the namespace() method directly
-    if (namespace) {
-      index = index.namespace(namespace);
-    }
-
-    return this.executeWithRetry(async () => {
+    return this.executeWithRetry<QueryResponse<T>>(async () => {
       return await index.query({
         vector: queryVector,
         topK: options.topK || 10,
@@ -219,6 +213,7 @@ export class PineconeConnectionService {
       });
     }, `queryVectors:${indexName}`, 3);
   }
+
 
   /**
    * Delete vectors by ID
@@ -337,5 +332,65 @@ export class PineconeConnectionService {
     return this.executeWithRetry(async () => {
       return await index.fetch(ids);
     }, `fetchVectors:${indexName}`, 3);
+  }
+
+  /**
+   * Find similar vectors using similarity search
+   * @param indexName The name of the index
+   * @param vector The query vector
+   * @param topK Number of results to return
+   * @param namespace Optional namespace to search in
+   */
+  async findSimilar<T extends RecordMetadata = RecordMetadata>(
+    indexName: VectorIndexes | string,
+    vector: number[],
+    topK = 10,
+    namespace?: string,
+  ): Promise<QueryResponse<T>> {
+    return this.queryVectors<T>(
+      indexName,
+      vector,
+      { topK, includeMetadata: true },
+      namespace,
+    );
+  }
+
+  /**
+   * Check if a namespace exists
+   * @param indexName The name of the index
+   * @param namespace The namespace to check
+   */
+  async namespaceExists(
+    indexName: VectorIndexes | string,
+    namespace: string,
+  ): Promise<boolean> {
+    const stats = await this.describeIndexStats(indexName);
+    return !!stats.namespaces && namespace in stats.namespaces;
+  }
+
+  /**
+   * List all namespaces in an index
+   * @param indexName The name of the index
+   */
+  async listNamespaces(
+    indexName: VectorIndexes | string,
+  ): Promise<string[]> {
+    const stats = await this.describeIndexStats(indexName);
+    return stats.namespaces ? Object.keys(stats.namespaces) : [];
+  }
+
+  /**
+   * Get vector count for a namespace
+   * @param indexName The name of the index
+   * @param namespace The namespace to check
+   */
+  async getNamespaceVectorCount(
+    indexName: VectorIndexes | string,
+    namespace: string,
+  ): Promise<number> {
+    const stats = await this.describeIndexStats(indexName);
+    return stats.namespaces && stats.namespaces[namespace]
+      ? stats.namespaces[namespace].vectorCount
+      : 0;
   }
 }
