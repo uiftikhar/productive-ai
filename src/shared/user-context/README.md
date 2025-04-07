@@ -126,3 +126,72 @@ This enhanced service provides the foundation for:
 - Organizational knowledge graph visualization
 - Cross-team knowledge gap identification
 - Predictive meeting topic suggestions 
+
+## Decision Dependency Analysis
+
+The `UserContextService` can also analyze decision dependencies. Here's how you can use it to map dependencies between decisions:
+
+### Retrieve all decisions related to the payment gateway feature
+const decisions = await userContextService.retrieveRagContext(
+  'user123',
+  paymentGatewayEmbedding,
+  {
+    contextTypes: [ContextType.DECISION],
+    timeRangeStart: projectStartTimestamp,
+    timeRangeEnd: projectEndTimestamp
+  }
+);
+
+// Map dependencies between decisions
+const decisionMap = decisions.reduce((map, decision) => {
+  // Identify decisions that reference earlier decisions by analyzing content
+  // Map the dependency connections
+  return map;
+}, {});
+
+// Track the evolution of the "Payment Gateway Integration" topic
+const topicEvolution = await userContextService.getTopicEvolution(
+  'user123',
+  'payment-gateway-topic',
+  startTimestamp,  // From product kickoff meeting
+  endTimestamp     // Latest legal compliance meeting
+);
+
+// Results would show how discussions evolved from:
+// - Initial feature requirements
+// - Technical implementation options
+// - Marketing positioning
+// - Legal compliance requirements
+// - Final launch decisions 
+
+// Detect knowledge gaps between teams regarding payment processing
+const knowledgeGaps = await userContextService.detectKnowledgeGaps(
+  'user123',
+  ['engineering-team', 'legal-team', 'marketing-team'],
+  [paymentProcessingEmbedding],
+  ['Payment Processing Requirements'],
+  0.7 // Similarity threshold
+);
+
+// Results might show:
+// - Engineering team unaware of specific legal requirements
+// - Marketing team has different understanding of feature capabilities
+// - Legal team missing information about implementation timeline
+
+// Retrieve all decisions related to the payment gateway feature
+const decisions = await userContextService.retrieveRagContext(
+  'user123',
+  paymentGatewayEmbedding,
+  {
+    contextTypes: [ContextType.DECISION],
+    timeRangeStart: projectStartTimestamp,
+    timeRangeEnd: projectEndTimestamp
+  }
+);
+
+// Map dependencies between decisions
+const decisionMap = decisions.reduce((map, decision) => {
+  // Identify decisions that reference earlier decisions by analyzing content
+  // Map the dependency connections
+  return map;
+}, {});
