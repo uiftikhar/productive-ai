@@ -58,13 +58,10 @@ async function ragIntegrationExample() {
     userId,
     'auth-requirements-doc',
     'OAuth 2.0 implementation requires registering the application with identity providers. Google requires setting up API keys and redirect URIs in Google Cloud Console.',
-    embeddings.slice(0, embeddings.length / 2), // Simplified for demo
-    0,
-    1,
-    {
-      category: 'requirements',
-      source: 'Authentication Requirements Doc',
-    },
+    JSON.stringify(embeddings.slice(0, embeddings.length / 2)), // Convert embedding array to string
+    [0], // Array of numbers as required by the parameter type
+    1, // Similarity score
+    1, // Changed from object to number as required by the parameter type
   );
 
   // Store previous meeting context
