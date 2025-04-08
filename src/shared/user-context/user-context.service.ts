@@ -1,7 +1,8 @@
-import { RecordMetadata } from '@pinecone-database/pinecone';
 import {
-  PineconeConnectionService,
-} from '../../pinecone/pinecone-connection.service.ts';
+  RecordMetadata,
+  RecordMetadataValue,
+} from '@pinecone-database/pinecone';
+import { PineconeConnectionService } from '../../pinecone/pinecone-connection.service.ts';
 import { VectorRecord } from '../../pinecone/pinecone.type.ts';
 import { Logger } from '../../shared/logger/logger.interface.ts';
 import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
@@ -44,12 +45,12 @@ export enum ContextType {
   PREFERENCE = 'preference',
   TASK = 'task',
   CUSTOM = 'custom',
-  MEETING = 'meeting',        // New: Meeting transcripts/content
-  DECISION = 'decision',      // New: Decisions made in meetings
+  MEETING = 'meeting', // New: Meeting transcripts/content
+  DECISION = 'decision', // New: Decisions made in meetings
   ACTION_ITEM = 'action_item', // New: Action items assigned in meetings
-  TOPIC = 'topic',            // New: Topics discussed across meetings
+  TOPIC = 'topic', // New: Topics discussed across meetings
   AGENDA_ITEM = 'agenda_item', // New: Meeting agenda items
-  QUESTION = 'question',      // New: Questions asked in meetings
+  QUESTION = 'question', // New: Questions asked in meetings
 }
 
 /**
@@ -69,6 +70,197 @@ export enum KnowledgeGapType {
   MISALIGNMENT = 'misalignment',
   MISSING_INFORMATION = 'missing-information',
   UNANSWERED_QUESTION = 'unanswered-question',
+}
+
+/**
+ * Standard user roles in the organization
+ */
+export enum UserRole {
+  PRODUCT_OWNER = 'product-owner',
+  DEVELOPER = 'developer',
+  DESIGNER = 'designer',
+  QA = 'qa',
+  LEGAL = 'legal',
+  MARKETING = 'marketing',
+  SALES = 'sales',
+  EXECUTIVE = 'executive',
+  SUPPORT = 'support',
+  OPERATIONS = 'operations',
+  CUSTOM = 'custom',
+}
+
+/**
+ * Types of relationships between themes
+ */
+export enum ThemeRelationshipType {
+  PARENT = 'parent', // Current theme is a parent of the related theme
+  CHILD = 'child', // Current theme is a child of the related theme
+  RELATED = 'related', // Themes are related without hierarchy
+  EVOLUTION = 'evolution', // Current theme evolved from the related theme
+  CONFLICT = 'conflict', // Themes represent conflicting viewpoints
+  DEPENDENCY = 'dependency', // Current theme depends on the related theme
+}
+
+/**
+ * Structure representing a relationship between themes
+ */
+export interface ThemeRelationship {
+  /** ID of the related theme */
+  relatedThemeId: string;
+  /** Name of the related theme */
+  relatedThemeName: string;
+  /** Type of relationship */
+  relationshipType: ThemeRelationshipType;
+  /** Strength of the relationship (0-1) */
+  relationshipStrength: number;
+  /** When the relationship was established */
+  establishedAt: number;
+  /** Additional descriptive information about the relationship */
+  description?: string;
+}
+
+/**
+ * Information about the origin of a theme
+ */
+export interface ThemeOrigin {
+  /** Where the theme was first identified (meeting, document, etc.) */
+  sourceType: string;
+  /** ID of the source where the theme originated */
+  sourceId: string;
+  /** When the theme was first identified */
+  identifiedAt: number;
+  /** User who first introduced or identified this theme */
+  originatingUserId?: string;
+}
+
+/**
+ * Tracking data for theme evolution over time
+ */
+export interface ThemeEvolution {
+  /** Evolution stages of this theme */
+  stages: Array<{
+    /** When this stage occurred */
+    timestamp: number;
+    /** Description of this evolution stage */
+    description: string;
+    /** Source where this evolution was observed */
+    sourceId?: string;
+    /** Changes in theme relevance at this stage */
+    relevanceChange?: number;
+  }>;
+  /** Overall maturity level of the theme (0-1) */
+  maturityLevel: number;
+  /** Is the theme still actively evolving */
+  isActive: boolean;
+}
+
+/**
+ * Types of cognitive memories
+ */
+export enum MemoryType {
+  EPISODIC = 'episodic', // Event or experience-based memory
+  SEMANTIC = 'semantic', // Concept or knowledge-based memory
+  PROCEDURAL = 'procedural', // Process or skill-based memory
+}
+
+/**
+ * Structure for episodic memory context
+ */
+export interface EpisodicContext {
+  /** When the episode occurred */
+  timestamp: number;
+  /** Type of episode (meeting, decision point, etc.) */
+  episodeType: string;
+  /** Sequence of related events with timestamps */
+  timeline?: Array<{
+    timestamp: number;
+    event: string;
+    actors?: string[];
+  }>;
+  /** Participants involved in this episode */
+  participants?: string[];
+  /** Outcomes or conclusions from this episode */
+  outcomes?: string[];
+  /** Emotional context surrounding this episode */
+  emotionalContext?: {
+    sentiment: 'positive' | 'negative' | 'neutral';
+    intensity: number;
+    description?: string;
+  };
+}
+
+/**
+ * Structure for semantic (concept) memory
+ */
+export interface SemanticStructure {
+  /** Core concept represented */
+  concept: string;
+  /** Definition of the concept */
+  definition: string;
+  /** Related concepts */
+  relatedConcepts?: Array<{
+    concept: string;
+    relationshipType: string;
+    strength: number;
+  }>;
+  /** Examples of this concept */
+  examples?: string[];
+  /** Domain this concept belongs to */
+  domain?: string;
+  /** Specificity of this concept (0-1, higher = more specific) */
+  specificity: number;
+}
+
+/**
+ * Structure for procedural (process) memory
+ */
+export interface ProceduralSteps {
+  /** Name of the procedure */
+  procedure: string;
+  /** Ordered steps in this procedure */
+  steps: Array<{
+    order: number;
+    description: string;
+    isRequired: boolean;
+    estimatedDuration?: number;
+  }>;
+  /** What triggers this procedure */
+  triggers?: string[];
+  /** Expected outcomes of this procedure */
+  outcomes?: string[];
+  /** Common variations of this procedure */
+  variations?: Array<{
+    name: string;
+    description: string;
+    conditionForUse: string;
+  }>;
+}
+
+/**
+ * Models for time-based relevance
+ */
+export enum TemporalRelevanceModel {
+  LINEAR_DECAY = 'linear-decay', // Linear relevance decay over time
+  EXPONENTIAL_DECAY = 'exponential-decay', // Exponential relevance decay
+  CYCLICAL = 'cyclical', // Cyclical relevance pattern
+  MILESTONE_BASED = 'milestone-based', // Relevance tied to milestones
+  EVERGREEN = 'evergreen', // No decay in relevance
+}
+
+/**
+ * Structure for cyclical temporal patterns
+ */
+export interface CyclicalPattern {
+  /** Type of cycle */
+  cycleType: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual' | 'custom';
+  /** Length of cycle in milliseconds (for custom) */
+  cycleLengthMs?: number;
+  /** Peak relevance times within the cycle */
+  peakTimesInCycle?: number[];
+  /** Minimum relevance during cycle low points (0-1) */
+  minRelevance: number;
+  /** Maximum relevance during cycle peaks (0-1) */
+  maxRelevance: number;
 }
 
 /**
@@ -138,8 +330,62 @@ export interface UserContextMetadata {
   // Relevance and recency
   recency?: number; // Higher values indicate more recent/relevant content
 
+  // New Theme-Related Fields
+  /** IDs of themes associated with this context item */
+  themeIds?: string[];
+  /** Names of themes associated with this context item */
+  themeNames?: string[];
+  /** Map of theme IDs to relevance scores (0-1) */
+  themeRelevance?: Record<string, number>;
+  /** Relationships to other themes */
+  themeRelationships?: ThemeRelationship[];
+  /** Information about theme origin */
+  themeOrigin?: ThemeOrigin;
+  /** Tracking data for theme evolution */
+  themeEvolution?: ThemeEvolution;
+
+  // New Role-Related Fields
+  /** Map of role types to relevance scores (0-1) */
+  roleRelevance?: Record<UserRole, number>;
+  /** Roles that contributed to this context item */
+  contributingRoles?: UserRole[];
+  /** Roles that would find this context particularly relevant */
+  targetRoles?: UserRole[];
+  /** Map of role types to tailored summaries of the content */
+  roleSpecificSummaries?: Record<UserRole, string>;
+  /** Required expertise level to fully utilize this information (0-1) */
+  expertiseLevel?: number;
+
+  // New Cognitive Memory Fields
+  /** Type of cognitive memory */
+  memoryType?: MemoryType;
+  /** Strength of this memory (reinforcement level, 0-1) */
+  memoryStrength?: number;
+  /** Related memory IDs */
+  memoryConnections?: string[];
+  /** Context for episodic memories */
+  episodicContext?: EpisodicContext;
+  /** Structure for semantic memories */
+  semanticStructure?: SemanticStructure;
+  /** Steps for procedural memories */
+  proceduralSteps?: ProceduralSteps;
+
+  // New Temporal Intelligence Fields
+  /** Model for time-based relevance */
+  temporalRelevanceModel?: TemporalRelevanceModel;
+  /** How quickly relevance decays over time (0-1, higher = faster decay) */
+  decayRate?: number;
+  /** When this memory was last reinforced */
+  lastReinforcementTime?: number;
+  /** Pattern of recurring relevance */
+  cyclicalPattern?: CyclicalPattern;
+  /** Seasonal relevance factors */
+  seasonality?: string[];
+  /** When this content stops being relevant */
+  timeRelevantUntil?: number;
+
   // Add any other metadata properties here
-  [key: string]: string | number | boolean | string[] | undefined;
+  [key: string]: string | number | boolean | string[] | undefined | any;
 }
 
 /**
@@ -153,11 +399,14 @@ export class UserContextService {
   private maxRetries = 3;
   private retryDelay = 1000; // ms
 
-  constructor(options: {
-    pineconeService?: PineconeConnectionService;
-    logger?: Logger;
-  } = {}) {
-    this.pineconeService = options.pineconeService || new PineconeConnectionService();
+  constructor(
+    options: {
+      pineconeService?: PineconeConnectionService;
+      logger?: Logger;
+    } = {},
+  ) {
+    this.pineconeService =
+      options.pineconeService || new PineconeConnectionService();
     this.logger = options.logger || new ConsoleLogger();
   }
 
@@ -172,7 +421,9 @@ export class UserContextService {
     try {
       const exists = await this.indexExists();
       if (!exists) {
-        this.logger.warn(`User context index "${USER_CONTEXT_INDEX}" doesn't exist - some operations may fail`);
+        this.logger.warn(
+          `User context index "${USER_CONTEXT_INDEX}" doesn't exist - some operations may fail`,
+        );
       }
     } catch (error) {
       this.logger.error('Error checking user context index', {
@@ -205,21 +456,27 @@ export class UserContextService {
       return await operation();
     } catch (error) {
       if (retries <= 0) {
-        this.logger.error(`Max retries reached for UserContextService operation: ${operationName}`, {
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-          operation: operationName,
-        });
+        this.logger.error(
+          `Max retries reached for UserContextService operation: ${operationName}`,
+          {
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+            operation: operationName,
+          },
+        );
         throw error;
       }
 
       // Exponential backoff
       const delay = this.retryDelay * Math.pow(2, this.maxRetries - retries);
-      this.logger.warn(`Retrying UserContextService operation ${operationName}`, {
-        retriesLeft: retries - 1,
-        delayMs: delay,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      this.logger.warn(
+        `Retrying UserContextService operation ${operationName}`,
+        {
+          retriesLeft: retries - 1,
+          delayMs: delay,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
 
       await new Promise((resolve) => setTimeout(resolve, delay));
       return this.executeWithRetry(operation, operationName, retries - 1);
@@ -229,11 +486,89 @@ export class UserContextService {
   /**
    * Validate that required fields are present in metadata
    */
-  private validateMetadata(metadata: Partial<UserContextMetadata>, requiredFields: string[]): void {
+  private validateMetadata(
+    metadata: Partial<UserContextMetadata>,
+    requiredFields: string[],
+  ): void {
     for (const field of requiredFields) {
       if (metadata[field] === undefined) {
-        throw new UserContextValidationError(`Required metadata field "${field}" is missing`);
+        throw new UserContextValidationError(
+          `Required metadata field "${field}" is missing`,
+        );
       }
+    }
+
+    // Add validation for new fields
+    // Theme validation
+    if (
+      metadata.themeIds &&
+      metadata.themeNames &&
+      metadata.themeIds.length !== metadata.themeNames.length
+    ) {
+      throw new UserContextValidationError(
+        'Theme IDs and names arrays must have the same length',
+      );
+    }
+
+    if (metadata.themeRelevance) {
+      for (const [themeId, score] of Object.entries(metadata.themeRelevance)) {
+        if (score < 0 || score > 1) {
+          throw new UserContextValidationError(
+            `Theme relevance score must be between 0 and 1, got ${score} for theme ${themeId}`,
+          );
+        }
+      }
+    }
+
+    // Role validation
+    if (metadata.roleRelevance) {
+      for (const [role, score] of Object.entries(metadata.roleRelevance)) {
+        if (score < 0 || score > 1) {
+          throw new UserContextValidationError(
+            `Role relevance score must be between 0 and 1, got ${score} for role ${role}`,
+          );
+        }
+      }
+    }
+
+    // Memory validation
+    if (
+      metadata.memoryType &&
+      !Object.values(MemoryType).includes(metadata.memoryType as MemoryType)
+    ) {
+      throw new UserContextValidationError(
+        `Invalid memory type: ${metadata.memoryType}`,
+      );
+    }
+
+    if (
+      metadata.memoryStrength !== undefined &&
+      (metadata.memoryStrength < 0 || metadata.memoryStrength > 1)
+    ) {
+      throw new UserContextValidationError(
+        `Memory strength must be between 0 and 1, got ${metadata.memoryStrength}`,
+      );
+    }
+
+    // Temporal validation
+    if (
+      metadata.temporalRelevanceModel &&
+      !Object.values(TemporalRelevanceModel).includes(
+        metadata.temporalRelevanceModel as TemporalRelevanceModel,
+      )
+    ) {
+      throw new UserContextValidationError(
+        `Invalid temporal relevance model: ${metadata.temporalRelevanceModel}`,
+      );
+    }
+
+    if (
+      metadata.decayRate !== undefined &&
+      (metadata.decayRate < 0 || metadata.decayRate > 1)
+    ) {
+      throw new UserContextValidationError(
+        `Decay rate must be between 0 and 1, got ${metadata.decayRate}`,
+      );
     }
   }
 
@@ -273,22 +608,23 @@ export class UserContextService {
     const record: VectorRecord<RecordMetadata> = {
       id: contextId,
       values: embeddings,
-      metadata: {
+      metadata: this.prepareMetadataForStorage({
         userId,
         timestamp: Date.now(),
         ...metadata,
-      },
+      }),
     };
 
     try {
       // Store the vector in the user's namespace
       await this.executeWithRetry(
-        () => this.pineconeService.upsertVectors<RecordMetadata>(
-          USER_CONTEXT_INDEX,
-          [record],
-          userId, // Using userId as the namespace
-        ),
-        `storeUserContext:${userId}`
+        () =>
+          this.pineconeService.upsertVectors<RecordMetadata>(
+            USER_CONTEXT_INDEX,
+            [record],
+            userId, // Using userId as the namespace
+          ),
+        `storeUserContext:${userId}`,
       );
 
       this.logger.debug('Stored user context', {
@@ -303,8 +639,10 @@ export class UserContextService {
         userId,
         error: error instanceof Error ? error.message : String(error),
       });
-      throw new UserContextError('Failed to store user context: ' +
-        (error instanceof Error ? error.message : String(error)));
+      throw new UserContextError(
+        'Failed to store user context: ' +
+          (error instanceof Error ? error.message : String(error)),
+      );
     }
   }
 
@@ -730,7 +1068,7 @@ export class UserContextService {
     // Create an updated record with the new relevance score
     const updatedRecord: VectorRecord<RecordMetadata> = {
       id: contextId,
-      values: record.values || [],
+      values: this.ensureNumberArray(record.values),
       metadata: {
         ...record.metadata,
         relevanceScore,
@@ -766,11 +1104,11 @@ export class UserContextService {
       return {
         id: contextId,
         values: entry.embeddings,
-        metadata: {
+        metadata: this.prepareMetadataForStorage({
           userId,
           timestamp: Date.now(),
           ...entry.metadata,
-        },
+        }),
       };
     });
 
@@ -872,18 +1210,18 @@ export class UserContextService {
   }
 
   /**
- * Store meeting content in the context database
- * @param userId User identifier
- * @param meetingId Unique meeting identifier
- * @param meetingTitle Title of the meeting
- * @param content Meeting content or transcript
- * @param embeddings Vector embeddings for the content
- * @param participantIds IDs of meeting participants
- * @param meetingStartTime Start time of the meeting
- * @param meetingEndTime End time of the meeting
- * @param metadata Additional metadata
- * @returns The ID of the stored meeting content
- */
+   * Store meeting content in the context database
+   * @param userId User identifier
+   * @param meetingId Unique meeting identifier
+   * @param meetingTitle Title of the meeting
+   * @param content Meeting content or transcript
+   * @param embeddings Vector embeddings for the content
+   * @param participantIds IDs of meeting participants
+   * @param meetingStartTime Start time of the meeting
+   * @param meetingEndTime End time of the meeting
+   * @param metadata Additional metadata
+   * @returns The ID of the stored meeting content
+   */
   async storeMeetingContent(
     userId: string,
     meetingId: string,
@@ -934,7 +1272,9 @@ export class UserContextService {
     metadata: Partial<UserContextMetadata> = {},
   ): Promise<string> {
     if (!meetingId || !agendaItemId) {
-      throw new UserContextValidationError('Meeting ID and Agenda Item ID are required');
+      throw new UserContextValidationError(
+        'Meeting ID and Agenda Item ID are required',
+      );
     }
 
     return this.storeUserContext(userId, content, embeddings, {
@@ -968,7 +1308,9 @@ export class UserContextService {
     metadata: Partial<UserContextMetadata> = {},
   ): Promise<string> {
     if (!meetingId || !decisionId) {
-      throw new UserContextValidationError('Meeting ID and Decision ID are required');
+      throw new UserContextValidationError(
+        'Meeting ID and Decision ID are required',
+      );
     }
 
     return this.storeUserContext(userId, decision, embeddings, {
@@ -1005,7 +1347,9 @@ export class UserContextService {
     metadata: Partial<UserContextMetadata> = {},
   ): Promise<string> {
     if (!meetingId || !actionItemId) {
-      throw new UserContextValidationError('Meeting ID and Action Item ID are required');
+      throw new UserContextValidationError(
+        'Meeting ID and Action Item ID are required',
+      );
     }
 
     return this.storeUserContext(userId, actionItem, embeddings, {
@@ -1039,21 +1383,22 @@ export class UserContextService {
 
     // Find the action item
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [],
-        {
-          topK: 1,
-          filter: {
-            actionItemId,
-            contextType: ContextType.ACTION_ITEM,
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [],
+          {
+            topK: 1,
+            filter: {
+              actionItemId,
+              contextType: ContextType.ACTION_ITEM,
+            },
+            includeValues: true,
+            includeMetadata: true,
           },
-          includeValues: true,
-          includeMetadata: true,
-        },
-        userId
-      ),
-      `findActionItem:${userId}:${actionItemId}`
+          userId,
+        ),
+      `findActionItem:${userId}:${actionItemId}`,
     );
 
     if (!result.matches || result.matches.length === 0) {
@@ -1068,7 +1413,7 @@ export class UserContextService {
     // Update the action item status
     const updatedRecord: VectorRecord<RecordMetadata> = {
       id: actionItem.id,
-      values: actionItem.values || [],
+      values: this.ensureNumberArray(actionItem.values),
       metadata: {
         ...actionItem.metadata,
         status,
@@ -1077,12 +1422,13 @@ export class UserContextService {
     };
 
     await this.executeWithRetry(
-      () => this.pineconeService.upsertVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [updatedRecord],
-        userId
-      ),
-      `updateActionItemStatus:${userId}:${actionItemId}`
+      () =>
+        this.pineconeService.upsertVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [updatedRecord],
+          userId,
+        ),
+      `updateActionItemStatus:${userId}:${actionItemId}`,
     );
 
     this.logger.debug('Updated action item status', {
@@ -1117,7 +1463,9 @@ export class UserContextService {
     metadata: Partial<UserContextMetadata> = {},
   ): Promise<string> {
     if (!meetingId || !questionId) {
-      throw new UserContextValidationError('Meeting ID and Question ID are required');
+      throw new UserContextValidationError(
+        'Meeting ID and Question ID are required',
+      );
     }
 
     return this.storeUserContext(userId, question, embeddings, {
@@ -1145,26 +1493,29 @@ export class UserContextService {
     answerContextId: string,
   ): Promise<boolean> {
     if (!questionId || !answerContextId) {
-      throw new UserContextValidationError('Question ID and Answer Context ID are required');
+      throw new UserContextValidationError(
+        'Question ID and Answer Context ID are required',
+      );
     }
 
     // Find the question
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [],
-        {
-          topK: 1,
-          filter: {
-            questionId,
-            contextType: ContextType.QUESTION,
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [],
+          {
+            topK: 1,
+            filter: {
+              questionId,
+              contextType: ContextType.QUESTION,
+            },
+            includeValues: true,
+            includeMetadata: true,
           },
-          includeValues: true,
-          includeMetadata: true,
-        },
-        userId
-      ),
-      `findQuestion:${userId}:${questionId}`
+          userId,
+        ),
+      `findQuestion:${userId}:${questionId}`,
     );
 
     if (!result.matches || result.matches.length === 0) {
@@ -1179,7 +1530,7 @@ export class UserContextService {
     // Update the question
     const updatedRecord: VectorRecord<RecordMetadata> = {
       id: question.id,
-      values: question.values || [],
+      values: this.ensureNumberArray(question.values),
       metadata: {
         ...question.metadata,
         isAnswered: true,
@@ -1189,12 +1540,13 @@ export class UserContextService {
     };
 
     await this.executeWithRetry(
-      () => this.pineconeService.upsertVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [updatedRecord],
-        userId
-      ),
-      `markQuestionAsAnswered:${userId}:${questionId}`
+      () =>
+        this.pineconeService.upsertVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [updatedRecord],
+          userId,
+        ),
+      `markQuestionAsAnswered:${userId}:${questionId}`,
     );
 
     this.logger.debug('Marked question as answered', {
@@ -1207,15 +1559,15 @@ export class UserContextService {
   }
 
   /**
- * Track a topic across multiple meetings
- * @param userId User identifier
- * @param topicId Unique topic identifier
- * @param topicName Name or description of the topic
- * @param meetingIds IDs of meetings where the topic was discussed
- * @param topicEmbeddings Vector embeddings for the topic
- * @param metadata Additional metadata
- * @returns The ID of the stored topic entry
- */
+   * Track a topic across multiple meetings
+   * @param userId User identifier
+   * @param topicId Unique topic identifier
+   * @param topicName Name or description of the topic
+   * @param meetingIds IDs of meetings where the topic was discussed
+   * @param topicEmbeddings Vector embeddings for the topic
+   * @param metadata Additional metadata
+   * @returns The ID of the stored topic entry
+   */
   async trackTopicAcrossMeetings(
     userId: string,
     topicId: string,
@@ -1229,7 +1581,9 @@ export class UserContextService {
     }
 
     if (!meetingIds || meetingIds.length === 0) {
-      throw new UserContextValidationError('At least one meeting ID is required');
+      throw new UserContextValidationError(
+        'At least one meeting ID is required',
+      );
     }
 
     return this.storeUserContext(userId, topicName, topicEmbeddings, {
@@ -1259,26 +1613,29 @@ export class UserContextService {
     }
 
     if (!additionalMeetingIds || additionalMeetingIds.length === 0) {
-      throw new UserContextValidationError('At least one meeting ID is required');
+      throw new UserContextValidationError(
+        'At least one meeting ID is required',
+      );
     }
 
     // Find the topic
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [],
-        {
-          topK: 1,
-          filter: {
-            topicId,
-            contextType: ContextType.TOPIC,
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [],
+          {
+            topK: 1,
+            filter: {
+              topicId,
+              contextType: ContextType.TOPIC,
+            },
+            includeValues: true,
+            includeMetadata: true,
           },
-          includeValues: true,
-          includeMetadata: true,
-        },
-        userId
-      ),
-      `findTopic:${userId}:${topicId}`
+          userId,
+        ),
+      `findTopic:${userId}:${topicId}`,
     );
 
     if (!result.matches || result.matches.length === 0) {
@@ -1291,15 +1648,18 @@ export class UserContextService {
     }
 
     // Get existing meeting IDs
-    const existingMeetingIds = topic.metadata.relatedMeetingIds as string[] || [];
+    const existingMeetingIds =
+      (topic.metadata.relatedMeetingIds as string[]) || [];
 
     // Combine without duplicates
-    const allMeetingIds = Array.from(new Set([...existingMeetingIds, ...additionalMeetingIds]));
+    const allMeetingIds = Array.from(
+      new Set([...existingMeetingIds, ...additionalMeetingIds]),
+    );
 
     // Update the topic
     const updatedRecord: VectorRecord<RecordMetadata> = {
       id: topic.id,
-      values: topic.values || [],
+      values: this.ensureNumberArray(topic.values),
       metadata: {
         ...topic.metadata,
         relatedMeetingIds: allMeetingIds,
@@ -1308,12 +1668,13 @@ export class UserContextService {
     };
 
     await this.executeWithRetry(
-      () => this.pineconeService.upsertVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [updatedRecord],
-        userId
-      ),
-      `updateTopicMeetings:${userId}:${topicId}`
+      () =>
+        this.pineconeService.upsertVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [updatedRecord],
+          userId,
+        ),
+      `updateTopicMeetings:${userId}:${topicId}`,
     );
 
     this.logger.debug('Updated topic meetings', {
@@ -1349,21 +1710,22 @@ export class UserContextService {
 
     // Find the topic record
     const topicResult = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [],
-        {
-          topK: 1,
-          filter: {
-            topicId,
-            contextType: ContextType.TOPIC,
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [],
+          {
+            topK: 1,
+            filter: {
+              topicId,
+              contextType: ContextType.TOPIC,
+            },
+            includeValues: false,
+            includeMetadata: true,
           },
-          includeValues: false,
-          includeMetadata: true,
-        },
-        userId
-      ),
-      `findTopic:${userId}:${topicId}`
+          userId,
+        ),
+      `findTopic:${userId}:${topicId}`,
     );
 
     if (!topicResult.matches || topicResult.matches.length === 0) {
@@ -1375,7 +1737,7 @@ export class UserContextService {
       throw new UserContextError(`Topic ${topicId} has no metadata`);
     }
 
-    const relatedMeetingIds = topicInfo.relatedMeetingIds as string[] || [];
+    const relatedMeetingIds = (topicInfo.relatedMeetingIds as string[]) || [];
 
     if (relatedMeetingIds.length === 0) {
       return {
@@ -1402,18 +1764,19 @@ export class UserContextService {
 
     // Get all related entries
     const entriesResult = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [],
-        {
-          topK: 1000, // Fetch a large number to get a complete timeline
-          filter,
-          includeValues: false,
-          includeMetadata: true,
-        },
-        userId
-      ),
-      `getTopicTimeline:${userId}:${topicId}`
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [],
+          {
+            topK: 1000, // Fetch a large number to get a complete timeline
+            filter,
+            includeValues: false,
+            includeMetadata: true,
+          },
+          userId,
+        ),
+      `getTopicTimeline:${userId}:${topicId}`,
     );
 
     const timelineEntries = entriesResult.matches || [];
@@ -1446,23 +1809,29 @@ export class UserContextService {
     topicEmbeddings: number[][],
     topicNames: string[],
     threshold: number = 0.7,
-  ): Promise<Array<{
-    gapType: KnowledgeGapType;
-    topicName: string;
-    topicIndex: number;
-    teamId1: string;
-    teamId2: string;
-    similarityScore: number;
-    description: string;
-  }>> {
+  ): Promise<
+    Array<{
+      gapType: KnowledgeGapType;
+      topicName: string;
+      topicIndex: number;
+      teamId1: string;
+      teamId2: string;
+      similarityScore: number;
+      description: string;
+    }>
+  > {
     if (teamIds.length < 2) {
-      throw new UserContextValidationError('At least two team IDs are required for gap detection');
+      throw new UserContextValidationError(
+        'At least two team IDs are required for gap detection',
+      );
     }
-    
+
     if (topicEmbeddings.length !== topicNames.length) {
-      throw new UserContextValidationError('Topic embeddings and names arrays must have the same length');
+      throw new UserContextValidationError(
+        'Topic embeddings and names arrays must have the same length',
+      );
     }
-    
+
     const gaps: Array<{
       gapType: KnowledgeGapType;
       topicName: string;
@@ -1472,62 +1841,64 @@ export class UserContextService {
       similarityScore: number;
       description: string;
     }> = [];
-    
+
     try {
       // For each team combination
       for (let i = 0; i < teamIds.length; i++) {
         for (let j = i + 1; j < teamIds.length; j++) {
           const teamId1 = teamIds[i];
           const teamId2 = teamIds[j];
-          
+
           // For each topic
           for (let t = 0; t < topicEmbeddings.length; t++) {
             const topicEmbedding = topicEmbeddings[t];
             const topicName = topicNames[t];
-            
+
             // Get team 1's context on this topic
             const team1Context = await this.executeWithRetry(
-              () => this.pineconeService.queryVectors<RecordMetadata>(
-                USER_CONTEXT_INDEX,
-                topicEmbedding,
-                {
-                  topK: 10,
-                  filter: {
-                    participantIds: teamId1,
+              () =>
+                this.pineconeService.queryVectors<RecordMetadata>(
+                  USER_CONTEXT_INDEX,
+                  topicEmbedding,
+                  {
+                    topK: 10,
+                    filter: {
+                      participantIds: teamId1,
+                    },
+                    includeValues: true,
+                    includeMetadata: true,
                   },
-                  includeValues: true,
-                  includeMetadata: true,
-                },
-                userId
-              ),
-              `getTeamContext:${userId}:${teamId1}:${topicName}`
+                  userId,
+                ),
+              `getTeamContext:${userId}:${teamId1}:${topicName}`,
             );
-            
+
             // Get team 2's context on this topic
             const team2Context = await this.executeWithRetry(
-              () => this.pineconeService.queryVectors<RecordMetadata>(
-                USER_CONTEXT_INDEX,
-                topicEmbedding,
-                {
-                  topK: 10,
-                  filter: {
-                    participantIds: teamId2,
+              () =>
+                this.pineconeService.queryVectors<RecordMetadata>(
+                  USER_CONTEXT_INDEX,
+                  topicEmbedding,
+                  {
+                    topK: 10,
+                    filter: {
+                      participantIds: teamId2,
+                    },
+                    includeValues: true,
+                    includeMetadata: true,
                   },
-                  includeValues: true,
-                  includeMetadata: true,
-                },
-                userId
-              ),
-              `getTeamContext:${userId}:${teamId2}:${topicName}`
+                  userId,
+                ),
+              `getTeamContext:${userId}:${teamId2}:${topicName}`,
             );
-            
+
             // Calculate average similarity score between team contexts
             let totalSimilarity = 0;
             let comparisons = 0;
-            
+
             const team1Matches = team1Context.matches || [];
             const team2Matches = team2Context.matches || [];
-            
+
             // If either team has no context on this topic, it's a knowledge gap
             if (team1Matches.length === 0 || team2Matches.length === 0) {
               gaps.push({
@@ -1541,21 +1912,25 @@ export class UserContextService {
               });
               continue;
             }
-            
+
             // Compare each context item between teams
             for (const match1 of team1Matches) {
               for (const match2 of team2Matches) {
                 if (match1.values && match2.values) {
                   // Calculate cosine similarity between embeddings
-                  const similarity = this.calculateCosineSimilarity(match1.values, match2.values);
+                  const similarity = this.calculateCosineSimilarity(
+                    match1.values,
+                    match2.values,
+                  );
                   totalSimilarity += similarity;
                   comparisons++;
                 }
               }
             }
-            
-            const avgSimilarity = comparisons > 0 ? totalSimilarity / comparisons : 0;
-            
+
+            const avgSimilarity =
+              comparisons > 0 ? totalSimilarity / comparisons : 0;
+
             // If average similarity is below threshold, it's a misalignment
             if (avgSimilarity < threshold) {
               gaps.push({
@@ -1571,25 +1946,27 @@ export class UserContextService {
           }
         }
       }
-      
+
       this.logger.debug('Detected knowledge gaps', {
         userId,
         teamCount: teamIds.length,
         topicCount: topicNames.length,
         gapsFound: gaps.length,
       });
-      
+
       return gaps;
     } catch (error) {
       this.logger.error('Error detecting knowledge gaps', {
         userId,
         error: error instanceof Error ? error.message : String(error),
       });
-      throw new UserContextError('Failed to detect knowledge gaps: ' + 
-        (error instanceof Error ? error.message : String(error)));
+      throw new UserContextError(
+        'Failed to detect knowledge gaps: ' +
+          (error instanceof Error ? error.message : String(error)),
+      );
     }
   }
-  
+
   /**
    * Calculate cosine similarity between two vectors
    * @private
@@ -1598,20 +1975,20 @@ export class UserContextService {
     if (vec1.length !== vec2.length) {
       throw new Error('Vectors must have the same dimensions');
     }
-    
+
     let dotProduct = 0;
     let mag1 = 0;
     let mag2 = 0;
-    
+
     for (let i = 0; i < vec1.length; i++) {
       dotProduct += vec1[i] * vec2[i];
       mag1 += vec1[i] * vec1[i];
       mag2 += vec2[i] * vec2[i];
     }
-    
+
     mag1 = Math.sqrt(mag1);
     mag2 = Math.sqrt(mag2);
-    
+
     return dotProduct / (mag1 * mag2);
   }
 
@@ -1636,12 +2013,12 @@ export class UserContextService {
       isQuestion: true,
       isAnswered: false,
     };
-    
+
     // Add meeting filter if specified
     if (options.meetingId) {
       filter.meetingId = options.meetingId;
     }
-    
+
     // Add time range filter if specified
     if (options.timeRangeStart || options.timeRangeEnd) {
       filter.timestamp = {};
@@ -1652,51 +2029,58 @@ export class UserContextService {
         filter.timestamp.$lte = options.timeRangeEnd;
       }
     }
-    
+
     // If topic ID is specified, we need to get related meetings first
     if (options.topicId) {
       const topicResult = await this.executeWithRetry(
-        () => this.pineconeService.queryVectors<RecordMetadata>(
-          USER_CONTEXT_INDEX,
-          [],
-          {
-            topK: 1,
-            filter: {
-              topicId: options.topicId,
-              contextType: ContextType.TOPIC,
+        () =>
+          this.pineconeService.queryVectors<RecordMetadata>(
+            USER_CONTEXT_INDEX,
+            [],
+            {
+              topK: 1,
+              filter: {
+                topicId: options.topicId,
+                contextType: ContextType.TOPIC,
+              },
+              includeValues: false,
+              includeMetadata: true,
             },
-            includeValues: false,
-            includeMetadata: true,
-          },
-          userId
-        ),
-        `findTopic:${userId}:${options.topicId}`
+            userId,
+          ),
+        `findTopic:${userId}:${options.topicId}`,
       );
-      
-      if (topicResult.matches && topicResult.matches.length > 0 && topicResult.matches[0].metadata) {
-        const relatedMeetingIds = topicResult.matches[0].metadata.relatedMeetingIds as string[] || [];
+
+      if (
+        topicResult.matches &&
+        topicResult.matches.length > 0 &&
+        topicResult.matches[0].metadata
+      ) {
+        const relatedMeetingIds =
+          (topicResult.matches[0].metadata.relatedMeetingIds as string[]) || [];
         if (relatedMeetingIds.length > 0) {
           filter.meetingId = { $in: relatedMeetingIds };
         }
       }
     }
-    
+
     // Get unanswered questions
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [],
-        {
-          topK: 100,
-          filter,
-          includeValues: false,
-          includeMetadata: true,
-        },
-        userId
-      ),
-      `findUnansweredQuestions:${userId}`
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [],
+          {
+            topK: 100,
+            filter,
+            includeValues: false,
+            includeMetadata: true,
+          },
+          userId,
+        ),
+      `findUnansweredQuestions:${userId}`,
     );
-    
+
     return result.matches || [];
   }
 
@@ -1729,128 +2113,143 @@ export class UserContextService {
     if (!meetingId) {
       throw new UserContextValidationError('Meeting ID is required');
     }
-    
+
     if (!agenda || agenda.length === 0) {
-      throw new UserContextValidationError('At least one agenda item is required');
+      throw new UserContextValidationError(
+        'At least one agenda item is required',
+      );
     }
-    
+
     try {
       // Process each agenda item in parallel
       const contextPromises = agenda.map(async (item) => {
         // Find related topics based on agenda item embeddings
         const topicsResult = await this.executeWithRetry(
-          () => this.pineconeService.queryVectors<RecordMetadata>(
-            USER_CONTEXT_INDEX,
-            item.embeddings,
-            {
-              topK: 5,
-              filter: {
-                contextType: ContextType.TOPIC,
+          () =>
+            this.pineconeService.queryVectors<RecordMetadata>(
+              USER_CONTEXT_INDEX,
+              item.embeddings,
+              {
+                topK: 5,
+                filter: {
+                  contextType: ContextType.TOPIC,
+                },
+                includeValues: false,
+                includeMetadata: true,
               },
-              includeValues: false,
-              includeMetadata: true,
-            },
-            userId
-          ),
-          `findRelatedTopics:${userId}:${item.agendaItemId}`
+              userId,
+            ),
+          `findRelatedTopics:${userId}:${item.agendaItemId}`,
         );
-        
+
         // Find previous decisions related to this agenda item
         const decisionsResult = await this.executeWithRetry(
-          () => this.pineconeService.queryVectors<RecordMetadata>(
-            USER_CONTEXT_INDEX,
-            item.embeddings,
-            {
-              topK: 10,
-              filter: {
-                contextType: ContextType.DECISION,
-                isDecision: true,
+          () =>
+            this.pineconeService.queryVectors<RecordMetadata>(
+              USER_CONTEXT_INDEX,
+              item.embeddings,
+              {
+                topK: 10,
+                filter: {
+                  contextType: ContextType.DECISION,
+                  isDecision: true,
+                },
+                includeValues: false,
+                includeMetadata: true,
               },
-              includeValues: false,
-              includeMetadata: true,
-            },
-            userId
-          ),
-          `findRelatedDecisions:${userId}:${item.agendaItemId}`
+              userId,
+            ),
+          `findRelatedDecisions:${userId}:${item.agendaItemId}`,
         );
-        
+
         return {
           agendaItemId: item.agendaItemId,
           relatedTopics: topicsResult.matches || [],
           previousDecisions: decisionsResult.matches || [],
         };
       });
-      
+
       const agendaContext = await Promise.all(contextPromises);
-      
+
       // Find open action items assigned to meeting participants
       const actionItemsResult = await this.executeWithRetry(
-        () => this.pineconeService.queryVectors<RecordMetadata>(
-          USER_CONTEXT_INDEX,
-          [],
-          {
-            topK: 50,
-            filter: {
-              contextType: ContextType.ACTION_ITEM,
-              isActionItem: true,
-              status: ActionItemStatus.PENDING,
-              assigneeId: { $in: participantIds },
+        () =>
+          this.pineconeService.queryVectors<RecordMetadata>(
+            USER_CONTEXT_INDEX,
+            [],
+            {
+              topK: 50,
+              filter: {
+                contextType: ContextType.ACTION_ITEM,
+                isActionItem: true,
+                status: ActionItemStatus.PENDING,
+                assigneeId: { $in: participantIds },
+              },
+              includeValues: false,
+              includeMetadata: true,
             },
-            includeValues: false,
-            includeMetadata: true,
-          },
-          userId
-        ),
-        `findOpenActionItems:${userId}`
+            userId,
+          ),
+        `findOpenActionItems:${userId}`,
       );
-      
+
       // Find unanswered questions from previous meetings
       const questionsResult = await this.findUnansweredQuestions(userId, {
         timeRangeEnd: Date.now(), // Only questions before now
       });
-      
+
       // Find recent meetings with the same participants
       const recentMeetingsResult = await this.executeWithRetry(
-        () => this.pineconeService.queryVectors<RecordMetadata>(
-          USER_CONTEXT_INDEX,
-          [],
-          {
-            topK: 5,
-            filter: {
-              contextType: ContextType.MEETING,
-              meetingEndTime: { $lt: Date.now() }, // Only past meetings
+        () =>
+          this.pineconeService.queryVectors<RecordMetadata>(
+            USER_CONTEXT_INDEX,
+            [],
+            {
+              topK: 5,
+              filter: {
+                contextType: ContextType.MEETING,
+                meetingEndTime: { $lt: Date.now() }, // Only past meetings
+              },
+              includeValues: false,
+              includeMetadata: true,
             },
-            includeValues: false,
-            includeMetadata: true,
-          },
-          userId
-        ),
-        `findRecentMeetings:${userId}`
+            userId,
+          ),
+        `findRecentMeetings:${userId}`,
       );
-      
+
       // Filter meetings that have at least one common participant
-      const recentMeetings = (recentMeetingsResult.matches || []).filter((meeting) => {
-        if (!meeting.metadata || !meeting.metadata.participantIds) return false;
-        const meetingParticipants = meeting.metadata.participantIds as string[];
-        return meetingParticipants.some(id => participantIds.includes(id));
-      });
-      
+      const recentMeetings = (recentMeetingsResult.matches || []).filter(
+        (meeting) => {
+          if (!meeting.metadata || !meeting.metadata.participantIds)
+            return false;
+          const meetingParticipants = meeting.metadata
+            .participantIds as string[];
+          return meetingParticipants.some((id) => participantIds.includes(id));
+        },
+      );
+
       // Get statistics for each participant
       const participantStats: Record<string, any> = {};
-      
+
       for (const participantId of participantIds) {
         const stats = await this.getUserContextStats(participantId);
         participantStats[participantId] = stats;
       }
-      
+
       // Combine all context
-      const relatedTopics = agendaContext.flatMap(item => item.relatedTopics);
-      const previousDecisions = agendaContext.flatMap(item => item.previousDecisions);
-      
+      const relatedTopics = agendaContext.flatMap((item) => item.relatedTopics);
+      const previousDecisions = agendaContext.flatMap(
+        (item) => item.previousDecisions,
+      );
+
       // Remove duplicates from topics and decisions
       const uniqueTopics = this.removeDuplicatesByProperty(relatedTopics, 'id');
-      const uniqueDecisions = this.removeDuplicatesByProperty(previousDecisions, 'id');
-      
+      const uniqueDecisions = this.removeDuplicatesByProperty(
+        previousDecisions,
+        'id',
+      );
+
       return {
         relatedTopics: uniqueTopics,
         previousDecisions: uniqueDecisions,
@@ -1865,11 +2264,13 @@ export class UserContextService {
         meetingId,
         error: error instanceof Error ? error.message : String(error),
       });
-      throw new UserContextError('Failed to generate pre-meeting context: ' + 
-        (error instanceof Error ? error.message : String(error)));
+      throw new UserContextError(
+        'Failed to generate pre-meeting context: ' +
+          (error instanceof Error ? error.message : String(error)),
+      );
     }
   }
-  
+
   /**
    * Remove duplicate objects from an array based on a property value
    * @private
@@ -1903,26 +2304,29 @@ export class UserContextService {
     externalSystemData: Record<string, any> = {},
   ): Promise<string> {
     if (!actionItemId || !externalSystem) {
-      throw new UserContextValidationError('Action Item ID and External System are required');
+      throw new UserContextValidationError(
+        'Action Item ID and External System are required',
+      );
     }
-    
+
     // Find the action item
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [],
-        {
-          topK: 1,
-          filter: {
-            actionItemId,
-            contextType: ContextType.ACTION_ITEM,
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [],
+          {
+            topK: 1,
+            filter: {
+              actionItemId,
+              contextType: ContextType.ACTION_ITEM,
+            },
+            includeValues: true,
+            includeMetadata: true,
           },
-          includeValues: true,
-          includeMetadata: true,
-        },
-        userId
-      ),
-      `findActionItem:${userId}:${actionItemId}`
+          userId,
+        ),
+      `findActionItem:${userId}:${actionItemId}`,
     );
 
     if (!result.matches || result.matches.length === 0) {
@@ -1933,15 +2337,16 @@ export class UserContextService {
     if (!actionItem.metadata) {
       throw new UserContextError(`Action item ${actionItemId} has no metadata`);
     }
-    
+
     // In a real implementation, this would call the API of the external system
     // For this implementation, we'll just simulate the integration
-    const newExternalId = externalSystemId || `ext-${externalSystem}-${Date.now()}`;
-    
+    const newExternalId =
+      externalSystemId || `ext-${externalSystem}-${Date.now()}`;
+
     // Update the action item with external system information
     const updatedRecord: VectorRecord<RecordMetadata> = {
       id: actionItem.id,
-      values: actionItem.values || [],
+      values: this.ensureNumberArray(actionItem.values),
       metadata: {
         ...actionItem.metadata,
         externalSystem,
@@ -1952,12 +2357,13 @@ export class UserContextService {
     };
 
     await this.executeWithRetry(
-      () => this.pineconeService.upsertVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [updatedRecord],
-        userId
-      ),
-      `updateActionItemExternal:${userId}:${actionItemId}`
+      () =>
+        this.pineconeService.upsertVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [updatedRecord],
+          userId,
+        ),
+      `updateActionItemExternal:${userId}:${actionItemId}`,
     );
 
     this.logger.debug('Integrated action item with external system', {
@@ -1998,37 +2404,38 @@ export class UserContextService {
     const pageNumber = options.pageNumber || 1;
     const timeWeightFactor = options.timeWeightFactor || 0.3;
     const usageWeightFactor = options.usageWeightFactor || 0.2;
-    
+
     // Build filter
     const filter: Record<string, any> = { ...options.filter };
-    
+
     // Add context type filter if specified
     if (options.contextTypes && options.contextTypes.length > 0) {
       filter.contextType = { $in: options.contextTypes };
     }
-    
+
     // First get the total count by querying with a high limit
     const countResult = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        queryEmbedding,
-        {
-          topK: 1000, // High limit to get approximate count
-          filter,
-          includeValues: false,
-          includeMetadata: false,
-        },
-        userId
-      ),
-      `countContext:${userId}`
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          queryEmbedding,
+          {
+            topK: 1000, // High limit to get approximate count
+            filter,
+            includeValues: false,
+            includeMetadata: false,
+          },
+          userId,
+        ),
+      `countContext:${userId}`,
     );
-    
+
     const totalCount = countResult.matches?.length || 0;
     const pageCount = Math.ceil(totalCount / pageSize);
-    
+
     // Calculate the effective topK for this page
     const effectiveTopK = pageSize * pageNumber;
-    
+
     if (effectiveTopK > 1000) {
       this.logger.warn('Requested page exceeds maximum query size', {
         userId,
@@ -2037,65 +2444,70 @@ export class UserContextService {
         effectiveTopK,
       });
     }
-    
+
     // Get actual results for this page
     const queryResult = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        queryEmbedding,
-        {
-          topK: Math.min(effectiveTopK, 1000),
-          filter,
-          includeValues: true,
-          includeMetadata: true,
-        },
-        userId
-      ),
-      `retrieveContextPage:${userId}:${pageNumber}`
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          queryEmbedding,
+          {
+            topK: Math.min(effectiveTopK, 1000),
+            filter,
+            includeValues: true,
+            includeMetadata: true,
+          },
+          userId,
+        ),
+      `retrieveContextPage:${userId}:${pageNumber}`,
     );
-    
+
     let matches = queryResult.matches || [];
-    
+
     // Get only the records for the current page
     const startIdx = (pageNumber - 1) * pageSize;
     matches = matches.slice(startIdx, startIdx + pageSize);
-    
+
     // Enhance relevance scoring with recency and usage information
     const now = Date.now();
-    const enhancedMatches = matches.map(match => {
+    const enhancedMatches = matches.map((match) => {
       let enhancedScore = match.score || 0;
-      
+
       if (match.metadata) {
         // Factor in recency (newer = higher score)
         if (match.metadata.timestamp) {
-          const ageInDays = (now - (match.metadata.timestamp as number)) / (1000 * 60 * 60 * 24);
-          const recencyBoost = Math.max(0, 1 - (ageInDays / 30)) * timeWeightFactor;
+          const ageInDays =
+            (now - (match.metadata.timestamp as number)) /
+            (1000 * 60 * 60 * 24);
+          const recencyBoost =
+            Math.max(0, 1 - ageInDays / 30) * timeWeightFactor;
           enhancedScore += recencyBoost;
         }
-        
+
         // Factor in usage statistics
         if (match.metadata.viewCount) {
           const viewCount = match.metadata.viewCount as number;
           const usageBoost = Math.min(1, viewCount / 10) * usageWeightFactor;
           enhancedScore += usageBoost;
         }
-        
+
         // Factor in explicit relevance feedback if available
         if (match.metadata.explicitRelevanceFeedback) {
-          enhancedScore += (match.metadata.explicitRelevanceFeedback as number) * 0.5;
+          enhancedScore +=
+            (match.metadata.explicitRelevanceFeedback as number) * 0.5;
         }
       }
-      
+
       return {
         ...match,
         originalScore: match.score,
         score: enhancedScore,
       };
     });
-    
+
     // Sort by enhanced score
     enhancedMatches.sort((a, b) => (b.score || 0) - (a.score || 0));
-    
+
     return {
       results: enhancedMatches,
       totalCount,
@@ -2125,11 +2537,11 @@ export class UserContextService {
 
       // Increment view count and update last accessed timestamp
       const viewCount = ((record.metadata?.viewCount as number) || 0) + 1;
-      
+
       // Create an updated record
       const updatedRecord: VectorRecord<RecordMetadata> = {
         id: contextId,
-        values: record.values || [],
+        values: this.ensureNumberArray(record.values),
         metadata: {
           ...record.metadata,
           viewCount,
@@ -2143,7 +2555,7 @@ export class UserContextService {
         [updatedRecord],
         userId,
       );
-      
+
       this.logger.debug('Recorded context access', {
         userId,
         contextId,
@@ -2171,9 +2583,11 @@ export class UserContextService {
     relevanceFeedback: number,
   ): Promise<void> {
     if (relevanceFeedback < 0 || relevanceFeedback > 1) {
-      throw new UserContextValidationError('Relevance feedback must be between 0 and 1');
+      throw new UserContextValidationError(
+        'Relevance feedback must be between 0 and 1',
+      );
     }
-    
+
     try {
       // Fetch the existing record
       const result = await this.pineconeService.fetchVectors<RecordMetadata>(
@@ -2186,11 +2600,11 @@ export class UserContextService {
       if (!record) {
         throw new UserContextNotFoundError(contextId, userId);
       }
-      
+
       // Create an updated record with the feedback
       const updatedRecord: VectorRecord<RecordMetadata> = {
         id: contextId,
-        values: record.values || [],
+        values: this.ensureNumberArray(record.values),
         metadata: {
           ...record.metadata,
           explicitRelevanceFeedback: relevanceFeedback,
@@ -2204,7 +2618,7 @@ export class UserContextService {
         [updatedRecord],
         userId,
       );
-      
+
       this.logger.debug('Recorded relevance feedback', {
         userId,
         contextId,
@@ -2216,8 +2630,463 @@ export class UserContextService {
         contextId,
         error: error instanceof Error ? error.message : String(error),
       });
-      throw new UserContextError('Failed to record relevance feedback: ' + 
-        (error instanceof Error ? error.message : String(error)));
+      throw new UserContextError(
+        'Failed to record relevance feedback: ' +
+          (error instanceof Error ? error.message : String(error)),
+      );
     }
+  }
+
+  /**
+   * Adds a theme to a context item
+   * @param userId User ID
+   * @param contextId Context item ID
+   * @param themeId Theme ID
+   * @param themeName Theme name
+   * @param relevanceScore Relevance score for this theme (0-1)
+   */
+  async addThemeToContext(
+    userId: string,
+    contextId: string,
+    themeId: string,
+    themeName: string,
+    relevanceScore: number = 0.5,
+  ): Promise<void> {
+    // Get the current context
+    const response = await this.pineconeService.fetchVectors(
+      USER_CONTEXT_INDEX,
+      [contextId],
+      userId,
+    );
+
+    if (!response.records || !response.records[contextId]) {
+      throw new UserContextNotFoundError(contextId, userId);
+    }
+
+    const record = response.records[contextId];
+    const metadata = record.metadata || {};
+    // Update theme information
+    const themeIds = [
+      ...(Array.isArray(metadata.themeIds) ? metadata.themeIds : []),
+    ];
+    const themeNames = [
+      ...(Array.isArray(metadata.themeNames) ? metadata.themeNames : []),
+    ];
+    const themeRelevance: Record<string, number> = {};
+
+    // Copy existing theme relevance data if it exists and is an object
+    if (
+      typeof metadata.themeRelevance === 'object' &&
+      metadata.themeRelevance !== null
+    ) {
+      Object.entries(metadata.themeRelevance).forEach(([key, value]) => {
+        if (typeof value === 'number') {
+          themeRelevance[key] = value;
+        }
+      });
+    }
+
+    // Add the theme if it doesn't exist
+    if (!themeIds.includes(themeId)) {
+      themeIds.push(themeId);
+      themeNames.push(themeName);
+    }
+    // Update the relevance score
+    themeRelevance[themeId] = relevanceScore;
+
+    // Update the record
+    await this.pineconeService.upsertVectors(
+      USER_CONTEXT_INDEX,
+      [
+        {
+          id: contextId,
+          values: this.ensureNumberArray(record.values),
+          metadata: this.prepareMetadataForStorage({
+            ...metadata,
+            themeIds,
+            themeNames,
+            themeRelevance,
+            lastUpdatedAt: Date.now(),
+          }),
+        },
+      ],
+      userId,
+    );
+  }
+
+  /**
+   * Updates theme relationships for a context item
+   * @param userId User ID
+   * @param contextId Context item ID
+   * @param themeRelationships Array of theme relationships
+   */
+  async updateThemeRelationships(
+    userId: string,
+    contextId: string,
+    themeRelationships: ThemeRelationship[],
+  ): Promise<void> {
+    // Get the current context
+    const response = await this.pineconeService.fetchVectors(
+      USER_CONTEXT_INDEX,
+      [contextId],
+      userId,
+    );
+
+    if (!response.records || !response.records[contextId]) {
+      throw new UserContextNotFoundError(contextId, userId);
+    }
+
+    const record = response.records[contextId];
+    const metadata = record.metadata || {};
+
+    // Update the record
+    await this.pineconeService.upsertVectors(
+      USER_CONTEXT_INDEX,
+      [
+        {
+          id: contextId,
+          values: this.ensureNumberArray(record.values),
+          metadata: this.prepareMetadataForStorage({
+            themeRelationships,
+            lastUpdatedAt: Date.now(),
+            ...metadata,
+          }),
+        },
+      ],
+      userId,
+    );
+  }
+
+  /**
+   * Calculates relevance scores for different user roles
+   * @param content Content to analyze
+   * @param existingRoleRelevance Existing role relevance scores
+   * @returns Updated role relevance scores
+   */
+  calculateRoleRelevance(
+    content: string,
+    existingRoleRelevance?: Record<UserRole, number>,
+  ): Record<UserRole, number> {
+    const roleRelevance: Record<UserRole, number> = existingRoleRelevance
+      ? { ...existingRoleRelevance }
+      : Object.values(UserRole).reduce(
+          (acc, role) => ({ ...acc, [role]: 0 }),
+          {} as Record<UserRole, number>,
+        );
+    const roleKeywords: Record<UserRole, string[]> = {
+      [UserRole.PRODUCT_OWNER]: [
+        'product',
+        'feature',
+        'customer',
+        'user',
+        'requirement',
+        'roadmap',
+        'priority',
+      ],
+      [UserRole.DEVELOPER]: [
+        'code',
+        'implement',
+        'develop',
+        'architecture',
+        'technical',
+        'bug',
+        'performance',
+      ],
+      [UserRole.DESIGNER]: [
+        'design',
+        'user experience',
+        'ui',
+        'interface',
+        'usability',
+        'wireframe',
+        'prototype',
+      ],
+      [UserRole.QA]: [
+        'test',
+        'quality',
+        'verification',
+        'validation',
+        'defect',
+        'scenario',
+        'acceptance',
+      ],
+      [UserRole.SALES]: [
+        'sales',
+        'client',
+        'revenue',
+        'deal',
+        'prospect',
+        'opportunity',
+        'pipeline',
+      ],
+      [UserRole.EXECUTIVE]: [
+        'strategy',
+        'vision',
+        'leadership',
+        'stakeholder',
+        'board',
+        'investment',
+        'growth',
+      ],
+      [UserRole.SUPPORT]: [
+        'support',
+        'ticket',
+        'customer service',
+        'issue',
+        'resolution',
+        'help',
+        'assistance',
+      ],
+      [UserRole.OPERATIONS]: [
+        'operations',
+        'process',
+        'workflow',
+        'efficiency',
+        'resource',
+        'deployment',
+        'scaling',
+      ],
+      [UserRole.CUSTOM]: [
+        'custom',
+        'specific',
+        'specialized',
+        'tailored',
+        'unique',
+        'bespoke',
+        'personalized',
+      ],
+      [UserRole.LEGAL]: [
+        'legal',
+        'compliance',
+        'regulation',
+        'policy',
+        'privacy',
+        'terms',
+        'contract',
+      ],
+      [UserRole.MARKETING]: [
+        'marketing',
+        'campaign',
+        'message',
+        'audience',
+        'launch',
+        'brand',
+        'market',
+      ],
+      // Add keywords for other roles
+    };
+
+    // Calculate relevance based on keyword matches
+    // This is a simple implementation - would be enhanced with NLP in production
+    const contentLower = content.toLowerCase();
+
+    for (const [role, keywords] of Object.entries(roleKeywords)) {
+      let score = roleRelevance[role as UserRole] || 0;
+
+      // Count keyword matches
+      let matches = 0;
+      for (const keyword of keywords) {
+        if (contentLower.includes(keyword.toLowerCase())) {
+          matches++;
+        }
+      }
+
+      // Update score based on matches
+      if (keywords.length > 0) {
+        const matchScore = matches / keywords.length;
+        // Blend with existing score or set new score
+        score = score ? score * 0.7 + matchScore * 0.3 : matchScore;
+        roleRelevance[role as UserRole] = Math.min(1, Math.max(0, score));
+      }
+    }
+
+    return roleRelevance;
+  }
+
+  /**
+   * Applies time-based decay to relevance scores
+   * @param metadata Context metadata
+   * @param currentTime Current timestamp
+   * @returns Updated relevance score
+   */
+  applyTemporalDecay(
+    metadata: UserContextMetadata,
+    currentTime: number = Date.now(),
+  ): number {
+    if (metadata.relevanceScore === undefined) {
+      return 0.5; // Default relevance
+    }
+
+    // If no temporal model is specified, return original score
+    if (!metadata.temporalRelevanceModel) {
+      return metadata.relevanceScore;
+    }
+
+    const originalScore = metadata.relevanceScore;
+    const creationTime = metadata.timestamp || 0;
+    const lastReinforcement = metadata.lastReinforcementTime || creationTime;
+    const elapsedSinceReinforcement = currentTime - lastReinforcement;
+    const decayRate = metadata.decayRate || 0.1; // Default decay rate
+
+    // Apply different decay models
+    switch (metadata.temporalRelevanceModel) {
+      case TemporalRelevanceModel.LINEAR_DECAY: {
+        // Linear decay: score - (decayRate * timeElapsed / 30days)
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        const decayAmount =
+          decayRate * (elapsedSinceReinforcement / thirtyDaysMs);
+        return Math.max(0, originalScore - decayAmount);
+      }
+
+      case TemporalRelevanceModel.EXPONENTIAL_DECAY: {
+        // Exponential decay: score * e^(-decayRate * timeElapsed / 30days)
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        const decay = Math.exp(
+          -decayRate * (elapsedSinceReinforcement / thirtyDaysMs),
+        );
+        return originalScore * decay;
+      }
+
+      case TemporalRelevanceModel.CYCLICAL: {
+        // Handle cyclical pattern if defined
+        if (metadata.cyclicalPattern) {
+          const cycle = metadata.cyclicalPattern;
+          let cycleLength: number;
+
+          // Determine cycle length
+          switch (cycle.cycleType) {
+            case 'daily':
+              cycleLength = 24 * 60 * 60 * 1000;
+              break;
+            case 'weekly':
+              cycleLength = 7 * 24 * 60 * 60 * 1000;
+              break;
+            case 'monthly':
+              cycleLength = 30 * 24 * 60 * 60 * 1000;
+              break;
+            case 'quarterly':
+              cycleLength = 90 * 24 * 60 * 60 * 1000;
+              break;
+            case 'annual':
+              cycleLength = 365 * 24 * 60 * 60 * 1000;
+              break;
+            case 'custom':
+              cycleLength = cycle.cycleLengthMs || 7 * 24 * 60 * 60 * 1000;
+              break;
+            default:
+              cycleLength = 7 * 24 * 60 * 60 * 1000; // Default to weekly
+          }
+
+          // Calculate position in cycle (0 to 1)
+          const cyclePosition = (currentTime % cycleLength) / cycleLength;
+
+          // Simple sinusoidal variation between min and max relevance
+          const amplitude = (cycle.maxRelevance - cycle.minRelevance) / 2;
+          const offset = (cycle.maxRelevance + cycle.minRelevance) / 2;
+          return offset + amplitude * Math.sin(cyclePosition * 2 * Math.PI);
+        }
+        return originalScore;
+      }
+
+      case TemporalRelevanceModel.EVERGREEN:
+        // No decay for evergreen content
+        return originalScore;
+
+      case TemporalRelevanceModel.MILESTONE_BASED:
+        // For milestone-based, we'd need additional logic specific to the milestones
+        // This is a simplified implementation
+        if (
+          metadata.timeRelevantUntil &&
+          currentTime > metadata.timeRelevantUntil
+        ) {
+          return originalScore * 0.3; // Significant drop after milestone
+        }
+        return originalScore;
+
+      default:
+        return originalScore;
+    }
+  }
+
+  /**
+   * Reinforces a memory to increase its strength
+   * @param userId User ID
+   * @param contextId Context item ID
+   * @param reinforcementStrength Strength of reinforcement (0-1)
+   */
+  async reinforceMemory(
+    userId: string,
+    contextId: string,
+    reinforcementStrength: number = 0.1,
+  ): Promise<void> {
+    // Get the current context
+    const response = await this.pineconeService.fetchVectors(
+      USER_CONTEXT_INDEX,
+      [contextId],
+      userId,
+    );
+
+    if (!response.records || !response.records[contextId]) {
+      throw new UserContextNotFoundError(contextId, userId);
+    }
+
+    const record = response.records[contextId];
+    const metadata = record.metadata || {};
+
+    // Update memory strength
+    const currentStrength = (metadata.memoryStrength as number) || 0.5;
+    const newStrength = Math.min(
+      1,
+      currentStrength + reinforcementStrength * (1 - currentStrength),
+    );
+
+    // Update the record
+    await this.pineconeService.upsertVectors(
+      USER_CONTEXT_INDEX,
+      [
+        {
+          id: contextId,
+          values: this.ensureNumberArray(record.values),
+          metadata: {
+            ...metadata,
+            memoryStrength: newStrength,
+            lastReinforcementTime: Date.now(),
+            lastUpdatedAt: Date.now(),
+          },
+        },
+      ],
+      userId,
+    );
+  }
+
+  /**
+   * Prepares metadata for Pinecone by serializing complex objects
+   */
+  private prepareMetadataForStorage(
+    metadata: Partial<UserContextMetadata>,
+  ): RecordMetadata {
+    const result: RecordMetadata = {};
+
+    // Process each metadata field
+    for (const [key, value] of Object.entries(metadata)) {
+      // Serialize complex objects to strings
+      if (
+        typeof value === 'object' &&
+        value !== null &&
+        !Array.isArray(value)
+      ) {
+        result[key] = JSON.stringify(value);
+      } else {
+        result[key] = value as RecordMetadataValue;
+      }
+    }
+
+    return result;
+  }
+
+  // Add this helper method to your class
+  private ensureNumberArray(values?: any): number[] {
+    if (!values) return [];
+    return Array.isArray(values) ? values : [];
   }
 }

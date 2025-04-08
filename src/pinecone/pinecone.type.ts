@@ -1,4 +1,7 @@
-import { RecordMetadata, QueryResponse as PineconeQueryResponse } from '@pinecone-database/pinecone';
+import {
+  RecordMetadata,
+  QueryResponse as PineconeQueryResponse,
+} from '@pinecone-database/pinecone';
 
 export interface VectorRecord<T extends RecordMetadata = RecordMetadata> {
   id: string;
@@ -21,12 +24,16 @@ export interface UpsertOptions {
 }
 
 export interface IndexStats {
-  namespaces: Record<string, {
-    vectorCount: number;
-  }>;
+  namespaces: Record<
+    string,
+    {
+      vectorCount: number;
+    }
+  >;
   dimension: number;
   indexFullness: number;
   totalVectorCount: number;
 }
 
-export type QueryResponse<T extends RecordMetadata = RecordMetadata> = PineconeQueryResponse<T>;
+export type QueryResponse<T extends RecordMetadata = RecordMetadata> =
+  PineconeQueryResponse<T>;

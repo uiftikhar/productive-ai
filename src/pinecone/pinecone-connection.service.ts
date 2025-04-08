@@ -1,20 +1,20 @@
-import {
-  Index,
-  RecordMetadata,
-} from '@pinecone-database/pinecone';
+import { Index, RecordMetadata } from '@pinecone-database/pinecone';
 import {
   PineconeIndexService,
   VectorIndexes,
 } from './pinecone-index.service.ts';
 import { Logger } from '../shared/logger/logger.interface.ts';
 import { ConsoleLogger } from '../shared/logger/console-logger.ts';
-import { PineconeConnectionConfig, DEFAULT_CONFIG } from './pinecone-connection.config.ts';
+import {
+  PineconeConnectionConfig,
+  DEFAULT_CONFIG,
+} from './pinecone-connection.config.ts';
 import { VectorRecord, QueryOptions, QueryResponse } from './pinecone.type.ts';
-
 
 export class PineconeConnectionService {
   private indexService: PineconeIndexService;
-  private indexCache: Map<string, { index: Index; timestamp: number }> = new Map();
+  private indexCache: Map<string, { index: Index; timestamp: number }> =
+    new Map();
   private config: Required<PineconeConnectionConfig>;
   private logger: Logger;
 
@@ -23,11 +23,14 @@ export class PineconeConnectionService {
       indexService?: PineconeIndexService;
       logger?: Logger;
       config?: PineconeConnectionConfig;
-    } = {}
+    } = {},
   ) {
     this.indexService = options.indexService || new PineconeIndexService();
     this.logger = options.logger || new ConsoleLogger();
-    this.config = { ...DEFAULT_CONFIG, ...options.config } as Required<PineconeConnectionConfig>;
+    this.config = {
+      ...DEFAULT_CONFIG,
+      ...options.config,
+    } as Required<PineconeConnectionConfig>;
   }
 
   /**
@@ -65,11 +68,14 @@ export class PineconeConnectionService {
       return await operation();
     } catch (error) {
       if (retries <= 0) {
-        this.logger.error(`Max retries reached for Pinecone operation: ${operationName}`, {
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-          operation: operationName,
-        });
+        this.logger.error(
+          `Max retries reached for Pinecone operation: ${operationName}`,
+          {
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+            operation: operationName,
+          },
+        );
         throw error;
       }
 
@@ -90,7 +96,9 @@ export class PineconeConnectionService {
    * Get an index with caching
    * @param indexName The name of the index
    */
-  async getIndex(indexName: VectorIndexes | string): Promise<Index<RecordMetadata>> {
+  async getIndex(
+    indexName: VectorIndexes | string,
+  ): Promise<Index<RecordMetadata>> {
     const cacheKey = indexName;
     const now = Date.now();
     if (this.indexCache.has(cacheKey)) {
@@ -105,8 +113,9 @@ export class PineconeConnectionService {
     // Manage cache size
     if (this.indexCache.size >= this.config.maxCacheSize) {
       // Remove oldest entry
-      const oldestKey = [...this.indexCache.entries()]
-        .sort((a, b) => a[1].timestamp - b[1].timestamp)[0][0];
+      const oldestKey = [...this.indexCache.entries()].sort(
+        (a, b) => a[1].timestamp - b[1].timestamp,
+      )[0][0];
       this.indexCache.delete(oldestKey);
     }
     // Check if index exists
@@ -136,7 +145,7 @@ export class PineconeConnectionService {
     namespace?: string,
     options?: {
       batchSize?: number;
-    }
+    },
   ): Promise<void> {
     const batchSize = options?.batchSize || this.config.batchSize;
 
@@ -144,7 +153,7 @@ export class PineconeConnectionService {
       indexName,
       recordCount: records.length,
       namespace: namespace || 'default',
-      batchSize
+      batchSize,
     });
     // Get the base index without namespace to follow the official pattern
     let index = this.indexService.getIndex(indexName);
@@ -177,13 +186,14 @@ export class PineconeConnectionService {
     }
   }
 
-
   private getTypedIndex<T extends RecordMetadata>(
     indexName: string | VectorIndexes,
-    namespace?: string
+    namespace?: string,
   ): Promise<Index<T>> {
-    return this.getIndex(indexName).then(index => {
-      return namespace ? index.namespace(namespace) as Index<T> : index as Index<T>;
+    return this.getIndex(indexName).then((index) => {
+      return namespace
+        ? (index.namespace(namespace) as Index<T>)
+        : (index as Index<T>);
     });
   }
 
@@ -203,17 +213,20 @@ export class PineconeConnectionService {
     // Get the base index without namespace
     const index = await this.getTypedIndex<T>(indexName, namespace);
 
-    return this.executeWithRetry<QueryResponse<T>>(async () => {
-      return await index.query({
-        vector: queryVector,
-        topK: options.topK || 10,
-        filter: options.filter,
-        includeMetadata: options.includeMetadata !== false,
-        includeValues: options.includeValues || false,
-      });
-    }, `queryVectors:${indexName}`, 3);
+    return this.executeWithRetry<QueryResponse<T>>(
+      async () => {
+        return await index.query({
+          vector: queryVector,
+          topK: options.topK || 10,
+          filter: options.filter,
+          includeMetadata: options.includeMetadata !== false,
+          includeValues: options.includeValues || false,
+        });
+      },
+      `queryVectors:${indexName}`,
+      3,
+    );
   }
-
 
   /**
    * Delete vectors by ID
@@ -234,10 +247,13 @@ export class PineconeConnectionService {
       index = index.namespace(namespace);
     }
 
-    await this.executeWithRetry(async () => {
-      await index.deleteMany(ids);
-    }, `deleteVectors:${indexName}`, 3);
-
+    await this.executeWithRetry(
+      async () => {
+        await index.deleteMany(ids);
+      },
+      `deleteVectors:${indexName}`,
+      3,
+    );
 
     this.logger.info(`Successfully Deleted vectors by ids`, {
       totalIds: ids.length,
@@ -266,9 +282,13 @@ export class PineconeConnectionService {
       index = index.namespace(namespace);
     }
 
-    await this.executeWithRetry(async () => {
-      await index.deleteMany(filter);
-    }, `deleteVectorsByFilter:${indexName}`, 3);
+    await this.executeWithRetry(
+      async () => {
+        await index.deleteMany(filter);
+      },
+      `deleteVectorsByFilter:${indexName}`,
+      3,
+    );
 
     this.logger.info(`Successfully Deleted vectors by filter`, {
       indexName,
@@ -288,9 +308,13 @@ export class PineconeConnectionService {
     // Get the base index and apply namespace directly
     const index = this.indexService.getIndex(indexName).namespace(namespace);
 
-    await this.executeWithRetry(async () => {
-      await index.deleteAll();
-    }, `deleteAllVectorsInNamespace:${indexName}`, 3);
+    await this.executeWithRetry(
+      async () => {
+        await index.deleteAll();
+      },
+      `deleteAllVectorsInNamespace:${indexName}`,
+      3,
+    );
 
     this.logger.info(`Successfully Deleted all vectors from namespace`, {
       indexName,
@@ -305,9 +329,13 @@ export class PineconeConnectionService {
   async describeIndexStats(indexName: VectorIndexes | string): Promise<any> {
     const index = this.indexService.getIndex(indexName);
 
-    return this.executeWithRetry(async () => {
-      return await index.describeIndexStats();
-    }, `describeIndexStats:${indexName}`, 3);
+    return this.executeWithRetry(
+      async () => {
+        return await index.describeIndexStats();
+      },
+      `describeIndexStats:${indexName}`,
+      3,
+    );
   }
 
   /**
@@ -329,9 +357,13 @@ export class PineconeConnectionService {
       index = index.namespace(namespace);
     }
 
-    return this.executeWithRetry(async () => {
-      return await index.fetch(ids);
-    }, `fetchVectors:${indexName}`, 3);
+    return this.executeWithRetry(
+      async () => {
+        return await index.fetch(ids);
+      },
+      `fetchVectors:${indexName}`,
+      3,
+    );
   }
 
   /**
@@ -372,9 +404,7 @@ export class PineconeConnectionService {
    * List all namespaces in an index
    * @param indexName The name of the index
    */
-  async listNamespaces(
-    indexName: VectorIndexes | string,
-  ): Promise<string[]> {
+  async listNamespaces(indexName: VectorIndexes | string): Promise<string[]> {
     const stats = await this.describeIndexStats(indexName);
     return stats.namespaces ? Object.keys(stats.namespaces) : [];
   }
