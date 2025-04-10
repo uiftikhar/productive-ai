@@ -40,5 +40,7 @@ module.exports = {
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov'],
-  extensionsToTreatAsEsm: ['.ts'],
+  
+  // Setup files
+  setupFilesAfterEnv: ['<rootDir>/setupJest.js'],
 };

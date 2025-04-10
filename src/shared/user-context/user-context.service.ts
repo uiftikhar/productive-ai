@@ -51,6 +51,7 @@ export enum ContextType {
   TOPIC = 'topic', // New: Topics discussed across meetings
   AGENDA_ITEM = 'agenda_item', // New: Meeting agenda items
   QUESTION = 'question', // New: Questions asked in meetings
+  KNOWLEDGE_GAP = 'knowledge_gap', // New: Knowledge gaps and misalignments
 }
 
 /**

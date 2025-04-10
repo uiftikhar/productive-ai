@@ -5,6 +5,10 @@ import { Logger } from '../../shared/logger/logger.interface.ts';
 import { PineconeConnectionService } from '../pinecone-connection.service.ts';
 import { PineconeIndexService } from '../pinecone-index.service.ts';
 
+jest.unmock('../pinecone-connection.service.ts');
+jest.unmock('../pinecone-index.service.ts');
+jest.unmock('../../shared/logger/console-logger.ts');
+
 // Create a mock logger to capture logs
 class MockLogger implements Logger {
   logs: Array<{

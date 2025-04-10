@@ -8,6 +8,17 @@ export class PineconeConfig {
    * Get or create the Pinecone client instance (Singleton pattern)
    */
   static getInstance(): Pinecone {
+    // For tests, return the mocked instance
+    if (process.env.NODE_ENV === 'test') {
+      if (!PineconeConfig.instance) {
+        PineconeConfig.instance = new Pinecone({
+          apiKey: 'test-api-key',
+        });
+      }
+      return PineconeConfig.instance;
+    }
+
+    // For normal operation
     if (!PineconeConfig.instance) {
       const apiKey = process.env.PINECONE_API_KEY;
 
@@ -15,12 +26,17 @@ export class PineconeConfig {
         throw new Error('PINECONE_API_KEY environment variable is not set');
       }
 
+      // Configure Pinecone client with new SDK format
       PineconeConfig.instance = new Pinecone({
         apiKey,
-        // Optional environment for older Pinecone accounts
-        ...(process.env.PINECONE_ENVIRONMENT && {
-          environment: process.env.PINECONE_ENVIRONMENT,
+        // New format for controllers - if you have environment and region, use this
+        ...(process.env.PINECONE_ENVIRONMENT && process.env.PINECONE_REGION && {
+          controllerHostUrl: `https://controller.${process.env.PINECONE_REGION}.pinecone.io`
         }),
+        // For direct serverUrl specification (new gcp/aws/azure clusters)
+        ...(process.env.PINECONE_SERVER_URL && {
+          controllerHostUrl: process.env.PINECONE_SERVER_URL
+        })
       });
     }
 

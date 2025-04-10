@@ -1,197 +1,174 @@
-# User Context Service for Meeting Intelligence Platform
+# User Context Service
 
 ## Overview
 
-The `UserContextService` is a comprehensive solution for managing user-specific contextual data in Pinecone vector databases. It has been enhanced to support the needs of a Meeting Intelligence Platform with extensive features for tracking meetings, decisions, action items, topics, and knowledge continuity across the organization.
+The User Context Service provides functionality for storing, retrieving, and managing context data for AI applications. It is primarily used for RAG (Retrieval-Augmented Generation) applications to enhance AI responses with relevant user context.
 
-## Key Components
+## Modular Architecture
 
-### Context Types
+The User Context Service has been refactored to a modular architecture to improve maintainability, testability, and extensibility. The architecture follows these principles:
 
-The service supports various types of contextual data:
+1. **Single Responsibility**: Each service handles a specific domain of functionality
+2. **Separation of Concerns**: Clear boundaries between different types of operations
+3. **Dependency Injection**: Services accept dependencies in constructors for flexibility and testability
+4. **Facade Pattern**: A unified interface maintains backward compatibility
 
-- **Conversations**: Message history between users and the system
-- **Documents**: Knowledge base documents and chunks
-- **Meetings**: Transcripts and content from meetings
-- **Decisions**: Decisions made during meetings
-- **Action Items**: Tasks assigned during meetings
-- **Topics**: Subject matter tracked across multiple meetings
-- **Questions**: Questions asked during meetings with answer tracking
-- **Agenda Items**: Structured agenda items for meetings
+### Key Components
 
-### Core Features
+#### Type Definitions
 
-1. **User-Specific Context Isolation**:
-   - Each user's context is stored in a separate namespace
-   - Cross-team context can be analyzed for knowledge gaps
+- **`context.types.ts`**: Base types, enums, and interfaces for context operations
+- **`memory.types.ts`**: Types related to cognitive memory structures
+- **`theme.types.ts`**: Types for theme relationships and evolution
+- **`temporal.types.ts`**: Types for temporal relevance models and patterns
 
-2. **Robust Error Handling & Resilience**:
-   - Comprehensive error types
-   - Retry logic with exponential backoff
-   - Structured logging
+#### Core Services
 
-3. **Meeting Intelligence**:
-   - Store and retrieve meeting content
-   - Track decisions and action items
-   - Monitor topic evolution across meetings
-   - Track and answer questions
-   - Generate pre-meeting context briefings
+- **`BaseContextService`**: Foundation service for vector storage/retrieval 
+- **`MetadataValidationService`**: Handles validation of different metadata types
 
-4. **Knowledge Gap Detection**:
-   - Identify misalignments between teams
-   - Detect missing information
-   - Track unanswered questions
+#### Domain-Specific Services
 
-5. **External System Integration**:
-   - Sync action items with tools like Jira, Asana, etc.
-   - Support for custom external system IDs
+- **`ConversationContextService`**: Conversation history management
+- **`DocumentContextService`**: Document chunk storage and retrieval
+- **`MeetingContextService`**: Meeting content and related entities
+- **`ThemeManagementService`**: Theme tracking and relationships
+- **`MemoryManagementService`**: Cognitive memory operations
+- **`TemporalIntelligenceService`**: Time-based relevance modeling
+- **`KnowledgeGapService`**: Knowledge gap detection
 
-6. **Advanced Context Retrieval**:
-   - Pagination support
-   - Enhanced relevance scoring
-   - Multifaceted filtering options
+#### Cross-Cutting Services
 
-7. **Context Usage Tracking**:
-   - View counts and timestamps
-   - Explicit relevance feedback
-   - Usage patterns analysis
+- **`RelevanceCalculationService`**: Role-based relevance calculations
+- **`IntegrationService`**: External system integrations
 
-## New Methods
+#### Unified Interface
 
-### Meeting & Topic Management
+- **`UserContextFacade`**: Provides a unified interface to all services, maintaining backward compatibility
 
-- `storeMeetingContent`: Store meeting transcripts and content
-- `storeAgendaItem`: Store meeting agenda items
-- `storeDecision`: Record decisions made in meetings
-- `storeActionItem`: Track action items from meetings
-- `updateActionItemStatus`: Update the status of action items
-- `trackTopicAcrossMeetings`: Track topics across multiple meetings
-- `updateTopicMeetings`: Update topic-meeting associations
-- `getTopicEvolution`: See how topics evolve across meetings
+## Usage
 
-### Question & Answer Tracking
+### Installing Dependencies
 
-- `storeQuestion`: Store questions from meetings
-- `markQuestionAsAnswered`: Update questions when answered
-- `findUnansweredQuestions`: Find unanswered questions by meeting or topic
+```bash
+npm install
+```
 
-### Knowledge Gap Analysis
+### Initializing the Service
 
-- `detectKnowledgeGaps`: Identify knowledge gaps between teams
-- `generatePreMeetingContext`: Create context briefings before meetings
+```typescript
+// Using the facade for backward compatibility
+import { UserContextFacade } from './user-context.facade.ts';
 
-### Context Retrieval & Enhancement
+const contextService = new UserContextFacade();
+await contextService.initialize();
+```
 
-- `retrieveContextWithPagination`: Get context with pagination and enhanced relevance
-- `recordContextAccess`: Track context views for importance scoring
-- `provideRelevanceFeedback`: Allow explicit feedback on context relevance
+Or use specific services directly:
 
-### External System Integration
+```typescript
+import { DocumentContextService } from './services/document-context.service.ts';
 
-- `integrateActionItemWithExternalSystem`: Connect action items to external systems
+const docService = new DocumentContextService();
+await docService.initialize();
+```
 
-## Enhanced Testing
+### Storing Context
 
-The service comes with comprehensive tests covering:
+```typescript
+// Store a conversation turn
+const turnId = await contextService.storeConversationTurn(
+  userId,
+  conversationId,
+  message,
+  embeddings,
+  'user'
+);
 
-- Core functionality
-- Error handling
-- Retry logic
-- Meeting content management
-- Decision and action item tracking
-- Topic evolution tracking
-- Knowledge gap detection
-- Question and answer workflows
-- Advanced context retrieval
-- Usage tracking
+// Store a document chunk
+const chunkId = await contextService.storeDocumentChunk(
+  userId,
+  documentId,
+  documentTitle,
+  content,
+  embeddings,
+  0,
+  10
+);
 
-## Usage Example
-
-A complete example showing RAG (Retrieval-Augmented Generation) capabilities is available in `rag-example.ts`, demonstrating:
-
-1. Storing conversation history
-2. Storing document chunks
-3. Retrieving relevant context for queries
-4. Accessing conversation history
-5. Getting user context statistics
-
-## Integration with Meeting Intelligence Platform
-
-This enhanced service provides the foundation for:
-
-- Cross-meeting topic tracking
-- Decision tracking and implementation monitoring
-- Proactive meeting intelligence with pre-meeting briefings
-- Unanswered question tracking
-- Organizational knowledge graph visualization
-- Cross-team knowledge gap identification
-- Predictive meeting topic suggestions 
-
-## Decision Dependency Analysis
-
-The `UserContextService` can also analyze decision dependencies. Here's how you can use it to map dependencies between decisions:
-
-### Retrieve all decisions related to the payment gateway feature
-const decisions = await userContextService.retrieveRagContext(
-  'user123',
-  paymentGatewayEmbedding,
+// Add memory structure to context
+await contextService.addSemanticMemoryStructure(
+  userId,
+  contextId,
   {
-    contextTypes: [ContextType.DECISION],
-    timeRangeStart: projectStartTimestamp,
-    timeRangeEnd: projectEndTimestamp
+    concept: "Agile Development",
+    definition: "An iterative approach to software delivery",
+    specificity: 0.8,
+    // ...other fields
+  }
+);
+```
+
+### Retrieving Context
+
+```typescript
+// Get conversation history
+const history = await contextService.getConversationHistory(
+  userId,
+  conversationId,
+  20
+);
+
+// Semantic search across all context
+const results = await contextService.retrieveUserContext(
+  userId,
+  queryEmbedding,
+  {
+    topK: 5,
+    filter: { contextType: 'document' }
   }
 );
 
-// Map dependencies between decisions
-const decisionMap = decisions.reduce((map, decision) => {
-  // Identify decisions that reference earlier decisions by analyzing content
-  // Map the dependency connections
-  return map;
-}, {});
-
-// Track the evolution of the "Payment Gateway Integration" topic
-const topicEvolution = await userContextService.getTopicEvolution(
-  'user123',
-  'payment-gateway-topic',
-  startTimestamp,  // From product kickoff meeting
-  endTimestamp     // Latest legal compliance meeting
+// Find connected memories
+const memoryGraph = await contextService.findConnectedMemories(
+  userId,
+  startingContextId,
+  2, // depth
+  0.3 // minimum strength
 );
+```
 
-// Results would show how discussions evolved from:
-// - Initial feature requirements
-// - Technical implementation options
-// - Marketing positioning
-// - Legal compliance requirements
-// - Final launch decisions 
+## Migration from Legacy Architecture
 
-// Detect knowledge gaps between teams regarding payment processing
-const knowledgeGaps = await userContextService.detectKnowledgeGaps(
-  'user123',
-  ['engineering-team', 'legal-team', 'marketing-team'],
-  [paymentProcessingEmbedding],
-  ['Payment Processing Requirements'],
-  0.7 // Similarity threshold
-);
+The `UserContextFacade` class provides the same interface as the original monolithic `UserContextService`, making migration straightforward:
 
-// Results might show:
-// - Engineering team unaware of specific legal requirements
-// - Marketing team has different understanding of feature capabilities
-// - Legal team missing information about implementation timeline
+1. Replace imports:
+   ```typescript
+   // Before
+   import { UserContextService } from './user-context.service.ts';
+   
+   // After
+   import { UserContextFacade } from './user-context.facade.ts';
+   ```
 
-// Retrieve all decisions related to the payment gateway feature
-const decisions = await userContextService.retrieveRagContext(
-  'user123',
-  paymentGatewayEmbedding,
-  {
-    contextTypes: [ContextType.DECISION],
-    timeRangeStart: projectStartTimestamp,
-    timeRangeEnd: projectEndTimestamp
-  }
-);
+2. Replace instantiation:
+   ```typescript
+   // Before
+   const contextService = new UserContextService();
+   
+   // After
+   const contextService = new UserContextFacade();
+   ```
 
-// Map dependencies between decisions
-const decisionMap = decisions.reduce((map, decision) => {
-  // Identify decisions that reference earlier decisions by analyzing content
-  // Map the dependency connections
-  return map;
-}, {});
+No other code changes are needed as the facade maintains the same API.
+
+## Future Enhancements
+
+1. **Custom Vector Storage**: Support for different vector databases beyond Pinecone
+2. **Streaming Support**: Real-time streaming of context updates
+3. **Schema Evolution**: Tools for managing schema changes over time
+4. **Multi-tenant Support**: Enhanced isolation for multi-tenant scenarios
+
+## Contributing
+
+If adding new functionality, consider which service it belongs in and maintain the separation of concerns. Add appropriate unit tests for new functionality.
