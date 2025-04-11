@@ -1,4 +1,5 @@
-import { UserContextService, ContextType } from './user-context.service.ts';
+import { ContextType } from './context-types.ts';
+import { UserContextService } from './user-context.service.ts';
 import { RecordMetadata } from '@pinecone-database/pinecone';
 
 /**

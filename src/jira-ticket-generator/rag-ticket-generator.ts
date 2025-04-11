@@ -1,15 +1,13 @@
 import OpenAI from 'openai';
-import { ContextType } from '../shared/user-context/user-context.service.ts';
-import {
-  RagPromptManager,
-  RagRetrievalStrategy,
-} from '../shared/services/rag-prompt-manager.service.ts';
+
 import { splitTranscript } from '../shared/utils/split-transcript.ts';
 import {
   isValidJSON,
   cleanJsonArray,
   Ticket,
 } from './jira-ticket-generator.ts';
+import { RagRetrievalStrategy, RagPromptManager } from '../shared/services/rag-prompt-manager.service.ts';
+import { ContextType } from '../shared/user-context/context-types.ts';
 
 /**
  * Generate Jira tickets using RAG-enhanced context

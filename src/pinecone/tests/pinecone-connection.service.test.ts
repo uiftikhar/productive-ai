@@ -11,26 +11,28 @@ jest.unmock('../../shared/logger/console-logger.ts');
 
 // Create a mock logger to capture logs
 class MockLogger implements Logger {
-  logs: Array<{
+  messages: Array<{
     level: string;
     message: string;
     context?: Record<string, any>;
   }> = [];
 
+  setLogLevel = jest.fn();
+
   debug(message: string, context?: Record<string, any>): void {
-    this.logs.push({ level: 'debug', message, context });
+    this.messages.push({ level: 'debug', message, context });
   }
 
   info(message: string, context?: Record<string, any>): void {
-    this.logs.push({ level: 'info', message, context });
+    this.messages.push({ level: 'info', message, context });
   }
 
   warn(message: string, context?: Record<string, any>): void {
-    this.logs.push({ level: 'warn', message, context });
+    this.messages.push({ level: 'warn', message, context });
   }
 
   error(message: string, context?: Record<string, any>): void {
-    this.logs.push({ level: 'error', message, context });
+    this.messages.push({ level: 'error', message, context });
   }
 }
 
@@ -78,9 +80,9 @@ describe('PineconeConnectionService', () => {
       await service.upsertVectors('test-index', records, 'test-namespace');
 
       // Verify the logs
-      expect(mockLogger.logs.length).toBeGreaterThan(0);
+      expect(mockLogger.messages.length).toBeGreaterThan(0);
       expect(
-        mockLogger.logs.some(
+        mockLogger.messages.some(
           (log) =>
             log.level === 'info' &&
             log.message.includes('Upserting vectors') &&
@@ -91,7 +93,7 @@ describe('PineconeConnectionService', () => {
       ).toBe(true);
 
       expect(
-        mockLogger.logs.some(
+        mockLogger.messages.some(
           (log) =>
             log.level === 'info' &&
             log.message.includes('Successfully upserted'),
@@ -111,7 +113,7 @@ describe('PineconeConnectionService', () => {
 
       // Verify retry logs
       expect(
-        mockLogger.logs.some(
+        mockLogger.messages.some(
           (log) =>
             log.level === 'warn' &&
             log.message.includes('Retrying Pinecone operation') &&
@@ -144,7 +146,7 @@ describe('PineconeConnectionService', () => {
       expect(mockIndex.upsert).toHaveBeenCalledTimes(3);
 
       // Verify batch sizes from logs
-      const batchLogs = mockLogger.logs.filter(
+      const batchLogs = mockLogger.messages.filter(
         (log) =>
           log.level === 'debug' && log.message.includes('Processing batch'),
       );
@@ -299,7 +301,7 @@ describe('PineconeConnectionService', () => {
       await service.queryVectors('test-index', queryVector);
 
       expect(
-        mockLogger.logs.some(
+        mockLogger.messages.some(
           (log) =>
             log.level === 'warn' &&
             log.message.includes('Retrying Pinecone operation') &&
@@ -335,7 +337,7 @@ describe('PineconeConnectionService', () => {
       expect(mockIndex.namespace).toHaveBeenCalledWith('test-namespace');
       expect(mockIndex.deleteMany).toHaveBeenCalledWith(ids);
       expect(
-        mockLogger.logs.some(
+        mockLogger.messages.some(
           (log) =>
             log.level === 'info' &&
             log.message.includes('Successfully Deleted vectors by ids'),
@@ -352,7 +354,7 @@ describe('PineconeConnectionService', () => {
       await service.deleteVectors('test-index', ids);
 
       expect(
-        mockLogger.logs.some(
+        mockLogger.messages.some(
           (log) =>
             log.level === 'warn' &&
             log.message.includes('Retrying Pinecone operation'),
@@ -544,7 +546,7 @@ describe('PineconeConnectionService', () => {
       await service.initialize();
 
       expect(
-        mockLogger.logs.some(
+        mockLogger.messages.some(
           (log) =>
             log.level === 'info' &&
             log.message.includes('Initializing PineconeConnectionService'),
@@ -567,7 +569,7 @@ describe('PineconeConnectionService', () => {
 
       // Verify logs
       expect(
-        mockLogger.logs.some(
+        mockLogger.messages.some(
           (log) =>
             log.level === 'info' &&
             log.message.includes('Cleaning up PineconeConnectionService'),
@@ -595,7 +597,7 @@ describe('PineconeConnectionService', () => {
       ).rejects.toThrow('Operation failed');
 
       expect(
-        mockLogger.logs.some(
+        mockLogger.messages.some(
           (log) =>
             log.level === 'error' &&
             log.message.includes('Max retries reached'),

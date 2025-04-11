@@ -1,6 +1,7 @@
 /**
  * Base types for the context system
  */
+import { ContextType, ActionItemStatus, KnowledgeGapType } from '../context-types.ts';
 
 /**
  * Custom error types for UserContextService
@@ -31,42 +32,8 @@ export class UserContextValidationError extends UserContextError {
  */
 export const USER_CONTEXT_INDEX = 'user-context';
 
-/**
- * Different types of context data that can be stored
- */
-export enum ContextType {
-  CONVERSATION = 'conversation',
-  DOCUMENT = 'document',
-  PREFERENCE = 'preference',
-  TASK = 'task',
-  CUSTOM = 'custom',
-  MEETING = 'meeting', // Meeting transcripts/content
-  DECISION = 'decision', // Decisions made in meetings
-  ACTION_ITEM = 'action_item', // Action items assigned in meetings
-  TOPIC = 'topic', // Topics discussed across meetings
-  AGENDA_ITEM = 'agenda_item', // Meeting agenda items
-  QUESTION = 'question', // Questions asked in meetings
-  KNOWLEDGE_GAP = 'knowledge_gap', // Knowledge gaps and misalignments
-}
-
-/**
- * Status for action items
- */
-export enum ActionItemStatus {
-  PENDING = 'pending',
-  IN_PROGRESS = 'in-progress',
-  COMPLETED = 'completed',
-  CANCELLED = 'cancelled',
-}
-
-/**
- * Knowledge gap types
- */
-export enum KnowledgeGapType {
-  MISALIGNMENT = 'misalignment',
-  MISSING_INFORMATION = 'missing-information',
-  UNANSWERED_QUESTION = 'unanswered-question',
-}
+// Re-export the enums
+export { ContextType, ActionItemStatus, KnowledgeGapType };
 
 /**
  * Standard user roles in the organization

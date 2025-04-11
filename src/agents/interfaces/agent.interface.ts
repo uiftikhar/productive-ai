@@ -1,6 +1,4 @@
-// src/agents/interfaces/agent.interface.ts
-
-import { BaseMessage } from "langchain/schema";
+import { BaseMessage } from "@langchain/core/messages";
 
 /**
  * Agent capability descriptor

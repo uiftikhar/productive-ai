@@ -2,11 +2,13 @@
 // This file runs before your tests
 
 // Mock environment variables if needed
-process.env.PINECONE_API_KEY = 'test-api-key';
+process.env.PINECONE_API_KEY = 'test-pinecone-key';
 process.env.PINECONE_ENVIRONMENT = 'test-environment';
 process.env.PINECONE_INDEX = 'test-index';
 process.env.OPENAI_API_KEY = 'test-openai-key';
 process.env.NODE_ENV = 'test';
+
+
 
 // Create a global MockLogger class for tests to use
 class MockLogger {
@@ -33,6 +35,36 @@ jest.spyOn = function(object, methodName) {
   }
   return originalSpyOn(object, methodName);
 };
+
+// Mock LangChain's OpenAI implementation
+jest.mock('@langchain/openai', () => {
+  return {
+    ChatOpenAI: jest.fn().mockImplementation(() => ({
+      invoke: jest.fn().mockImplementation(async (messages) => {
+        return {
+          content: "This is a mock response from LangChain ChatOpenAI",
+          role: "assistant"
+        };
+      }),
+      stream: jest.fn().mockImplementation(async function* (messages) {
+        yield {
+          content: "This is a mock streaming response from LangChain ChatOpenAI",
+          role: "assistant"
+        };
+      }),
+    })),
+    OpenAIEmbeddings: jest.fn().mockImplementation(() => ({
+      embedDocuments: jest.fn().mockImplementation(async (args) => {
+        const texts = args;
+        return texts.map((_) => Array(1536).fill(0).map((_, i) => i / 1536));
+      }),
+      embedQuery: jest.fn().mockImplementation(async (args) => {
+        const text = args;
+        return Array(1536).fill(0).map((_, i) => i / 1536);
+      }),
+    })),
+  };
+});
 
 // Properly mock the Pinecone Connection Service
 jest.mock('./src/pinecone/pinecone-connection.service.ts', () => {
@@ -128,7 +160,7 @@ jest.mock('./src/pinecone/pinecone-connection.service.ts', () => {
         }),
         executeWithRetry: jest.fn().mockImplementation(async (fn, operationName, retries = 3) => {
           try {
-            return await fn();
+          return await fn();
           } catch (error) {
             if (retries <= 0) {
               global.mockLogger.error(`Max retries reached for Pinecone operation: ${operationName}`, {

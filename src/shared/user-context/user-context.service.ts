@@ -6,6 +6,7 @@ import { PineconeConnectionService } from '../../pinecone/pinecone-connection.se
 import { VectorRecord } from '../../pinecone/pinecone.type.ts';
 import { Logger } from '../../shared/logger/logger.interface.ts';
 import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
+import { ActionItemStatus, ContextType, KnowledgeGapType } from './context-types.ts';
 
 /**
  * Custom error types for UserContextService
@@ -35,43 +36,6 @@ export class UserContextValidationError extends UserContextError {
  * The index name for user context data in Pinecone
  */
 export const USER_CONTEXT_INDEX = 'user-context';
-
-/**
- * Different types of context data that can be stored
- */
-export enum ContextType {
-  CONVERSATION = 'conversation',
-  DOCUMENT = 'document',
-  PREFERENCE = 'preference',
-  TASK = 'task',
-  CUSTOM = 'custom',
-  MEETING = 'meeting', // New: Meeting transcripts/content
-  DECISION = 'decision', // New: Decisions made in meetings
-  ACTION_ITEM = 'action_item', // New: Action items assigned in meetings
-  TOPIC = 'topic', // New: Topics discussed across meetings
-  AGENDA_ITEM = 'agenda_item', // New: Meeting agenda items
-  QUESTION = 'question', // New: Questions asked in meetings
-  KNOWLEDGE_GAP = 'knowledge_gap', // New: Knowledge gaps and misalignments
-}
-
-/**
- * Status for action items
- */
-export enum ActionItemStatus {
-  PENDING = 'pending',
-  IN_PROGRESS = 'in-progress',
-  COMPLETED = 'completed',
-  CANCELLED = 'cancelled',
-}
-
-/**
- * Knowledge gap types
- */
-export enum KnowledgeGapType {
-  MISALIGNMENT = 'misalignment',
-  MISSING_INFORMATION = 'missing-information',
-  UNANSWERED_QUESTION = 'unanswered-question',
-}
 
 /**
  * Standard user roles in the organization

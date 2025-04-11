@@ -9,6 +9,7 @@ class MockLogger implements Logger {
   info = jest.fn();
   warn = jest.fn();
   error = jest.fn();
+  setLogLevel = jest.fn();
 }
 
 // Mock Pinecone Connection Service

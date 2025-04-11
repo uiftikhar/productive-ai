@@ -1,10 +1,10 @@
 import { PromptManager } from './prompt-manager.service.ts';
 import {
   UserContextService,
-  ContextType,
 } from '../../shared/user-context/user-context.service.ts';
 import type { SystemRole } from '../prompts/prompt-types.ts';
 import type { InstructionTemplateName } from '../prompts/instruction-templates.ts';
+import { ContextType } from '../user-context/context-types.ts';
 
 /**
  * Different strategies for retrieving context for RAG
@@ -16,6 +16,8 @@ export enum RagRetrievalStrategy {
   CONVERSATION = 'conversation', // Focus on current conversation
   DOCUMENT = 'document', // Document-specific context
   CUSTOM = 'custom', // Custom retrieval logic
+  METADATA = 'metadata', // Metadata-based filtering
+  COMBINED = 'combined' // Combination of multiple strategies
 }
 
 /**
@@ -268,6 +270,16 @@ export class RagPromptManager {
         );
 
         contextItems = customResults;
+        break;
+
+      case RagRetrievalStrategy.METADATA:
+        // Implement metadata-based filtering
+        throw new Error('METADATA strategy not implemented');
+        break;
+
+      case RagRetrievalStrategy.COMBINED:
+        // Implement combined strategy
+        throw new Error('COMBINED strategy not implemented');
         break;
 
       default:

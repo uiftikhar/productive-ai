@@ -10,8 +10,8 @@ import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
 import {
   UserContextMetadata,
   UserRole,
-  ContextType,
 } from '../user-context.service.ts';
+import { ContextType } from '../context-types.ts';
 
 // Constants for relevance calculation
 const DECAY_FACTOR = 0.01; // How much relevance decays per day

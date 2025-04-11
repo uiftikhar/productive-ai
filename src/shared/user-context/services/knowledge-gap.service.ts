@@ -11,10 +11,10 @@ import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
 import {
   USER_CONTEXT_INDEX,
   UserContextMetadata,
-  KnowledgeGapType,
 } from '../user-context.service.ts';
 import {
   ContextType,
+  KnowledgeGapType,
 } from '../types/context.types.ts';
 import { EmbeddingService } from '../../../services/embedding.service.ts';
 

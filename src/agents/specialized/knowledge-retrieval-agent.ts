@@ -146,7 +146,8 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
       ContextType.DOCUMENT,
       ContextType.MEETING,
       ContextType.TOPIC,
-      ContextType.CONVERSATION
+      ContextType.CONVERSATION,
+      ContextType.NOTE
     ];
 
     // Retrieve relevant context

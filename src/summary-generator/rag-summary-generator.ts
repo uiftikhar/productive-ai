@@ -1,10 +1,10 @@
 import OpenAI from 'openai';
-import { ContextType } from '../shared/user-context/user-context.service.ts';
 import {
   RagPromptManager,
   RagRetrievalStrategy,
 } from '../shared/services/rag-prompt-manager.service.ts';
 import { splitTranscript } from '../shared/utils/split-transcript.ts';
+import { ContextType } from '../shared/user-context/context-types.ts';
 
 /**
  * Generates a summary for a meeting transcript using RAG-enhanced context
