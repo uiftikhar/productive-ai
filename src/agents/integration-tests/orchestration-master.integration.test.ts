@@ -17,51 +17,53 @@ jest.mock('../messaging/communication-bus-agent');
 
 // Create mock implementations for singleton classes
 const mockOrchestratorService = {
-  executeWorkflow: jest.fn().mockImplementation(async (workflow, input, options) => {
-    // Call streaming callback if provided
-    if (options?.streamingCallback) {
-      options.streamingCallback('Streaming response from test workflow');
-      options.streamingCallback('Additional streaming chunk');
-    }
-    
-    return {
-      output: 'Mock execution result',
-      artifacts: {
-        workflowInstanceId: uuid(),
-        workflowResult: 'Mock execution result',
-        steps: [
-          {
-            id: 'step-1',
-            stepId: 'retrieveKnowledge',
-            name: 'Retrieve Knowledge',
-            agentId: 'knowledge-agent',
-            input: input,
-            output: 'Knowledge retrieved',
-            status: 'completed'
-          },
-          {
-            id: 'step-2',
-            stepId: 'generateResponse',
-            name: 'Generate Response',
-            agentId: 'response-agent', 
-            input: input,
-            output: 'Mock execution result',
-            status: 'completed'
-          }
-        ]
+  executeWorkflow: jest
+    .fn()
+    .mockImplementation(async (workflow, input, options) => {
+      // Call streaming callback if provided
+      if (options?.streamingCallback) {
+        options.streamingCallback('Streaming response from test workflow');
+        options.streamingCallback('Additional streaming chunk');
       }
-    };
-  }),
+
+      return {
+        output: 'Mock execution result',
+        artifacts: {
+          workflowInstanceId: uuid(),
+          workflowResult: 'Mock execution result',
+          steps: [
+            {
+              id: 'step-1',
+              stepId: 'retrieveKnowledge',
+              name: 'Retrieve Knowledge',
+              agentId: 'knowledge-agent',
+              input: input,
+              output: 'Knowledge retrieved',
+              status: 'completed',
+            },
+            {
+              id: 'step-2',
+              stepId: 'generateResponse',
+              name: 'Generate Response',
+              agentId: 'response-agent',
+              input: input,
+              output: 'Mock execution result',
+              status: 'completed',
+            },
+          ],
+        },
+      };
+    }),
   getActiveExecutions: jest.fn().mockReturnValue([]),
   executeWorkflowByName: jest.fn().mockResolvedValue({
     output: 'Mock execution result',
-    artifacts: {}
+    artifacts: {},
   }),
   getExecutionStatus: jest.fn().mockReturnValue({
     status: 'completed',
-    result: 'Mock execution result'
+    result: 'Mock execution result',
   }),
-  initialize: jest.fn().mockResolvedValue(undefined)
+  initialize: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockWorkflowDefinitionService = {
@@ -71,14 +73,14 @@ const mockWorkflowDefinitionService = {
   findWorkflowForInput: jest.fn().mockReturnValue(null),
   createWorkflow: jest.fn().mockReturnValue({}),
   getLatestWorkflow: jest.fn().mockReturnValue(null),
-  initializeDefaultWorkflows: jest.fn()
+  initializeDefaultWorkflows: jest.fn(),
 };
 
 const mockRegistry = {
   registerAgent: jest.fn(),
   getAgent: jest.fn().mockReturnValue(null),
   findAgentByCapability: jest.fn().mockReturnValue(null),
-  getAllAgents: jest.fn().mockReturnValue([])
+  getAllAgents: jest.fn().mockReturnValue([]),
 };
 
 // Create a complete mock of AgentCommunicationBus matching all methods in the real implementation
@@ -86,7 +88,8 @@ const mockCommunicationBus = {
   // Core methods from the real class
   sendMessage: jest.fn().mockImplementation((message) => {
     // Track that sendMessage was called
-    mockCommunicationBus._messagesSent = mockCommunicationBus._messagesSent || [];
+    mockCommunicationBus._messagesSent =
+      mockCommunicationBus._messagesSent || [];
     mockCommunicationBus._messagesSent.push(message);
   }),
   subscribeToAll: jest.fn().mockImplementation((callback) => {
@@ -97,18 +100,22 @@ const mockCommunicationBus = {
       mockCommunicationBus._subscribedToAll = false;
     };
   }),
-  subscribeToRecipient: jest.fn().mockImplementation((recipientId, callback) => {
-    // Track that subscribeToRecipient was called
-    mockCommunicationBus._subscribedToRecipients = mockCommunicationBus._subscribedToRecipients || {};
-    mockCommunicationBus._subscribedToRecipients[recipientId] = callback;
-    // Return an unsubscribe function
-    return () => {
-      delete mockCommunicationBus._subscribedToRecipients[recipientId];
-    };
-  }),
+  subscribeToRecipient: jest
+    .fn()
+    .mockImplementation((recipientId, callback) => {
+      // Track that subscribeToRecipient was called
+      mockCommunicationBus._subscribedToRecipients =
+        mockCommunicationBus._subscribedToRecipients || {};
+      mockCommunicationBus._subscribedToRecipients[recipientId] = callback;
+      // Return an unsubscribe function
+      return () => {
+        delete mockCommunicationBus._subscribedToRecipients[recipientId];
+      };
+    }),
   subscribeToType: jest.fn().mockImplementation((type, callback) => {
     // Track that subscribeToType was called
-    mockCommunicationBus._subscribedToTypes = mockCommunicationBus._subscribedToTypes || {};
+    mockCommunicationBus._subscribedToTypes =
+      mockCommunicationBus._subscribedToTypes || {};
     mockCommunicationBus._subscribedToTypes[type] = callback;
     // Return an unsubscribe function
     return () => {
@@ -117,7 +124,7 @@ const mockCommunicationBus = {
   }),
   getMessageHistory: jest.fn().mockReturnValue([]),
   clearMessageHistory: jest.fn(),
-  
+
   // Additional methods from CommunicationBusService that might be used
   subscribe: jest.fn().mockReturnValue(uuid()),
   publish: jest.fn().mockResolvedValue(uuid()),
@@ -128,18 +135,24 @@ const mockCommunicationBus = {
     },
   }),
   broadcast: jest.fn().mockResolvedValue(uuid()),
-  
+
   // Event emitter methods in case they're directly used
   on: jest.fn().mockReturnValue({}),
   off: jest.fn(),
-  emit: jest.fn()
+  emit: jest.fn(),
 };
 
 // Override getInstance methods to return our mocks
-EnhancedOrchestratorService.getInstance = jest.fn().mockReturnValue(mockOrchestratorService);
-WorkflowDefinitionService.getInstance = jest.fn().mockReturnValue(mockWorkflowDefinitionService);
+EnhancedOrchestratorService.getInstance = jest
+  .fn()
+  .mockReturnValue(mockOrchestratorService);
+WorkflowDefinitionService.getInstance = jest
+  .fn()
+  .mockReturnValue(mockWorkflowDefinitionService);
 AgentRegistryService.getInstance = jest.fn().mockReturnValue(mockRegistry);
-AgentCommunicationBus.getInstance = jest.fn().mockReturnValue(mockCommunicationBus);
+AgentCommunicationBus.getInstance = jest
+  .fn()
+  .mockReturnValue(mockCommunicationBus);
 
 describe('MasterOrchestratorAgent Integration Tests', () => {
   let masterOrchestrator: MasterOrchestratorAgent;
@@ -279,30 +292,38 @@ describe('MasterOrchestratorAgent Integration Tests', () => {
     workflowDefinitionService = WorkflowDefinitionService.getInstance();
     registry = AgentRegistryService.getInstance();
     communicationBus = AgentCommunicationBus.getInstance();
-    
+
     // Configure mock implementations
     orchestratorService.executeWorkflow = jest.fn().mockResolvedValue({
       output: sampleExecutionResult.result,
       artifacts: {
         workflowInstanceId: sampleExecutionResult.workflowInstanceId,
         workflowResult: sampleExecutionResult.result,
-        steps: sampleExecutionResult.steps
-      }
+        steps: sampleExecutionResult.steps,
+      },
     });
     orchestratorService.getActiveExecutions = jest.fn().mockReturnValue([]);
-    
-    workflowDefinitionService.listWorkflows = jest.fn().mockReturnValue(sampleWorkflows);
-    workflowDefinitionService.getWorkflow = jest.fn().mockImplementation((id) => {
-      return sampleWorkflows.find((w) => w.id === id) || null;
-    });
-    workflowDefinitionService.getWorkflowByName = jest.fn().mockImplementation((name) => {
-      return sampleWorkflows.find((w) => w.name === name) || null;
-    });
-    
+
+    workflowDefinitionService.listWorkflows = jest
+      .fn()
+      .mockReturnValue(sampleWorkflows);
+    workflowDefinitionService.getWorkflow = jest
+      .fn()
+      .mockImplementation((id) => {
+        return sampleWorkflows.find((w) => w.id === id) || null;
+      });
+    workflowDefinitionService.getWorkflowByName = jest
+      .fn()
+      .mockImplementation((name) => {
+        return sampleWorkflows.find((w) => w.name === name) || null;
+      });
+
     // Mock findWorkflowForInput for the automatic selection test
-    workflowDefinitionService.findWorkflowForInput = jest.fn().mockImplementation((input) => {
-      return sampleWorkflows[0]; // Always return the first workflow for testing
-    });
+    workflowDefinitionService.findWorkflowForInput = jest
+      .fn()
+      .mockImplementation((input) => {
+        return sampleWorkflows[0]; // Always return the first workflow for testing
+      });
 
     // Create the MasterOrchestratorAgent instance with initialization disabled
     masterOrchestrator = new MasterOrchestratorAgent({
@@ -311,139 +332,157 @@ describe('MasterOrchestratorAgent Integration Tests', () => {
       registry,
       communicationBus,
       logger,
-      useEnhancedOrchestration: false // Disable enhanced orchestration for tests
+      useEnhancedOrchestration: false, // Disable enhanced orchestration for tests
     });
-    
+
     // Override the initialize method to avoid running actual initialization
     masterOrchestrator.initialize = jest.fn().mockResolvedValue(undefined);
-    
+
     // Override the handleMessage method to avoid event emitter errors
     masterOrchestrator['handleMessage'] = jest.fn();
-    
+
     // Replace the execute method to avoid the initialization check and subscription issues
     // This directly calls our mocked executeWorkflow method to provide test coverage
     const originalExecute = masterOrchestrator.execute;
-    masterOrchestrator.execute = jest.fn().mockImplementation(async (request: any, options: any = {}) => {
-      if (request.parameters?.workflowName) {
-        const workflow = workflowDefinitionService.getWorkflowByName(request.parameters.workflowName);
-        if (!workflow) {
-          return {
-            output: `Error: Workflow '${request.parameters.workflowName}' not found`,
-            artifacts: { error: `Workflow '${request.parameters.workflowName}' not found` }
-          };
-        }
-        
-        try {
-          // Call the mock implementation of executeWorkflow
-          const result = await orchestratorService.executeWorkflow(
-            workflow,
-            request.input,
-            {
-              userId: request.parameters.userId,
-              conversationId: request.parameters.conversationId,
-              metadata: request.parameters.metadata,
-              initialVariables: request.parameters.variables,
-              // Pass through streaming callback if provided
-              streamingCallback: options?.streamingCallback
-            }
+    masterOrchestrator.execute = jest
+      .fn()
+      .mockImplementation(async (request: any, options: any = {}) => {
+        if (request.parameters?.workflowName) {
+          const workflow = workflowDefinitionService.getWorkflowByName(
+            request.parameters.workflowName,
           );
-          
-          // Use a defined response structure
-          return {
-            output: result.output || sampleExecutionResult.result,
-            artifacts: {
-              workflowInstanceId: sampleExecutionResult.workflowInstanceId,
-              workflowResult: sampleExecutionResult.result,
-              steps: sampleExecutionResult.steps
-            }
-          };
-        } catch (error) {
-          return {
-            output: `Workflow execution failed: ${error.message}`,
-            artifacts: { error: `Workflow execution failed: ${error.message}` }
-          };
-        }
-      } else if (request.parameters?.workflowId) {
-        const workflow = workflowDefinitionService.getWorkflow(request.parameters.workflowId);
-        if (!workflow) {
-          return {
-            output: `Error: Workflow with ID '${request.parameters.workflowId}' not found`,
-            artifacts: { error: `Workflow with ID '${request.parameters.workflowId}' not found` }
-          };
-        }
-        
-        try {
-          // Call the mock implementation of executeWorkflow
-          const result = await orchestratorService.executeWorkflow(
-            workflow,
-            request.input,
-            {
-              userId: request.parameters.userId,
-              conversationId: request.parameters.conversationId,
-              metadata: request.parameters.metadata,
-              initialVariables: request.parameters.variables,
-              // Pass through streaming callback if provided
-              streamingCallback: options?.streamingCallback
-            }
+          if (!workflow) {
+            return {
+              output: `Error: Workflow '${request.parameters.workflowName}' not found`,
+              artifacts: {
+                error: `Workflow '${request.parameters.workflowName}' not found`,
+              },
+            };
+          }
+
+          try {
+            // Call the mock implementation of executeWorkflow
+            const result = await orchestratorService.executeWorkflow(
+              workflow,
+              request.input,
+              {
+                userId: request.parameters.userId,
+                conversationId: request.parameters.conversationId,
+                metadata: request.parameters.metadata,
+                initialVariables: request.parameters.variables,
+                // Pass through streaming callback if provided
+                streamingCallback: options?.streamingCallback,
+              },
+            );
+
+            // Use a defined response structure
+            return {
+              output: result.output || sampleExecutionResult.result,
+              artifacts: {
+                workflowInstanceId: sampleExecutionResult.workflowInstanceId,
+                workflowResult: sampleExecutionResult.result,
+                steps: sampleExecutionResult.steps,
+              },
+            };
+          } catch (error) {
+            return {
+              output: `Workflow execution failed: ${error.message}`,
+              artifacts: {
+                error: `Workflow execution failed: ${error.message}`,
+              },
+            };
+          }
+        } else if (request.parameters?.workflowId) {
+          const workflow = workflowDefinitionService.getWorkflow(
+            request.parameters.workflowId,
           );
-          
-          // Use a defined response structure
-          return {
-            output: result.output || sampleExecutionResult.result,
-            artifacts: {
-              workflowInstanceId: sampleExecutionResult.workflowInstanceId,
-              workflowResult: sampleExecutionResult.result,
-              steps: sampleExecutionResult.steps
-            }
-          };
-        } catch (error) {
-          return {
-            output: `Workflow execution failed: ${error.message}`,
-            artifacts: { error: `Workflow execution failed: ${error.message}` }
-          };
-        }
-      } else {
-        // Auto-select workflow
-        const workflow = workflowDefinitionService.findWorkflowForInput(request.input);
-        if (!workflow) {
-          return {
-            output: `Error: No suitable workflow found for input`,
-            artifacts: { error: `No suitable workflow found for input` }
-          };
-        }
-        
-        try {
-          // Call the mock implementation of executeWorkflow
-          const result = await orchestratorService.executeWorkflow(
-            workflow,
+          if (!workflow) {
+            return {
+              output: `Error: Workflow with ID '${request.parameters.workflowId}' not found`,
+              artifacts: {
+                error: `Workflow with ID '${request.parameters.workflowId}' not found`,
+              },
+            };
+          }
+
+          try {
+            // Call the mock implementation of executeWorkflow
+            const result = await orchestratorService.executeWorkflow(
+              workflow,
+              request.input,
+              {
+                userId: request.parameters.userId,
+                conversationId: request.parameters.conversationId,
+                metadata: request.parameters.metadata,
+                initialVariables: request.parameters.variables,
+                // Pass through streaming callback if provided
+                streamingCallback: options?.streamingCallback,
+              },
+            );
+
+            // Use a defined response structure
+            return {
+              output: result.output || sampleExecutionResult.result,
+              artifacts: {
+                workflowInstanceId: sampleExecutionResult.workflowInstanceId,
+                workflowResult: sampleExecutionResult.result,
+                steps: sampleExecutionResult.steps,
+              },
+            };
+          } catch (error) {
+            return {
+              output: `Workflow execution failed: ${error.message}`,
+              artifacts: {
+                error: `Workflow execution failed: ${error.message}`,
+              },
+            };
+          }
+        } else {
+          // Auto-select workflow
+          const workflow = workflowDefinitionService.findWorkflowForInput(
             request.input,
-            {
-              userId: request.parameters?.userId,
-              conversationId: request.parameters?.conversationId,
-              metadata: request.parameters?.metadata,
-              initialVariables: request.parameters?.variables,
-              // Pass through streaming callback if provided
-              streamingCallback: options?.streamingCallback
-            }
           );
-          
-          // Use a defined response structure
-          return {
-            output: result.output || sampleExecutionResult.result,
-            artifacts: {
-              workflowInstanceId: sampleExecutionResult.workflowInstanceId,
-              workflowResult: sampleExecutionResult.result,
-              steps: sampleExecutionResult.steps
-            }
-          };
-        } catch (error) {
-          return {
-            output: `Workflow execution failed: ${error.message}`,
-            artifacts: { error: `Workflow execution failed: ${error.message}` }
-          };
+          if (!workflow) {
+            return {
+              output: `Error: No suitable workflow found for input`,
+              artifacts: { error: `No suitable workflow found for input` },
+            };
+          }
+
+          try {
+            // Call the mock implementation of executeWorkflow
+            const result = await orchestratorService.executeWorkflow(
+              workflow,
+              request.input,
+              {
+                userId: request.parameters?.userId,
+                conversationId: request.parameters?.conversationId,
+                metadata: request.parameters?.metadata,
+                initialVariables: request.parameters?.variables,
+                // Pass through streaming callback if provided
+                streamingCallback: options?.streamingCallback,
+              },
+            );
+
+            // Use a defined response structure
+            return {
+              output: result.output || sampleExecutionResult.result,
+              artifacts: {
+                workflowInstanceId: sampleExecutionResult.workflowInstanceId,
+                workflowResult: sampleExecutionResult.result,
+                steps: sampleExecutionResult.steps,
+              },
+            };
+          } catch (error) {
+            return {
+              output: `Workflow execution failed: ${error.message}`,
+              artifacts: {
+                error: `Workflow execution failed: ${error.message}`,
+              },
+            };
+          }
         }
-      }
-    });
+      });
   });
 
   test('Should execute a workflow by name', async () => {
@@ -616,7 +655,7 @@ describe('MasterOrchestratorAgent Integration Tests', () => {
     expect(response).toBeDefined();
     expect(response.output).toContain('failed');
     expect(response.artifacts.error).toContain('Workflow execution failed');
-    
+
     // Verify workflow was retrieved and execution was attempted
     expect(workflowDefinitionService.getWorkflowByName).toHaveBeenCalledWith(
       'knowledge-query',
@@ -653,11 +692,11 @@ describe('MasterOrchestratorAgent Integration Tests', () => {
     expect(workflowDefinitionService.getWorkflowByName).toHaveBeenCalledWith(
       'knowledge-query',
     );
-    
+
     // Get the last call to executeWorkflow and check its arguments
     const executeWorkflowCalls = orchestratorService.executeWorkflow.mock.calls;
     expect(executeWorkflowCalls.length).toBeGreaterThan(0);
-    
+
     // Workflow and input should be passed correctly
     expect(executeWorkflowCalls[0][0]).toEqual(
       expect.objectContaining({
@@ -665,12 +704,12 @@ describe('MasterOrchestratorAgent Integration Tests', () => {
       }),
     );
     expect(executeWorkflowCalls[0][1]).toBe('Generate a detailed report');
-    
+
     // Context object should include streaming callback
     expect(executeWorkflowCalls[0][2]).toEqual(
       expect.objectContaining({
         userId: 'test-user-123',
-        // We're not checking for streamingCallback directly as our mock implementation 
+        // We're not checking for streamingCallback directly as our mock implementation
         // doesn't pass it through, but in a real implementation it would be here
       }),
     );
@@ -706,7 +745,7 @@ describe('MasterOrchestratorAgent Integration Tests', () => {
     // Get the last call to executeWorkflow and check its arguments
     const executeWorkflowCalls = orchestratorService.executeWorkflow.mock.calls;
     expect(executeWorkflowCalls.length).toBeGreaterThan(0);
-    
+
     // Workflow and input should be passed correctly
     expect(executeWorkflowCalls[0][0]).toEqual(
       expect.objectContaining({
@@ -714,7 +753,7 @@ describe('MasterOrchestratorAgent Integration Tests', () => {
       }),
     );
     expect(executeWorkflowCalls[0][1]).toBe('What is the project status?');
-    
+
     // Verify metadata and variables were passed to workflow execution
     expect(executeWorkflowCalls[0][2]).toEqual(
       expect.objectContaining({

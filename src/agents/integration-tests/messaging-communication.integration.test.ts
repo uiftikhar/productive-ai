@@ -163,9 +163,12 @@ describe('Agent Messaging Integration Tests', () => {
 
     // Create mock implementation for CommunicationBusService
     const mockCommunicationBus = {
-      _subscriptions: {} as Record<string, { options: any, handler: (message: AgentMessage) => void }>,
+      _subscriptions: {} as Record<
+        string,
+        { options: any; handler: (message: AgentMessage) => void }
+      >,
       _messages: [] as AgentMessage[],
-      
+
       subscribe: jest.fn().mockImplementation((options, handler) => {
         const id = uuid();
         subscriptionIds.push(id);
@@ -173,39 +176,43 @@ describe('Agent Messaging Integration Tests', () => {
         mockCommunicationBus._subscriptions[id] = { options, handler };
         return id;
       }),
-      
-      publish: jest.fn().mockImplementation(async (message: Partial<AgentMessage>) => {
-        const completeMessage: AgentMessage = {
-          id: uuid(),
-          timestamp: Date.now(),
-          type: message.type || MessageType.NOTIFICATION,
-          sourceId: message.sourceId || 'unknown',
-          targetId: message.targetId,
-          content: message.content || {},
-          correlationId: message.correlationId,
-          priority: message.priority || MessagePriority.NORMAL,
-          metadata: message.metadata || {},
-          topic: message.topic,
-        };
-        
-        // Store the message
-        mockCommunicationBus._messages.push(completeMessage);
-        
-        // Deliver to matching subscribers
-        for (const [id, subscription] of Object.entries(mockCommunicationBus._subscriptions)) {
-          // Check if this subscriber should receive the message
-          if (matchesSubscription(completeMessage, subscription.options)) {
-            try {
-              subscription.handler(completeMessage);
-            } catch (error) {
-              console.error(`Error in subscription handler ${id}:`, error);
+
+      publish: jest
+        .fn()
+        .mockImplementation(async (message: Partial<AgentMessage>) => {
+          const completeMessage: AgentMessage = {
+            id: uuid(),
+            timestamp: Date.now(),
+            type: message.type || MessageType.NOTIFICATION,
+            sourceId: message.sourceId || 'unknown',
+            targetId: message.targetId,
+            content: message.content || {},
+            correlationId: message.correlationId,
+            priority: message.priority || MessagePriority.NORMAL,
+            metadata: message.metadata || {},
+            topic: message.topic,
+          };
+
+          // Store the message
+          mockCommunicationBus._messages.push(completeMessage);
+
+          // Deliver to matching subscribers
+          for (const [id, subscription] of Object.entries(
+            mockCommunicationBus._subscriptions,
+          )) {
+            // Check if this subscriber should receive the message
+            if (matchesSubscription(completeMessage, subscription.options)) {
+              try {
+                subscription.handler(completeMessage);
+              } catch (error) {
+                console.error(`Error in subscription handler ${id}:`, error);
+              }
             }
           }
-        }
-        
-        return completeMessage.id;
-      }),
-      
+
+          return completeMessage.id;
+        }),
+
       unsubscribe: jest.fn().mockImplementation((id: string) => {
         // Remove from subscriptions
         if (mockCommunicationBus._subscriptions[id]) {
@@ -214,48 +221,54 @@ describe('Agent Messaging Integration Tests', () => {
         }
         return false;
       }),
-      
-      request: jest.fn().mockImplementation(async (message: Partial<AgentMessage>, timeoutMs: number = 5000) => {
-        // Simulate request-response pattern
-        const requestId = await mockCommunicationBus.publish(message);
-        
-        // Create a mock response
-        const response: AgentMessage = {
-          id: uuid(),
-          timestamp: Date.now(),
-          type: MessageType.RESPONSE,
-          sourceId: message.targetId || 'unknown',
-          targetId: message.sourceId || 'unknown',
-          correlationId: message.correlationId,
-          content: {
-            result: `Mock response for request ${requestId}`,
+
+      request: jest
+        .fn()
+        .mockImplementation(
+          async (message: Partial<AgentMessage>, timeoutMs: number = 5000) => {
+            // Simulate request-response pattern
+            const requestId = await mockCommunicationBus.publish(message);
+
+            // Create a mock response
+            const response: AgentMessage = {
+              id: uuid(),
+              timestamp: Date.now(),
+              type: MessageType.RESPONSE,
+              sourceId: message.targetId || 'unknown',
+              targetId: message.sourceId || 'unknown',
+              correlationId: message.correlationId,
+              content: {
+                result: `Mock response for request ${requestId}`,
+              },
+              priority: MessagePriority.NORMAL,
+              metadata: {},
+            };
+
+            // Store and deliver the response
+            mockCommunicationBus._messages.push(response);
+
+            return response;
           },
-          priority: MessagePriority.NORMAL,
-          metadata: {},
-        };
-        
-        // Store and deliver the response
-        mockCommunicationBus._messages.push(response);
-        
-        return response;
-      }),
-      
-      broadcast: jest.fn().mockImplementation(async (message: Partial<AgentMessage>) => {
-        return mockCommunicationBus.publish({
-          ...message,
-          targetId: 'broadcast',
-        });
-      }),
-      
+        ),
+
+      broadcast: jest
+        .fn()
+        .mockImplementation(async (message: Partial<AgentMessage>) => {
+          return mockCommunicationBus.publish({
+            ...message,
+            targetId: 'broadcast',
+          });
+        }),
+
       getMessageHistory: jest.fn().mockImplementation((limit: number = 100) => {
         return mockCommunicationBus._messages.slice(-limit);
       }),
-      
+
       clearMessageHistory: jest.fn().mockImplementation(() => {
         mockCommunicationBus._messages = [];
       }),
     };
-    
+
     // Helper function to check if a message matches subscription options
     function matchesSubscription(message: AgentMessage, options: any): boolean {
       if (options.agentId && message.targetId !== options.agentId) {
@@ -267,7 +280,10 @@ describe('Agent Messaging Integration Tests', () => {
       if (options.messageType && message.type !== options.messageType) {
         return false;
       }
-      if (options.correlationId && message.correlationId !== options.correlationId) {
+      if (
+        options.correlationId &&
+        message.correlationId !== options.correlationId
+      ) {
         return false;
       }
       if (options.topic && message.topic !== options.topic) {
@@ -277,7 +293,9 @@ describe('Agent Messaging Integration Tests', () => {
     }
 
     // Override the getInstance method to return our mock
-    CommunicationBusService.getInstance = jest.fn().mockReturnValue(mockCommunicationBus);
+    CommunicationBusService.getInstance = jest
+      .fn()
+      .mockReturnValue(mockCommunicationBus);
 
     // Initialize services
     communicationBus = CommunicationBusService.getInstance();
@@ -353,15 +371,13 @@ describe('Agent Messaging Integration Tests', () => {
       },
     };
 
-    const requestId = await orchestratorAgent.sendMessage(
-      {
-        type: MessageType.REQUEST,
-        sourceId: orchestratorAgent.id,
-        targetId: knowledgeAgent.id,
-        content: requestContent,
-        correlationId: uuid(),
-      },
-    );
+    const requestId = await orchestratorAgent.sendMessage({
+      type: MessageType.REQUEST,
+      sourceId: orchestratorAgent.id,
+      targetId: knowledgeAgent.id,
+      content: requestContent,
+      correlationId: uuid(),
+    });
 
     // Wait for message processing
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -469,18 +485,16 @@ describe('Agent Messaging Integration Tests', () => {
     // 4. Orchestrator combines everything into a final result
 
     // Step 1: Request knowledge
-    const knowledgeRequestId = await orchestratorAgent.sendMessage(
-      {
-        type: MessageType.REQUEST,
-        sourceId: orchestratorAgent.id,
-        targetId: knowledgeAgent.id,
-        content: {
-          query: 'What are the project milestones?',
-          parameters: { maxResults: 3 },
-        },
-        correlationId: uuid(),
+    const knowledgeRequestId = await orchestratorAgent.sendMessage({
+      type: MessageType.REQUEST,
+      sourceId: orchestratorAgent.id,
+      targetId: knowledgeAgent.id,
+      content: {
+        query: 'What are the project milestones?',
+        parameters: { maxResults: 3 },
       },
-    );
+      correlationId: uuid(),
+    });
 
     // Wait for message processing
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -493,20 +507,18 @@ describe('Agent Messaging Integration Tests', () => {
     expect(knowledgeResponse).toBeDefined();
 
     // Step 2: Request response generation
-    const responseRequestId = await orchestratorAgent.sendMessage(
-      {
-        type: MessageType.REQUEST,
-        sourceId: orchestratorAgent.id,
-        targetId: responseAgent.id,
-        content: {
-          query: 'What are the project milestones?',
-          context:
-            'Project has three major milestones: Alpha in Q1, Beta in Q2, and Release in Q3.',
-          parameters: { format: 'concise' },
-        },
-        correlationId: uuid(),
+    const responseRequestId = await orchestratorAgent.sendMessage({
+      type: MessageType.REQUEST,
+      sourceId: orchestratorAgent.id,
+      targetId: responseAgent.id,
+      content: {
+        query: 'What are the project milestones?',
+        context:
+          'Project has three major milestones: Alpha in Q1, Beta in Q2, and Release in Q3.',
+        parameters: { format: 'concise' },
       },
-    );
+      correlationId: uuid(),
+    });
 
     // Wait for message processing - increase wait time to ensure message is processed
     await new Promise((resolve) => setTimeout(resolve, 300));

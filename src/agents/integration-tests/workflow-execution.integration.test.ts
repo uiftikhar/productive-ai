@@ -73,14 +73,18 @@ const mockWorkflowExecutor = {
       },
     ],
     branches: [],
-  })
+  }),
 };
 
 // Override the getInstance methods to return our pre-configured mocks
 AgentRegistryService.getInstance = jest.fn().mockReturnValue(mockRegistry);
 AgentDiscoveryService.getInstance = jest.fn().mockReturnValue(mockDiscovery);
-CommunicationBusService.getInstance = jest.fn().mockReturnValue(mockCommunicationBus);
-EnhancedWorkflowExecutorService.getInstance = jest.fn().mockReturnValue(mockWorkflowExecutor);
+CommunicationBusService.getInstance = jest
+  .fn()
+  .mockReturnValue(mockCommunicationBus);
+EnhancedWorkflowExecutorService.getInstance = jest
+  .fn()
+  .mockReturnValue(mockWorkflowExecutor);
 
 // Helper function to create a mock agent
 const createMockAgent = (id: string, name: string, capabilities: string[]) => ({
@@ -156,17 +160,17 @@ describe('EnhancedWorkflowExecutorService Integration Tests', () => {
     mockAgents['knowledge-retrieval'] = createMockAgent(
       'knowledge-retrieval',
       'Knowledge Retrieval Agent',
-      ['retrieve_knowledge']
+      ['retrieve_knowledge'],
     );
     mockAgents['context-processor'] = createMockAgent(
       'context-processor',
       'Context Processor Agent',
-      ['process_context']
+      ['process_context'],
     );
     mockAgents['response-generator'] = createMockAgent(
       'response-generator',
       'Response Generator Agent',
-      ['generate_response']
+      ['generate_response'],
     );
 
     // Setup mocked registry methods
@@ -201,170 +205,183 @@ describe('EnhancedWorkflowExecutorService Integration Tests', () => {
     registry = AgentRegistryService.getInstance();
     discovery = AgentDiscoveryService.getInstance();
     communicationBus = CommunicationBusService.getInstance();
-    
+
     // Setup mock implementation for executeWorkflow
-    mockWorkflowExecutor.executeWorkflow.mockImplementation(async (workflow, input, options) => {
-      // Execute each workflow step using the mock agents
-      const workflowInstanceId = uuid();
-      const startTime = Date.now();
-      
-      // Simulate a small delay to ensure non-zero execution time
-      await new Promise(resolve => setTimeout(resolve, 5));
-      
-      const steps = [];
-      const stepMetrics = {};
-      
-      // Subscribe to workflow events (needed for the test assertions)
-      const subscriptionId = communicationBus.subscribe(
-        { 
-          topic: `workflow:${workflowInstanceId}` 
-        }, 
-        () => {}
-      );
-      
-      // Publish workflow start message
-      await communicationBus.publish({
-        sourceId: 'workflow-executor',
-        type: MessageType.WORKFLOW_STARTED,
-        content: {
-          workflowId: workflow.id,
-          workflowName: workflow.name,
-          workflowInstanceId,
-          input,
-        },
-        topic: `workflow:${workflowInstanceId}`,
-        timestamp: Date.now()
-      });
-      
-      try {
-        // Process the workflow steps in order
-        for (const step of workflow.steps) {
-          const stepId = step.id;
-          const stepStartTime = Date.now();
-          
-          // Simulate a small delay for each step
-          await new Promise(resolve => setTimeout(resolve, 1));
-          
-          // Find the agent for this capability
-          const agentId = mockDiscovery.discoverAgent({ capability: step.capability })?.agentId;
-          const agent = agentId ? mockRegistry.getAgentById(agentId) : null;
-          
-          if (!agent) {
-            throw new Error(`No agent found for capability: ${step.capability}`);
-          }
-          
-          // Execute the agent
-          const stepResult = await agent.execute({
-            input,
-            parameters: step.parameters ? (typeof step.parameters === 'function' ? step.parameters() : step.parameters) : {},
-            context: {
-              userId: options.userId,
-              conversationId: options.conversationId,
-              workflowInstanceId,
-              stepId,
-              variables: options.initialVariables || {},
-            }
-          });
-          
-          const stepEndTime = Date.now();
-          const executionTimeMs = Math.max(1, stepEndTime - stepStartTime); // Ensure non-zero duration
-          
-          // Record the step result
-          steps.push({
-            id: uuid(),
-            stepId,
-            name: step.name,
-            agentId,
-            capability: step.capability,
-            input,
-            output: stepResult.output,
-            status: 'completed',
-            startTime: stepStartTime,
-            endTime: stepEndTime,
-            executionTimeMs,
-          });
-          
-          // Record metrics
-          stepMetrics[stepId] = {
-            executionTimeMs,
-            agentId,
-            capability: step.capability,
-            success: true,
-          };
-          
-          // If this is the generate response step and we have a streaming callback, call it
-          if (step.id === 'generateResponse' && options.streamingCallback) {
-            options.streamingCallback('Streaming output from the response generator');
-          }
-        }
-        
-        // Create the final result
-        const endTime = Date.now();
-        const result = steps[steps.length - 1]?.output || 'Workflow completed';
-        
-        // Publish workflow completion message
+    mockWorkflowExecutor.executeWorkflow.mockImplementation(
+      async (workflow, input, options) => {
+        // Execute each workflow step using the mock agents
+        const workflowInstanceId = uuid();
+        const startTime = Date.now();
+
+        // Simulate a small delay to ensure non-zero execution time
+        await new Promise((resolve) => setTimeout(resolve, 5));
+
+        const steps = [];
+        const stepMetrics = {};
+
+        // Subscribe to workflow events (needed for the test assertions)
+        const subscriptionId = communicationBus.subscribe(
+          {
+            topic: `workflow:${workflowInstanceId}`,
+          },
+          () => {},
+        );
+
+        // Publish workflow start message
         await communicationBus.publish({
           sourceId: 'workflow-executor',
-          type: MessageType.WORKFLOW_COMPLETED,
+          type: MessageType.WORKFLOW_STARTED,
           content: {
             workflowId: workflow.id,
             workflowName: workflow.name,
+            workflowInstanceId,
+            input,
+          },
+          topic: `workflow:${workflowInstanceId}`,
+          timestamp: Date.now(),
+        });
+
+        try {
+          // Process the workflow steps in order
+          for (const step of workflow.steps) {
+            const stepId = step.id;
+            const stepStartTime = Date.now();
+
+            // Simulate a small delay for each step
+            await new Promise((resolve) => setTimeout(resolve, 1));
+
+            // Find the agent for this capability
+            const agentId = mockDiscovery.discoverAgent({
+              capability: step.capability,
+            })?.agentId;
+            const agent = agentId ? mockRegistry.getAgentById(agentId) : null;
+
+            if (!agent) {
+              throw new Error(
+                `No agent found for capability: ${step.capability}`,
+              );
+            }
+
+            // Execute the agent
+            const stepResult = await agent.execute({
+              input,
+              parameters: step.parameters
+                ? typeof step.parameters === 'function'
+                  ? step.parameters()
+                  : step.parameters
+                : {},
+              context: {
+                userId: options.userId,
+                conversationId: options.conversationId,
+                workflowInstanceId,
+                stepId,
+                variables: options.initialVariables || {},
+              },
+            });
+
+            const stepEndTime = Date.now();
+            const executionTimeMs = Math.max(1, stepEndTime - stepStartTime); // Ensure non-zero duration
+
+            // Record the step result
+            steps.push({
+              id: uuid(),
+              stepId,
+              name: step.name,
+              agentId,
+              capability: step.capability,
+              input,
+              output: stepResult.output,
+              status: 'completed',
+              startTime: stepStartTime,
+              endTime: stepEndTime,
+              executionTimeMs,
+            });
+
+            // Record metrics
+            stepMetrics[stepId] = {
+              executionTimeMs,
+              agentId,
+              capability: step.capability,
+              success: true,
+            };
+
+            // If this is the generate response step and we have a streaming callback, call it
+            if (step.id === 'generateResponse' && options.streamingCallback) {
+              options.streamingCallback(
+                'Streaming output from the response generator',
+              );
+            }
+          }
+
+          // Create the final result
+          const endTime = Date.now();
+          const result =
+            steps[steps.length - 1]?.output || 'Workflow completed';
+
+          // Publish workflow completion message
+          await communicationBus.publish({
+            sourceId: 'workflow-executor',
+            type: MessageType.WORKFLOW_COMPLETED,
+            content: {
+              workflowId: workflow.id,
+              workflowName: workflow.name,
+              workflowInstanceId,
+              result,
+              steps: steps.map((s) => s.id),
+            },
+            topic: `workflow:${workflowInstanceId}`,
+            timestamp: Date.now(),
+          });
+
+          // Unsubscribe from workflow events
+          communicationBus.unsubscribe(subscriptionId);
+
+          return {
             workflowInstanceId,
             result,
-            steps: steps.map(s => s.id)
-          },
-          topic: `workflow:${workflowInstanceId}`,
-          timestamp: Date.now()
-        });
-        
-        // Unsubscribe from workflow events
-        communicationBus.unsubscribe(subscriptionId);
-        
-        return {
-          workflowInstanceId,
-          result,
-          steps,
-          metrics: {
-            totalExecutionTimeMs: Math.max(10, endTime - startTime), // Ensure non-zero duration
-            stepMetrics,
-          },
-          metadata: options.metadata || {},
-          messages: [],
-        };
-      } catch (error) {
-        // Publish error message
-        await communicationBus.publish({
-          sourceId: 'workflow-executor',
-          type: MessageType.WORKFLOW_FAILED,
-          content: {
-            workflowId: workflow.id,
-            workflowName: workflow.name,
+            steps,
+            metrics: {
+              totalExecutionTimeMs: Math.max(10, endTime - startTime), // Ensure non-zero duration
+              stepMetrics,
+            },
+            metadata: options.metadata || {},
+            messages: [],
+          };
+        } catch (error) {
+          // Publish error message
+          await communicationBus.publish({
+            sourceId: 'workflow-executor',
+            type: MessageType.WORKFLOW_FAILED,
+            content: {
+              workflowId: workflow.id,
+              workflowName: workflow.name,
+              workflowInstanceId,
+              error: error.message,
+              steps: steps.map((s) => s.id),
+            },
+            topic: `workflow:${workflowInstanceId}`,
+            timestamp: Date.now(),
+          });
+
+          // Unsubscribe from workflow events
+          communicationBus.unsubscribe(subscriptionId);
+
+          // Return error result
+          return {
             workflowInstanceId,
+            result: 'Workflow execution failed',
+            steps,
             error: error.message,
-            steps: steps.map(s => s.id)
-          },
-          topic: `workflow:${workflowInstanceId}`,
-          timestamp: Date.now()
-        });
-        
-        // Unsubscribe from workflow events
-        communicationBus.unsubscribe(subscriptionId);
-        
-        // Return error result
-        return {
-          workflowInstanceId,
-          result: 'Workflow execution failed',
-          steps,
-          error: error.message,
-          metrics: {
-            totalExecutionTimeMs: Math.max(5, Date.now() - startTime), // Ensure non-zero duration
-            stepMetrics,
-          },
-          metadata: options.metadata || {},
-          messages: [],
-        };
-      }
-    });
+            metrics: {
+              totalExecutionTimeMs: Math.max(5, Date.now() - startTime), // Ensure non-zero duration
+              stepMetrics,
+            },
+            metadata: options.metadata || {},
+            messages: [],
+          };
+        }
+      },
+    );
 
     // Create the workflow executor instance
     workflowExecutor = EnhancedWorkflowExecutorService.getInstance();
@@ -432,60 +449,62 @@ describe('EnhancedWorkflowExecutorService Integration Tests', () => {
     // Setup custom error handling in the executeWorkflow mock
     const errorMessage = 'Test error from context processor';
     const originalImpl = mockWorkflowExecutor.executeWorkflow;
-    mockWorkflowExecutor.executeWorkflow = jest.fn().mockImplementation(async (workflow, input, options) => {
-      // Subscribe to workflow events
-      const subscriptionId = communicationBus.subscribe(
-        { 
-          topic: `workflow:error-test` 
-        }, 
-        () => {}
-      );
-      
-      // Publish workflow start message
-      await communicationBus.publish({
-        sourceId: 'workflow-executor',
-        type: MessageType.WORKFLOW_STARTED,
-        content: {
-          workflowId: workflow.id,
-          workflowName: workflow.name,
+    mockWorkflowExecutor.executeWorkflow = jest
+      .fn()
+      .mockImplementation(async (workflow, input, options) => {
+        // Subscribe to workflow events
+        const subscriptionId = communicationBus.subscribe(
+          {
+            topic: `workflow:error-test`,
+          },
+          () => {},
+        );
+
+        // Publish workflow start message
+        await communicationBus.publish({
+          sourceId: 'workflow-executor',
+          type: MessageType.WORKFLOW_STARTED,
+          content: {
+            workflowId: workflow.id,
+            workflowName: workflow.name,
+            workflowInstanceId: 'error-test',
+            input,
+          },
+          topic: `workflow:error-test`,
+          timestamp: Date.now(),
+        });
+
+        // Publish error message
+        await communicationBus.publish({
+          sourceId: 'workflow-executor',
+          type: MessageType.WORKFLOW_FAILED,
+          content: {
+            workflowId: workflow.id,
+            workflowName: workflow.name,
+            workflowInstanceId: 'error-test',
+            error: errorMessage,
+          },
+          topic: `workflow:error-test`,
+          timestamp: Date.now(),
+        });
+
+        // Unsubscribe
+        communicationBus.unsubscribe(subscriptionId);
+
+        // Return an error result
+        return {
           workflowInstanceId: 'error-test',
-          input,
-        },
-        topic: `workflow:error-test`,
-        timestamp: Date.now()
+          result: 'Workflow execution failed',
+          steps: [],
+          error: errorMessage,
+          metrics: {
+            totalExecutionTimeMs: 100,
+            stepMetrics: {},
+          },
+          metadata: options.metadata || {},
+          messages: [],
+        };
       });
-      
-      // Publish error message
-      await communicationBus.publish({
-        sourceId: 'workflow-executor',
-        type: MessageType.WORKFLOW_FAILED,
-        content: {
-          workflowId: workflow.id,
-          workflowName: workflow.name,
-          workflowInstanceId: 'error-test',
-          error: errorMessage
-        },
-        topic: `workflow:error-test`,
-        timestamp: Date.now()
-      });
-      
-      // Unsubscribe
-      communicationBus.unsubscribe(subscriptionId);
-      
-      // Return an error result
-      return {
-        workflowInstanceId: 'error-test',
-        result: 'Workflow execution failed',
-        steps: [],
-        error: errorMessage,
-        metrics: {
-          totalExecutionTimeMs: 100,
-          stepMetrics: {},
-        },
-        metadata: options.metadata || {},
-        messages: [],
-      };
-    });
 
     try {
       // Execute the workflow
@@ -558,16 +577,18 @@ describe('EnhancedWorkflowExecutorService Integration Tests', () => {
     };
 
     // Track when execute is called
-    mockAgents['knowledge-retrieval'].execute = jest.fn().mockImplementation(async (request) => {
-      // Return a basic response
-      return {
-        output: 'Mock response with variables',
-        artifacts: {
-          testArtifact: 'Variables test artifact',
-          variables: request.context?.variables,
-        },
-      };
-    });
+    mockAgents['knowledge-retrieval'].execute = jest
+      .fn()
+      .mockImplementation(async (request) => {
+        // Return a basic response
+        return {
+          output: 'Mock response with variables',
+          artifacts: {
+            testArtifact: 'Variables test artifact',
+            variables: request.context?.variables,
+          },
+        };
+      });
 
     // Execute the workflow
     const result = await workflowExecutor.executeWorkflow(
@@ -580,13 +601,13 @@ describe('EnhancedWorkflowExecutorService Integration Tests', () => {
     expect(mockWorkflowExecutor.executeWorkflow).toHaveBeenCalledWith(
       testWorkflow,
       input,
-      options
+      options,
     );
 
     // Verify the workflow was executed and variables were passed
     expect(result).toBeDefined();
     expect(result.workflowInstanceId).toBeDefined();
-    
+
     // The mock implementation should have at least one step
     expect(result.steps.length).toBeGreaterThan(0);
   });

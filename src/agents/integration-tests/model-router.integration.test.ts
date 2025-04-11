@@ -193,11 +193,12 @@ describe('ModelRouterService Integration Tests', () => {
 
     // Stub the manageContextWindow method with a direct implementation
     // that doesn't rely on "this" bindings
-    modelRouter.manageContextWindow = jest.fn().mockImplementation(
-      async (query, availableContext, contextSize) => {
+    modelRouter.manageContextWindow = jest
+      .fn()
+      .mockImplementation(async (query, availableContext, contextSize) => {
         // Directly call the mock service without this binding
         await embeddingService.createEmbeddings([query]);
-        
+
         // Simple implementation that just returns a subset based on context size
         if (contextSize < 5000) {
           return availableContext.slice(0, 3); // Small context - 3 items
@@ -206,8 +207,7 @@ describe('ModelRouterService Integration Tests', () => {
         } else {
           return availableContext; // Large context - all items
         }
-      }
-    );
+      });
 
     // Small context window
     const smallContextWindow = 4000;
@@ -218,7 +218,9 @@ describe('ModelRouterService Integration Tests', () => {
     );
 
     // Should ensure we have the right size for small window
-    expect(managedSmallContext.length).toBeLessThanOrEqual(sampleContextItems.length);
+    expect(managedSmallContext.length).toBeLessThanOrEqual(
+      sampleContextItems.length,
+    );
 
     // Medium context window
     const mediumContextWindow = 8000;
@@ -475,10 +477,10 @@ describe('ModelRouterService Integration Tests', () => {
     // Override with custom implementation
     const originalMethod = modelRouter.optimizeContextTokens;
     // Define the optimizeContextTokens method implementation
-    modelRouter.optimizeContextTokens = async function(
+    modelRouter.optimizeContextTokens = async function (
       query: string,
       contextItems: any[],
-      tokenBudget: number
+      tokenBudget: number,
     ) {
       // Add token count estimation to each item
       const itemsWithTokens = contextItems.map((item) => ({
@@ -517,7 +519,9 @@ describe('ModelRouterService Integration Tests', () => {
 
       // Test assertions
       expect(optimizedContext).toBeDefined();
-      expect(optimizedContext.length).toBeLessThanOrEqual(longContextItems.length);
+      expect(optimizedContext.length).toBeLessThanOrEqual(
+        longContextItems.length,
+      );
 
       // Verify token count is estimated
       for (const item of optimizedContext) {
