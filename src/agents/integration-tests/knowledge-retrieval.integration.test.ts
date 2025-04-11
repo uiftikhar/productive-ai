@@ -326,10 +326,14 @@ describe('KnowledgeRetrievalAgent Integration Tests', () => {
       },
     };
 
-    // Execute the agent and expect it to throw
-    await expect(knowledgeRetrievalAgent.execute(request)).rejects.toThrow(
-      'Test retrieval error',
-    );
+    // Execute the agent and check for error in response
+    const response = await knowledgeRetrievalAgent.execute(request);
+    
+    // Test assertions
+    expect(response).toBeDefined();
+    expect(response.output).toContain('Error in agent Knowledge Retrieval Agent');
+    expect(response.output).toContain('Test retrieval error');
+    expect(response.artifacts).toHaveProperty('error.message', 'Test retrieval error');
   });
 
   test('Should filter by specific context types', async () => {

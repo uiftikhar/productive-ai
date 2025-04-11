@@ -39,9 +39,12 @@ class QueryAnalyzerAgent extends BaseAgent {
         userId: 'The ID of the user making the query',
       },
     });
+    
+    // Initialize the agent by default
+    this.initialize();
   }
 
-  async execute(request: AgentRequest): Promise<AgentResponse> {
+  protected async executeInternal(request: AgentRequest): Promise<AgentResponse> {
     const query = typeof request.input === 'string' ? request.input : '';
 
     // Simple complexity analysis - in a real system this would be more sophisticated
@@ -138,9 +141,12 @@ class ModelSelectorAgent extends BaseAgent {
         conversationId: 'The conversation ID',
       },
     });
+    
+    // Initialize the agent by default
+    this.initialize();
   }
 
-  async execute(request: AgentRequest): Promise<AgentResponse> {
+  protected async executeInternal(request: AgentRequest): Promise<AgentResponse> {
     const criteria = request.parameters?.criteria as ModelSelectionCriteria;
     const retrievedContext = request.parameters?.retrievedContext || [];
 
@@ -205,9 +211,12 @@ class ResponseGeneratorAgent extends BaseAgent {
         conversationId: 'The conversation ID',
       },
     });
+    
+    // Initialize the agent by default
+    this.initialize();
   }
 
-  async execute(request: AgentRequest): Promise<AgentResponse> {
+  protected async executeInternal(request: AgentRequest): Promise<AgentResponse> {
     const params = request.parameters || {};
     const selectedModel = params.selectedModel;
     const availableContext = params.availableContext || [];

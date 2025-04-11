@@ -290,9 +290,9 @@ export class MasterOrchestratorAgent extends BaseAgent {
   }
 
   /**
-   * Execute the orchestrator to coordinate a workflow
+   * Implementation of abstract executeInternal method
    */
-  async execute(request: AgentRequest): Promise<AgentResponse> {
+  protected async executeInternal(request: AgentRequest): Promise<AgentResponse> {
     const startTime = Date.now();
     const capability = request.capability || 'orchestrate_workflow';
 

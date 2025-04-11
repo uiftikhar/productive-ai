@@ -74,6 +74,9 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
         retrievalOptions: 'Options for context retrieval',
       },
     });
+    
+    // Initialize the agent by default
+    this.initialize();
   }
 
   /**
@@ -85,9 +88,9 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
   }
 
   /**
-   * Execute the agent with the given request
+   * Implementation of abstract execute method
    */
-  async execute(request: AgentRequest): Promise<AgentResponse> {
+  protected async executeInternal(request: AgentRequest): Promise<AgentResponse> {
     const startTime = Date.now();
     const capability = request.capability || 'retrieve_knowledge';
 
