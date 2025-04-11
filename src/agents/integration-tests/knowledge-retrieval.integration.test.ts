@@ -4,34 +4,34 @@
  * @jest-environment node
  */
 import { jest } from '@jest/globals';
-import { EmbeddingService } from '../../services/embedding.service.ts';
+import { EmbeddingService } from '../../shared/embedding/embedding.service.ts';
 import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
 import { RagPromptManager, RagRetrievalStrategy } from '../../shared/services/rag-prompt-manager.service.ts';
-import { UserContextService } from '../../shared/user-context/user-context.service.ts';
 import { KnowledgeRetrievalAgent } from '../specialized/knowledge-retrieval-agent.ts';
 import { ContextType } from '../../shared/user-context/context-types.ts';
-
-// Tell TypeScript to ignore the issue with "NOTE" not being in ContextType
-ContextType.NOTE = 'note';
-
-// Add missing strategies
-const EXTENDED_STRATEGIES = {
-  ...RagRetrievalStrategy,
-  METADATA: 'metadata',
-  COMBINED: 'combined'
-};
+import { DocumentContextService } from '../../shared/user-context/services/document-context.service.ts';
+import { ConversationContextService } from '../../shared/user-context/services/conversation-context.service.ts';
+import { MeetingContextService } from '../../shared/user-context/services/meeting-context.service.ts';
+import { RelevanceCalculationService } from '../../shared/user-context/services/relevance-calculation.service.ts';
 
 // Mock dependencies
-jest.mock('../../shared/user-context/user-context.service');
 jest.mock('../../shared/services/rag-prompt-manager.service');
 jest.mock('../../shared/embedding/embedding.service');
+jest.mock('../../shared/user-context/services/document-context.service');
+jest.mock('../../shared/user-context/services/conversation-context.service');
+jest.mock('../../shared/user-context/services/meeting-context.service');
+jest.mock('../../shared/user-context/services/relevance-calculation.service');
+jest.mock('@langchain/core/messages', () => ({
+  HumanMessage: jest.fn().mockImplementation((props) => ({ content: props.content }))
+}));
 
-// Disable TypeScript checking for mocked implementations
-// @ts-ignore
 describe('KnowledgeRetrievalAgent Integration Tests', () => {
   // Use any to avoid TypeScript checking mocked implementations
   let knowledgeRetrievalAgent: any;
-  let userContextService: any;
+  let documentContextService: any;
+  let conversationContextService: any;
+  let meetingContextService: any;
+  let relevanceCalculationService: any;
   let ragPromptManager: any;
   let embeddingService: any;
   let logger: ConsoleLogger;
@@ -41,95 +41,82 @@ describe('KnowledgeRetrievalAgent Integration Tests', () => {
     {
       id: 'context-1',
       content: 'Important project milestone reached ahead of schedule.',
+      source: 'meeting-notes',
+      contextType: ContextType.DOCUMENT,
+      score: 0.92,
       metadata: {
-        contextType: ContextType.NOTE,
         userId: 'test-user-123',
-        source: 'meeting-notes',
-        createdAt: Date.now() - 86400000 // 1 day ago
-      },
-      score: 0.92
+        documentId: 'doc-123',
+        documentTitle: 'Project Status Report',
+        timestamp: Date.now() - 86400000 // 1 day ago
+      }
     },
     {
       id: 'context-2',
       content: 'Team identified potential risks in the deployment plan.',
+      source: 'risk-assessment',
+      contextType: ContextType.CONVERSATION,
+      score: 0.85,
       metadata: {
-        contextType: ContextType.NOTE,
         userId: 'test-user-123',
-        source: 'risk-assessment',
-        createdAt: Date.now() - 43200000 // 12 hours ago
-      },
-      score: 0.85
+        conversationId: 'conv-123',
+        timestamp: Date.now() - 43200000 // 12 hours ago
+      }
     },
     {
       id: 'context-3',
       content: 'Action item: Investigate performance issues in module X.',
+      source: 'meeting',
+      contextType: ContextType.MEETING,
+      score: 0.78,
       metadata: {
-        contextType: ContextType.ACTION_ITEM,
         userId: 'test-user-123',
-        actionItemId: 'ai-123',
-        status: 'pending',
-        createdAt: Date.now() - 172800000 // 2 days ago
-      },
-      score: 0.78
+        meetingId: 'meeting-123',
+        timestamp: Date.now() - 172800000 // 2 days ago
+      }
     }
   ];
-  
-  // Sample vector results
-  const sampleVectorResults = {
-    matches: sampleContextItems.map(item => ({
-      id: item.id,
-      score: item.score,
-      metadata: item.metadata,
-      values: new Array(1536).fill(0).map((_, i) => i / 1536)
-    })),
-    namespace: 'test-namespace'
-  };
   
   beforeEach(() => {
     // Reset mocks
     jest.clearAllMocks();
     
-    // Setup mocked UserContextService with type assertions
-    userContextService = {} as any;
-    userContextService.queryVectors = jest.fn().mockResolvedValue(sampleVectorResults);
-    userContextService.fetchVectors = jest.fn().mockImplementation(async (userId: string, filter: any) => {
-      return {
-        records: sampleContextItems
-          .filter(item => {
-            if (filter.contextTypes && !filter.contextTypes.includes(item.metadata.contextType)) {
-              return false;
-            }
-            return true;
-          })
-          .map(item => ({
-            id: item.id,
-            metadata: item.metadata,
-            values: new Array(1536).fill(0).map((_, i) => i / 1536)
-          }))
-      };
-    });
+    // Setup mocked DocumentContextService
+    documentContextService = new DocumentContextService();
+    documentContextService.searchDocumentContent = jest.fn().mockResolvedValue(
+      sampleContextItems.filter(item => item.contextType === ContextType.DOCUMENT)
+    );
     
-    // Setup mocked RagPromptManager with type assertions
-    ragPromptManager = {} as any;
-    ragPromptManager.formatContextItems = jest.fn().mockImplementation((items: any[]) => {
-      return items.map((item: any) => ({
-        content: item.content,
-        source: item.metadata?.source || 'unknown',
-        contextType: item.metadata?.contextType || 'unknown',
-        score: item.score || 0
-      }));
+    // Setup mocked ConversationContextService
+    conversationContextService = new ConversationContextService();
+    conversationContextService.searchConversations = jest.fn().mockResolvedValue(
+      sampleContextItems.filter(item => item.contextType === ContextType.CONVERSATION)
+    );
+    
+    // Setup mocked MeetingContextService
+    meetingContextService = new MeetingContextService();
+    meetingContextService.findUnansweredQuestions = jest.fn().mockResolvedValue(
+      sampleContextItems.filter(item => item.contextType === ContextType.MEETING)
+    );
+    
+    // Setup mocked RelevanceCalculationService
+    relevanceCalculationService = new RelevanceCalculationService();
+    relevanceCalculationService.calculateRelevanceScore = jest.fn().mockReturnValue(0.85);
+    
+    // Setup mocked RagPromptManager
+    ragPromptManager = new RagPromptManager();
+    ragPromptManager.createRagPrompt = jest.fn().mockResolvedValue({
+      messages: [{ role: 'user', content: 'test query' }],
+      retrievedContext: { 
+        items: sampleContextItems,
+        formattedContext: 'Formatted context for testing',
+        sources: ['meeting-notes', 'risk-assessment']
+      }
     });
     ragPromptManager.storeRagInteraction = jest.fn().mockResolvedValue('interaction-id');
-    ragPromptManager.createRagPrompt = jest.fn().mockResolvedValue({
-      messages: [],
-      retrievedContext: { items: [], formattedContext: '', sources: [] }
-    });
     
-    // Setup mocked EmbeddingService with type assertions
-    embeddingService = {} as any;
-    embeddingService.embedText = jest.fn().mockResolvedValue(
-      new Array(1536).fill(0).map((_, i) => i / 1536)
-    );
+    // Setup mocked EmbeddingService
+    embeddingService = new EmbeddingService();
     embeddingService.createEmbeddings = jest.fn().mockResolvedValue({
       embeddings: [new Array(1536).fill(0).map((_, i) => i / 1536)]
     });
@@ -138,22 +125,35 @@ describe('KnowledgeRetrievalAgent Integration Tests', () => {
     logger = new ConsoleLogger();
     logger.setLogLevel('error'); // Reduce noise in tests
     
+    // Setup mocked LLM for the agent
+    const mockLlm = {
+      invoke: jest.fn().mockResolvedValue({ content: 'This is a test response from the LLM.' })
+    };
+    
     // Create the KnowledgeRetrievalAgent instance
     knowledgeRetrievalAgent = new KnowledgeRetrievalAgent({
-      userContextService,
+      documentContextService,
+      conversationContextService,
+      meetingContextService,
+      relevanceCalculationService,
       ragPromptManager,
       embeddingService,
       logger
     });
+    
+    // Mock the LLM
+    knowledgeRetrievalAgent.llm = mockLlm;
   });
   
-  test('Should retrieve knowledge using semantic search strategy', async () => {
-    // Prepare request with semantic search strategy
+  test('Should retrieve knowledge successfully', async () => {
+    // Prepare request
     const request = {
       input: 'What are the current project risks?',
+      capability: 'retrieve_knowledge',
+      context: {
+        userId: 'test-user-123'
+      },
       parameters: {
-        userId: 'test-user-123',
-        strategy: EXTENDED_STRATEGIES.SEMANTIC,
         maxItems: 5,
         minRelevanceScore: 0.7
       }
@@ -165,110 +165,100 @@ describe('KnowledgeRetrievalAgent Integration Tests', () => {
     // Test assertions
     expect(response).toBeDefined();
     expect(response.output).toBeDefined();
-    if (response.artifacts) {
-      expect(response.artifacts.contextItems).toBeDefined();
-      expect(response.artifacts.contextItems.length).toBeGreaterThan(0);
-    }
+    expect(JSON.parse(response.output).length).toBeGreaterThan(0);
     
-    // Verify that embeddings were generated for the query
-    expect(embeddingService.embedText).toHaveBeenCalledWith(request.input);
+    // Verify that embeddings were created for the query
+    expect(embeddingService.createEmbeddings).toHaveBeenCalledWith([request.input]);
     
-    // Verify that semantic search was used
-    expect(userContextService.queryVectors).toHaveBeenCalledWith(
+    // Verify that document search was called
+    expect(documentContextService.searchDocumentContent).toHaveBeenCalledWith(
+      'test-user-123',
       expect.any(Array),
       expect.objectContaining({
+        maxResults: expect.any(Number),
+        minRelevanceScore: expect.any(Number)
+      })
+    );
+    
+    // Verify that conversation search was called
+    expect(conversationContextService.searchConversations).toHaveBeenCalledWith(
+      'test-user-123',
+      expect.any(Array),
+      expect.objectContaining({
+        maxResults: expect.any(Number),
+        minRelevanceScore: expect.any(Number)
+      })
+    );
+  });
+  
+  test('Should answer with context successfully', async () => {
+    // Prepare request
+    const request = {
+      input: 'Explain the current project status.',
+      capability: 'answer_with_context',
+      context: {
         userId: 'test-user-123',
-        maxResults: 5,
-        minScore: 0.7
+        conversationId: 'test-conversation-123'
+      },
+      parameters: {
+        retrievalOptions: {
+          strategy: RagRetrievalStrategy.HYBRID,
+          maxItems: 5,
+          minRelevanceScore: 0.7
+        }
+      }
+    };
+    
+    // Execute the agent
+    const response = await knowledgeRetrievalAgent.execute(request);
+    
+    // Test assertions
+    expect(response).toBeDefined();
+    expect(response.output).toBeDefined();
+    expect(response.artifacts).toBeDefined();
+    expect(response.artifacts.strategy).toBe(RagRetrievalStrategy.HYBRID);
+    
+    // Verify that embeddings were created for the query
+    expect(embeddingService.createEmbeddings).toHaveBeenCalledWith([request.input]);
+    
+    // Verify that the RAG prompt was created
+    expect(ragPromptManager.createRagPrompt).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      request.input,
+      expect.objectContaining({
+        userId: 'test-user-123',
+        queryText: request.input,
+        strategy: RagRetrievalStrategy.HYBRID
       })
     );
     
     // Verify that the RAG interaction was stored
     expect(ragPromptManager.storeRagInteraction).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: 'test-user-123',
-        query: request.input
-      })
+      'test-user-123',
+      request.input,
+      expect.any(Array),
+      expect.any(String),
+      expect.any(Array),
+      expect.any(Object),
+      'test-conversation-123'
     );
-  });
-  
-  test('Should retrieve knowledge using hybrid search strategy', async () => {
-    // Prepare request with hybrid search strategy
-    const request = {
-      input: 'What action items are pending?',
-      parameters: {
-        userId: 'test-user-123',
-        strategy: EXTENDED_STRATEGIES.HYBRID,
-        maxItems: 10,
-        minRelevanceScore: 0.6,
-        contextTypes: [ContextType.ACTION_ITEM]
-      }
-    };
-    
-    // Execute the agent
-    const response = await knowledgeRetrievalAgent.execute(request);
-    
-    // Test assertions
-    expect(response).toBeDefined();
-    expect(response.artifacts.contextItems).toBeDefined();
-    
-    // Check that only action items were retrieved
-    const actionItems = response.artifacts.contextItems.filter(
-      item => item.contextType === ContextType.ACTION_ITEM
-    );
-    expect(actionItems.length).toBe(response.artifacts.contextItems.length);
-    
-    // Verify the context filter was applied
-    const filterCall = userContextService.fetchVectors.mock.calls[0];
-    expect(filterCall).toBeDefined();
-    expect(filterCall[1].contextTypes).toContain(ContextType.ACTION_ITEM);
-  });
-  
-  test('Should retrieve knowledge using metadata filter strategy', async () => {
-    // Prepare request with metadata filter strategy
-    const request = {
-      input: 'Find recent meeting notes',
-      parameters: {
-        userId: 'test-user-123',
-        strategy: EXTENDED_STRATEGIES.METADATA,
-        metadataFilters: {
-          source: 'meeting-notes'
-        },
-        maxItems: 5
-      }
-    };
-    
-    // Execute the agent
-    const response = await knowledgeRetrievalAgent.execute(request);
-    
-    // Test assertions
-    expect(response).toBeDefined();
-    expect(response.artifacts.contextItems).toBeDefined();
-    
-    // Verify the metadata filter was applied
-    const filterCall = userContextService.fetchVectors.mock.calls[0];
-    expect(filterCall).toBeDefined();
-    expect(filterCall[1].metadataFilter).toMatchObject({
-      source: 'meeting-notes'
-    });
   });
   
   test('Should handle empty search results gracefully', async () => {
     // Mock empty results
-    userContextService.queryVectors = jest.fn().mockResolvedValue({
-      matches: [],
-      namespace: 'test-namespace'
-    });
-    userContextService.fetchVectors = jest.fn().mockResolvedValue({
-      records: []
-    });
+    documentContextService.searchDocumentContent = jest.fn().mockResolvedValue([]);
+    conversationContextService.searchConversations = jest.fn().mockResolvedValue([]);
+    meetingContextService.findUnansweredQuestions = jest.fn().mockResolvedValue([]);
     
     // Prepare request
     const request = {
       input: 'Query with no results',
+      capability: 'retrieve_knowledge',
+      context: {
+        userId: 'test-user-123'
+      },
       parameters: {
-        userId: 'test-user-123',
-        strategy: EXTENDED_STRATEGIES.SEMANTIC,
         maxItems: 5,
         minRelevanceScore: 0.7
       }
@@ -279,80 +269,46 @@ describe('KnowledgeRetrievalAgent Integration Tests', () => {
     
     // Test assertions
     expect(response).toBeDefined();
-    expect(response.output).toContain('No relevant knowledge found');
-    expect(response.artifacts.contextItems).toEqual([]);
-    
-    // Verify error handling
-    expect(response.artifacts.noResults).toBeTruthy();
-  });
-  
-  test('Should combine results from multiple retrieval strategies', async () => {
-    // Prepare request with combined strategy
-    const request = {
-      input: 'Find information about project milestones and risks',
-      parameters: {
-        userId: 'test-user-123',
-        strategy: EXTENDED_STRATEGIES.COMBINED,
-        maxItems: 10,
-        minRelevanceScore: 0.6,
-        strategies: [
-          {
-            type: EXTENDED_STRATEGIES.SEMANTIC,
-            weight: 0.7,
-            parameters: {
-              maxItems: 5
-            }
-          },
-          {
-            type: EXTENDED_STRATEGIES.METADATA,
-            weight: 0.3,
-            parameters: {
-              metadataFilters: {
-                source: 'risk-assessment'
-              },
-              maxItems: 5
-            }
-          }
-        ]
-      }
-    };
-    
-    // Execute the agent
-    const response = await knowledgeRetrievalAgent.execute(request);
-    
-    // Test assertions
-    expect(response).toBeDefined();
-    expect(response.artifacts.contextItems).toBeDefined();
-    
-    // Verify that both strategies were used
-    expect(userContextService.queryVectors).toHaveBeenCalled();
-    expect(userContextService.fetchVectors).toHaveBeenCalled();
-    
-    // Verify format of the combined results
-    expect(ragPromptManager.formatContextItems).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({
-          content: expect.any(String),
-          score: expect.any(Number)
-        })
-      ])
-    );
+    expect(JSON.parse(response.output)).toEqual([]);
+    expect(response.artifacts).toBeDefined();
+    expect(response.artifacts.resultsCount).toBe(0);
   });
   
   test('Should handle errors during retrieval', async () => {
-    // Mock an error during vector query
-    userContextService.queryVectors = jest.fn().mockRejectedValue(
-      new Error('Test vector query error')
+    // Mock an error in document search
+    documentContextService.searchDocumentContent = jest.fn().mockRejectedValue(
+      new Error('Test retrieval error')
     );
     
     // Prepare request
     const request = {
       input: 'Query that causes an error',
+      capability: 'retrieve_knowledge',
+      context: {
+        userId: 'test-user-123'
+      },
       parameters: {
-        userId: 'test-user-123',
-        strategy: EXTENDED_STRATEGIES.SEMANTIC,
         maxItems: 5,
         minRelevanceScore: 0.7
+      }
+    };
+    
+    // Execute the agent and expect it to throw
+    await expect(knowledgeRetrievalAgent.execute(request)).rejects.toThrow('Test retrieval error');
+  });
+  
+  test('Should filter by specific context types', async () => {
+    // Prepare request with context type filter
+    const request = {
+      input: 'Find information in documents only',
+      capability: 'retrieve_knowledge',
+      context: {
+        userId: 'test-user-123'
+      },
+      parameters: {
+        maxItems: 5,
+        minRelevanceScore: 0.7,
+        contextTypes: [ContextType.DOCUMENT]
       }
     };
     
@@ -361,10 +317,11 @@ describe('KnowledgeRetrievalAgent Integration Tests', () => {
     
     // Test assertions
     expect(response).toBeDefined();
-    expect(response.artifacts.error).toBeDefined();
-    expect(response.artifacts.error).toContain('Test vector query error');
+    expect(JSON.parse(response.output).length).toBeGreaterThan(0);
     
-    // Should still return a valid output for the agent protocol
-    expect(response.output).toBeDefined();
+    // Verify that only document search was used
+    expect(documentContextService.searchDocumentContent).toHaveBeenCalled();
+    expect(conversationContextService.searchConversations).not.toHaveBeenCalled();
+    expect(meetingContextService.findUnansweredQuestions).not.toHaveBeenCalled();
   });
 }); 

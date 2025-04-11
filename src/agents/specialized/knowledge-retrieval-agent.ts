@@ -1,22 +1,32 @@
 import { BaseMessage, HumanMessage } from '@langchain/core/messages';
 import { BaseAgent } from '../base/base-agent.ts';
 import { AgentRequest, AgentResponse } from '../interfaces/agent.interface.ts';
-import { UserContextService } from '../../shared/user-context/user-context.service.ts';
 import { RagPromptManager, RagRetrievalStrategy } from '../../shared/services/rag-prompt-manager.service.ts';
 import { ContextType } from '../../shared/user-context/context-types.ts';
+import { UserRole } from '../../shared/user-context/types/context.types.ts';
 import { EmbeddingService } from '../../shared/embedding/embedding.service.ts';
+import { DocumentContextService } from '../../shared/user-context/services/document-context.service.ts';
+import { ConversationContextService } from '../../shared/user-context/services/conversation-context.service.ts';
+import { MeetingContextService } from '../../shared/user-context/services/meeting-context.service.ts';
+import { RelevanceCalculationService } from '../../shared/user-context/services/relevance-calculation.service.ts';
 
 /**
  * KnowledgeRetrievalAgent
  * Specialized agent that retrieves relevant information from the user's knowledge base
  */
 export class KnowledgeRetrievalAgent extends BaseAgent {
-  private userContextService: UserContextService;
+  private documentContextService: DocumentContextService;
+  private conversationContextService: ConversationContextService;
+  private meetingContextService: MeetingContextService;
+  private relevanceCalculationService: RelevanceCalculationService;
   private ragPromptManager: RagPromptManager;
   private embeddingService: EmbeddingService;
 
   constructor(options: {
-    userContextService?: UserContextService;
+    documentContextService?: DocumentContextService;
+    conversationContextService?: ConversationContextService;
+    meetingContextService?: MeetingContextService;
+    relevanceCalculationService?: RelevanceCalculationService;
     ragPromptManager?: RagPromptManager;
     embeddingService?: EmbeddingService;
     logger?: any;
@@ -27,7 +37,10 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
       { logger: options.logger }
     );
 
-    this.userContextService = options.userContextService || new UserContextService();
+    this.documentContextService = options.documentContextService || new DocumentContextService();
+    this.conversationContextService = options.conversationContextService || new ConversationContextService();
+    this.meetingContextService = options.meetingContextService || new MeetingContextService();
+    this.relevanceCalculationService = options.relevanceCalculationService || new RelevanceCalculationService();
     this.ragPromptManager = options.ragPromptManager || new RagPromptManager();
     this.embeddingService = options.embeddingService || new EmbeddingService();
 
@@ -120,6 +133,65 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
     }
   }
 
+  private async retrieveContextFromAllSources(
+    userId: string,
+    queryEmbedding: number[],
+    options: {
+      topK?: number;
+      minScore?: number;
+      contextTypes?: ContextType[];
+      timeRangeStart?: Date;
+      timeRangeEnd?: Date;
+    }
+  ) {
+    const results = [];
+    const { topK = 5, minScore = 0.6 } = options;
+
+    // Retrieve from documents
+    if (!options.contextTypes || options.contextTypes.includes(ContextType.DOCUMENT)) {
+      const documentResults = await this.documentContextService.searchDocumentContent(
+        userId,
+        queryEmbedding,
+        { maxResults: topK, minRelevanceScore: minScore }
+      );
+      results.push(...documentResults);
+    }
+
+    // Retrieve from conversations
+    if (!options.contextTypes || options.contextTypes.includes(ContextType.CONVERSATION)) {
+      const conversationResults = await this.conversationContextService.searchConversations(
+        userId,
+        queryEmbedding,
+        { maxResults: topK, minRelevanceScore: minScore }
+      );
+      results.push(...conversationResults);
+    }
+
+    // Retrieve from meetings
+    if (!options.contextTypes || options.contextTypes.includes(ContextType.MEETING)) {
+      const meetingResults = await this.meetingContextService.findUnansweredQuestions(
+        userId,
+        { timeRangeStart: options.timeRangeStart?.getTime(), timeRangeEnd: options.timeRangeEnd?.getTime() }
+      );
+      results.push(...meetingResults.slice(0, topK));
+    }
+
+    // Calculate relevance scores for each result
+    const scoredResults = results.map(result => ({
+      ...result,
+      score: this.relevanceCalculationService.calculateRelevanceScore(
+        'user' as UserRole,
+        result.metadata,
+        Date.now()
+      )
+    }));
+
+    // Sort by score and take top K
+    return scoredResults
+      .sort((a, b) => b.score - a.score)
+      .slice(0, topK);
+  }
+
   /**
    * Retrieve knowledge from user context
    */
@@ -130,7 +202,6 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
   ): Promise<AgentResponse> {
     const startTime = Date.now();
 
-    // Create embeddings for the query
     const embeddingResult = await this.embeddingService.createEmbeddings([query]);
     if (!embeddingResult || !embeddingResult.embeddings[0]) {
       throw new Error('Failed to create embeddings for query');
@@ -138,66 +209,36 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
 
     const queryEmbedding = embeddingResult.embeddings[0];
     
-    // Determine retrieval strategy
-    const strategy = parameters?.strategy || RagRetrievalStrategy.SEMANTIC;
-    
-    // Get context types to search
-    const contextTypes = parameters?.contextTypes || [
-      ContextType.DOCUMENT,
-      ContextType.MEETING,
-      ContextType.TOPIC,
-      ContextType.CONVERSATION,
-      ContextType.NOTE
-    ];
-
-    // Retrieve relevant context
-    const results = await this.userContextService.retrieveRagContext(
+    const results = await this.retrieveContextFromAllSources(
       userId,
       queryEmbedding,
       {
         topK: parameters?.maxItems || 5,
         minScore: parameters?.minRelevanceScore || 0.6,
-        contextTypes,
+        contextTypes: parameters?.contextTypes,
         timeRangeStart: parameters?.timeRangeStart,
-        timeRangeEnd: parameters?.timeRangeEnd,
-        conversationId: parameters?.conversationId,
-        documentIds: parameters?.documentIds,
-        includeEmbeddings: false
+        timeRangeEnd: parameters?.timeRangeEnd
       }
     );
 
-    // Process and format results
-    const formattedResults = results.map(match => {
-      const metadata = match.metadata || {};
-      const content = metadata.content || metadata.text || '';
-      const source = metadata.source || metadata.documentId || '';
-      const contextType = metadata.contextType || 'unknown';
-      
-      return {
-        content,
-        source,
-        contextType,
-        score: match.score,
-        metadata: {
-          ...metadata,
-          id: match.id
-        }
-      };
-    });
+    // Format results remains the same...
+    const formattedResults = results.map(match => ({
+      content: match.content,
+      source: match.source,
+      contextType: match.contextType,
+      score: match.score,
+      metadata: match.metadata
+    }));
 
     return {
       output: JSON.stringify(formattedResults),
       artifacts: {
         query,
-        strategy,
+        strategy: parameters?.strategy,
         resultsCount: formattedResults.length,
         results: formattedResults
       },
-      metrics: this.processMetrics(
-        startTime,
-        undefined,
-        1
-      )
+      metrics: this.processMetrics(startTime, undefined, 1)
     };
   }
 
