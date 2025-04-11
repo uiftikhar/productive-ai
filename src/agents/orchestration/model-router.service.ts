@@ -5,7 +5,11 @@ import { EmbeddingService } from '../../shared/embedding/embedding.service.ts';
 import { ChatOpenAI } from '@langchain/openai';
 import { BaseLLMParams } from '@langchain/core/language_models/llms';
 import { BaseMessage } from '@langchain/core/messages';
-import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
+import {
+  HumanMessage,
+  AIMessage,
+  SystemMessage,
+} from '@langchain/core/messages';
 
 /**
  * Model configuration interface
@@ -65,17 +69,19 @@ export class ModelRouterService {
   private embeddingService: EmbeddingService;
   private modelConfigs: ModelConfig[];
   private llmInstances: Map<string, any> = new Map();
-  
+
   private static instance: ModelRouterService;
-  
+
   /**
    * Get singleton instance
    */
-  public static getInstance(options: {
-    logger?: Logger;
-    ragPromptManager?: RagPromptManager;
-    embeddingService?: EmbeddingService;
-  } = {}): ModelRouterService {
+  public static getInstance(
+    options: {
+      logger?: Logger;
+      ragPromptManager?: RagPromptManager;
+      embeddingService?: EmbeddingService;
+    } = {},
+  ): ModelRouterService {
     if (!ModelRouterService.instance) {
       ModelRouterService.instance = new ModelRouterService(options);
     }
@@ -85,15 +91,17 @@ export class ModelRouterService {
   /**
    * Private constructor for singleton pattern
    */
-  private constructor(options: {
-    logger?: Logger;
-    ragPromptManager?: RagPromptManager;
-    embeddingService?: EmbeddingService;
-  } = {}) {
+  private constructor(
+    options: {
+      logger?: Logger;
+      ragPromptManager?: RagPromptManager;
+      embeddingService?: EmbeddingService;
+    } = {},
+  ) {
     this.logger = options.logger || new ConsoleLogger();
     this.ragPromptManager = options.ragPromptManager || new RagPromptManager();
     this.embeddingService = options.embeddingService || new EmbeddingService();
-    
+
     // Initialize default model configurations
     this.modelConfigs = [
       {
@@ -104,7 +112,7 @@ export class ModelRouterService {
         temperature: 0.7,
         costPerToken: 0.00001,
         capabilities: ['code', 'reasoning', 'creative', 'analysis'],
-        maxOutputTokens: 4096
+        maxOutputTokens: 4096,
       },
       {
         modelName: 'gpt-3.5-turbo',
@@ -114,8 +122,8 @@ export class ModelRouterService {
         temperature: 0.7,
         costPerToken: 0.000002,
         capabilities: ['summarization', 'classification', 'extraction'],
-        maxOutputTokens: 4096
-      }
+        maxOutputTokens: 4096,
+      },
     ];
   }
 
@@ -126,7 +134,7 @@ export class ModelRouterService {
     if (customConfigs) {
       this.modelConfigs = customConfigs;
     }
-    
+
     this.logger.info('Model Router Service initialized');
   }
 
@@ -135,50 +143,58 @@ export class ModelRouterService {
    */
   public selectModel(criteria: ModelSelectionCriteria): ModelConfig {
     this.logger.info('Selecting model based on criteria', { criteria });
-    
+
     // Filter models that meet basic requirements
-    let eligibleModels = this.modelConfigs.filter(model => {
+    let eligibleModels = this.modelConfigs.filter((model) => {
       // Check streaming capability if required
       if (criteria.streamingRequired && !model.streaming) {
         return false;
       }
-      
+
       // Check context window size
       if (model.contextWindow < criteria.contextSize) {
         return false;
       }
-      
+
       // Check for special capabilities
-      if (criteria.requiresSpecialCapabilities && criteria.requiresSpecialCapabilities.length > 0) {
+      if (
+        criteria.requiresSpecialCapabilities &&
+        criteria.requiresSpecialCapabilities.length > 0
+      ) {
         const hasAllCapabilities = criteria.requiresSpecialCapabilities.every(
-          cap => model.capabilities.includes(cap)
+          (cap) => model.capabilities.includes(cap),
         );
         if (!hasAllCapabilities) {
           return false;
         }
       }
-      
+
       return true;
     });
-    
+
     if (eligibleModels.length === 0) {
       this.logger.warn('No models match all criteria, relaxing constraints');
       // Fall back to models that at least have sufficient context window
-      eligibleModels = this.modelConfigs.filter(model => model.contextWindow >= criteria.contextSize);
-      
+      eligibleModels = this.modelConfigs.filter(
+        (model) => model.contextWindow >= criteria.contextSize,
+      );
+
       if (eligibleModels.length === 0) {
         // Last resort: just use the model with the largest context window
-        eligibleModels = [this.modelConfigs.reduce(
-          (max, current) => current.contextWindow > max.contextWindow ? current : max,
-          this.modelConfigs[0]
-        )];
+        eligibleModels = [
+          this.modelConfigs.reduce(
+            (max, current) =>
+              current.contextWindow > max.contextWindow ? current : max,
+            this.modelConfigs[0],
+          ),
+        ];
       }
     }
-    
+
     // Score the eligible models based on criteria
-    const scoredModels = eligibleModels.map(model => {
+    const scoredModels = eligibleModels.map((model) => {
       let score = 0;
-      
+
       // Score based on task complexity
       if (criteria.taskComplexity === 'complex') {
         // Prefer more capable models for complex tasks
@@ -187,7 +203,7 @@ export class ModelRouterService {
         // Prefer cheaper models for simple tasks
         score += (1 / model.costPerToken) * 0.1;
       }
-      
+
       // Score based on response time preference
       if (criteria.responseTime === 'fast') {
         // Smaller models tend to be faster
@@ -196,7 +212,7 @@ export class ModelRouterService {
         // Larger context window for thorough responses
         score += model.contextWindow / 20000;
       }
-      
+
       // Score based on cost sensitivity
       if (criteria.costSensitivity === 'high') {
         // Heavily weight cost for cost-sensitive operations
@@ -205,18 +221,19 @@ export class ModelRouterService {
         // Cost is less important for low sensitivity
         score += (1 / model.costPerToken) * 0.1;
       }
-      
+
       return { model, score };
     });
-    
+
     // Select the highest scoring model
-    const selectedModel = scoredModels.sort((a, b) => b.score - a.score)[0].model;
-    
-    this.logger.info('Selected model', { 
+    const selectedModel = scoredModels.sort((a, b) => b.score - a.score)[0]
+      .model;
+
+    this.logger.info('Selected model', {
       modelName: selectedModel.modelName,
-      provider: selectedModel.provider
+      provider: selectedModel.provider,
     });
-    
+
     return selectedModel;
   }
 
@@ -227,74 +244,95 @@ export class ModelRouterService {
     query: string,
     availableContext: any[],
     contextSize: number,
-    requirements?: ContextRequirements
+    requirements?: ContextRequirements,
   ): Promise<any[]> {
     // Default requirements if not provided
     const contextReq = requirements || {
       minTokens: 1000,
       maxTokens: Math.min(contextSize - 1000, 6000), // Leave room for the query and response
-      importanceWeights: { recency: 0.3, relevance: 0.6, source: 0.1 }
+      importanceWeights: { recency: 0.3, relevance: 0.6, source: 0.1 },
     };
-    
+
     // If we have more context than we can fit, we need to select the most relevant
     if (availableContext.length > 0) {
       // Create embedding for the query if we need to score by relevance
       let queryEmbedding: number[] | undefined;
       if (contextReq.importanceWeights.relevance > 0) {
-        const embeddingResult = await this.embeddingService.createEmbeddings([query]);
+        const embeddingResult = await this.embeddingService.createEmbeddings([
+          query,
+        ]);
         queryEmbedding = embeddingResult.embeddings[0];
       }
-      
+
       // Score each context item
-      const scoredContext = await Promise.all(availableContext.map(async (item) => {
-        let score = 0;
-        
-        // Score by recency if timestamp is available
-        if (contextReq.importanceWeights.recency > 0 && item.metadata?.timestamp) {
-          const ageInHours = (Date.now() - new Date(item.metadata.timestamp).getTime()) / (1000 * 60 * 60);
-          const recencyScore = Math.max(0, 1 - (ageInHours / 24)); // Higher score for more recent items
-          score += recencyScore * contextReq.importanceWeights.recency;
-        }
-        
-        // Score by relevance if we have embeddings
-        if (contextReq.importanceWeights.relevance > 0 && queryEmbedding && item.embedding) {
-          const relevanceScore = this.calculateCosineSimilarity(queryEmbedding, item.embedding);
-          score += relevanceScore * contextReq.importanceWeights.relevance;
-        }
-        
-        // Score by source importance if configured
-        if (contextReq.importanceWeights.source > 0 && item.metadata?.source) {
-          // This would be based on source prioritization logic
-          // For example, official docs might be scored higher than forum posts
-          const sourceScore = this.getSourceScore(item.metadata.source);
-          score += sourceScore * contextReq.importanceWeights.source;
-        }
-        
-        return { item, score };
-      }));
-      
+      const scoredContext = await Promise.all(
+        availableContext.map(async (item) => {
+          let score = 0;
+
+          // Score by recency if timestamp is available
+          if (
+            contextReq.importanceWeights.recency > 0 &&
+            item.metadata?.timestamp
+          ) {
+            const ageInHours =
+              (Date.now() - new Date(item.metadata.timestamp).getTime()) /
+              (1000 * 60 * 60);
+            const recencyScore = Math.max(0, 1 - ageInHours / 24); // Higher score for more recent items
+            score += recencyScore * contextReq.importanceWeights.recency;
+          }
+
+          // Score by relevance if we have embeddings
+          if (
+            contextReq.importanceWeights.relevance > 0 &&
+            queryEmbedding &&
+            item.embedding
+          ) {
+            const relevanceScore = this.calculateCosineSimilarity(
+              queryEmbedding,
+              item.embedding,
+            );
+            score += relevanceScore * contextReq.importanceWeights.relevance;
+          }
+
+          // Score by source importance if configured
+          if (
+            contextReq.importanceWeights.source > 0 &&
+            item.metadata?.source
+          ) {
+            // This would be based on source prioritization logic
+            // For example, official docs might be scored higher than forum posts
+            const sourceScore = this.getSourceScore(item.metadata.source);
+            score += sourceScore * contextReq.importanceWeights.source;
+          }
+
+          return { item, score };
+        }),
+      );
+
       // Sort by score and select top items that fit within the token budget
       const sortedContext = scoredContext.sort((a, b) => b.score - a.score);
-      
+
       let selectedContext = [];
       let totalTokens = 0;
-      
+
       for (const { item } of sortedContext) {
-        const itemTokens = item.metadata?.tokenCount || this.estimateTokenCount(item.content || '');
-        
+        const itemTokens =
+          item.metadata?.tokenCount ||
+          this.estimateTokenCount(item.content || '');
+
         if (totalTokens + itemTokens <= contextReq.maxTokens) {
           selectedContext.push(item);
           totalTokens += itemTokens;
         }
-        
+
         if (totalTokens >= contextReq.minTokens) {
           break;
         }
       }
-      
+
       return selectedContext;
     }
-    
+
     return availableContext;
   }
 
@@ -303,29 +341,29 @@ export class ModelRouterService {
    */
   private getLLMInstance(modelConfig: ModelConfig): any {
     const cacheKey = `${modelConfig.provider}-${modelConfig.modelName}-${modelConfig.streaming}`;
-    
+
     if (!this.llmInstances.has(cacheKey)) {
       // Create model instance based on provider
       let model;
-      
+
       switch (modelConfig.provider) {
         case 'openai':
           model = new ChatOpenAI({
             modelName: modelConfig.modelName,
             temperature: modelConfig.temperature,
             streaming: modelConfig.streaming,
-            maxTokens: modelConfig.maxOutputTokens
+            maxTokens: modelConfig.maxOutputTokens,
           });
           break;
-          
+
         // Add other providers as needed
         default:
           throw new Error(`Unsupported provider: ${modelConfig.provider}`);
       }
-      
+
       this.llmInstances.set(cacheKey, model);
     }
-    
+
     return this.llmInstances.get(cacheKey);
   }
 
@@ -335,22 +373,22 @@ export class ModelRouterService {
   public async processRequest(
     messages: BaseMessage[],
     modelCriteria: ModelSelectionCriteria,
-    streamingHandler?: StreamingHandler
+    streamingHandler?: StreamingHandler,
   ): Promise<string> {
     // Select the appropriate model
     const selectedModel = this.selectModel(modelCriteria);
-    
+
     // Get or create LLM instance
     const llm = this.getLLMInstance(selectedModel);
-    
+
     try {
       let response;
-      
+
       if (selectedModel.streaming && streamingHandler) {
         // Handle streaming mode
         const stream = await llm.stream(messages);
         let fullResponse = '';
-        
+
         for await (const chunk of stream) {
           const content = chunk.content;
           if (content) {
@@ -358,7 +396,7 @@ export class ModelRouterService {
             streamingHandler.handleNewToken(content);
           }
         }
-        
+
         streamingHandler.handleComplete(fullResponse);
         response = fullResponse;
       } else {
@@ -366,18 +404,20 @@ export class ModelRouterService {
         const result = await llm.invoke(messages);
         response = result.content;
       }
-      
+
       return response;
     } catch (error) {
       this.logger.error('Error processing request with model', {
         model: selectedModel.modelName,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
-      
+
       if (streamingHandler) {
-        streamingHandler.handleError(error instanceof Error ? error : new Error(String(error)));
+        streamingHandler.handleError(
+          error instanceof Error ? error : new Error(String(error)),
+        );
       }
-      
+
       throw error;
     }
   }
@@ -385,17 +425,20 @@ export class ModelRouterService {
   /**
    * Utility function to calculate cosine similarity between two embeddings
    */
-  private calculateCosineSimilarity(embedding1: number[], embedding2: number[]): number {
+  private calculateCosineSimilarity(
+    embedding1: number[],
+    embedding2: number[],
+  ): number {
     let dotProduct = 0;
     let norm1 = 0;
     let norm2 = 0;
-    
+
     for (let i = 0; i < embedding1.length; i++) {
       dotProduct += embedding1[i] * embedding2[i];
       norm1 += embedding1[i] * embedding1[i];
       norm2 += embedding2[i] * embedding2[i];
     }
-    
+
     return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
   }
 
@@ -405,15 +448,15 @@ export class ModelRouterService {
   private getSourceScore(source: string): number {
     // Example prioritization logic - would be expanded based on your specific sources
     const sourcePriorities: Record<string, number> = {
-      'official_documentation': 1.0,
-      'knowledge_base': 0.9,
-      'internal_memo': 0.8,
-      'meeting_notes': 0.7,
-      'email': 0.6,
-      'chat_history': 0.5,
-      'external_website': 0.4
+      official_documentation: 1.0,
+      knowledge_base: 0.9,
+      internal_memo: 0.8,
+      meeting_notes: 0.7,
+      email: 0.6,
+      chat_history: 0.5,
+      external_website: 0.4,
     };
-    
+
     // Default score for unknown sources
     return sourcePriorities[source.toLowerCase()] || 0.3;
   }
@@ -425,4 +468,4 @@ export class ModelRouterService {
   private estimateTokenCount(text: string): number {
     return Math.ceil(text.split(/\s+/).length * 1.3);
   }
-} 
+}

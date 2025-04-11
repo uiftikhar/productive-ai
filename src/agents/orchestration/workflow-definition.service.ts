@@ -13,7 +13,9 @@ export interface WorkflowStepDefinition {
   capability?: string;
   input?: string | ((state: Record<string, any>) => string);
   condition?: (state: Record<string, any>) => boolean;
-  parameters?: Record<string, any> | ((state: Record<string, any>) => Record<string, any>);
+  parameters?:
+    | Record<string, any>
+    | ((state: Record<string, any>) => Record<string, any>);
   onSuccess?: string[];
   onFailure?: string[];
   maxRetries?: number;
@@ -67,7 +69,9 @@ export class WorkflowDefinitionService {
    */
   public static getInstance(logger?: Logger): WorkflowDefinitionService {
     if (!WorkflowDefinitionService.instance) {
-      WorkflowDefinitionService.instance = new WorkflowDefinitionService(logger);
+      WorkflowDefinitionService.instance = new WorkflowDefinitionService(
+        logger,
+      );
     }
     return WorkflowDefinitionService.instance;
   }
@@ -81,12 +85,12 @@ export class WorkflowDefinitionService {
     steps: WorkflowStepDefinition[] = [],
     branches: WorkflowBranchDefinition[] = [],
     startAt: string = '',
-    metadata: Record<string, any> = {}
+    metadata: Record<string, any> = {},
   ): WorkflowDefinition {
     // Generate a unique ID for the workflow
     const id = uuidv4();
     const now = Date.now();
-    
+
     // Initialize the version
     const existingVersions = this.workflowsByName.get(name) || [];
     const version = `1.${existingVersions.length}`;
@@ -116,12 +120,12 @@ export class WorkflowDefinitionService {
       steps,
       branches,
       startAt,
-      metadata
+      metadata,
     };
 
     // Store the workflow
     this.workflows.set(id, workflow);
-    
+
     // Update the workflow name index
     if (!this.workflowsByName.has(name)) {
       this.workflowsByName.set(name, []);
@@ -147,7 +151,7 @@ export class WorkflowDefinitionService {
     if (!ids || ids.length === 0) {
       return undefined;
     }
-    
+
     // Get the latest version (last in the array)
     const latestId = ids[ids.length - 1];
     return this.workflows.get(latestId);
@@ -158,7 +162,9 @@ export class WorkflowDefinitionService {
    */
   public getWorkflowVersions(name: string): WorkflowDefinition[] {
     const ids = this.workflowsByName.get(name) || [];
-    return ids.map(id => this.workflows.get(id)).filter(Boolean) as WorkflowDefinition[];
+    return ids
+      .map((id) => this.workflows.get(id))
+      .filter(Boolean) as WorkflowDefinition[];
   }
 
   /**
@@ -166,7 +172,7 @@ export class WorkflowDefinitionService {
    */
   public updateWorkflow(
     id: string,
-    updates: Partial<Omit<WorkflowDefinition, 'id' | 'createdAt' | 'version'>>
+    updates: Partial<Omit<WorkflowDefinition, 'id' | 'createdAt' | 'version'>>,
   ): WorkflowDefinition {
     const workflow = this.workflows.get(id);
     if (!workflow) {
@@ -177,13 +183,13 @@ export class WorkflowDefinitionService {
     const updatedWorkflow: WorkflowDefinition = {
       ...workflow,
       ...updates,
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
     };
 
     // Store the updated workflow
     this.workflows.set(id, updatedWorkflow);
     this.logger.info(`Updated workflow: ${updatedWorkflow.name} (${id})`);
-    
+
     return updatedWorkflow;
   }
 
@@ -197,7 +203,7 @@ export class WorkflowDefinitionService {
     }
 
     const name = newName || workflow.name;
-    
+
     // Create a new workflow based on the existing one
     return this.createWorkflow(
       name,
@@ -205,7 +211,7 @@ export class WorkflowDefinitionService {
       workflow.steps,
       workflow.branches,
       workflow.startAt,
-      { ...workflow.metadata, clonedFrom: id }
+      { ...workflow.metadata, clonedFrom: id },
     );
   }
 
@@ -220,11 +226,11 @@ export class WorkflowDefinitionService {
 
     // Remove from workflows map
     this.workflows.delete(id);
-    
+
     // Update the workflows by name index
     const ids = this.workflowsByName.get(workflow.name) || [];
-    const updatedIds = ids.filter(wfId => wfId !== id);
-    
+    const updatedIds = ids.filter((wfId) => wfId !== id);
+
     if (updatedIds.length === 0) {
       this.workflowsByName.delete(workflow.name);
     } else {
@@ -248,18 +254,18 @@ export class WorkflowDefinitionService {
   public createLinearWorkflow(
     name: string,
     description: string,
-    steps: Omit<WorkflowStepDefinition, 'id' | 'onSuccess' | 'onFailure'>[]
+    steps: Omit<WorkflowStepDefinition, 'id' | 'onSuccess' | 'onFailure'>[],
   ): WorkflowDefinition {
     // Create steps with IDs and sequential connections
     const workflowSteps: WorkflowStepDefinition[] = steps.map((step, index) => {
       const id = `step-${index + 1}`;
       const nextIndex = index < steps.length - 1 ? index + 1 : -1;
       const onSuccess = nextIndex >= 0 ? [`step-${nextIndex + 1}`] : [];
-      
+
       return {
         id,
         ...step,
-        onSuccess
+        onSuccess,
       };
     });
 
@@ -268,18 +274,20 @@ export class WorkflowDefinitionService {
       description,
       workflowSteps,
       [], // No branches for linear workflow
-      'step-1' // Start at first step
+      'step-1', // Start at first step
     );
   }
 
   /**
    * Load a predefined workflow from a JSON definition
    */
-  public loadWorkflowFromDefinition(definition: Partial<WorkflowDefinition>): WorkflowDefinition {
+  public loadWorkflowFromDefinition(
+    definition: Partial<WorkflowDefinition>,
+  ): WorkflowDefinition {
     if (!definition.name) {
       throw new Error('Workflow definition must include a name');
     }
-    
+
     if (!definition.steps || definition.steps.length === 0) {
       throw new Error('Workflow definition must include at least one step');
     }
@@ -290,7 +298,7 @@ export class WorkflowDefinitionService {
       definition.steps,
       definition.branches || [],
       definition.startAt || definition.steps[0].id,
-      definition.metadata || {}
+      definition.metadata || {},
     );
   }
 
@@ -310,8 +318,8 @@ export class WorkflowDefinitionService {
           parameters: (state) => ({
             query: state.input,
             strategy: 'hybrid',
-            maxItems: 5
-          })
+            maxItems: 5,
+          }),
         },
         {
           name: 'generate-answer',
@@ -319,12 +327,12 @@ export class WorkflowDefinitionService {
           capability: 'answer_with_context',
           parameters: (state) => ({
             query: state.input,
-            retrievedContext: state.steps[0].output
-          })
-        }
-      ]
+            retrievedContext: state.steps[0].output,
+          }),
+        },
+      ],
     );
-    
+
     // Add more default workflows as needed
   }
-} 
+}

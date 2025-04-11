@@ -1,7 +1,12 @@
 import { PineconeConnectionService } from '../../../../pinecone/pinecone-connection.service.ts';
 import { Logger } from '../../../logger/logger.interface.ts';
 import { IntegrationService } from '../integration.service.ts';
-import { ActionItemStatus, ContextType, UserContextNotFoundError, UserContextValidationError } from '../../types/context.types.ts';
+import {
+  ActionItemStatus,
+  ContextType,
+  UserContextNotFoundError,
+  UserContextValidationError,
+} from '../../types/context.types.ts';
 
 // Mock Logger
 class MockLogger implements Logger {
@@ -35,7 +40,8 @@ describe('IntegrationService', () => {
     jest.clearAllMocks();
     mockLogger = new MockLogger();
     integrationService = new IntegrationService({
-      pineconeService: mockPineconeService as unknown as PineconeConnectionService,
+      pineconeService:
+        mockPineconeService as unknown as PineconeConnectionService,
       logger: mockLogger,
     });
   });
@@ -44,27 +50,30 @@ describe('IntegrationService', () => {
     it('should integrate an action item with an external system', async () => {
       // Mock finding the action item
       mockQueryVectors.mockResolvedValueOnce({
-        matches: [{
-          id: 'a1',
-          metadata: {
-            actionItemId: 'a1',
-            content: 'Test action item',
-            userId: 'user1',
-            contextType: ContextType.ACTION_ITEM
+        matches: [
+          {
+            id: 'a1',
+            metadata: {
+              actionItemId: 'a1',
+              content: 'Test action item',
+              userId: 'user1',
+              contextType: ContextType.ACTION_ITEM,
+            },
+            values: [0.1, 0.2, 0.3],
           },
-          values: [0.1, 0.2, 0.3]
-        }]
+        ],
       });
 
       mockPineconeService.upsertVectors = jest.fn().mockResolvedValue({});
 
-      const result = await integrationService.integrateActionItemWithExternalSystem(
-        'user1',
-        'a1',
-        'jira',
-        'JIRA-123',
-        { priority: 'high' },
-      );
+      const result =
+        await integrationService.integrateActionItemWithExternalSystem(
+          'user1',
+          'a1',
+          'jira',
+          'JIRA-123',
+          { priority: 'high' },
+        );
 
       expect(result).toBe('JIRA-123');
       expect(mockPineconeService.upsertVectors).toHaveBeenCalledWith(
@@ -84,25 +93,28 @@ describe('IntegrationService', () => {
     it('should generate a new external ID if none provided', async () => {
       // Mock finding the action item
       mockQueryVectors.mockResolvedValueOnce({
-        matches: [{
-          id: 'a1',
-          metadata: {
-            actionItemId: 'a1',
-            content: 'Test action item',
-            userId: 'user1',
-            contextType: ContextType.ACTION_ITEM
+        matches: [
+          {
+            id: 'a1',
+            metadata: {
+              actionItemId: 'a1',
+              content: 'Test action item',
+              userId: 'user1',
+              contextType: ContextType.ACTION_ITEM,
+            },
+            values: [0.1, 0.2, 0.3],
           },
-          values: [0.1, 0.2, 0.3]
-        }]
+        ],
       });
 
       mockPineconeService.upsertVectors = jest.fn().mockResolvedValue({});
 
-      const result = await integrationService.integrateActionItemWithExternalSystem(
-        'user1',
-        'a1',
-        'jira',
-      );
+      const result =
+        await integrationService.integrateActionItemWithExternalSystem(
+          'user1',
+          'a1',
+          'jira',
+        );
 
       expect(result).toContain('ext-jira-');
     });
@@ -298,4 +310,4 @@ describe('IntegrationService', () => {
       ).rejects.toThrow(UserContextNotFoundError);
     });
   });
-}); 
+});

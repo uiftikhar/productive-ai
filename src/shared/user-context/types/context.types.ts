@@ -1,7 +1,11 @@
 /**
  * Base types for the context system
  */
-import { ContextType, ActionItemStatus, KnowledgeGapType } from '../context-types.ts';
+import {
+  ContextType,
+  ActionItemStatus,
+  KnowledgeGapType,
+} from '../context-types.ts';
 
 /**
  * Custom error types for UserContextService
@@ -118,7 +122,7 @@ export interface BaseContextMetadata {
 
   // Relevance and recency
   recency?: number; // Higher values indicate more recent/relevant content
-  
+
   // Allow any other properties to be added
   [key: string]: any;
 }

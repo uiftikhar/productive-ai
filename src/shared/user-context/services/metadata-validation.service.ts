@@ -3,14 +3,12 @@
  * Handles validation of different types of metadata
  */
 
-import { 
-  UserContextValidationError 
-} from '../types/context.types.ts';
+import { UserContextValidationError } from '../types/context.types.ts';
 import { MemoryType } from '../types/memory.types.ts';
 import { TemporalRelevanceModel } from '../types/temporal.types.ts';
 
 /**
- * Service for validating metadata objects to ensure they have the required fields 
+ * Service for validating metadata objects to ensure they have the required fields
  * and proper data types/ranges
  */
 export class MetadataValidationService {
@@ -122,12 +120,15 @@ export class MetadataValidationService {
   /**
    * Validate all types of metadata in a single call
    */
-  validateAllMetadata(metadata: Record<string, any>, requiredFields: string[] = []): void {
+  validateAllMetadata(
+    metadata: Record<string, any>,
+    requiredFields: string[] = [],
+  ): void {
     // Validate required fields first
     if (requiredFields.length > 0) {
       this.validateMetadata(metadata, requiredFields);
     }
-    
+
     // Then validate each specialized type
     this.validateThemeMetadata(metadata);
     this.validateRoleMetadata(metadata);

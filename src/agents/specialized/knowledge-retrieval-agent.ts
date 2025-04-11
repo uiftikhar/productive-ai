@@ -1,7 +1,10 @@
 import { BaseMessage, HumanMessage } from '@langchain/core/messages';
 import { BaseAgent } from '../base/base-agent.ts';
 import { AgentRequest, AgentResponse } from '../interfaces/agent.interface.ts';
-import { RagPromptManager, RagRetrievalStrategy } from '../../shared/services/rag-prompt-manager.service.ts';
+import {
+  RagPromptManager,
+  RagRetrievalStrategy,
+} from '../../shared/services/rag-prompt-manager.service.ts';
 import { ContextType } from '../../shared/user-context/context-types.ts';
 import { UserRole } from '../../shared/user-context/types/context.types.ts';
 import { EmbeddingService } from '../../shared/embedding/embedding.service.ts';
@@ -22,25 +25,31 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
   private ragPromptManager: RagPromptManager;
   private embeddingService: EmbeddingService;
 
-  constructor(options: {
-    documentContextService?: DocumentContextService;
-    conversationContextService?: ConversationContextService;
-    meetingContextService?: MeetingContextService;
-    relevanceCalculationService?: RelevanceCalculationService;
-    ragPromptManager?: RagPromptManager;
-    embeddingService?: EmbeddingService;
-    logger?: any;
-  } = {}) {
+  constructor(
+    options: {
+      documentContextService?: DocumentContextService;
+      conversationContextService?: ConversationContextService;
+      meetingContextService?: MeetingContextService;
+      relevanceCalculationService?: RelevanceCalculationService;
+      ragPromptManager?: RagPromptManager;
+      embeddingService?: EmbeddingService;
+      logger?: any;
+    } = {},
+  ) {
     super(
       'Knowledge Retrieval Agent',
       'Retrieves relevant knowledge from user context',
-      { logger: options.logger }
+      { logger: options.logger },
     );
 
-    this.documentContextService = options.documentContextService || new DocumentContextService();
-    this.conversationContextService = options.conversationContextService || new ConversationContextService();
-    this.meetingContextService = options.meetingContextService || new MeetingContextService();
-    this.relevanceCalculationService = options.relevanceCalculationService || new RelevanceCalculationService();
+    this.documentContextService =
+      options.documentContextService || new DocumentContextService();
+    this.conversationContextService =
+      options.conversationContextService || new ConversationContextService();
+    this.meetingContextService =
+      options.meetingContextService || new MeetingContextService();
+    this.relevanceCalculationService =
+      options.relevanceCalculationService || new RelevanceCalculationService();
     this.ragPromptManager = options.ragPromptManager || new RagPromptManager();
     this.embeddingService = options.embeddingService || new EmbeddingService();
 
@@ -53,8 +62,8 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
         strategy: 'Retrieval strategy to use',
         maxItems: 'Maximum number of items to retrieve',
         minRelevanceScore: 'Minimum relevance score for retrieved items',
-        contextTypes: 'Types of context to search for'
-      }
+        contextTypes: 'Types of context to search for',
+      },
     });
 
     this.registerCapability({
@@ -62,8 +71,8 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
       description: 'Generate an answer using retrieved context',
       parameters: {
         query: 'Query to answer',
-        retrievalOptions: 'Options for context retrieval'
-      }
+        retrievalOptions: 'Options for context retrieval',
+      },
     });
   }
 
@@ -86,9 +95,10 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
       throw new Error(`Capability not supported: ${capability}`);
     }
 
-    const query = typeof request.input === 'string'
-      ? request.input
-      : request.parameters?.query || '';
+    const query =
+      typeof request.input === 'string'
+        ? request.input
+        : request.parameters?.query || '';
 
     if (!query) {
       throw new Error('No query provided');
@@ -103,31 +113,30 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
       switch (capability) {
         case 'retrieve_knowledge':
           return await this.retrieveKnowledge(
-            userId, 
-            query, 
-            request.parameters
+            userId,
+            query,
+            request.parameters,
           );
 
         case 'answer_with_context':
           return await this.answerWithContext(
-            userId, 
-            query, 
+            userId,
+            query,
             request.parameters,
-            request.context?.conversationId
+            request.context?.conversationId,
           );
-          
+
         default:
           throw new Error(`Unsupported capability: ${capability}`);
       }
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
 
-      this.logger.error(`Error in KnowledgeRetrievalAgent: ${errorMessage}`, { 
-        userId, 
+      this.logger.error(`Error in KnowledgeRetrievalAgent: ${errorMessage}`, {
+        userId,
         query,
-        capability 
+        capability,
       });
       throw error;
     }
@@ -142,54 +151,64 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
       contextTypes?: ContextType[];
       timeRangeStart?: Date;
       timeRangeEnd?: Date;
-    }
+    },
   ) {
     const results = [];
     const { topK = 5, minScore = 0.6 } = options;
 
     // Retrieve from documents
-    if (!options.contextTypes || options.contextTypes.includes(ContextType.DOCUMENT)) {
-      const documentResults = await this.documentContextService.searchDocumentContent(
-        userId,
-        queryEmbedding,
-        { maxResults: topK, minRelevanceScore: minScore }
-      );
+    if (
+      !options.contextTypes ||
+      options.contextTypes.includes(ContextType.DOCUMENT)
+    ) {
+      const documentResults =
+        await this.documentContextService.searchDocumentContent(
+          userId,
+          queryEmbedding,
+          { maxResults: topK, minRelevanceScore: minScore },
+        );
       results.push(...documentResults);
     }
 
     // Retrieve from conversations
-    if (!options.contextTypes || options.contextTypes.includes(ContextType.CONVERSATION)) {
-      const conversationResults = await this.conversationContextService.searchConversations(
-        userId,
-        queryEmbedding,
-        { maxResults: topK, minRelevanceScore: minScore }
-      );
+    if (
+      !options.contextTypes ||
+      options.contextTypes.includes(ContextType.CONVERSATION)
+    ) {
+      const conversationResults =
+        await this.conversationContextService.searchConversations(
+          userId,
+          queryEmbedding,
+          { maxResults: topK, minRelevanceScore: minScore },
+        );
       results.push(...conversationResults);
     }
 
     // Retrieve from meetings
-    if (!options.contextTypes || options.contextTypes.includes(ContextType.MEETING)) {
-      const meetingResults = await this.meetingContextService.findUnansweredQuestions(
-        userId,
-        { timeRangeStart: options.timeRangeStart?.getTime(), timeRangeEnd: options.timeRangeEnd?.getTime() }
-      );
+    if (
+      !options.contextTypes ||
+      options.contextTypes.includes(ContextType.MEETING)
+    ) {
+      const meetingResults =
+        await this.meetingContextService.findUnansweredQuestions(userId, {
+          timeRangeStart: options.timeRangeStart?.getTime(),
+          timeRangeEnd: options.timeRangeEnd?.getTime(),
+        });
       results.push(...meetingResults.slice(0, topK));
     }
 
     // Calculate relevance scores for each result
-    const scoredResults = results.map(result => ({
+    const scoredResults = results.map((result) => ({
       ...result,
       score: this.relevanceCalculationService.calculateRelevanceScore(
         'user' as UserRole,
         result.metadata,
-        Date.now()
-      )
+        Date.now(),
+      ),
     }));
 
     // Sort by score and take top K
-    return scoredResults
-      .sort((a, b) => b.score - a.score)
-      .slice(0, topK);
+    return scoredResults.sort((a, b) => b.score - a.score).slice(0, topK);
   }
 
   /**
@@ -198,17 +217,19 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
   private async retrieveKnowledge(
     userId: string,
     query: string,
-    parameters?: Record<string, any>
+    parameters?: Record<string, any>,
   ): Promise<AgentResponse> {
     const startTime = Date.now();
 
-    const embeddingResult = await this.embeddingService.createEmbeddings([query]);
+    const embeddingResult = await this.embeddingService.createEmbeddings([
+      query,
+    ]);
     if (!embeddingResult || !embeddingResult.embeddings[0]) {
       throw new Error('Failed to create embeddings for query');
     }
 
     const queryEmbedding = embeddingResult.embeddings[0];
-    
+
     const results = await this.retrieveContextFromAllSources(
       userId,
       queryEmbedding,
@@ -217,17 +238,17 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
         minScore: parameters?.minRelevanceScore || 0.6,
         contextTypes: parameters?.contextTypes,
         timeRangeStart: parameters?.timeRangeStart,
-        timeRangeEnd: parameters?.timeRangeEnd
-      }
+        timeRangeEnd: parameters?.timeRangeEnd,
+      },
     );
 
     // Format results remains the same...
-    const formattedResults = results.map(match => ({
+    const formattedResults = results.map((match) => ({
       content: match.content,
       source: match.source,
       contextType: match.contextType,
       score: match.score,
-      metadata: match.metadata
+      metadata: match.metadata,
     }));
 
     return {
@@ -236,9 +257,9 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
         query,
         strategy: parameters?.strategy,
         resultsCount: formattedResults.length,
-        results: formattedResults
+        results: formattedResults,
       },
-      metrics: this.processMetrics(startTime, undefined, 1)
+      metrics: this.processMetrics(startTime, undefined, 1),
     };
   }
 
@@ -249,22 +270,24 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
     userId: string,
     query: string,
     parameters?: Record<string, any>,
-    conversationId?: string
+    conversationId?: string,
   ): Promise<AgentResponse> {
     const startTime = Date.now();
 
     // Create embeddings for the query
-    const embeddingResult = await this.embeddingService.createEmbeddings([query]);
+    const embeddingResult = await this.embeddingService.createEmbeddings([
+      query,
+    ]);
     if (!embeddingResult || !embeddingResult.embeddings[0]) {
       throw new Error('Failed to create embeddings for query');
     }
 
     const queryEmbedding = embeddingResult.embeddings[0];
-    
+
     // Determine retrieval options
     const retrievalOptions = parameters?.retrievalOptions || {};
     const strategy = retrievalOptions.strategy || RagRetrievalStrategy.HYBRID;
-    
+
     // Create a RAG prompt
     const ragResult = await this.ragPromptManager.createRagPrompt(
       'default' as any, // Use 'default' system role, casting to any to avoid type issues
@@ -280,19 +303,20 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
         conversationId,
         contentTypes: retrievalOptions.contextTypes,
         timeWindow: retrievalOptions.timeWindow,
-        customFilter: retrievalOptions.customFilter
-      }
+        customFilter: retrievalOptions.customFilter,
+      },
     );
 
     // Generate response using LLM with RAG-enhanced prompt
     const llmMessages = ragResult.messages;
     const llmResponse = await this.llm.invoke(llmMessages);
-    
+
     // Extract content and ensure it's a string
-    const responseContent = typeof llmResponse.content === 'string'
-      ? llmResponse.content
-      : JSON.stringify(llmResponse.content);
-    
+    const responseContent =
+      typeof llmResponse.content === 'string'
+        ? llmResponse.content
+        : JSON.stringify(llmResponse.content);
+
     // Store the interaction for future reference
     await this.ragPromptManager.storeRagInteraction(
       userId,
@@ -301,7 +325,7 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
       responseContent,
       [], // Would need to generate embeddings for response
       ragResult.retrievedContext,
-      conversationId
+      conversationId,
     );
 
     return {
@@ -311,13 +335,9 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
         strategy,
         contextSources: ragResult.retrievedContext.sources,
         promptMessages: llmMessages,
-        response: llmResponse
+        response: llmResponse,
       },
-      metrics: this.processMetrics(
-        startTime,
-        undefined,
-        1
-      )
+      metrics: this.processMetrics(startTime, undefined, 1),
     };
   }
-} 
+}

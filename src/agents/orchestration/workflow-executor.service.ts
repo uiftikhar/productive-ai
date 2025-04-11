@@ -2,7 +2,10 @@ import { GraphBuilder, WorkflowState } from './graph-builder.ts';
 import { WorkflowDefinition } from './workflow-definition.service.ts';
 import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
 import { Logger } from '../../shared/logger/logger.interface.ts';
-import { ModelRouterService, ModelSelectionCriteria } from './model-router.service.ts';
+import {
+  ModelRouterService,
+  ModelSelectionCriteria,
+} from './model-router.service.ts';
 import { AgentRegistryService } from '../services/agent-registry.service.ts';
 import { v4 as uuid } from 'uuid';
 
@@ -48,60 +51,65 @@ export class WorkflowExecutorService {
   private graphBuilder: GraphBuilder;
   private modelRouter: ModelRouterService;
   private registry: AgentRegistryService;
-  
+
   private static instance: WorkflowExecutorService;
-  
+
   /**
    * Get singleton instance
    */
-  public static getInstance(options: {
-    logger?: Logger;
-    graphBuilder?: GraphBuilder;
-    modelRouter?: ModelRouterService;
-    registry?: AgentRegistryService;
-  } = {}): WorkflowExecutorService {
+  public static getInstance(
+    options: {
+      logger?: Logger;
+      graphBuilder?: GraphBuilder;
+      modelRouter?: ModelRouterService;
+      registry?: AgentRegistryService;
+    } = {},
+  ): WorkflowExecutorService {
     if (!WorkflowExecutorService.instance) {
       WorkflowExecutorService.instance = new WorkflowExecutorService(options);
     }
     return WorkflowExecutorService.instance;
   }
-  
+
   /**
    * Private constructor for singleton pattern
    */
-  private constructor(options: {
-    logger?: Logger;
-    graphBuilder?: GraphBuilder;
-    modelRouter?: ModelRouterService;
-    registry?: AgentRegistryService;
-  } = {}) {
+  private constructor(
+    options: {
+      logger?: Logger;
+      graphBuilder?: GraphBuilder;
+      modelRouter?: ModelRouterService;
+      registry?: AgentRegistryService;
+    } = {},
+  ) {
     this.logger = options.logger || new ConsoleLogger();
     this.graphBuilder = options.graphBuilder || new GraphBuilder();
     this.modelRouter = options.modelRouter || ModelRouterService.getInstance();
     this.registry = options.registry || AgentRegistryService.getInstance();
   }
-  
+
   /**
    * Execute a workflow with the given input and options
    */
   public async executeWorkflow(
     workflowDefinition: WorkflowDefinition,
     input: string,
-    options: WorkflowExecutionOptions
+    options: WorkflowExecutionOptions,
   ): Promise<WorkflowExecutionResult> {
     const workflowInstanceId = uuid();
     const startTime = Date.now();
-    
+
     this.logger.info(`Starting workflow execution`, {
       workflowName: workflowDefinition.name,
       workflowInstanceId,
-      userId: options.userId
+      userId: options.userId,
     });
-    
+
     try {
       // Build the workflow graph
-      const graph = this.graphBuilder.createGraphFromWorkflow(workflowDefinition);
-      
+      const graph =
+        this.graphBuilder.createGraphFromWorkflow(workflowDefinition);
+
       // Prepare initial state
       const initialState: WorkflowState = {
         input,
@@ -114,14 +122,14 @@ export class WorkflowExecutorService {
         steps: [],
         activeAgents: [],
         metadata: options.metadata || {},
-        variables: options.initialVariables || {}
+        variables: options.initialVariables || {},
       };
-      
+
       // If model criteria was provided, add it to the initial variables
       if (options.modelCriteria) {
         initialState.variables.modelSelectionCriteria = options.modelCriteria;
       }
-      
+
       // Set up streaming callback if provided
       if (options.streamingCallback) {
         initialState.variables.streamingHandler = {
@@ -129,82 +137,84 @@ export class WorkflowExecutorService {
           handleError: (error: Error) => {
             this.logger.error('Streaming error in workflow', {
               workflowInstanceId,
-              error: error.message
+              error: error.message,
             });
           },
           handleComplete: (fullResponse: string) => {
             this.logger.info('Response complete in workflow', {
               workflowInstanceId,
-              responseLength: fullResponse.length
+              responseLength: fullResponse.length,
             });
-          }
+          },
         };
-        
+
         // Set streaming required flag
         initialState.variables.streamingRequired = true;
       }
-      
+
       // Execute the workflow
       const finalState = await graph.invoke(initialState);
-      
+
       // Prepare the execution result
       const executionResult: WorkflowExecutionResult = {
         workflowInstanceId,
         result: finalState.result || '',
-        steps: finalState.steps.map((step: {
-          id: string;
-          stepId: string;
-          name: string;
-          input: any;
-          output: any;
-          status: string;
-          startTime: Date;
-          endTime: Date;
-        }) => ({
-          id: step.id,
-          stepId: step.stepId,
-          name: step.name,
-          input: step.input,
-          output: step.output,
-          status: step.status === 'failed' ? 'failed' : 'completed',
-          startTime: step.startTime,
-          endTime: step.endTime
-        })),
+        steps: finalState.steps.map(
+          (step: {
+            id: string;
+            stepId: string;
+            name: string;
+            input: any;
+            output: any;
+            status: string;
+            startTime: Date;
+            endTime: Date;
+          }) => ({
+            id: step.id,
+            stepId: step.stepId,
+            name: step.name,
+            input: step.input,
+            output: step.output,
+            status: step.status === 'failed' ? 'failed' : 'completed',
+            startTime: step.startTime,
+            endTime: step.endTime,
+          }),
+        ),
         metadata: {
           ...finalState.metadata,
-          executionTime: Date.now() - startTime
-        }
+          executionTime: Date.now() - startTime,
+        },
       };
-      
+
       if (finalState.error) {
         executionResult.error = finalState.error;
       }
-      
+
       this.logger.info(`Workflow execution completed`, {
         workflowInstanceId,
         stepCount: executionResult.steps.length,
-        executionTime: executionResult.metadata.executionTime
+        executionTime: executionResult.metadata.executionTime,
       });
-      
+
       return executionResult;
     } catch (error) {
       this.logger.error(`Workflow execution failed`, {
         workflowInstanceId,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
-      
+
       return {
         workflowInstanceId,
         result: '',
         steps: [],
         error: error instanceof Error ? error.message : String(error),
         metadata: {
-          executionTime: Date.now() - startTime
-        }
+          executionTime: Date.now() - startTime,
+        },
       };
     }
   }
-  
+
   /**
    * Get a specific workflow by name
    */
@@ -224,28 +234,29 @@ export class WorkflowExecutorService {
           {
             id: 'analyzeQuery',
             name: 'Analyze Query',
-            description: 'Analyze the query complexity and determine appropriate processing',
-            onSuccess: ['determineModelRequirements']
+            description:
+              'Analyze the query complexity and determine appropriate processing',
+            onSuccess: ['determineModelRequirements'],
           },
           {
             id: 'determineModelRequirements',
             name: 'Determine Model Requirements',
             description: 'Select appropriate model based on query analysis',
-            onSuccess: ['generateResponse']
+            onSuccess: ['generateResponse'],
           },
           {
             id: 'generateResponse',
             name: 'Generate Response',
-            description: 'Generate a response using the selected model'
-          }
+            description: 'Generate a response using the selected model',
+          },
         ],
-        branches: []
+        branches: [],
       };
     }
-    
+
     return undefined;
   }
-  
+
   /**
    * Create a new adaptive query workflow configuration
    */
@@ -253,7 +264,8 @@ export class WorkflowExecutorService {
     return {
       id: 'adaptive-query-workflow',
       name: 'adaptive-query',
-      description: 'Process queries with adaptive model selection and knowledge retrieval',
+      description:
+        'Process queries with adaptive model selection and knowledge retrieval',
       startAt: 'retrieveKnowledge',
       version: '1.0.0',
       createdAt: Date.now(),
@@ -268,25 +280,27 @@ export class WorkflowExecutorService {
           parameters: (state: Record<string, any>) => ({
             strategy: 'hybrid',
             maxItems: 5,
-            minRelevanceScore: 0.6
+            minRelevanceScore: 0.6,
           }),
-          onSuccess: ['selectModel']
+          onSuccess: ['selectModel'],
         },
         {
           id: 'selectModel',
           name: 'Select Model',
-          description: 'Select the appropriate model based on query and context',
+          description:
+            'Select the appropriate model based on query and context',
           // This step would be handled by the workflow executor with the model router
-          onSuccess: ['generateResponse']
+          onSuccess: ['generateResponse'],
         },
         {
           id: 'generateResponse',
           name: 'Generate Response',
-          description: 'Generate a response using the selected model and context',
+          description:
+            'Generate a response using the selected model and context',
           // This step would be handled by the workflow executor with the model router
-        }
+        },
       ],
-      branches: []
+      branches: [],
     };
   }
-} 
+}

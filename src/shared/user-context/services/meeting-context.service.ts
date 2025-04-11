@@ -6,8 +6,8 @@
 import { RecordMetadata } from '@pinecone-database/pinecone';
 import { BaseContextService } from './base-context.service.ts';
 import { MetadataValidationService } from './metadata-validation.service.ts';
-import { 
-  BaseContextMetadata, 
+import {
+  BaseContextMetadata,
   ContextType,
   USER_CONTEXT_INDEX,
   ActionItemStatus,
@@ -89,7 +89,9 @@ export class MeetingContextService extends BaseContextService {
     metadata: Partial<BaseContextMetadata> = {},
   ): Promise<string> {
     if (!meetingId || !agendaItemId) {
-      throw new UserContextValidationError('Meeting ID and Agenda Item ID are required');
+      throw new UserContextValidationError(
+        'Meeting ID and Agenda Item ID are required',
+      );
     }
 
     return this.storeUserContext(userId, content, embeddings, {
@@ -123,7 +125,9 @@ export class MeetingContextService extends BaseContextService {
     metadata: Partial<BaseContextMetadata> = {},
   ): Promise<string> {
     if (!meetingId || !decisionId) {
-      throw new UserContextValidationError('Meeting ID and Decision ID are required');
+      throw new UserContextValidationError(
+        'Meeting ID and Decision ID are required',
+      );
     }
 
     return this.storeUserContext(userId, decision, embeddings, {
@@ -160,7 +164,9 @@ export class MeetingContextService extends BaseContextService {
     metadata: Partial<BaseContextMetadata> = {},
   ): Promise<string> {
     if (!meetingId || !actionItemId) {
-      throw new UserContextValidationError('Meeting ID and Action Item ID are required');
+      throw new UserContextValidationError(
+        'Meeting ID and Action Item ID are required',
+      );
     }
 
     return this.storeUserContext(userId, actionItem, embeddings, {
@@ -190,20 +196,21 @@ export class MeetingContextService extends BaseContextService {
   ): Promise<boolean> {
     // Find the action item
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [], // Empty vector for metadata-only query
-        {
-          topK: 1,
-          filter: {
-            contextType: ContextType.ACTION_ITEM,
-            actionItemId,
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [], // Empty vector for metadata-only query
+          {
+            topK: 1,
+            filter: {
+              contextType: ContextType.ACTION_ITEM,
+              actionItemId,
+            },
+            includeValues: true,
+            includeMetadata: true,
           },
-          includeValues: true,
-          includeMetadata: true,
-        },
-        userId,
-      ),
+          userId,
+        ),
       `findActionItem:${userId}:${actionItemId}`,
     );
 
@@ -216,21 +223,22 @@ export class MeetingContextService extends BaseContextService {
 
     // Update the status
     await this.executeWithRetry(
-      () => this.pineconeService.upsertVectors(
-        USER_CONTEXT_INDEX,
-        [
-          {
-            id: actionItem.id,
-            values,
-            metadata: this.prepareMetadataForStorage({
-              ...actionItem.metadata,
-              status,
-              lastUpdatedAt: Date.now(),
-            }),
-          },
-        ],
-        userId,
-      ),
+      () =>
+        this.pineconeService.upsertVectors(
+          USER_CONTEXT_INDEX,
+          [
+            {
+              id: actionItem.id,
+              values,
+              metadata: this.prepareMetadataForStorage({
+                ...actionItem.metadata,
+                status,
+                lastUpdatedAt: Date.now(),
+              }),
+            },
+          ],
+          userId,
+        ),
       `updateActionItemStatus:${userId}:${actionItemId}`,
     );
 
@@ -260,7 +268,9 @@ export class MeetingContextService extends BaseContextService {
     metadata: Partial<BaseContextMetadata> = {},
   ): Promise<string> {
     if (!meetingId || !questionId) {
-      throw new UserContextValidationError('Meeting ID and Question ID are required');
+      throw new UserContextValidationError(
+        'Meeting ID and Question ID are required',
+      );
     }
 
     return this.storeUserContext(userId, question, embeddings, {
@@ -289,20 +299,21 @@ export class MeetingContextService extends BaseContextService {
   ): Promise<boolean> {
     // Find the question
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [], // Empty vector for metadata-only query
-        {
-          topK: 1,
-          filter: {
-            contextType: ContextType.QUESTION,
-            questionId,
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [], // Empty vector for metadata-only query
+          {
+            topK: 1,
+            filter: {
+              contextType: ContextType.QUESTION,
+              questionId,
+            },
+            includeValues: true,
+            includeMetadata: true,
           },
-          includeValues: true,
-          includeMetadata: true,
-        },
-        userId,
-      ),
+          userId,
+        ),
       `findQuestion:${userId}:${questionId}`,
     );
 
@@ -315,22 +326,23 @@ export class MeetingContextService extends BaseContextService {
 
     // Update the question
     await this.executeWithRetry(
-      () => this.pineconeService.upsertVectors(
-        USER_CONTEXT_INDEX,
-        [
-          {
-            id: question.id,
-            values,
-            metadata: this.prepareMetadataForStorage({
-              ...question.metadata,
-              isAnswered: true,
-              answerContextId,
-              lastUpdatedAt: Date.now(),
-            }),
-          },
-        ],
-        userId,
-      ),
+      () =>
+        this.pineconeService.upsertVectors(
+          USER_CONTEXT_INDEX,
+          [
+            {
+              id: question.id,
+              values,
+              metadata: this.prepareMetadataForStorage({
+                ...question.metadata,
+                isAnswered: true,
+                answerContextId,
+                lastUpdatedAt: Date.now(),
+              }),
+            },
+          ],
+          userId,
+        ),
       `markQuestionAsAnswered:${userId}:${questionId}`,
     );
 
@@ -377,23 +389,24 @@ export class MeetingContextService extends BaseContextService {
     }
 
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [], // Empty vector for metadata-only query
-        {
-          topK: 1000,
-          filter,
-          includeValues: false,
-          includeMetadata: true,
-        },
-        userId,
-      ),
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [], // Empty vector for metadata-only query
+          {
+            topK: 1000,
+            filter,
+            includeValues: false,
+            includeMetadata: true,
+          },
+          userId,
+        ),
       `findUnansweredQuestions:${userId}`,
     );
 
     const questions = result.matches || [];
 
-    return questions.map(q => ({
+    return questions.map((q) => ({
       id: q.id,
       questionId: q.metadata?.questionId,
       question: q.metadata?.content,

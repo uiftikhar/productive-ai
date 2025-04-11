@@ -1,4 +1,4 @@
-import { BaseMessage } from "@langchain/core/messages";
+import { BaseMessage } from '@langchain/core/messages';
 
 /**
  * Agent capability descriptor
@@ -50,7 +50,7 @@ export interface AgentInterface {
    * Unique identifier for this agent
    */
   readonly id: string;
-  
+
   /**
    * Descriptive name of this agent
    */

@@ -7,10 +7,7 @@
 import { BaseContextService } from './base-context.service.ts';
 import { Logger } from '../../../shared/logger/logger.interface.ts';
 import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
-import {
-  UserContextMetadata,
-  UserRole,
-} from '../user-context.service.ts';
+import { UserContextMetadata, UserRole } from '../user-context.service.ts';
 import { ContextType } from '../context-types.ts';
 
 // Constants for relevance calculation
@@ -43,9 +40,10 @@ export class RelevanceCalculationService extends BaseContextService {
     currentTime: number = Date.now(),
   ): number {
     // Start with base relevance (either existing or default)
-    let relevance = typeof metadata.relevanceScore === 'number' 
-      ? metadata.relevanceScore 
-      : 0.5;
+    let relevance =
+      typeof metadata.relevanceScore === 'number'
+        ? metadata.relevanceScore
+        : 0.5;
 
     // Apply role-based relevance
     relevance = this.applyRoleRelevance(relevance, userRole, metadata);
@@ -125,13 +123,12 @@ export class RelevanceCalculationService extends BaseContextService {
 
     // Boost recent content
     if (ageInDays < TIME_WINDOW_DAYS) {
-      const recencyBoost = 
-        RECENCY_FACTOR * (1 - ageInDays / TIME_WINDOW_DAYS);
+      const recencyBoost = RECENCY_FACTOR * (1 - ageInDays / TIME_WINDOW_DAYS);
       return Math.min(1.0, baseRelevance * (1 + recencyBoost / 5));
     }
 
     // Apply decay to older content
-    const decay = DECAY_FACTOR * (ageInDays - TIME_WINDOW_DAYS) / 30;
+    const decay = (DECAY_FACTOR * (ageInDays - TIME_WINDOW_DAYS)) / 30;
     return Math.max(0.1, baseRelevance * (1 - decay));
   }
 
@@ -219,10 +216,10 @@ export class RelevanceCalculationService extends BaseContextService {
     for (const queryTheme of queryThemes) {
       if (contentThemes.includes(queryTheme)) {
         matchCount++;
-        
+
         // If we have theme relevance information, use that
         if (
-          contentMetadata.themeRelevance && 
+          contentMetadata.themeRelevance &&
           typeof contentMetadata.themeRelevance === 'object' &&
           typeof contentMetadata.themeRelevance[queryTheme] === 'number'
         ) {
@@ -243,7 +240,7 @@ export class RelevanceCalculationService extends BaseContextService {
     const averageRelevance = totalRelevance / matchCount;
 
     // Combine average relevance with coverage
-    return (averageRelevance * 0.7) + (coverage * 0.3);
+    return averageRelevance * 0.7 + coverage * 0.3;
   }
 
   /**
@@ -258,24 +255,61 @@ export class RelevanceCalculationService extends BaseContextService {
 
     // Simple keyword extraction implementation
     // In a real implementation, this would use NLP techniques
-    
+
     // Remove common punctuation and convert to lowercase
-    const processedText = text.toLowerCase()
+    const processedText = text
+      .toLowerCase()
       .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, ' ')
       .replace(/\s{2,}/g, ' ');
-    
+
     // Split into words and filter out common stop words
     const stopWords = new Set([
-      'a', 'an', 'the', 'and', 'or', 'but', 'is', 'are', 'was', 'were',
-      'to', 'of', 'in', 'for', 'with', 'on', 'at', 'by', 'this', 'that',
-      'it', 'we', 'i', 'you', 'he', 'she', 'they', 'be', 'have', 'has',
-      'had', 'do', 'does', 'did', 'will', 'would', 'should', 'can', 'could'
+      'a',
+      'an',
+      'the',
+      'and',
+      'or',
+      'but',
+      'is',
+      'are',
+      'was',
+      'were',
+      'to',
+      'of',
+      'in',
+      'for',
+      'with',
+      'on',
+      'at',
+      'by',
+      'this',
+      'that',
+      'it',
+      'we',
+      'i',
+      'you',
+      'he',
+      'she',
+      'they',
+      'be',
+      'have',
+      'has',
+      'had',
+      'do',
+      'does',
+      'did',
+      'will',
+      'would',
+      'should',
+      'can',
+      'could',
     ]);
-    
-    const words = processedText.split(' ')
-      .filter(word => word.length > 3 && !stopWords.has(word))
+
+    const words = processedText
+      .split(' ')
+      .filter((word) => word.length > 3 && !stopWords.has(word))
       .slice(0, 20); // Limit to top 20 words
-    
+
     // Remove duplicates
     return [...new Set(words)];
   }

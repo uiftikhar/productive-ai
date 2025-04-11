@@ -6,7 +6,11 @@ import { PineconeConnectionService } from '../../pinecone/pinecone-connection.se
 import { VectorRecord } from '../../pinecone/pinecone.type.ts';
 import { Logger } from '../../shared/logger/logger.interface.ts';
 import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { ActionItemStatus, ContextType, KnowledgeGapType } from './context-types.ts';
+import {
+  ActionItemStatus,
+  ContextType,
+  KnowledgeGapType,
+} from './context-types.ts';
 
 /**
  * Custom error types for UserContextService

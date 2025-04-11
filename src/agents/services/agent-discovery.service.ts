@@ -46,17 +46,20 @@ export class AgentDiscoveryService {
   private static instance: AgentDiscoveryService;
   private logger: Logger;
   private registry: AgentRegistryService;
-  
+
   // Performance and reliability metrics for agents
-  private agentMetrics: Map<string, Record<string, AgentDiscoveryMetrics>> = new Map();
-  
+  private agentMetrics: Map<string, Record<string, AgentDiscoveryMetrics>> =
+    new Map();
+
   /**
    * Get singleton instance
    */
-  public static getInstance(options: {
-    logger?: Logger;
-    registry?: AgentRegistryService;
-  } = {}): AgentDiscoveryService {
+  public static getInstance(
+    options: {
+      logger?: Logger;
+      registry?: AgentRegistryService;
+    } = {},
+  ): AgentDiscoveryService {
     if (!AgentDiscoveryService.instance) {
       AgentDiscoveryService.instance = new AgentDiscoveryService(options);
     }
@@ -66,10 +69,12 @@ export class AgentDiscoveryService {
   /**
    * Private constructor (singleton pattern)
    */
-  private constructor(options: {
-    logger?: Logger;
-    registry?: AgentRegistryService;
-  } = {}) {
+  private constructor(
+    options: {
+      logger?: Logger;
+      registry?: AgentRegistryService;
+    } = {},
+  ) {
     this.logger = options.logger || new ConsoleLogger();
     this.registry = options.registry || AgentRegistryService.getInstance();
   }
@@ -77,52 +82,64 @@ export class AgentDiscoveryService {
   /**
    * Discover the most appropriate agent for a capability
    */
-  public discoverAgent(options: AgentDiscoveryOptions): AgentDiscoveryResult | null {
-    this.logger.info('Discovering agent for capability', { capability: options.capability });
-    
+  public discoverAgent(
+    options: AgentDiscoveryOptions,
+  ): AgentDiscoveryResult | null {
+    this.logger.info('Discovering agent for capability', {
+      capability: options.capability,
+    });
+
     // Find all agents that have the capability
-    const capableAgents = this.registry.findAgentsWithCapability(options.capability);
-    
+    const capableAgents = this.registry.findAgentsWithCapability(
+      options.capability,
+    );
+
     if (capableAgents.length === 0) {
-      this.logger.warn('No agents found with capability', { capability: options.capability });
+      this.logger.warn('No agents found with capability', {
+        capability: options.capability,
+      });
       return null;
     }
-    
+
     // Filter out excluded agents
-    const filteredAgents = options.excludedAgentIds 
-      ? capableAgents.filter(agent => !options.excludedAgentIds?.includes(agent.id))
+    const filteredAgents = options.excludedAgentIds
+      ? capableAgents.filter(
+          (agent) => !options.excludedAgentIds?.includes(agent.id),
+        )
       : capableAgents;
-    
+
     if (filteredAgents.length === 0) {
-      this.logger.warn('All agents with capability were excluded', { capability: options.capability });
+      this.logger.warn('All agents with capability were excluded', {
+        capability: options.capability,
+      });
       return null;
     }
-    
+
     // Score each agent
-    const scoredAgents = filteredAgents.map(agent => {
+    const scoredAgents = filteredAgents.map((agent) => {
       const metrics = this.scoreAgent(agent, options);
       return { agent, metrics };
     });
-    
+
     // Sort by total score (descending)
     scoredAgents.sort((a, b) => b.metrics.totalScore - a.metrics.totalScore);
-    
+
     // Get the best agent
     const bestAgent = scoredAgents[0];
-    
+
     // Gather alternatives
     const alternatives = scoredAgents
       .slice(1, 4) // Get up to 3 alternatives
-      .map(({ agent, metrics }) => ({ 
-        agentId: agent.id, 
-        metrics 
+      .map(({ agent, metrics }) => ({
+        agentId: agent.id,
+        metrics,
       }));
-    
+
     return {
       agentId: bestAgent.agent.id,
       capability: options.capability,
       metrics: bestAgent.metrics,
-      alternatives: alternatives.length > 0 ? alternatives : undefined
+      alternatives: alternatives.length > 0 ? alternatives : undefined,
     };
   }
 
@@ -130,37 +147,37 @@ export class AgentDiscoveryService {
    * Score an agent based on capability matching and performance metrics
    */
   private scoreAgent(
-    agent: AgentInterface, 
-    options: AgentDiscoveryOptions
+    agent: AgentInterface,
+    options: AgentDiscoveryOptions,
   ): AgentDiscoveryMetrics {
     // Default weights if not provided
     const performanceWeight = options.performanceWeight ?? 0.3;
     const reliabilityWeight = options.reliabilityWeight ?? 0.3;
     const capabilityWeight = 1 - performanceWeight - reliabilityWeight;
-    
+
     // Get stored metrics for this agent and capability, or create default
     const storedMetrics = this.getAgentMetrics(agent.id, options.capability);
-    
+
     // Calculate capability score (based on how well the agent matches the capability)
     let capabilityScore = 1.0; // Default perfect score
-    
+
     // Preferred agents get a boost
     if (options.preferredAgentIds?.includes(agent.id)) {
       capabilityScore += 0.5;
     }
-    
+
     // Calculate performance score (speed, resource usage)
     const performanceScore = storedMetrics.performanceScore;
-    
+
     // Calculate reliability score (success rate, error handling)
     const reliabilityScore = storedMetrics.reliabilityScore;
-    
+
     // Calculate total score (weighted average)
-    const totalScore = 
-      (capabilityScore * capabilityWeight) + 
-      (performanceScore * performanceWeight) + 
-      (reliabilityScore * reliabilityWeight);
-    
+    const totalScore =
+      capabilityScore * capabilityWeight +
+      performanceScore * performanceWeight +
+      reliabilityScore * reliabilityWeight;
+
     return {
       capabilityScore,
       performanceScore,
@@ -168,20 +185,23 @@ export class AgentDiscoveryService {
       totalScore,
       lastUsed: storedMetrics.lastUsed,
       averageResponseTime: storedMetrics.averageResponseTime,
-      successRate: storedMetrics.successRate
+      successRate: storedMetrics.successRate,
     };
   }
 
   /**
    * Get stored metrics for an agent and capability
    */
-  private getAgentMetrics(agentId: string, capability: string): AgentDiscoveryMetrics {
+  private getAgentMetrics(
+    agentId: string,
+    capability: string,
+  ): AgentDiscoveryMetrics {
     if (!this.agentMetrics.has(agentId)) {
       this.agentMetrics.set(agentId, {});
     }
-    
+
     const agentMetricsMap = this.agentMetrics.get(agentId)!;
-    
+
     if (!agentMetricsMap[capability]) {
       // Initialize default metrics
       agentMetricsMap[capability] = {
@@ -191,10 +211,10 @@ export class AgentDiscoveryService {
         totalScore: 0.9,
         lastUsed: Date.now(),
         averageResponseTime: 500, // ms
-        successRate: 0.95
+        successRate: 0.95,
       };
     }
-    
+
     return agentMetricsMap[capability];
   }
 
@@ -208,53 +228,55 @@ export class AgentDiscoveryService {
       executionTime?: number;
       success?: boolean;
       error?: string;
-    }
+    },
   ): void {
     const currentMetrics = this.getAgentMetrics(agentId, capability);
     const agentMetricsMap = this.agentMetrics.get(agentId)!;
-    
+
     // Update last used timestamp
     currentMetrics.lastUsed = Date.now();
-    
+
     // Update average response time if provided
     if (metrics.executionTime !== undefined) {
       // Simple moving average (could be improved with exponential moving average)
       if (currentMetrics.averageResponseTime === undefined) {
         currentMetrics.averageResponseTime = metrics.executionTime;
       } else {
-        currentMetrics.averageResponseTime = 
-          0.7 * currentMetrics.averageResponseTime + 0.3 * metrics.executionTime;
+        currentMetrics.averageResponseTime =
+          0.7 * currentMetrics.averageResponseTime +
+          0.3 * metrics.executionTime;
       }
-      
+
       // Update performance score based on response time
       // Lower is better, scale between 0.5 and 1.0
       const maxResponseTime = 5000; // 5 seconds is considered slow
       currentMetrics.performanceScore = Math.max(
         0.5,
-        1.0 - (currentMetrics.averageResponseTime / maxResponseTime)
+        1.0 - currentMetrics.averageResponseTime / maxResponseTime,
       );
     }
-    
+
     // Update success rate if success status provided
     if (metrics.success !== undefined) {
       if (currentMetrics.successRate === undefined) {
         currentMetrics.successRate = metrics.success ? 1.0 : 0.0;
       } else {
         // Update with more weight to recent results (90% old, 10% new)
-        currentMetrics.successRate = 
-          0.9 * currentMetrics.successRate + 0.1 * (metrics.success ? 1.0 : 0.0);
+        currentMetrics.successRate =
+          0.9 * currentMetrics.successRate +
+          0.1 * (metrics.success ? 1.0 : 0.0);
       }
-      
+
       // Update reliability score based on success rate
       currentMetrics.reliabilityScore = currentMetrics.successRate;
     }
-    
+
     // Recalculate total score
-    currentMetrics.totalScore = 
-      (currentMetrics.capabilityScore * 0.4) + 
-      (currentMetrics.performanceScore * 0.3) + 
-      (currentMetrics.reliabilityScore * 0.3);
-    
+    currentMetrics.totalScore =
+      currentMetrics.capabilityScore * 0.4 +
+      currentMetrics.performanceScore * 0.3 +
+      currentMetrics.reliabilityScore * 0.3;
+
     // Save updated metrics
     agentMetricsMap[capability] = currentMetrics;
   }
@@ -262,20 +284,23 @@ export class AgentDiscoveryService {
   /**
    * Get metrics for all registered agents
    */
-  public getAllAgentMetrics(): Record<string, Record<string, AgentDiscoveryMetrics>> {
+  public getAllAgentMetrics(): Record<
+    string,
+    Record<string, AgentDiscoveryMetrics>
+  > {
     const result: Record<string, Record<string, AgentDiscoveryMetrics>> = {};
-    
+
     this.agentMetrics.forEach((metrics, agentId) => {
       result[agentId] = { ...metrics };
     });
-    
+
     return result;
   }
-  
+
   /**
    * Reset metrics for testing
    */
   public resetMetrics(): void {
     this.agentMetrics.clear();
   }
-} 
+}

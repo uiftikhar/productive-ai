@@ -2,7 +2,10 @@
 
 import { ConsoleLogger } from '../shared/logger/console-logger.ts';
 import { EnhancedOrchestratorService } from '../agents/orchestration/enhanced-orchestrator.service.ts';
-import { WorkflowDefinitionService, WorkflowStepDefinition } from '../agents/orchestration/workflow-definition.service.ts';
+import {
+  WorkflowDefinitionService,
+  WorkflowStepDefinition,
+} from '../agents/orchestration/workflow-definition.service.ts';
 import { AgentRegistryService } from '../agents/services/agent-registry.service.ts';
 import { KnowledgeRetrievalAgent } from '../agents/specialized/knowledge-retrieval-agent.ts';
 
@@ -12,34 +15,34 @@ import { KnowledgeRetrievalAgent } from '../agents/specialized/knowledge-retriev
 async function runEnhancedOrchestratorDemo() {
   const logger = new ConsoleLogger();
   logger.info('Starting Enhanced Orchestration Demo');
-  
+
   // Initialize the agent registry
   const registry = AgentRegistryService.getInstance(logger);
-  
+
   // Register specialized agents
   logger.info('Registering specialized agents');
   const knowledgeAgent = registry.registerKnowledgeRetrievalAgent();
-  
+
   // Initialize all agents
   logger.info('Initializing agents');
   await registry.initializeAgents();
-  
+
   // Get the enhanced orchestrator service
   const orchestrator = EnhancedOrchestratorService.getInstance({
     logger,
-    registry
+    registry,
   });
-  
+
   // Initialize the orchestrator
   await orchestrator.initialize();
-  
+
   // Define test user data
   const testUserId = 'test-user-123';
   const testConversationId = 'test-conversation-456';
-  
+
   // Create a custom workflow for question answering
   logger.info('Creating custom workflow');
-  
+
   // Define workflow steps
   const steps: Array<Partial<WorkflowStepDefinition>> = [
     {
@@ -50,8 +53,8 @@ async function runEnhancedOrchestratorDemo() {
       parameters: {
         maxItems: 3,
         minRelevanceScore: 0.5,
-        strategy: 'hybrid'
-      }
+        strategy: 'hybrid',
+      },
     },
     {
       id: 'step-2',
@@ -61,10 +64,10 @@ async function runEnhancedOrchestratorDemo() {
       parameters: {
         retrievalOptions: {
           strategy: 'hybrid',
-          maxItems: 3
-        }
+          maxItems: 3,
+        },
       },
-      onSuccess: ['step-3']
+      onSuccess: ['step-3'],
     },
     {
       id: 'step-3',
@@ -73,11 +76,11 @@ async function runEnhancedOrchestratorDemo() {
       // This could dispatch to a specialized processing agent in a real implementation
       parameters: {
         enhanceResponse: true,
-        addMetadata: true
-      }
-    }
+        addMetadata: true,
+      },
+    },
   ];
-  
+
   // Define a branch for conditional logic
   const branches = [
     {
@@ -86,9 +89,11 @@ async function runEnhancedOrchestratorDemo() {
       description: 'Check if knowledge was found',
       condition: (state: any) => {
         // Check if the first step returned any results
-        const step1Results = state.steps.find((s: any) => s.stepId === 'step-1');
+        const step1Results = state.steps.find(
+          (s: any) => s.stepId === 'step-1',
+        );
         if (!step1Results) return false;
-        
+
         try {
           const results = JSON.parse(step1Results.output);
           return results && results.length > 0;
@@ -97,10 +102,10 @@ async function runEnhancedOrchestratorDemo() {
         }
       },
       thenStepId: 'step-2', // If knowledge was found, generate answer
-      elseStepId: 'step-3'  // If no knowledge was found, skip to final processing
-    }
+      elseStepId: 'step-3', // If no knowledge was found, skip to final processing
+    },
   ];
-  
+
   // Create the workflow
   const workflow = orchestrator.createWorkflow(
     'qa-workflow',
@@ -110,15 +115,15 @@ async function runEnhancedOrchestratorDemo() {
     'step-1', // Start with the first step
     {
       category: 'knowledge',
-      version: '1.0.0'
-    }
+      version: '1.0.0',
+    },
   );
-  
+
   logger.info(`Created workflow: ${workflow.name} (${workflow.id})`);
-  
+
   // Execute the workflow with a test query
   logger.info('Executing workflow');
-  
+
   try {
     const response = await orchestrator.executeWorkflow(
       workflow.id,
@@ -127,35 +132,35 @@ async function runEnhancedOrchestratorDemo() {
         userId: testUserId,
         conversationId: testConversationId,
         metadata: {
-          source: 'enhanced-orchestration-demo'
-        }
-      }
+          source: 'enhanced-orchestration-demo',
+        },
+      },
     );
-    
+
     logger.info('Workflow execution completed');
     logger.info(`Output: ${response.output}`);
     logger.info(`Execution time: ${response.metrics?.executionTimeMs}ms`);
     logger.info(`Steps executed: ${response.metrics?.stepCount}`);
-    
+
     // Get status of the workflow execution
     const executionId = response.artifacts?.executionId;
-    
+
     if (executionId) {
       const status = orchestrator.getExecutionStatus(executionId);
       logger.info(`Workflow status: ${status?.status}`);
     }
   } catch (error) {
     logger.error('Error executing workflow:', {
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     });
   }
-  
+
   // Create and execute a linear workflow
   logger.info('Creating linear workflow');
-  
+
   // Get workflow service
   const workflowService = WorkflowDefinitionService.getInstance(logger);
-  
+
   // Create linear workflow
   const linearWorkflow = workflowService.createLinearWorkflow(
     'simple-rag',
@@ -164,49 +169,50 @@ async function runEnhancedOrchestratorDemo() {
       {
         name: 'retrieve',
         description: 'Retrieve knowledge',
-        capability: 'retrieve_knowledge'
+        capability: 'retrieve_knowledge',
       },
       {
         name: 'answer',
         description: 'Generate answer',
-        capability: 'answer_with_context'
-      }
-    ]
+        capability: 'answer_with_context',
+      },
+    ],
   );
-  
-  logger.info(`Created linear workflow: ${linearWorkflow.name} (${linearWorkflow.id})`);
-  
+
+  logger.info(
+    `Created linear workflow: ${linearWorkflow.name} (${linearWorkflow.id})`,
+  );
+
   // Execute the linear workflow
   logger.info('Executing linear workflow');
-  
+
   try {
     const response = await orchestrator.executeWorkflow(
       linearWorkflow.id,
       'Explain the difference between semantic and keyword search.',
       {
         userId: testUserId,
-        conversationId: testConversationId
-      }
+        conversationId: testConversationId,
+      },
     );
-    
+
     logger.info('Linear workflow execution completed');
     logger.info(`Output: ${response.output}`);
   } catch (error) {
     logger.error('Error executing linear workflow:', {
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
     });
   }
-  
+
   logger.info('Enhanced Orchestration Demo completed');
 }
 
 // Run the demo if this file is executed directly
 if (require.main === module) {
-  runEnhancedOrchestratorDemo()
-    .catch(error => {
-      console.error('Unhandled error in demo:', error);
-      process.exit(1);
-    });
+  runEnhancedOrchestratorDemo().catch((error) => {
+    console.error('Unhandled error in demo:', error);
+    process.exit(1);
+  });
 }
 
-export { runEnhancedOrchestratorDemo }; 
+export { runEnhancedOrchestratorDemo };

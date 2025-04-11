@@ -12,7 +12,11 @@ import { IntegrationService } from './services/integration.service.ts';
 import { MemoryManagementService } from './services/memory-management.service.ts';
 import { MetadataValidationService } from './services/metadata-validation.service.ts';
 import { BaseContextMetadata, ContextType } from './types/context.types.ts';
-import { EpisodicContext, SemanticStructure, ProceduralSteps } from './types/memory.types.ts';
+import {
+  EpisodicContext,
+  SemanticStructure,
+  ProceduralSteps,
+} from './types/memory.types.ts';
 
 /**
  * Facade service that provides a unified interface to all user context services
@@ -26,10 +30,12 @@ export class UserContextFacade {
   private metadataValidator: MetadataValidationService;
   private integrationService: IntegrationService;
 
-  constructor(options: {
-    pineconeService?: PineconeConnectionService;
-    logger?: Logger;
-  } = {}) {
+  constructor(
+    options: {
+      pineconeService?: PineconeConnectionService;
+      logger?: Logger;
+    } = {},
+  ) {
     // Initialize all services with the same dependencies
     this.baseContextService = new BaseContextService(options);
     this.conversationContextService = new ConversationContextService(options);
@@ -224,9 +230,9 @@ export class UserContextFacade {
     relevanceFeedback: number,
   ): Promise<void> {
     return this.baseContextService.provideRelevanceFeedback(
-      userId, 
-      contextId, 
-      relevanceFeedback
+      userId,
+      contextId,
+      relevanceFeedback,
     );
   }
 

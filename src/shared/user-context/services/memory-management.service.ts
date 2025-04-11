@@ -7,15 +7,15 @@ import { RecordMetadata } from '@pinecone-database/pinecone';
 import { VectorRecord } from '../../../pinecone/pinecone.type.ts';
 import { BaseContextService } from './base-context.service.ts';
 import { MetadataValidationService } from './metadata-validation.service.ts';
-import { 
+import {
   USER_CONTEXT_INDEX,
   UserContextNotFoundError,
 } from '../types/context.types.ts';
-import { 
+import {
   MemoryType,
   EpisodicContext,
   SemanticStructure,
-  ProceduralSteps 
+  ProceduralSteps,
 } from '../types/memory.types.ts';
 
 /**
@@ -52,7 +52,7 @@ export class MemoryManagementService extends BaseContextService {
     }
 
     const record = response.records[contextId];
-    
+
     // Update the record
     await this.pineconeService.upsertVectors(
       USER_CONTEXT_INDEX,
@@ -101,7 +101,7 @@ export class MemoryManagementService extends BaseContextService {
     }
 
     const record = response.records[contextId];
-    
+
     // Update the record
     await this.pineconeService.upsertVectors(
       USER_CONTEXT_INDEX,
@@ -150,7 +150,7 @@ export class MemoryManagementService extends BaseContextService {
     }
 
     const record = response.records[contextId];
-    
+
     // Update the record
     await this.pineconeService.upsertVectors(
       USER_CONTEXT_INDEX,
@@ -265,7 +265,8 @@ export class MemoryManagementService extends BaseContextService {
     // Update source memory with connection to target
     const sourceRecord = response.records[sourceContextId];
     const sourceMetadata = sourceRecord.metadata || {};
-    const sourceConnections = (sourceMetadata.memoryConnections as string[]) || [];
+    const sourceConnections =
+      (sourceMetadata.memoryConnections as string[]) || [];
 
     if (!sourceConnections.includes(targetContextId)) {
       sourceConnections.push(targetContextId);
@@ -291,7 +292,8 @@ export class MemoryManagementService extends BaseContextService {
     // Update target memory with connection to source
     const targetRecord = response.records[targetContextId];
     const targetMetadata = targetRecord.metadata || {};
-    const targetConnections = (targetMetadata.memoryConnections as string[]) || [];
+    const targetConnections =
+      (targetMetadata.memoryConnections as string[]) || [];
 
     if (!targetConnections.includes(sourceContextId)) {
       targetConnections.push(sourceContextId);
@@ -345,14 +347,17 @@ export class MemoryManagementService extends BaseContextService {
   }> {
     // Ensure depth is limited to prevent excessive queries
     const maxDepth = Math.min(depth, 3);
-    
+
     // Initialize result structures
     const nodesMap = new Map<string, Record<string, any>>();
-    const edgesMap = new Map<string, {
-      source: string;
-      target: string;
-      strength: number;
-    }>();
+    const edgesMap = new Map<
+      string,
+      {
+        source: string;
+        target: string;
+        strength: number;
+      }
+    >();
 
     // Start with the initial context
     const startResponse = await this.pineconeService.fetchVectors(
@@ -383,7 +388,7 @@ export class MemoryManagementService extends BaseContextService {
     // Breadth-first search for connected memories
     while (queue.length > 0) {
       const current = queue.shift()!;
-      
+
       // Don't go beyond max depth
       if (current.depth >= maxDepth) {
         continue;
@@ -416,12 +421,15 @@ export class MemoryManagementService extends BaseContextService {
 
       // Process each connection
       for (const connectedId of connections) {
-        const connectedRecord = connectedResponse.records[connectedId as string];
+        const connectedRecord =
+          connectedResponse.records[connectedId as string];
         if (!connectedRecord) continue;
 
         // Get connection strength
         const connectionStrength = parseFloat(
-          record.metadata?.[`memoryConnectionStrength:${connectedId}`] as string || '0'
+          (record.metadata?.[
+            `memoryConnectionStrength:${connectedId}`
+          ] as string) || '0',
         );
 
         // Skip weak connections
@@ -442,7 +450,7 @@ export class MemoryManagementService extends BaseContextService {
         // Add edge
         const edgeId = `${current.id}-${connectedId}`;
         const reverseEdgeId = `${connectedId}-${current.id}`;
-        
+
         if (!edgesMap.has(edgeId) && !edgesMap.has(reverseEdgeId)) {
           edgesMap.set(edgeId, {
             source: current.id,

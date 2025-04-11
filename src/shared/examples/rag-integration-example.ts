@@ -1,9 +1,7 @@
 import OpenAI from 'openai';
 import { generateRagTickets } from '../../jira-ticket-generator/rag-ticket-generator.ts';
 import { generateRagSummary } from '../../summary-generator/rag-summary-generator.ts';
-import {
-  UserContextService,
-} from '../user-context/user-context.service.ts';
+import { UserContextService } from '../user-context/user-context.service.ts';
 import { VectorIndexes } from '../../pinecone/pinecone-index.service.ts';
 import { RagRetrievalStrategy } from '../services/rag-prompt-manager.service.ts';
 

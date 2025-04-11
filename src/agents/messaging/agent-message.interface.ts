@@ -5,7 +5,7 @@ export enum MessagePriority {
   LOW = 0,
   NORMAL = 1,
   HIGH = 2,
-  CRITICAL = 3
+  CRITICAL = 3,
 }
 
 /**
@@ -16,11 +16,11 @@ export enum MessageType {
   REQUEST = 'request',
   RESPONSE = 'response',
   NOTIFICATION = 'notification',
-  
+
   // Agent lifecycle
   AGENT_READY = 'agent_ready',
   AGENT_SHUTDOWN = 'agent_shutdown',
-  
+
   // Task management
   TASK_CREATED = 'task_created',
   TASK_ASSIGNED = 'task_assigned',
@@ -28,33 +28,33 @@ export enum MessageType {
   TASK_COMPLETED = 'task_completed',
   TASK_FAILED = 'task_failed',
   TASK_CANCELLED = 'task_cancelled',
-  
+
   // Workflow management
   WORKFLOW_STARTED = 'workflow_started',
   WORKFLOW_STEP_COMPLETED = 'workflow_step_completed',
   WORKFLOW_COMPLETED = 'workflow_completed',
   WORKFLOW_FAILED = 'workflow_failed',
-  
+
   // Knowledge sharing
   KNOWLEDGE_QUERY = 'knowledge_query',
   KNOWLEDGE_RESPONSE = 'knowledge_response',
   KNOWLEDGE_UPDATE = 'knowledge_update',
-  
+
   // Model routing
   MODEL_REQUEST = 'model_request',
   MODEL_RESPONSE = 'model_response',
-  
+
   // System messages
   SYSTEM_INFO = 'system_info',
   SYSTEM_WARNING = 'system_warning',
   SYSTEM_ERROR = 'system_error',
-  
+
   // User interaction
   USER_MESSAGE = 'user_message',
   USER_FEEDBACK = 'user_feedback',
-  
+
   // Debugging
-  DEBUG = 'debug'
+  DEBUG = 'debug',
 }
 
 /**
@@ -64,24 +64,24 @@ export interface AgentMessage {
   // Message identification
   id: string;
   correlationId?: string;
-  
+
   // Routing information
   sourceId: string;
   targetId?: string;
-  
+
   // Message classification
   type: MessageType;
   topic?: string;
   priority?: MessagePriority;
-  
+
   // Timing
   timestamp: number;
   expiresAt?: number;
-  
+
   // Content
   content: any;
   contentType?: string;
-  
+
   // Metadata
   metadata?: Record<string, any>;
 }
@@ -93,14 +93,14 @@ export interface MessageHandlingOptions {
   // Request-response handling
   requireResponse?: boolean;
   responseTimeoutMs?: number;
-  
+
   // Message processing
   retries?: number;
   retryDelayMs?: number;
-  
+
   // Delivery options
   deliveryGuarantee?: 'at-least-once' | 'at-most-once' | 'exactly-once';
-  
+
   // Other options
   tracingId?: string;
 }
@@ -145,7 +145,7 @@ export interface KnowledgeMessageContent {
 export interface ModelRequestContent {
   modelId?: string;
   provider?: string;
-  prompt: string | Array<{role: string; content: string}>;
+  prompt: string | Array<{ role: string; content: string }>;
   parameters?: Record<string, any>;
   streaming?: boolean;
   maxTokens?: number;
@@ -179,7 +179,7 @@ export function createRequestMessage(
     priority?: MessagePriority;
     metadata?: Record<string, any>;
     contentType?: string;
-  }
+  },
 ): Omit<AgentMessage, 'id' | 'timestamp'> {
   return {
     sourceId,
@@ -189,7 +189,7 @@ export function createRequestMessage(
     topic: options?.topic,
     priority: options?.priority ?? MessagePriority.NORMAL,
     metadata: options?.metadata,
-    contentType: options?.contentType
+    contentType: options?.contentType,
   };
 }
 
@@ -206,7 +206,7 @@ export function createResponseMessage(
     priority?: MessagePriority;
     metadata?: Record<string, any>;
     contentType?: string;
-  }
+  },
 ): Omit<AgentMessage, 'id' | 'timestamp'> {
   return {
     sourceId,
@@ -217,7 +217,7 @@ export function createResponseMessage(
     topic: options?.topic,
     priority: options?.priority ?? MessagePriority.NORMAL,
     metadata: options?.metadata,
-    contentType: options?.contentType
+    contentType: options?.contentType,
   };
 }
 
@@ -233,7 +233,7 @@ export function createTaskMessage(
     correlationId?: string;
     priority?: MessagePriority;
     metadata?: Record<string, any>;
-  }
+  },
 ): Omit<AgentMessage, 'id' | 'timestamp'> {
   return {
     sourceId,
@@ -243,7 +243,7 @@ export function createTaskMessage(
     correlationId: options?.correlationId,
     priority: options?.priority ?? MessagePriority.NORMAL,
     metadata: options?.metadata,
-    contentType: 'application/json+task'
+    contentType: 'application/json+task',
   };
 }
 
@@ -259,7 +259,7 @@ export function createNotificationMessage(
     priority?: MessagePriority;
     metadata?: Record<string, any>;
     contentType?: string;
-  }
+  },
 ): Omit<AgentMessage, 'id' | 'timestamp'> {
   return {
     sourceId,
@@ -269,6 +269,6 @@ export function createNotificationMessage(
     topic: options?.topic,
     priority: options?.priority ?? MessagePriority.NORMAL,
     metadata: options?.metadata,
-    contentType: options?.contentType
+    contentType: options?.contentType,
   };
-} 
+}

@@ -6,8 +6,8 @@
 import { RecordMetadata } from '@pinecone-database/pinecone';
 import { BaseContextService } from './base-context.service.ts';
 import { MetadataValidationService } from './metadata-validation.service.ts';
-import { 
-  BaseContextMetadata, 
+import {
+  BaseContextMetadata,
   ContextType,
   USER_CONTEXT_INDEX,
   UserContextValidationError,
@@ -86,17 +86,18 @@ export class ConversationContextService extends BaseContextService {
 
     // Use an empty vector for a metadata-only search
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [], // Empty vector for metadata-only query
-        {
-          topK: limit,
-          filter,
-          includeValues: false,
-          includeMetadata: true,
-        },
-        userId,
-      ),
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [], // Empty vector for metadata-only query
+          {
+            topK: limit,
+            filter,
+            includeValues: false,
+            includeMetadata: true,
+          },
+          userId,
+        ),
       `getConversationHistory:${userId}:${conversationId}`,
     );
 
@@ -122,20 +123,21 @@ export class ConversationContextService extends BaseContextService {
   ): Promise<number> {
     // Find all turns in this conversation
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [], // Empty vector for metadata-only query
-        {
-          topK: 1000,
-          filter: {
-            contextType: ContextType.CONVERSATION,
-            conversationId,
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [], // Empty vector for metadata-only query
+          {
+            topK: 1000,
+            filter: {
+              contextType: ContextType.CONVERSATION,
+              conversationId,
+            },
+            includeValues: false,
+            includeMetadata: false,
           },
-          includeValues: false,
-          includeMetadata: false,
-        },
-        userId,
-      ),
+          userId,
+        ),
       `findConversationTurns:${userId}:${conversationId}`,
     );
 
@@ -148,11 +150,8 @@ export class ConversationContextService extends BaseContextService {
 
     // Delete the turns
     await this.executeWithRetry(
-      () => this.pineconeService.deleteVectors(
-        USER_CONTEXT_INDEX,
-        turnIds,
-        userId,
-      ),
+      () =>
+        this.pineconeService.deleteVectors(USER_CONTEXT_INDEX, turnIds, userId),
       `deleteConversationTurns:${userId}:${conversationId}`,
     );
 
@@ -164,49 +163,58 @@ export class ConversationContextService extends BaseContextService {
    * @param userId User identifier
    * @returns List of conversation summaries
    */
-  async listUserConversations(userId: string): Promise<Array<{
-    conversationId: string;
-    turnCount: number;
-    firstTimestamp: number;
-    lastTimestamp: number;
-  }>> {
-    // Get all conversation turns
-    const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [],
-        {
-          topK: 10000,
-          filter: {
-            contextType: ContextType.CONVERSATION,
-          },
-          includeValues: false,
-          includeMetadata: true,
-        },
-        userId,
-      ),
-      `listUserConversations:${userId}`,
-    );
-
-    const turns = result.matches || [];
-    
-    // Group by conversation ID
-    const convMap = new Map<string, {
+  async listUserConversations(userId: string): Promise<
+    Array<{
       conversationId: string;
       turnCount: number;
       firstTimestamp: number;
       lastTimestamp: number;
-    }>();
+    }>
+  > {
+    // Get all conversation turns
+    const result = await this.executeWithRetry(
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [],
+          {
+            topK: 10000,
+            filter: {
+              contextType: ContextType.CONVERSATION,
+            },
+            includeValues: false,
+            includeMetadata: true,
+          },
+          userId,
+        ),
+      `listUserConversations:${userId}`,
+    );
+
+    const turns = result.matches || [];
+
+    // Group by conversation ID
+    const convMap = new Map<
+      string,
+      {
+        conversationId: string;
+        turnCount: number;
+        firstTimestamp: number;
+        lastTimestamp: number;
+      }
+    >();
 
     for (const turn of turns) {
       const convId = turn.metadata?.conversationId as string;
-      const timestamp = turn.metadata?.timestamp as number || 0;
-      
+      const timestamp = (turn.metadata?.timestamp as number) || 0;
+
       if (convId) {
         const existing = convMap.get(convId);
         if (existing) {
           existing.turnCount++;
-          existing.firstTimestamp = Math.min(existing.firstTimestamp, timestamp);
+          existing.firstTimestamp = Math.min(
+            existing.firstTimestamp,
+            timestamp,
+          );
           existing.lastTimestamp = Math.max(existing.lastTimestamp, timestamp);
         } else {
           convMap.set(convId, {
@@ -220,8 +228,9 @@ export class ConversationContextService extends BaseContextService {
     }
 
     // Convert map to array and sort by most recent
-    return Array.from(convMap.values())
-      .sort((a, b) => b.lastTimestamp - a.lastTimestamp);
+    return Array.from(convMap.values()).sort(
+      (a, b) => b.lastTimestamp - a.lastTimestamp,
+    );
   }
 
   /**
@@ -267,17 +276,18 @@ export class ConversationContextService extends BaseContextService {
     }
 
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        queryEmbedding,
-        {
-          topK: options.maxResults || 10,
-          filter,
-          includeValues: false,
-          includeMetadata: true,
-        },
-        userId,
-      ),
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          queryEmbedding,
+          {
+            topK: options.maxResults || 10,
+            filter,
+            includeValues: false,
+            includeMetadata: true,
+          },
+          userId,
+        ),
       `searchConversations:${userId}`,
     );
 
@@ -285,13 +295,15 @@ export class ConversationContextService extends BaseContextService {
 
     // Filter by minimum score if specified
     if (options.minRelevanceScore !== undefined) {
-      matches = matches.filter(match => 
-        match.score !== undefined && match.score >= (options.minRelevanceScore || 0)
+      matches = matches.filter(
+        (match) =>
+          match.score !== undefined &&
+          match.score >= (options.minRelevanceScore || 0),
       );
     }
 
     // Format the results
-    return matches.map(match => ({
+    return matches.map((match) => ({
       id: match.id,
       score: match.score,
       conversationId: match.metadata?.conversationId,

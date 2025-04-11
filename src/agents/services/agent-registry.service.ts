@@ -1,8 +1,8 @@
-import { ConsoleLogger } from "../../shared/logger/console-logger.ts";
-import { Logger } from "../../shared/logger/logger.interface.ts";
-import { AgentInterface } from "../interfaces/agent.interface.ts";
-import { KnowledgeRetrievalAgent } from "../specialized/knowledge-retrieval-agent.ts";
-import { MasterOrchestratorAgent } from "../orchestration/master-orchestrator.ts";
+import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
+import { Logger } from '../../shared/logger/logger.interface.ts';
+import { AgentInterface } from '../interfaces/agent.interface.ts';
+import { KnowledgeRetrievalAgent } from '../specialized/knowledge-retrieval-agent.ts';
+import { MasterOrchestratorAgent } from '../orchestration/master-orchestrator.ts';
 
 /**
  * Agent Registry Service
@@ -32,9 +32,11 @@ export class AgentRegistryService {
    */
   registerAgent(agent: AgentInterface): void {
     if (this.agents.has(agent.id)) {
-      this.logger.warn(`Agent with ID ${agent.id} already registered, replacing it`);
+      this.logger.warn(
+        `Agent with ID ${agent.id} already registered, replacing it`,
+      );
     }
-    
+
     this.agents.set(agent.id, agent);
     this.logger.info(`Registered agent: ${agent.name} (${agent.id})`);
   }
@@ -45,7 +47,7 @@ export class AgentRegistryService {
   registerKnowledgeRetrievalAgent(options?: any): KnowledgeRetrievalAgent {
     const agent = new KnowledgeRetrievalAgent({
       logger: this.logger,
-      ...options
+      ...options,
     });
     this.registerAgent(agent);
     return agent;
@@ -58,7 +60,7 @@ export class AgentRegistryService {
     const agent = new MasterOrchestratorAgent({
       registry: this,
       logger: this.logger,
-      ...options
+      ...options,
     });
     this.registerAgent(agent);
     return agent;
@@ -75,8 +77,9 @@ export class AgentRegistryService {
    * Find agents that can handle a specific capability
    */
   findAgentsWithCapability(capability: string): AgentInterface[] {
-    return Array.from(this.agents.values())
-      .filter(agent => agent.canHandle(capability));
+    return Array.from(this.agents.values()).filter((agent) =>
+      agent.canHandle(capability),
+    );
   }
 
   /**
@@ -91,10 +94,11 @@ export class AgentRegistryService {
    */
   async initializeAgents(config?: Record<string, any>): Promise<void> {
     this.logger.info(`Initializing ${this.agents.size} agents...`);
-    
-    const initPromises = Array.from(this.agents.values())
-      .map(agent => agent.initialize(config));
-    
+
+    const initPromises = Array.from(this.agents.values()).map((agent) =>
+      agent.initialize(config),
+    );
+
     await Promise.all(initPromises);
     this.logger.info(`All agents initialized successfully`);
   }

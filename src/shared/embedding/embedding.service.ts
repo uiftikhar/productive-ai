@@ -22,14 +22,16 @@ export class EmbeddingService {
   private embeddings: OpenAIEmbeddings;
   private logger: Logger;
 
-  constructor(options: {
-    apiKey?: string;
-    model?: string;
-    dimensions?: number;
-    logger?: Logger;
-  } = {}) {
+  constructor(
+    options: {
+      apiKey?: string;
+      model?: string;
+      dimensions?: number;
+      logger?: Logger;
+    } = {},
+  ) {
     this.logger = options.logger || new ConsoleLogger();
-    
+
     // Initialize the OpenAI embeddings model
     this.embeddings = new OpenAIEmbeddings({
       openAIApiKey: options.apiKey || process.env.OPENAI_API_KEY,
@@ -59,22 +61,24 @@ export class EmbeddingService {
         textCount: texts.length,
         estimatedTokens,
         dimensionCount: embeddings[0]?.length || 0,
-        executionTimeMs: Date.now() - startTime
+        executionTimeMs: Date.now() - startTime,
       });
 
       return {
         embeddings,
         usage: {
           promptTokens: estimatedTokens,
-          totalTokens: estimatedTokens
-        }
+          totalTokens: estimatedTokens,
+        },
       };
     } catch (error) {
       this.logger.error('Error generating embeddings', {
         error: error instanceof Error ? error.message : String(error),
-        textCount: texts.length
+        textCount: texts.length,
       });
-      throw new Error(`Failed to create embeddings: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to create embeddings: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -90,9 +94,11 @@ export class EmbeddingService {
       return await this.embeddings.embedQuery(text);
     } catch (error) {
       this.logger.error('Error generating embedding', {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
-      throw new Error(`Failed to create embedding: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to create embedding: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -130,4 +136,4 @@ export class EmbeddingService {
     // Return cosine similarity
     return dotProduct / (magnitude1 * magnitude2);
   }
-} 
+}

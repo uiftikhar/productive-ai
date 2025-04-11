@@ -20,20 +20,16 @@ import {
   ThemeMetadata,
 } from '../types/theme.types.ts';
 import { UserContextMetadata } from '../user-context.service.ts';
-import { UserContextService } from '../user-context.service.ts';
 
 /**
  * Service for managing theme-related operations
  */
 export class ThemeManagementService extends BaseContextService {
   private metadataValidator: MetadataValidationService;
-  private userContextService: UserContextService;
 
   constructor(options: any = {}) {
     super(options);
     this.metadataValidator = new MetadataValidationService();
-    this.userContextService =
-      options.userContextService || new UserContextService();
   }
 
   /**
@@ -182,7 +178,9 @@ export class ThemeManagementService extends BaseContextService {
     if (metadata.themeRelationships) {
       if (typeof metadata.themeRelationships === 'string') {
         try {
-          const parsed = JSON.parse(metadata.themeRelationships) as ThemeRelationship[];
+          const parsed = JSON.parse(
+            metadata.themeRelationships,
+          ) as ThemeRelationship[];
           if (Array.isArray(parsed)) {
             // Cast to unknown first, then to ThemeRelationship[]
             existingRelationships = parsed;
@@ -194,7 +192,7 @@ export class ThemeManagementService extends BaseContextService {
       } else if (Array.isArray(metadata.themeRelationships)) {
         // Cast to unknown first, then to ThemeRelationship[]
         existingRelationships =
-          (metadata.themeRelationships as unknown) as ThemeRelationship[];
+          metadata.themeRelationships as unknown as ThemeRelationship[];
       }
     }
 

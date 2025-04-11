@@ -18,7 +18,7 @@ export enum ContextType {
   THEME = 'theme',
   INTEGRATION = 'integration',
   MEMORY = 'memory',
-  NOTE = 'note'
+  NOTE = 'note',
 }
 
 /**
@@ -31,7 +31,7 @@ export enum KnowledgeGapType {
   EXPERTISE_GAP = 'expertise_gap',
   MISALIGNMENT = 'misalignment',
   MISSING_INFORMATION_ALT = 'missing-information',
-  UNANSWERED_QUESTION_ALT = 'unanswered-question'
+  UNANSWERED_QUESTION_ALT = 'unanswered-question',
 }
 
 /**
@@ -39,11 +39,11 @@ export enum KnowledgeGapType {
  */
 export enum ActionItemStatus {
   OPEN = 'open',
-  IN_PROGRESS = 'in_progress', 
+  IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
   CLOSED = 'closed',
   REJECTED = 'rejected',
   PENDING = 'pending',
   IN_PROGRESS_ALT = 'in-progress',
-  CANCELLED = 'cancelled'
-} 
+  CANCELLED = 'cancelled',
+}

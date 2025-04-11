@@ -30,13 +30,14 @@ export class PineconeConfig {
       PineconeConfig.instance = new Pinecone({
         apiKey,
         // New format for controllers - if you have environment and region, use this
-        ...(process.env.PINECONE_ENVIRONMENT && process.env.PINECONE_REGION && {
-          controllerHostUrl: `https://controller.${process.env.PINECONE_REGION}.pinecone.io`
-        }),
+        ...(process.env.PINECONE_ENVIRONMENT &&
+          process.env.PINECONE_REGION && {
+            controllerHostUrl: `https://controller.${process.env.PINECONE_REGION}.pinecone.io`,
+          }),
         // For direct serverUrl specification (new gcp/aws/azure clusters)
         ...(process.env.PINECONE_SERVER_URL && {
-          controllerHostUrl: process.env.PINECONE_SERVER_URL
-        })
+          controllerHostUrl: process.env.PINECONE_SERVER_URL,
+        }),
       });
     }
 

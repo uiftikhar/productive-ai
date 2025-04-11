@@ -1,7 +1,6 @@
+// TODOO Remove User context service
 import { PromptManager } from './prompt-manager.service.ts';
-import {
-  UserContextService,
-} from '../../shared/user-context/user-context.service.ts';
+import { UserContextService } from '../../shared/user-context/user-context.service.ts';
 import type { SystemRole } from '../prompts/prompt-types.ts';
 import type { InstructionTemplateName } from '../prompts/instruction-templates.ts';
 import { ContextType } from '../user-context/context-types.ts';
@@ -17,7 +16,7 @@ export enum RagRetrievalStrategy {
   DOCUMENT = 'document', // Document-specific context
   CUSTOM = 'custom', // Custom retrieval logic
   METADATA = 'metadata', // Metadata-based filtering
-  COMBINED = 'combined' // Combination of multiple strategies
+  COMBINED = 'combined', // Combination of multiple strategies
 }
 
 /**

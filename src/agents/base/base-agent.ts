@@ -6,7 +6,12 @@ import { ChatOpenAI } from '@langchain/openai';
 import { LangChainConfig } from '../../langchain/config.ts';
 import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
 import { Logger } from '../../shared/logger/logger.interface.ts';
-import { AgentInterface, AgentCapability, AgentResponse, AgentRequest } from '../interfaces/agent.interface.ts';
+import {
+  AgentInterface,
+  AgentCapability,
+  AgentResponse,
+  AgentRequest,
+} from '../interfaces/agent.interface.ts';
 
 /**
  * Abstract base agent class that provides common functionality for all agents
@@ -26,17 +31,19 @@ export abstract class BaseAgent implements AgentInterface {
       id?: string;
       logger?: Logger;
       llm?: ChatOpenAI;
-    } = {}
+    } = {},
   ) {
     this.id = options.id || uuidv4();
     this.logger = options.logger || new ConsoleLogger();
 
     // Initialize LLM with default configuration
-    this.llm = options.llm || new ChatOpenAI({
-      modelName: LangChainConfig.llm.model,
-      temperature: LangChainConfig.llm.temperature,
-      maxTokens: LangChainConfig.llm.maxTokens
-    });
+    this.llm =
+      options.llm ||
+      new ChatOpenAI({
+        modelName: LangChainConfig.llm.model,
+        temperature: LangChainConfig.llm.temperature,
+        maxTokens: LangChainConfig.llm.maxTokens,
+      });
 
     // Register capabilities in child classes using this.registerCapability()
   }
@@ -77,13 +84,13 @@ export abstract class BaseAgent implements AgentInterface {
   protected processMetrics(
     startTime: number,
     tokenUsage?: number,
-    steps?: number
+    steps?: number,
   ): Partial<AgentResponse['metrics']> {
     const executionTimeMs = Date.now() - startTime;
     return {
       executionTimeMs,
       tokensUsed: tokenUsage,
-      stepCount: steps
+      stepCount: steps,
     };
   }
 

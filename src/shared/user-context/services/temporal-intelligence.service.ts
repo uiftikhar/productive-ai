@@ -8,12 +8,12 @@ import { RecordMetadata } from '@pinecone-database/pinecone';
 import { BaseContextService } from './base-context.service.ts';
 import { Logger } from '../../../shared/logger/logger.interface.ts';
 import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
-import { 
+import {
   USER_CONTEXT_INDEX,
   UserContextNotFoundError,
   UserContextMetadata,
   TemporalRelevanceModel,
-  CyclicalPattern
+  CyclicalPattern,
 } from '../user-context.service.ts';
 
 /**
@@ -69,9 +69,14 @@ export class TemporalIntelligenceService extends BaseContextService {
           metadata: this.prepareMetadataForStorage({
             ...metadata,
             temporalRelevanceModel: temporalModel,
-            decayRate: options.decayRate !== undefined ? options.decayRate : (metadata.decayRate || 0.1),
-            cyclicalPattern: options.cyclicalPattern || metadata.cyclicalPattern,
-            timeRelevantUntil: options.timeRelevantUntil || metadata.timeRelevantUntil,
+            decayRate:
+              options.decayRate !== undefined
+                ? options.decayRate
+                : metadata.decayRate || 0.1,
+            cyclicalPattern:
+              options.cyclicalPattern || metadata.cyclicalPattern,
+            timeRelevantUntil:
+              options.timeRelevantUntil || metadata.timeRelevantUntil,
             seasonality: options.seasonality || metadata.seasonality,
             lastUpdatedAt: Date.now(),
           }),
@@ -102,7 +107,7 @@ export class TemporalIntelligenceService extends BaseContextService {
       userId,
       contextId,
       TemporalRelevanceModel.CYCLICAL,
-      { cyclicalPattern }
+      { cyclicalPattern },
     );
   }
 
@@ -123,7 +128,7 @@ export class TemporalIntelligenceService extends BaseContextService {
       userId,
       contextId,
       TemporalRelevanceModel.MILESTONE_BASED,
-      { timeRelevantUntil, decayRate }
+      { timeRelevantUntil, decayRate },
     );
   }
 
@@ -132,14 +137,11 @@ export class TemporalIntelligenceService extends BaseContextService {
    * @param userId User identifier
    * @param contextId Context item identifier
    */
-  async setEvergreen(
-    userId: string,
-    contextId: string,
-  ): Promise<void> {
+  async setEvergreen(userId: string, contextId: string): Promise<void> {
     return this.setTemporalRelevanceModel(
       userId,
       contextId,
-      TemporalRelevanceModel.EVERGREEN
+      TemporalRelevanceModel.EVERGREEN,
     );
   }
 
@@ -228,19 +230,22 @@ export class TemporalIntelligenceService extends BaseContextService {
               // Calculate distance (accounting for wraparound)
               const distance = Math.min(
                 Math.abs(cyclePosition - (peakPosition as number)),
-                1 - Math.abs(cyclePosition - (peakPosition as number))
+                1 - Math.abs(cyclePosition - (peakPosition as number)),
               );
               minDistance = Math.min(minDistance, distance);
             }
-            
+
             // Convert distance to a score (closer to peak = higher score)
             const normalizedDistance = 1 - minDistance;
-            const amplitude = (cycle.maxRelevance || 1) - (cycle.minRelevance || 0);
+            const amplitude =
+              (cycle.maxRelevance || 1) - (cycle.minRelevance || 0);
             return (cycle.minRelevance || 0) + amplitude * normalizedDistance;
           } else {
             // Simple sinusoidal variation between min and max relevance
-            const amplitude = ((cycle.maxRelevance || 1) - (cycle.minRelevance || 0)) / 2;
-            const offset = ((cycle.maxRelevance || 1) + (cycle.minRelevance || 0)) / 2;
+            const amplitude =
+              ((cycle.maxRelevance || 1) - (cycle.minRelevance || 0)) / 2;
+            const offset =
+              ((cycle.maxRelevance || 1) + (cycle.minRelevance || 0)) / 2;
             return offset + amplitude * Math.sin(cyclePosition * 2 * Math.PI);
           }
         }
@@ -260,17 +265,17 @@ export class TemporalIntelligenceService extends BaseContextService {
           // Apply decay based on time since milestone
           const timeSinceMilestone = currentTime - metadata.timeRelevantUntil;
           const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-          
+
           // If recently passed milestone, apply gentle decay
           if (timeSinceMilestone < thirtyDaysMs) {
             const percentPassed = timeSinceMilestone / thirtyDaysMs;
-            return originalScore * (1 - (percentPassed * decayRate));
+            return originalScore * (1 - percentPassed * decayRate);
           }
-          
+
           // After 30 days, apply standard decay
           return originalScore * (1 - decayRate);
         }
-        
+
         // Before milestone, maintain full relevance
         return originalScore;
 
@@ -291,27 +296,28 @@ export class TemporalIntelligenceService extends BaseContextService {
   ): Promise<number> {
     // Configure the filter
     const filter: Record<string, any> = {};
-    
+
     if (contextTypes && contextTypes.length > 0) {
       filter.contextType = { $in: contextTypes };
     }
 
     // Get contexts that have temporal models
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [], // Empty vector for metadata-only query
-        {
-          filter: {
-            ...filter,
-            temporalRelevanceModel: { $exists: true },
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [], // Empty vector for metadata-only query
+          {
+            filter: {
+              ...filter,
+              temporalRelevanceModel: { $exists: true },
+            },
+            topK: 1000,
+            includeValues: true,
+            includeMetadata: true,
           },
-          topK: 1000,
-          includeValues: true,
-          includeMetadata: true,
-        },
-        userId,
-      ),
+          userId,
+        ),
       `updateExpiredRelevanceScores:${userId}`,
     );
 
@@ -343,10 +349,11 @@ export class TemporalIntelligenceService extends BaseContextService {
       );
 
       // Only update if relevance changed significantly (more than 1%)
-      const oldRelevanceScore = typeof match.metadata?.relevanceScore === 'number' 
-        ? match.metadata.relevanceScore 
-        : 0.5;
-      
+      const oldRelevanceScore =
+        typeof match.metadata?.relevanceScore === 'number'
+          ? match.metadata.relevanceScore
+          : 0.5;
+
       if (Math.abs(newRelevanceScore - oldRelevanceScore) > 0.01) {
         currentBatch.push({
           id: match.id,
@@ -375,11 +382,8 @@ export class TemporalIntelligenceService extends BaseContextService {
     // Update all batches
     for (const batch of updateBatches) {
       await this.executeWithRetry(
-        () => this.pineconeService.upsertVectors(
-          USER_CONTEXT_INDEX,
-          batch,
-          userId,
-        ),
+        () =>
+          this.pineconeService.upsertVectors(USER_CONTEXT_INDEX, batch, userId),
         `updateExpiredRelevanceScoresBatch:${userId}`,
       );
     }
@@ -407,19 +411,20 @@ export class TemporalIntelligenceService extends BaseContextService {
   ): Promise<number> {
     // Get contexts that have this season in their seasonality array
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [], // Empty vector for metadata-only query
-        {
-          filter: {
-            seasonality: season,
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [], // Empty vector for metadata-only query
+          {
+            filter: {
+              seasonality: season,
+            },
+            topK: 1000,
+            includeValues: true,
+            includeMetadata: true,
           },
-          topK: 1000,
-          includeValues: true,
-          includeMetadata: true,
-        },
-        userId,
-      ),
+          userId,
+        ),
       `applySeasonalAdjustments:${userId}:${season}`,
     );
 
@@ -428,8 +433,9 @@ export class TemporalIntelligenceService extends BaseContextService {
     }
 
     // Update relevance scores for seasonal items
-    const updates = result.matches.map(match => {
-      const currentRelevance = (match.metadata?.relevanceScore as number) || 0.5;
+    const updates = result.matches.map((match) => {
+      const currentRelevance =
+        (match.metadata?.relevanceScore as number) || 0.5;
       return {
         id: match.id,
         values: this.ensureNumberArray(match.values),
@@ -445,11 +451,8 @@ export class TemporalIntelligenceService extends BaseContextService {
 
     // Perform the update
     await this.executeWithRetry(
-      () => this.pineconeService.upsertVectors(
-        USER_CONTEXT_INDEX,
-        updates,
-        userId,
-      ),
+      () =>
+        this.pineconeService.upsertVectors(USER_CONTEXT_INDEX, updates, userId),
       `applySeasonalAdjustmentsBatch:${userId}:${season}`,
     );
 

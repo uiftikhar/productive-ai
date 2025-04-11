@@ -84,7 +84,7 @@ export interface ThemeMetadata {
   themeOrigin?: ThemeOrigin;
   /** Tracking data for theme evolution */
   themeEvolution?: ThemeEvolution;
-  
+
   /** Map of role types to relevance scores (0-1) */
   roleRelevance?: Record<UserRole, number>;
   /** Roles that contributed to this context item */

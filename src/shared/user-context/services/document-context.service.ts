@@ -6,8 +6,8 @@
 import { RecordMetadata } from '@pinecone-database/pinecone';
 import { BaseContextService } from './base-context.service.ts';
 import { MetadataValidationService } from './metadata-validation.service.ts';
-import { 
-  BaseContextMetadata, 
+import {
+  BaseContextMetadata,
   ContextType,
   USER_CONTEXT_INDEX,
   UserContextValidationError,
@@ -75,17 +75,18 @@ export class DocumentContextService extends BaseContextService {
 
     // Use an empty vector for a metadata-only search
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [], // Empty vector for metadata-only query
-        {
-          topK: 1000, // Assuming no document has more than 1000 chunks
-          filter,
-          includeValues: false,
-          includeMetadata: true,
-        },
-        userId,
-      ),
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [], // Empty vector for metadata-only query
+          {
+            topK: 1000, // Assuming no document has more than 1000 chunks
+            filter,
+            includeValues: false,
+            includeMetadata: true,
+          },
+          userId,
+        ),
       `getDocumentChunks:${userId}:${documentId}`,
     );
 
@@ -108,20 +109,21 @@ export class DocumentContextService extends BaseContextService {
   async deleteDocument(userId: string, documentId: string): Promise<number> {
     // Find all chunks in this document
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [], // Empty vector for metadata-only query
-        {
-          topK: 1000,
-          filter: {
-            contextType: ContextType.DOCUMENT,
-            documentId,
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [], // Empty vector for metadata-only query
+          {
+            topK: 1000,
+            filter: {
+              contextType: ContextType.DOCUMENT,
+              documentId,
+            },
+            includeValues: false,
+            includeMetadata: false,
           },
-          includeValues: false,
-          includeMetadata: false,
-        },
-        userId,
-      ),
+          userId,
+        ),
       `findDocumentChunks:${userId}:${documentId}`,
     );
 
@@ -134,11 +136,12 @@ export class DocumentContextService extends BaseContextService {
 
     // Delete the chunks
     await this.executeWithRetry(
-      () => this.pineconeService.deleteVectors(
-        USER_CONTEXT_INDEX,
-        chunkIds,
-        userId,
-      ),
+      () =>
+        this.pineconeService.deleteVectors(
+          USER_CONTEXT_INDEX,
+          chunkIds,
+          userId,
+        ),
       `deleteDocumentChunks:${userId}:${documentId}`,
     );
 
@@ -156,10 +159,10 @@ export class DocumentContextService extends BaseContextService {
     userId: string,
     queryEmbedding: number[],
     options: {
-      documentIds?: string[],
-      minRelevanceScore?: number,
-      maxResults?: number,
-      includeContent?: boolean,
+      documentIds?: string[];
+      minRelevanceScore?: number;
+      maxResults?: number;
+      includeContent?: boolean;
     } = {},
   ) {
     const filter: Record<string, any> = {
@@ -171,17 +174,18 @@ export class DocumentContextService extends BaseContextService {
     }
 
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        queryEmbedding,
-        {
-          topK: options.maxResults || 10,
-          filter,
-          includeValues: false,
-          includeMetadata: true,
-        },
-        userId,
-      ),
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          queryEmbedding,
+          {
+            topK: options.maxResults || 10,
+            filter,
+            includeValues: false,
+            includeMetadata: true,
+          },
+          userId,
+        ),
       `searchDocumentContent:${userId}`,
     );
 
@@ -189,13 +193,15 @@ export class DocumentContextService extends BaseContextService {
 
     // Filter by minimum score if specified
     if (options.minRelevanceScore !== undefined) {
-      matches = matches.filter(match => 
-        match.score !== undefined && match.score >= (options.minRelevanceScore || 0)
+      matches = matches.filter(
+        (match) =>
+          match.score !== undefined &&
+          match.score >= (options.minRelevanceScore || 0),
       );
     }
 
     // Format the results
-    return matches.map(match => ({
+    return matches.map((match) => ({
       id: match.id,
       score: match.score,
       documentId: match.metadata?.documentId,
@@ -212,45 +218,51 @@ export class DocumentContextService extends BaseContextService {
    * @param userId User identifier
    * @returns List of document metadata
    */
-  async listUserDocuments(userId: string): Promise<Array<{
-    documentId: string,
-    documentTitle: string,
-    chunkCount: number,
-    lastUpdated: number,
-  }>> {
+  async listUserDocuments(userId: string): Promise<
+    Array<{
+      documentId: string;
+      documentTitle: string;
+      chunkCount: number;
+      lastUpdated: number;
+    }>
+  > {
     // Get all document chunks
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [],
-        {
-          topK: 10000,
-          filter: {
-            contextType: ContextType.DOCUMENT,
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [],
+          {
+            topK: 10000,
+            filter: {
+              contextType: ContextType.DOCUMENT,
+            },
+            includeValues: false,
+            includeMetadata: true,
           },
-          includeValues: false,
-          includeMetadata: true,
-        },
-        userId,
-      ),
+          userId,
+        ),
       `listUserDocuments:${userId}`,
     );
 
     const chunks = result.matches || [];
-    
+
     // Group by document ID
-    const docMap = new Map<string, {
-      documentId: string,
-      documentTitle: string,
-      chunkCount: number,
-      lastUpdated: number,
-    }>();
+    const docMap = new Map<
+      string,
+      {
+        documentId: string;
+        documentTitle: string;
+        chunkCount: number;
+        lastUpdated: number;
+      }
+    >();
 
     for (const chunk of chunks) {
       const docId = chunk.metadata?.documentId as string;
       const docTitle = chunk.metadata?.documentTitle as string;
-      const timestamp = chunk.metadata?.timestamp as number || 0;
-      
+      const timestamp = (chunk.metadata?.timestamp as number) || 0;
+
       if (docId) {
         const existing = docMap.get(docId);
         if (existing) {

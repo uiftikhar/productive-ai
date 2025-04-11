@@ -1,7 +1,11 @@
 // src/agents/orchestration/graph-builder.ts
 
 import { StateGraph, END, START } from '@langchain/langgraph';
-import { WorkflowDefinition, WorkflowStepDefinition, WorkflowBranchDefinition } from './workflow-definition.service.ts';
+import {
+  WorkflowDefinition,
+  WorkflowStepDefinition,
+  WorkflowBranchDefinition,
+} from './workflow-definition.service.ts';
 import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
 import { Logger } from '../../shared/logger/logger.interface.ts';
 import { AgentRegistryService } from '../services/agent-registry.service.ts';
@@ -42,16 +46,21 @@ export interface WorkflowState {
 /**
  * Graph node function type for workflow steps
  */
-export type GraphNodeFunction = (state: WorkflowState) => Partial<WorkflowState>;
+export type GraphNodeFunction = (
+  state: WorkflowState,
+) => Partial<WorkflowState>;
 
 /**
  * Options for creating state channel definitions
  */
 export interface StateChannelOptions {
-  additionalChannels?: Record<string, {
-    value: (current: any, update?: any) => any;
-    default: () => any;
-  }>;
+  additionalChannels?: Record<
+    string,
+    {
+      value: (current: any, update?: any) => any;
+      default: () => any;
+    }
+  >;
 }
 
 /**
@@ -60,89 +69,104 @@ export interface StateChannelOptions {
 export class GraphBuilder {
   private logger: Logger;
   private registry: AgentRegistryService;
-  
-  constructor(options: {
-    logger?: Logger;
-    registry?: AgentRegistryService;
-  } = {}) {
+
+  constructor(
+    options: {
+      logger?: Logger;
+      registry?: AgentRegistryService;
+    } = {},
+  ) {
     this.logger = options.logger || new ConsoleLogger();
     this.registry = options.registry || AgentRegistryService.getInstance();
   }
-  
+
   /**
    * Create a LangGraph StateGraph from a workflow definition
    */
   public createGraphFromWorkflow(
     workflow: WorkflowDefinition,
-    options: StateChannelOptions = {}
+    options: StateChannelOptions = {},
   ): any {
     this.logger.info(`Building graph for workflow: ${workflow.name}`);
-    
+
     // Create state channels for the graph
     const channels = this.createStateChannels(options);
-    
+
     // Create the base graph with properly typed channels
     const graph = new StateGraph<WorkflowState>({
       channels: channels as any,
     });
-    
+
     // Add nodes for each step in the workflow
     for (const step of workflow.steps) {
-      const stepNode = this.createCompatibleNodeFunction(this.createNodeForStep(step));
+      const stepNode = this.createCompatibleNodeFunction(
+        this.createNodeForStep(step),
+      );
       graph.addNode(step.id, stepNode);
     }
-    
+
     // Add nodes for each branch in the workflow
     for (const branch of workflow.branches) {
-      const branchNode = this.createCompatibleNodeFunction(this.createNodeForBranch(branch));
+      const branchNode = this.createCompatibleNodeFunction(
+        this.createNodeForBranch(branch),
+      );
       graph.addNode(branch.id, branchNode);
     }
-    
+
     // Add edges based on the workflow definition
     this.addEdgesToGraph(graph, workflow);
-    
+
     // Compile the graph
     const compiledGraph = graph.compile();
-    
+
     this.logger.info(`Graph build completed for workflow: ${workflow.name}`);
     return compiledGraph;
   }
-  
+
   /**
    * Create standard state channels for workflow graphs
    */
-  private createStateChannels(options: StateChannelOptions): Record<string, any> {
+  private createStateChannels(
+    options: StateChannelOptions,
+  ): Record<string, any> {
     const standardChannels = {
       input: {
         value: (current: string, update?: string) => update ?? current,
         default: () => '',
       },
       userId: {
-        value: (current: string | undefined, update?: string) => update ?? current,
+        value: (current: string | undefined, update?: string) =>
+          update ?? current,
         default: () => undefined,
       },
       conversationId: {
-        value: (current: string | undefined, update?: string) => update ?? current,
+        value: (current: string | undefined, update?: string) =>
+          update ?? current,
         default: () => undefined,
       },
       sessionId: {
-        value: (current: string | undefined, update?: string) => update ?? current,
+        value: (current: string | undefined, update?: string) =>
+          update ?? current,
         default: () => undefined,
       },
       taskId: {
-        value: (current: string | undefined, update?: string) => update ?? current,
+        value: (current: string | undefined, update?: string) =>
+          update ?? current,
         default: () => undefined,
       },
       workflow: {
-        value: (current: string | undefined, update?: string) => update ?? current,
+        value: (current: string | undefined, update?: string) =>
+          update ?? current,
         default: () => undefined,
       },
       workflowInstanceId: {
-        value: (current: string | undefined, update?: string) => update ?? current,
+        value: (current: string | undefined, update?: string) =>
+          update ?? current,
         default: () => undefined,
       },
       currentStep: {
-        value: (current: string | undefined, update?: string) => update ?? current,
+        value: (current: string | undefined, update?: string) =>
+          update ?? current,
         default: () => undefined,
       },
       steps: {
@@ -164,11 +188,13 @@ export class GraphBuilder {
         default: () => [],
       },
       result: {
-        value: (current: string | undefined, update?: string) => update ?? current,
+        value: (current: string | undefined, update?: string) =>
+          update ?? current,
         default: () => undefined,
       },
       error: {
-        value: (current: string | undefined, update?: string) => update ?? current,
+        value: (current: string | undefined, update?: string) =>
+          update ?? current,
         default: () => undefined,
       },
       metadata: {
@@ -190,11 +216,11 @@ export class GraphBuilder {
         default: () => ({}),
       },
     };
-    
+
     // Merge with any additional channels
     return {
       ...standardChannels,
-      ...(options.additionalChannels || {})
+      ...(options.additionalChannels || {}),
     };
   }
 
@@ -205,10 +231,10 @@ export class GraphBuilder {
     return {
       invoke: async (state: WorkflowState) => {
         return fn(state);
-      }
+      },
     };
   }
-  
+
   /**
    * Create a node function for a workflow step
    */
@@ -219,7 +245,7 @@ export class GraphBuilder {
         // Skip this step if condition is not met
         return {};
       }
-      
+
       // Get input for the step
       let input = state.input;
       if (typeof step.input === 'function') {
@@ -227,7 +253,7 @@ export class GraphBuilder {
       } else if (typeof step.input === 'string') {
         input = step.input;
       }
-      
+
       // Get parameters for the step
       let parameters = {};
       if (typeof step.parameters === 'function') {
@@ -235,11 +261,11 @@ export class GraphBuilder {
       } else if (step.parameters) {
         parameters = step.parameters;
       }
-      
+
       // In a real implementation, this would dispatch to the agent
       // and wait for its response, but for now we'll simulate it
       this.logger.info(`Executing step: ${step.name}`);
-      
+
       // Record this execution as a step
       const newStep = {
         id: `execution-${Date.now()}`,
@@ -253,7 +279,7 @@ export class GraphBuilder {
         startTime: Date.now(),
         endTime: Date.now() + 100, // Simulate 100ms execution time
       };
-      
+
       // Update current step
       return {
         currentStep: step.id,
@@ -263,15 +289,17 @@ export class GraphBuilder {
       };
     };
   }
-  
+
   /**
    * Create a node function for a workflow branch
    */
-  private createNodeForBranch(branch: WorkflowBranchDefinition): GraphNodeFunction {
+  private createNodeForBranch(
+    branch: WorkflowBranchDefinition,
+  ): GraphNodeFunction {
     return (state: WorkflowState) => {
       // Evaluate the condition
       const conditionResult = this.evaluateCondition(branch.condition, state);
-      
+
       // Record this as a step for visibility
       const newStep = {
         id: `branch-${Date.now()}`,
@@ -282,7 +310,7 @@ export class GraphBuilder {
         startTime: Date.now(),
         endTime: Date.now(),
       };
-      
+
       // Update next step based on condition result
       return {
         currentStep: branch.id,
@@ -290,19 +318,19 @@ export class GraphBuilder {
         // Store the branch result in variables for edges to use
         variables: {
           ...state.variables,
-          [branch.id]: conditionResult
-        }
+          [branch.id]: conditionResult,
+        },
       };
     };
   }
-  
+
   /**
    * Add edges to the graph based on workflow definition
    */
   private addEdgesToGraph(graph: any, workflow: WorkflowDefinition): void {
     // Add starting edge
     graph.addEdge(START, workflow.startAt);
-    
+
     // Add edges between steps
     for (const step of workflow.steps) {
       // Process onSuccess edges
@@ -314,7 +342,7 @@ export class GraphBuilder {
         // If no success or failure edges, add edge to END
         graph.addEdge(step.id, END);
       }
-      
+
       // Process onFailure edges
       if (step.onFailure && step.onFailure.length > 0) {
         // In a real implementation, we'd need conditional routing for failures
@@ -324,14 +352,16 @@ export class GraphBuilder {
             step.id,
             nextStepId,
             (state: WorkflowState) => {
-              const stepExecution = state.steps.find(s => s.stepId === step.id);
+              const stepExecution = state.steps.find(
+                (s) => s.stepId === step.id,
+              );
               return stepExecution?.status === 'failed';
-            }
+            },
           );
         }
       }
     }
-    
+
     // Add conditional edges for branches
     for (const branch of workflow.branches) {
       // Add edge for 'then' branch
@@ -340,22 +370,24 @@ export class GraphBuilder {
         branch.thenStepId,
         (state: WorkflowState) => {
           return state.variables[branch.id] === true;
-        }
+        },
       );
-      
+
       // Add edge for 'else' branch
       graph.addConditionalEdge(
         branch.id,
         branch.elseStepId,
         (state: WorkflowState) => {
           return state.variables[branch.id] === false;
-        }
+        },
       );
     }
-    
+
     // Add parallel execution paths if defined
     if (workflow.parallelSteps) {
-      for (const [stepId, parallelSteps] of Object.entries(workflow.parallelSteps)) {
+      for (const [stepId, parallelSteps] of Object.entries(
+        workflow.parallelSteps,
+      )) {
         // For each parallel step, add an edge from the parent step
         for (const parallelStepId of parallelSteps) {
           graph.addEdge(stepId, parallelStepId);
@@ -363,21 +395,21 @@ export class GraphBuilder {
       }
     }
   }
-  
+
   /**
    * Evaluate a condition function with the current state
    */
   private evaluateCondition(
     condition: (state: Record<string, any>) => boolean,
-    state: WorkflowState
+    state: WorkflowState,
   ): boolean {
     try {
       return condition(state);
     } catch (error) {
       this.logger.error(`Error evaluating condition:`, {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
       return false;
     }
   }
-} 
+}

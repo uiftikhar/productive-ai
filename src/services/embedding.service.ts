@@ -14,22 +14,20 @@ export class EmbeddingService {
    * @param texts Array of text strings to embed
    * @returns Object with array of embeddings
    */
-  async createEmbeddings(
-    texts: string[]
-  ): Promise<{ embeddings: number[][] }> {
+  async createEmbeddings(texts: string[]): Promise<{ embeddings: number[][] }> {
     try {
       const embeddings: number[][] = [];
-      
+
       // Process each text input sequentially
       for (const text of texts) {
         const embedding = await computeEmbedding(text);
         embeddings.push(embedding);
       }
-      
+
       return { embeddings };
     } catch (error) {
       console.error('Error creating embeddings:', error);
       throw new Error('Failed to create embeddings');
     }
   }
-} 
+}

@@ -8,13 +8,13 @@ import { RecordMetadata } from '@pinecone-database/pinecone';
 import { BaseContextService } from './base-context.service.ts';
 import { Logger } from '../../../shared/logger/logger.interface.ts';
 import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
-import { 
+import {
   BaseContextMetadata,
-  ContextType, 
+  ContextType,
   USER_CONTEXT_INDEX,
   UserContextError,
   UserContextNotFoundError,
-  UserContextValidationError
+  UserContextValidationError,
 } from '../types/context.types.ts';
 import { VectorRecord } from '../../../pinecone/pinecone.type.ts';
 
@@ -53,20 +53,21 @@ export class IntegrationService extends BaseContextService {
 
     // Find the action item
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [],
-        {
-          topK: 1,
-          filter: {
-            actionItemId,
-            contextType: ContextType.ACTION_ITEM,
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [],
+          {
+            topK: 1,
+            filter: {
+              actionItemId,
+              contextType: ContextType.ACTION_ITEM,
+            },
+            includeValues: true,
+            includeMetadata: true,
           },
-          includeValues: true,
-          includeMetadata: true,
-        },
-        userId,
-      ),
+          userId,
+        ),
       `findActionItem:${userId}:${actionItemId}`,
     );
 
@@ -81,7 +82,8 @@ export class IntegrationService extends BaseContextService {
 
     // In a real implementation, this would call the API of the external system
     // For this implementation, we'll just simulate the integration
-    const newExternalId = externalSystemId || `ext-${externalSystem}-${Date.now()}`;
+    const newExternalId =
+      externalSystemId || `ext-${externalSystem}-${Date.now()}`;
 
     // Update the action item with external system information
     const updatedRecord: VectorRecord<RecordMetadata> = {
@@ -97,11 +99,12 @@ export class IntegrationService extends BaseContextService {
     };
 
     await this.executeWithRetry(
-      () => this.pineconeService.upsertVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [updatedRecord],
-        userId,
-      ),
+      () =>
+        this.pineconeService.upsertVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [updatedRecord],
+          userId,
+        ),
       `updateActionItemExternal:${userId}:${actionItemId}`,
     );
 
@@ -131,20 +134,21 @@ export class IntegrationService extends BaseContextService {
 
     // Find action items integrated with this external system
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [],
-        {
-          filter: {
-            contextType: ContextType.ACTION_ITEM,
-            externalSystem,
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [],
+          {
+            filter: {
+              contextType: ContextType.ACTION_ITEM,
+              externalSystem,
+            },
+            topK: 1000, // Reasonable limit
+            includeValues: true,
+            includeMetadata: true,
           },
-          topK: 1000, // Reasonable limit
-          includeValues: true,
-          includeMetadata: true,
-        },
-        userId,
-      ),
+          userId,
+        ),
       `findExternalItems:${userId}:${externalSystem}`,
     );
 
@@ -157,7 +161,7 @@ export class IntegrationService extends BaseContextService {
     // 2. Compare with local status and update if different
     // For this implementation, we'll just simulate the synchronization
     const syncCount = Math.min(result.matches.length, 5); // Pretend we synced up to 5 items
-    
+
     this.logger.info(`Synchronized ${syncCount} items with ${externalSystem}`, {
       userId,
       externalSystem,
@@ -184,20 +188,21 @@ export class IntegrationService extends BaseContextService {
 
     // Find action items integrated with this external system
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [],
-        {
-          filter: {
-            contextType: ContextType.ACTION_ITEM,
-            externalSystem,
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [],
+          {
+            filter: {
+              contextType: ContextType.ACTION_ITEM,
+              externalSystem,
+            },
+            topK: 1000,
+            includeValues: false,
+            includeMetadata: true,
           },
-          topK: 1000,
-          includeValues: false,
-          includeMetadata: true,
-        },
-        userId,
-      ),
+          userId,
+        ),
       `getExternalItems:${userId}:${externalSystem}`,
     );
 
@@ -206,9 +211,9 @@ export class IntegrationService extends BaseContextService {
     }
 
     // Transform to a more usable format
-    return result.matches.map(match => {
+    return result.matches.map((match) => {
       const metadata = match.metadata || {};
-      
+
       return {
         id: match.id,
         actionItemId: metadata.actionItemId,
@@ -218,9 +223,10 @@ export class IntegrationService extends BaseContextService {
         status: metadata.status,
         dueDate: metadata.dueDate,
         meetingId: metadata.meetingId,
-        externalData: typeof metadata.externalSystemData === 'string' 
-          ? JSON.parse(metadata.externalSystemData)
-          : metadata.externalSystemData || {},
+        externalData:
+          typeof metadata.externalSystemData === 'string'
+            ? JSON.parse(metadata.externalSystemData)
+            : metadata.externalSystemData || {},
       };
     });
   }
@@ -245,21 +251,22 @@ export class IntegrationService extends BaseContextService {
 
     // Find the action item
     const result = await this.executeWithRetry(
-      () => this.pineconeService.queryVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [],
-        {
-          topK: 1,
-          filter: {
-            actionItemId,
-            contextType: ContextType.ACTION_ITEM,
-            externalSystem,
+      () =>
+        this.pineconeService.queryVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [],
+          {
+            topK: 1,
+            filter: {
+              actionItemId,
+              contextType: ContextType.ACTION_ITEM,
+              externalSystem,
+            },
+            includeValues: true,
+            includeMetadata: true,
           },
-          includeValues: true,
-          includeMetadata: true,
-        },
-        userId,
-      ),
+          userId,
+        ),
       `findActionItem:${userId}:${actionItemId}`,
     );
 
@@ -291,11 +298,12 @@ export class IntegrationService extends BaseContextService {
     };
 
     await this.executeWithRetry(
-      () => this.pineconeService.upsertVectors<RecordMetadata>(
-        USER_CONTEXT_INDEX,
-        [updatedRecord],
-        userId,
-      ),
+      () =>
+        this.pineconeService.upsertVectors<RecordMetadata>(
+          USER_CONTEXT_INDEX,
+          [updatedRecord],
+          userId,
+        ),
       `removeExternalIntegration:${userId}:${actionItemId}`,
     );
 

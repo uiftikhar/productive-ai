@@ -9,7 +9,7 @@ export enum AgentMessageType {
   REQUEST = 'request',
   RESPONSE = 'response',
   NOTIFICATION = 'notification',
-  ERROR = 'error'
+  ERROR = 'error',
 }
 
 /**
@@ -19,7 +19,7 @@ export enum AgentMessagePriority {
   LOW = 'low',
   NORMAL = 'normal',
   HIGH = 'high',
-  CRITICAL = 'critical'
+  CRITICAL = 'critical',
 }
 
 /**
@@ -40,17 +40,15 @@ export interface AgentMessage {
 /**
  * Create a new agent message
  */
-export function createAgentMessage(
-  options: {
-    type: AgentMessageType;
-    senderId: string;
-    recipientId?: string;
-    content: any;
-    priority?: AgentMessagePriority;
-    metadata?: Record<string, any>;
-    parentId?: string;
-  }
-): AgentMessage {
+export function createAgentMessage(options: {
+  type: AgentMessageType;
+  senderId: string;
+  recipientId?: string;
+  content: any;
+  priority?: AgentMessagePriority;
+  metadata?: Record<string, any>;
+  parentId?: string;
+}): AgentMessage {
   return {
     id: uuidv4(),
     type: options.type,
@@ -60,6 +58,6 @@ export function createAgentMessage(
     content: options.content,
     metadata: options.metadata,
     parentId: options.parentId,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   };
 }
