@@ -1,9 +1,14 @@
 // TODOO Remove User context service
 import { PromptManager } from './prompt-manager.service.ts';
-import { UserContextService } from '../../shared/user-context/user-context.service.ts';
 import type { SystemRole } from '../prompts/prompt-types.ts';
 import type { InstructionTemplateName } from '../prompts/instruction-templates.ts';
 import { ContextType } from '../user-context/context-types.ts';
+
+// Import specialized context services instead of the deprecated UserContextService
+import { BaseContextService } from '../user-context/services/base-context.service.ts';
+import { DocumentContextService } from '../user-context/services/document-context.service.ts';
+import { ConversationContextService } from '../user-context/services/conversation-context.service.ts';
+import { RelevanceCalculationService } from '../user-context/services/relevance-calculation.service.ts';
 
 /**
  * Different strategies for retrieving context for RAG
@@ -66,10 +71,16 @@ export interface RagPromptResult {
  * retrieval-augmented generation features
  */
 export class RagPromptManager {
-  private userContextService: UserContextService;
+  private baseContextService: BaseContextService;
+  private documentContextService: DocumentContextService;
+  private conversationContextService: ConversationContextService;
+  private relevanceCalculationService: RelevanceCalculationService;
 
   constructor() {
-    this.userContextService = new UserContextService();
+    this.baseContextService = new BaseContextService();
+    this.documentContextService = new DocumentContextService();
+    this.conversationContextService = new ConversationContextService();
+    this.relevanceCalculationService = new RelevanceCalculationService();
   }
 
   /**
@@ -132,49 +143,39 @@ export class RagPromptManager {
     switch (strategy) {
       case RagRetrievalStrategy.SEMANTIC:
         // Semantic search using vector embeddings
-        const semanticResults =
-          await this.userContextService.retrieveRagContext(
-            userId,
-            queryEmbedding,
-            {
-              topK: maxItems,
-              minScore: minRelevanceScore,
-              contextTypes: contentTypes,
-              conversationId,
-              documentIds,
-              timeRangeStart,
-              includeEmbeddings: false,
-            },
-          );
+        const semanticResults = await this.baseContextService.retrieveUserContext(
+          userId,
+          queryEmbedding,
+          {
+            topK: maxItems,
+            filter: this.buildContextFilter(contentTypes, timeRangeStart, documentIds),
+            includeEmbeddings: false,
+          },
+        );
 
         contextItems = semanticResults;
         break;
 
       case RagRetrievalStrategy.HYBRID:
         // First get semantic results
-        const semanticMatches =
-          await this.userContextService.retrieveRagContext(
-            userId,
-            queryEmbedding,
-            {
-              topK: Math.ceil(maxItems / 2),
-              minScore: minRelevanceScore,
-              contextTypes: contentTypes,
-              documentIds,
-              timeRangeStart,
-              includeEmbeddings: false,
-            },
-          );
+        const semanticMatches = await this.baseContextService.retrieveUserContext(
+          userId,
+          queryEmbedding,
+          {
+            topK: Math.ceil(maxItems / 2),
+            filter: this.buildContextFilter(contentTypes, timeRangeStart, documentIds),
+            includeEmbeddings: false,
+          },
+        );
 
         // Then get conversation context if applicable
         let conversationMatches: any[] = [];
         if (conversationId) {
-          conversationMatches =
-            await this.userContextService.getConversationHistory(
-              userId,
-              conversationId,
-              Math.floor(maxItems / 2),
-            );
+          conversationMatches = await this.conversationContextService.getConversationHistory(
+            userId,
+            conversationId,
+            Math.floor(maxItems / 2),
+          );
         }
 
         // Combine both sources
@@ -201,7 +202,7 @@ export class RagPromptManager {
           );
         }
 
-        contextItems = await this.userContextService.getConversationHistory(
+        contextItems = await this.conversationContextService.getConversationHistory(
           userId,
           conversationId,
           maxItems,
@@ -215,7 +216,7 @@ export class RagPromptManager {
         }
 
         for (const docId of documentIds) {
-          const chunks = await this.userContextService.getDocumentChunks(
+          const chunks = await this.documentContextService.getDocumentChunks(
             userId,
             docId,
           );
@@ -230,14 +231,13 @@ export class RagPromptManager {
         break;
 
       case RagRetrievalStrategy.RECENCY:
-        // Prioritize recent context
-        const recentResults = await this.userContextService.retrieveRagContext(
+        // Prioritize recent context with a more inclusive semantic search
+        const recentResults = await this.baseContextService.retrieveUserContext(
           userId,
           queryEmbedding,
           {
             topK: maxItems * 2, // Get more items to filter later
-            contextTypes: contentTypes,
-            timeRangeStart,
+            filter: this.buildContextFilter(contentTypes, timeRangeStart),
             includeEmbeddings: false,
           },
         );
@@ -257,13 +257,15 @@ export class RagPromptManager {
           throw new Error('customFilter is required for CUSTOM strategy');
         }
 
-        const customResults = await this.userContextService.retrieveRagContext(
+        const customResults = await this.baseContextService.retrieveUserContext(
           userId,
           queryEmbedding,
           {
             topK: maxItems,
-            minScore: minRelevanceScore,
-            contextTypes: contentTypes,
+            filter: {
+              ...this.buildContextFilter(contentTypes),
+              ...options.customFilter,
+            },
             includeEmbeddings: false,
           },
         );
@@ -285,6 +287,13 @@ export class RagPromptManager {
         throw new Error(`Unsupported retrieval strategy: ${strategy}`);
     }
 
+    // Filter by minimum relevance score if specified
+    if (minRelevanceScore > 0) {
+      contextItems = contextItems.filter(
+        (item) => (item.score || 0) >= minRelevanceScore
+      );
+    }
+
     // Format the retrieved context
     const formattedItems = this.formatContextItems(contextItems);
 
@@ -299,6 +308,31 @@ export class RagPromptManager {
       formattedContext: this.formatContextForPrompt(formattedItems),
       sources,
     };
+  }
+
+  /**
+   * Helper method to build context filter
+   */
+  private buildContextFilter(
+    contentTypes?: ContextType[],
+    timeRangeStart?: number,
+    documentIds?: string[]
+  ): Record<string, any> {
+    const filter: Record<string, any> = {};
+    
+    if (contentTypes && contentTypes.length > 0) {
+      filter.contextType = { $in: contentTypes };
+    }
+    
+    if (timeRangeStart) {
+      filter.timestamp = { $gte: timeRangeStart };
+    }
+    
+    if (documentIds && documentIds.length > 0) {
+      filter.documentId = { $in: documentIds };
+    }
+    
+    return filter;
   }
 
   /**
@@ -374,7 +408,7 @@ export class RagPromptManager {
 
     if (conversationId) {
       // Store as part of conversation history
-      interactionId = await this.userContextService.storeConversationTurn(
+      interactionId = await this.conversationContextService.storeConversationTurn(
         userId,
         conversationId,
         query,
@@ -382,7 +416,7 @@ export class RagPromptManager {
         'user',
       );
 
-      await this.userContextService.storeConversationTurn(
+      await this.conversationContextService.storeConversationTurn(
         userId,
         conversationId,
         response,
@@ -398,7 +432,7 @@ export class RagPromptManager {
       );
     } else {
       // Store as standalone context
-      interactionId = await this.userContextService.storeUserContext(
+      interactionId = await this.baseContextService.storeUserContext(
         userId,
         query,
         queryEmbedding,
