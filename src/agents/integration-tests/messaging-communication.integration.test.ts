@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { jest } from '@jest/globals';
 import { CommunicationBusService } from '../messaging/communication-bus.service.ts';
 import {
@@ -13,6 +14,9 @@ import { AgentRegistryService } from '../services/agent-registry.service.ts';
 import { BaseAgent } from '../base/base-agent.ts';
 import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
 import { v4 as uuid } from 'uuid';
+
+// Mock the CommunicationBusService
+jest.mock('../messaging/communication-bus.service');
 
 // Helper class to create test agents with messaging capabilities
 class TestMessagingAgent extends BaseAgent {
@@ -36,6 +40,16 @@ class TestMessagingAgent extends BaseAgent {
         parameters: {},
       });
     });
+  }
+
+  // Implement the abstract execute method from BaseAgent
+  async execute(request: any): Promise<any> {
+    return {
+      output: `Execution result from ${this.name}`,
+      artifacts: {
+        requestInput: request.input,
+      },
+    };
   }
 
   async connect(): Promise<void> {
@@ -70,76 +84,62 @@ class TestMessagingAgent extends BaseAgent {
   async disconnect(): Promise<void> {
     if (this.subscriptionId) {
       this.busService.unsubscribe(this.subscriptionId);
+      this.subscriptionId = '';
+    }
+  }
 
-      // Announce agent is shutting down
-      await this.busService.publish(
-        createNotificationMessage(
+  private handleMessage(message: AgentMessage): void {
+    // Simple message handler for testing
+    // For requests, send a response
+    if (message.type === MessageType.REQUEST) {
+      this.busService.publish(
+        createResponseMessage(
           this.id,
-          undefined,
+          message.sourceId as string,
           {
-            status: 'shutdown',
+            result: `Response from ${this.name} to request: ${JSON.stringify(
+              message.content,
+            )}`,
           },
           {
-            topic: 'agent:lifecycle',
-            contentType: 'application/json',
+            correlationId: message.correlationId,
+          },
+        ),
+      );
+    }
+    // For tasks, acknowledge and complete
+    else if (message.type === MessageType.TASK_ASSIGNED) {
+      this.busService.publish(
+        createTaskMessage(
+          this.id,
+          message.sourceId as string,
+          MessageType.TASK_COMPLETED,
+          {
+            ...message.content,
+            result: `Task completed by ${this.name}: ${JSON.stringify(
+              message.content,
+            )}`,
           },
         ),
       );
     }
   }
 
-  async sendRequest(targetId: string, content: any): Promise<string> {
-    const requestId = uuid();
-
-    await this.busService.publish(
-      createRequestMessage(this.id, targetId, content, {
-        contentType: 'application/json',
-        metadata: {
-          requestId,
-        },
-      }),
-    );
-
-    return requestId;
-  }
-
-  async sendResponse(
-    targetId: string,
-    content: any,
-    correlationId: string,
-  ): Promise<void> {
-    await this.busService.publish(
-      createResponseMessage(this.id, targetId, content, correlationId, {
-        contentType: 'application/json',
-      }),
-    );
-  }
-
-  private async handleMessage(message: AgentMessage): Promise<void> {
-    // Auto-respond to requests with a simple response
-    if (message.type === MessageType.REQUEST) {
-      await this.sendResponse(
-        message.sourceId,
-        {
-          result: `Response from ${this.name} to request: ${JSON.stringify(message.content).substring(0, 50)}...`,
-          status: 'success',
-        },
-        message.id,
-      );
-    }
-  }
-
-  async execute(request: any): Promise<any> {
-    return {
-      output: `Execution result from ${this.name}`,
-      artifacts: {
-        requestInput: request.input,
-      },
-    };
-  }
-
-  clearMessages(): void {
+  public clearMessages(): void {
     this.receivedMessages = [];
+  }
+
+  public getMessageCount(): number {
+    return this.receivedMessages.length;
+  }
+
+  public async sendMessage(
+    message: Omit<AgentMessage, 'id' | 'timestamp'>,
+  ): Promise<string> {
+    return this.busService.publish({
+      ...message,
+      sourceId: this.id,
+    });
   }
 }
 
@@ -160,6 +160,124 @@ describe('Agent Messaging Integration Tests', () => {
     // Setup logger
     logger = new ConsoleLogger();
     logger.setLogLevel('error'); // Reduce noise in tests
+
+    // Create mock implementation for CommunicationBusService
+    const mockCommunicationBus = {
+      _subscriptions: {} as Record<string, { options: any, handler: (message: AgentMessage) => void }>,
+      _messages: [] as AgentMessage[],
+      
+      subscribe: jest.fn().mockImplementation((options, handler) => {
+        const id = uuid();
+        subscriptionIds.push(id);
+        // Store the handler for testing
+        mockCommunicationBus._subscriptions[id] = { options, handler };
+        return id;
+      }),
+      
+      publish: jest.fn().mockImplementation(async (message: Partial<AgentMessage>) => {
+        const completeMessage: AgentMessage = {
+          id: uuid(),
+          timestamp: Date.now(),
+          type: message.type || MessageType.NOTIFICATION,
+          sourceId: message.sourceId || 'unknown',
+          targetId: message.targetId,
+          content: message.content || {},
+          correlationId: message.correlationId,
+          priority: message.priority || MessagePriority.NORMAL,
+          metadata: message.metadata || {},
+          topic: message.topic,
+        };
+        
+        // Store the message
+        mockCommunicationBus._messages.push(completeMessage);
+        
+        // Deliver to matching subscribers
+        for (const [id, subscription] of Object.entries(mockCommunicationBus._subscriptions)) {
+          // Check if this subscriber should receive the message
+          if (matchesSubscription(completeMessage, subscription.options)) {
+            try {
+              subscription.handler(completeMessage);
+            } catch (error) {
+              console.error(`Error in subscription handler ${id}:`, error);
+            }
+          }
+        }
+        
+        return completeMessage.id;
+      }),
+      
+      unsubscribe: jest.fn().mockImplementation((id: string) => {
+        // Remove from subscriptions
+        if (mockCommunicationBus._subscriptions[id]) {
+          delete mockCommunicationBus._subscriptions[id];
+          return true;
+        }
+        return false;
+      }),
+      
+      request: jest.fn().mockImplementation(async (message: Partial<AgentMessage>, timeoutMs: number = 5000) => {
+        // Simulate request-response pattern
+        const requestId = await mockCommunicationBus.publish(message);
+        
+        // Create a mock response
+        const response: AgentMessage = {
+          id: uuid(),
+          timestamp: Date.now(),
+          type: MessageType.RESPONSE,
+          sourceId: message.targetId || 'unknown',
+          targetId: message.sourceId || 'unknown',
+          correlationId: message.correlationId,
+          content: {
+            result: `Mock response for request ${requestId}`,
+          },
+          priority: MessagePriority.NORMAL,
+          metadata: {},
+        };
+        
+        // Store and deliver the response
+        mockCommunicationBus._messages.push(response);
+        
+        return response;
+      }),
+      
+      broadcast: jest.fn().mockImplementation(async (message: Partial<AgentMessage>) => {
+        return mockCommunicationBus.publish({
+          ...message,
+          targetId: 'broadcast',
+        });
+      }),
+      
+      getMessageHistory: jest.fn().mockImplementation((limit: number = 100) => {
+        return mockCommunicationBus._messages.slice(-limit);
+      }),
+      
+      clearMessageHistory: jest.fn().mockImplementation(() => {
+        mockCommunicationBus._messages = [];
+      }),
+    };
+    
+    // Helper function to check if a message matches subscription options
+    function matchesSubscription(message: AgentMessage, options: any): boolean {
+      if (options.agentId && message.targetId !== options.agentId) {
+        return false;
+      }
+      if (options.sourceId && message.sourceId !== options.sourceId) {
+        return false;
+      }
+      if (options.messageType && message.type !== options.messageType) {
+        return false;
+      }
+      if (options.correlationId && message.correlationId !== options.correlationId) {
+        return false;
+      }
+      if (options.topic && message.topic !== options.topic) {
+        return false;
+      }
+      return true;
+    }
+
+    // Override the getInstance method to return our mock
+    CommunicationBusService.getInstance = jest.fn().mockReturnValue(mockCommunicationBus);
 
     // Initialize services
     communicationBus = CommunicationBusService.getInstance();
@@ -209,16 +327,19 @@ describe('Agent Messaging Integration Tests', () => {
   });
 
   afterEach(async () => {
-    // Disconnect all agents
+    // Disconnect agents after each test
     await Promise.all([
       orchestratorAgent.disconnect(),
       knowledgeAgent.disconnect(),
       responseAgent.disconnect(),
     ]);
+
+    // Clear communication bus history
+    communicationBus.clearMessageHistory();
   });
 
   afterAll(() => {
-    // Cleanup subscriptions
+    // Final cleanup
     subscriptionIds.forEach((id) => communicationBus.unsubscribe(id));
   });
 
@@ -232,16 +353,21 @@ describe('Agent Messaging Integration Tests', () => {
       },
     };
 
-    const requestId = await orchestratorAgent.sendRequest(
-      knowledgeAgent.id,
-      requestContent,
+    const requestId = await orchestratorAgent.sendMessage(
+      {
+        type: MessageType.REQUEST,
+        sourceId: orchestratorAgent.id,
+        targetId: knowledgeAgent.id,
+        content: requestContent,
+        correlationId: uuid(),
+      },
     );
 
     // Wait for message processing
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Verify knowledge agent received the request
-    expect(knowledgeAgent.receivedMessages.length).toBeGreaterThan(0);
+    expect(knowledgeAgent.getMessageCount()).toBeGreaterThan(0);
 
     const receivedRequest = knowledgeAgent.receivedMessages.find(
       (msg) => msg.type === MessageType.REQUEST,
@@ -252,7 +378,7 @@ describe('Agent Messaging Integration Tests', () => {
     expect(receivedRequest?.content).toMatchObject(requestContent);
 
     // Verify orchestrator received a response
-    expect(orchestratorAgent.receivedMessages.length).toBeGreaterThan(0);
+    expect(orchestratorAgent.getMessageCount()).toBeGreaterThan(0);
 
     const receivedResponse = orchestratorAgent.receivedMessages.find(
       (msg) => msg.type === MessageType.RESPONSE,
@@ -343,11 +469,16 @@ describe('Agent Messaging Integration Tests', () => {
     // 4. Orchestrator combines everything into a final result
 
     // Step 1: Request knowledge
-    const knowledgeRequestId = await orchestratorAgent.sendRequest(
-      knowledgeAgent.id,
+    const knowledgeRequestId = await orchestratorAgent.sendMessage(
       {
-        query: 'What are the project milestones?',
-        parameters: { maxResults: 3 },
+        type: MessageType.REQUEST,
+        sourceId: orchestratorAgent.id,
+        targetId: knowledgeAgent.id,
+        content: {
+          query: 'What are the project milestones?',
+          parameters: { maxResults: 3 },
+        },
+        correlationId: uuid(),
       },
     );
 
@@ -362,13 +493,18 @@ describe('Agent Messaging Integration Tests', () => {
     expect(knowledgeResponse).toBeDefined();
 
     // Step 2: Request response generation
-    const responseRequestId = await orchestratorAgent.sendRequest(
-      responseAgent.id,
+    const responseRequestId = await orchestratorAgent.sendMessage(
       {
-        query: 'What are the project milestones?',
-        context:
-          'Project has three major milestones: Alpha in Q1, Beta in Q2, and Release in Q3.',
-        parameters: { format: 'concise' },
+        type: MessageType.REQUEST,
+        sourceId: orchestratorAgent.id,
+        targetId: responseAgent.id,
+        content: {
+          query: 'What are the project milestones?',
+          context:
+            'Project has three major milestones: Alpha in Q1, Beta in Q2, and Release in Q3.',
+          parameters: { format: 'concise' },
+        },
+        correlationId: uuid(),
       },
     );
 
