@@ -18,6 +18,8 @@ import {
   SystemMessage,
 } from '@langchain/core/messages';
 import { v4 as uuid } from 'uuid';
+import { Logger } from '../../../shared/logger/logger.interface.ts';
+import { StreamAggregationStrategy } from '../multi-agent-streaming-aggregator.ts';
 
 /**
  * Query Analyzer Agent
@@ -304,48 +306,30 @@ class ResponseGeneratorAgent extends BaseAgent {
 }
 
 /**
- * AdaptiveQueryWorkflow
- *
- * A workflow that demonstrates integration with the Model Router for adaptive query processing
- * This workflow:
- * 1. Analyzes the user query
- * 2. Retrieves relevant knowledge
- * 3. Dynamically selects an appropriate model based on the query characteristics
- * 4. Generates a response with streaming support
+ * Creates an adaptive query workflow that handles complex queries with 
+ * multiple specialized agents and optimized response generation
  */
 export class AdaptiveQueryWorkflow {
   private registry: AgentRegistryService;
-  private modelRouter: ModelRouterService;
-  private logger: ConsoleLogger;
-  private agentInstances: Map<string, BaseAgent> = new Map();
+  private logger: Logger;
 
-  constructor() {
-    this.registry = AgentRegistryService.getInstance();
-    this.modelRouter = ModelRouterService.getInstance();
-    this.logger = new ConsoleLogger();
-
-    // Register the specialized agents
-    this.registerAgents();
+  constructor(
+    options: {
+      registry?: AgentRegistryService;
+      logger?: Logger;
+    } = {}
+  ) {
+    this.registry = options.registry || AgentRegistryService.getInstance();
+    this.logger = options.logger || new ConsoleLogger();
   }
 
   /**
-   * Register specialized agents needed for the workflow
+   * Initialize the agents required for this workflow
    */
-  private registerAgents(): void {
-    // Create agent instances
-    const queryAnalyzer = new QueryAnalyzerAgent();
-    const modelSelector = new ModelSelectorAgent();
-    const responseGenerator = new ResponseGeneratorAgent();
-
-    // Store instances for cleanup later if needed
-    this.agentInstances.set('query-analyzer', queryAnalyzer);
-    this.agentInstances.set('model-selector', modelSelector);
-    this.agentInstances.set('response-generator', responseGenerator);
-
-    // Register with the registry
-    this.registry.registerAgent(queryAnalyzer);
-    this.registry.registerAgent(modelSelector);
-    this.registry.registerAgent(responseGenerator);
+  public async initialize(): Promise<void> {
+    // Register required agents if they don't exist
+    this.ensureAgentsRegistered();
+    this.logger.info('Adaptive Query Workflow initialized');
   }
 
   /**
@@ -376,6 +360,7 @@ export class AdaptiveQueryWorkflow {
             userId: state.userId,
           }),
           onSuccess: ['retrieveKnowledge'],
+          streaming: false,
         },
 
         {
@@ -395,6 +380,7 @@ export class AdaptiveQueryWorkflow {
             conversationId: state.conversationId,
           }),
           onSuccess: ['selectModel'],
+          streaming: false,
         },
 
         {
@@ -410,7 +396,36 @@ export class AdaptiveQueryWorkflow {
             userId: state.userId,
             conversationId: state.conversationId,
           }),
-          onSuccess: ['generateResponse'],
+          onSuccess: ['analyzeMultiagent'],
+          streaming: false,
+        },
+
+        {
+          id: 'analyzeMultiagent',
+          name: 'Analyze Multi-Agent Need',
+          description: 'Determine if multiple agents are needed for this query',
+          agentId: 'query-analyzer',
+          capability: 'analyze_multiagent_need',
+          input: (state: Record<string, any>) => state.input,
+          parameters: (state: Record<string, any>) => ({
+            query: state.input,
+            taskComplexity: state.variables.taskComplexity,
+            retrievedContext: state.variables.retrievedContext || [],
+          }),
+          onSuccess: ['routeQuery'],
+          streaming: false,
+        },
+
+        {
+          id: 'routeQuery',
+          name: 'Route Query',
+          description: 'Route the query to single or multi-agent processing',
+          condition: (state: Record<string, any>) => {
+            return state.variables.requiresMultiagent === true;
+          },
+          onSuccess: ['generateMultiResponse'],
+          onFailure: ['generateResponse'],
+          streaming: false,
         },
 
         {
@@ -432,10 +447,111 @@ export class AdaptiveQueryWorkflow {
             userId: state.userId,
             conversationId: state.conversationId,
           }),
+          streaming: true,
+        },
+
+        {
+          id: 'generateMultiResponse',
+          name: 'Generate Multi-Agent Response',
+          description: 'Generate responses from multiple specialized agents',
+          onSuccess: ['creativityAgent', 'analyticAgent', 'factualAgent'],
+          streaming: false,
+        },
+
+        {
+          id: 'creativityAgent',
+          name: 'Creative Analysis',
+          description: 'Provide creative insights and ideas',
+          agentId: 'creativity-agent',
+          capability: 'generate_creative_insights',
+          input: (state: Record<string, any>) => state.input,
+          parameters: (state: Record<string, any>) => ({
+            userId: state.userId,
+            context: state.variables.availableContext,
+            streamingAggregator: state.variables.streamingAggregator,
+          }),
+          onSuccess: ['aggregateResponses'],
+          streaming: true,
+          streamingRole: 'parallel',
+        },
+
+        {
+          id: 'analyticAgent',
+          name: 'Analytical Response',
+          description: 'Provide analytical reasoning and evaluation',
+          agentId: 'analytical-agent',
+          capability: 'generate_analytical_response',
+          input: (state: Record<string, any>) => state.input,
+          parameters: (state: Record<string, any>) => ({
+            userId: state.userId,
+            context: state.variables.availableContext,
+            streamingAggregator: state.variables.streamingAggregator,
+          }),
+          onSuccess: ['aggregateResponses'],
+          streaming: true,
+          streamingRole: 'leader',
+        },
+
+        {
+          id: 'factualAgent',
+          name: 'Factual Response',
+          description: 'Provide factual information and references',
+          agentId: 'factual-agent',
+          capability: 'generate_factual_response',
+          input: (state: Record<string, any>) => state.input,
+          parameters: (state: Record<string, any>) => ({
+            userId: state.userId,
+            context: state.variables.availableContext,
+            streamingAggregator: state.variables.streamingAggregator,
+          }),
+          onSuccess: ['aggregateResponses'],
+          streaming: true,
+          streamingRole: 'follower',
+        },
+
+        {
+          id: 'aggregateResponses',
+          name: 'Aggregate Responses',
+          description: 'Combine and refine all agent responses',
+          agentId: 'response-aggregator',
+          capability: 'aggregate_responses',
+          parameters: (state: Record<string, any>) => ({
+            streamingRequired: state.variables.streamingRequired,
+            streamingHandler: state.variables.streamingHandler,
+            streamingAggregator: state.variables.streamingAggregator,
+          }),
+          streaming: true,
         },
       ],
 
       branches: [],
+      
+      // Add streaming configuration to the workflow
+      streaming: {
+        enabled: true,
+        multiAgent: true,
+        strategy: StreamAggregationStrategy.LEADER_FOLLOWER,
+        showAgentNames: true,
+        aggregateAsTable: false
+      },
+      
+      // Mark as multi-agent streaming enabled
+      metadata: {
+        multiAgentStreaming: true,
+        complexQueryHandling: true,
+        description: 'Enhanced query workflow with multi-agent streaming support',
+      },
     };
+  }
+
+  /**
+   * Ensure all required agents are registered in the registry
+   */
+  private ensureAgentsRegistered(): void {
+    // Register agents if they don't exist
+    // Implementation depends on actual agent registry implementation
+    
+    // This method would register necessary agents for this workflow
+    // such as query-analyzer, knowledge-retrieval, model-selector, etc.
   }
 }

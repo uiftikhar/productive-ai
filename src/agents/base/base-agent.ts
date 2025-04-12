@@ -26,6 +26,14 @@ import {
   createAdapters,
 } from '../adapters/index.ts';
 
+import { TokenUsageManager } from '../orchestration/token-usage-manager.ts';
+import { StreamingResponseManager } from '../orchestration/streaming-response-manager.ts';
+import {
+  StreamAggregationStrategy,
+  AgentStreamMetadata,
+  MultiAgentStreamingAggregator,
+} from '../orchestration/multi-agent-streaming-aggregator.ts';
+
 /**
  * Agent state types
  */
@@ -75,6 +83,10 @@ export abstract class BaseAgent implements AgentInterface {
   protected pineconeAdapter?: PineconeAdapter;
   protected openaiAdapter?: OpenAIAdapter;
 
+  // Managers
+  protected tokenUsageManager: TokenUsageManager;
+  protected streamingManager: StreamingResponseManager;
+
   // State and metrics
   protected state: AgentState;
   protected metrics: AgentMetrics;
@@ -93,6 +105,10 @@ export abstract class BaseAgent implements AgentInterface {
   ) {
     this.id = options.id || uuidv4();
     this.logger = options.logger || new ConsoleLogger();
+
+    // Initialize managers
+    this.tokenUsageManager = TokenUsageManager.getInstance(this.logger);
+    this.streamingManager = StreamingResponseManager.getInstance(this.logger);
 
     // Initialize LLM with default configuration
     this.llm =
@@ -253,14 +269,14 @@ export abstract class BaseAgent implements AgentInterface {
   }
 
   /**
-   * Process agent execution metrics
+   * Process and store metrics from execution
    */
   protected processMetrics(
     startTime: number,
     tokenUsage?: number,
     steps?: number,
   ): Partial<AgentResponse['metrics']> {
-    const executionTimeMs = Math.max(1, Date.now() - startTime);
+    const executionTimeMs = Date.now() - startTime;
 
     // Update agent metrics
     this.metrics.totalExecutions++;
@@ -273,16 +289,106 @@ export abstract class BaseAgent implements AgentInterface {
       this.metrics.tokensUsed += tokenUsage;
     }
 
-    if (this.state.errorCount > 0) {
-      this.metrics.errorRate =
-        this.state.errorCount / this.metrics.totalExecutions;
-    }
+    this.metrics.errorRate =
+      this.state.errorCount / this.metrics.totalExecutions;
 
+    // Update state
+    this.state.lastExecutionTime = Date.now();
+
+    // Return metrics for this execution
     return {
       executionTimeMs,
       tokensUsed: tokenUsage,
-      stepCount: steps,
+      stepCount: steps
     };
+  }
+
+  /**
+   * Track token usage for a model interaction
+   */
+  protected trackTokenUsage(
+    request: AgentRequest,
+    promptText: string,
+    responseText: string,
+    modelInfo: { modelName: string; modelProvider: string }
+  ): void {
+    // Estimate token counts
+    const promptTokens = this.estimateTokenCount(promptText);
+    const completionTokens = this.estimateTokenCount(responseText);
+    const totalTokens = promptTokens + completionTokens;
+
+    // Record via TokenUsageManager
+    this.tokenUsageManager.recordUsage({
+      userId: request.context?.userId || 'unknown',
+      conversationId: request.context?.conversationId,
+      sessionId: request.context?.sessionId,
+      modelName: modelInfo.modelName,
+      modelProvider: modelInfo.modelProvider,
+      promptTokens,
+      completionTokens,
+      totalTokens
+    });
+
+    // Update local metrics
+    this.metrics.tokensUsed += totalTokens;
+  }
+
+  /**
+   * Create a streaming handler for this agent
+   */
+  protected createStreamingHandler(
+    request: AgentRequest,
+    streamingHandler: any,
+    modelInfo: { modelName: string; modelProvider: string },
+    streamingAggregator?: MultiAgentStreamingAggregator,
+    streamingRole?: 'leader' | 'follower' | 'parallel'
+  ): any {
+    // If we have an aggregator, register with it
+    if (streamingAggregator) {
+      const metadata: AgentStreamMetadata = {
+        agentId: this.id,
+        agentName: this.name,
+        priority: streamingRole === 'leader' ? 1 : (streamingRole === 'follower' ? 2 : 3),
+        role: streamingRole
+      };
+
+      // Create streaming options
+      const streamingOptions = {
+        userId: request.context?.userId || 'unknown',
+        conversationId: request.context?.conversationId,
+        sessionId: request.context?.sessionId,
+        modelName: modelInfo.modelName,
+        modelProvider: modelInfo.modelProvider,
+        recordTokenUsage: true
+      };
+
+      // Register with the aggregator
+      return streamingAggregator.registerAgentStream(metadata, streamingOptions);
+    }
+
+    // Otherwise create a direct streaming handler
+    const requestId = uuidv4();
+    
+    return this.streamingManager.createStreamingHandler(
+      requestId,
+      streamingHandler,
+      {
+        userId: request.context?.userId || 'unknown',
+        conversationId: request.context?.conversationId,
+        sessionId: request.context?.sessionId,
+        modelName: modelInfo.modelName,
+        modelProvider: modelInfo.modelProvider,
+        recordTokenUsage: true
+      }
+    );
+  }
+
+  /**
+   * Estimate token count from text
+   */
+  protected estimateTokenCount(text: string): number {
+    // Simple estimation: ~4 characters per token for English text
+    return Math.ceil(text.length / 4);
   }
 
   /**

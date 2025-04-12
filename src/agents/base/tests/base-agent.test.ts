@@ -279,24 +279,40 @@ describe('BaseAgent', () => {
   });
 
   test('metrics should be tracked correctly', async () => {
-    // Execute multiple times to build up metrics
-    const request: AgentRequest = {
-      input: 'Test',
-      capability: 'test',
-      context: {
-        userId: 'user123',
-      },
-    };
+    // Mock Date.now to ensure consistent timing
+    const originalDateNow = Date.now;
+    let callCount = 0;
+    
+    try {
+      // Mock Date.now to return increasing values
+      jest.spyOn(global.Date, 'now').mockImplementation(() => {
+        callCount++;
+        // Return base time + 100ms per call to simulate time passing
+        return 1600000000000 + (callCount * 100);
+      });
+      
+      // Execute multiple times to build up metrics
+      const request: AgentRequest = {
+        input: 'Test',
+        capability: 'test',
+        context: {
+          userId: 'user123',
+        },
+      };
 
-    await agent.execute(request);
-    await agent.execute(request);
-    await agent.execute(request);
+      await agent.execute(request);
+      await agent.execute(request);
+      await agent.execute(request);
 
-    const metrics = agent.getMetrics();
+      const metrics = agent.getMetrics();
 
-    expect(metrics.totalExecutions).toBe(3);
-    expect(metrics.averageExecutionTimeMs).toBeGreaterThan(0);
-    expect(metrics.lastExecutionTimeMs).toBeGreaterThan(0);
+      expect(metrics.totalExecutions).toBe(3);
+      expect(metrics.averageExecutionTimeMs).toBeGreaterThan(0);
+      expect(metrics.lastExecutionTimeMs).toBeGreaterThan(0);
+    } finally {
+      // Restore original Date.now implementation
+      global.Date.now = originalDateNow;
+    }
   });
 
   // Additional tests to improve coverage
@@ -720,80 +736,96 @@ describe('BaseAgent', () => {
   });
 
   test('specifically target remaining uncovered lines', async () => {
-    // Create a custom agent to target specific lines
-    class EdgeCaseAgent extends BaseAgent {
-      constructor() {
-        super('EdgeCase', 'For testing edge cases');
-      }
-
-      // Override executeInternal to test specific edge cases
-      protected async executeInternal(
-        request: AgentRequest,
-      ): Promise<AgentResponse> {
-        // Target line 177 (throw a different instance than Error)
-        if (request.input === 'trigger-non-error-throw') {
-          throw 'This is a string error';
+    // Mock Date.now to ensure consistent timing
+    const originalDateNow = Date.now;
+    let callCount = 0;
+    
+    try {
+      // Mock Date.now to return increasing values
+      jest.spyOn(global.Date, 'now').mockImplementation(() => {
+        callCount++;
+        // Return base time + 100ms per call to simulate time passing
+        return 1600000000000 + (callCount * 100);
+      });
+    
+      // Create a custom agent to target specific lines
+      class EdgeCaseAgent extends BaseAgent {
+        constructor() {
+          super('EdgeCase', 'For testing edge cases');
         }
 
-        // Target line 187 (return an error response)
-        if (request.input === 'trigger-error-response') {
+        // Override executeInternal to test specific edge cases
+        protected async executeInternal(
+          request: AgentRequest,
+        ): Promise<AgentResponse> {
+          // Target line 177 (throw a different instance than Error)
+          if (request.input === 'trigger-non-error-throw') {
+            throw 'This is a string error';
+          }
+
+          // Target line 187 (return an error response)
+          if (request.input === 'trigger-error-response') {
+            return {
+              output: 'Error response',
+              error: new Error('Test error'),
+            };
+          }
+
+          // Target line 197 (trigger metrics with null/undefined metrics)
+          if (request.input === 'trigger-null-metrics') {
+            // Will return undefined metrics which will be merged
+            return {
+              output: 'Response with no metrics',
+            };
+          }
+
+          // Target line 406 (handleError with custom error type)
+          if (request.input === 'trigger-custom-error') {
+            const customError = new Error('Custom error');
+            (customError as any).code = 'CUSTOM_ERROR';
+            (customError as any).details = { someData: 'test' };
+            throw customError;
+          }
+
           return {
-            output: 'Error response',
-            error: new Error('Test error'),
+            output: 'Default response',
           };
         }
-
-        // Target line 197 (trigger metrics with null/undefined metrics)
-        if (request.input === 'trigger-null-metrics') {
-          // Will return undefined metrics which will be merged
-          return {
-            output: 'Response with no metrics',
-          };
-        }
-
-        // Target line 406 (handleError with custom error type)
-        if (request.input === 'trigger-custom-error') {
-          const customError = new Error('Custom error');
-          (customError as any).code = 'CUSTOM_ERROR';
-          (customError as any).details = { someData: 'test' };
-          throw customError;
-        }
-
-        return {
-          output: 'Default response',
-        };
       }
+
+      // Create and initialize the edge case agent
+      const edgeAgent = new EdgeCaseAgent();
+      await edgeAgent.initialize();
+
+      // Test non-error throw (line 177)
+      let response = await edgeAgent.execute({
+        input: 'trigger-non-error-throw',
+      });
+      expect(response.output).toContain('string error');
+
+      // Test error response handling (line 187)
+      response = await edgeAgent.execute({
+        input: 'trigger-error-response',
+      });
+      expect(response.output).toBe('Error response');
+
+      // Test null metrics (line 197)
+      response = await edgeAgent.execute({
+        input: 'trigger-null-metrics',
+      });
+      expect(response.output).toBe('Response with no metrics');
+      expect(response.metrics).toBeDefined();
+      expect(response.metrics!.executionTimeMs).toBeGreaterThan(0);
+
+      // Test custom error (line 406)
+      response = await edgeAgent.execute({
+        input: 'trigger-custom-error',
+      });
+      expect(response.output).toContain('Custom error');
+      expect(response.artifacts?.error).toBeDefined();
+    } finally {
+      // Restore original Date.now implementation
+      global.Date.now = originalDateNow;
     }
-
-    // Create and initialize the edge case agent
-    const edgeAgent = new EdgeCaseAgent();
-    await edgeAgent.initialize();
-
-    // Test non-error throw (line 177)
-    let response = await edgeAgent.execute({
-      input: 'trigger-non-error-throw',
-    });
-    expect(response.output).toContain('string error');
-
-    // Test error response handling (line 187)
-    response = await edgeAgent.execute({
-      input: 'trigger-error-response',
-    });
-    expect(response.output).toBe('Error response');
-
-    // Test null metrics (line 197)
-    response = await edgeAgent.execute({
-      input: 'trigger-null-metrics',
-    });
-    expect(response.output).toBe('Response with no metrics');
-    expect(response.metrics).toBeDefined();
-    expect(response.metrics!.executionTimeMs).toBeGreaterThan(0);
-
-    // Test custom error (line 406)
-    response = await edgeAgent.execute({
-      input: 'trigger-custom-error',
-    });
-    expect(response.output).toContain('Custom error');
-    expect(response.artifacts?.error).toBeDefined();
   });
 });

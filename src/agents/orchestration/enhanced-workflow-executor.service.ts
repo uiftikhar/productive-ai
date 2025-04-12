@@ -16,6 +16,12 @@ import {
   createTaskMessage,
   createNotificationMessage,
 } from '../messaging/agent-message.interface.ts';
+import {
+  MultiAgentStreamingAggregator,
+  StreamAggregationStrategy,
+  AgentStreamMetadata,
+  StreamAggregationCallback,
+} from './multi-agent-streaming-aggregator.ts';
 
 /**
  * Options for workflow execution
@@ -34,6 +40,11 @@ export interface EnhancedWorkflowExecutionOptions {
     performanceWeight?: number;
     reliabilityWeight?: number;
     preferredAgentIds?: Record<string, string[]>;
+  };
+  streamingOptions?: {
+    strategy?: StreamAggregationStrategy;
+    showAgentNames?: boolean;
+    aggregateAsTable?: boolean;
   };
 }
 
@@ -83,6 +94,7 @@ export class EnhancedWorkflowExecutorService {
   private registry: AgentRegistryService;
   private discovery: AgentDiscoveryService;
   private communicationBus: CommunicationBusService;
+  private activeStreamingAggregators: Map<string, MultiAgentStreamingAggregator> = new Map();
 
   private static instance: EnhancedWorkflowExecutorService;
 
@@ -222,23 +234,64 @@ export class EnhancedWorkflowExecutorService {
         initialState.variables.modelSelectionCriteria = options.modelCriteria;
       }
 
-      // Set up streaming callback if provided
+      // Set up streaming
       if (options.streamingCallback) {
-        initialState.variables.streamingHandler = {
-          handleNewToken: options.streamingCallback,
-          handleError: (error: Error) => {
-            this.logger.error('Streaming error in workflow', {
-              workflowInstanceId,
-              error: error.message,
-            });
-          },
-          handleComplete: (fullResponse: string) => {
-            this.logger.info('Response complete in workflow', {
-              workflowInstanceId,
-              responseLength: fullResponse.length,
-            });
-          },
-        };
+        // Check if we need to set up a streaming aggregator
+        if (workflowDefinition.metadata?.multiAgentStreaming) {
+          // Create a streaming aggregator for this workflow
+          const streamingAggregator = this.createStreamingAggregator(
+            workflowInstanceId,
+            options
+          );
+          
+          // Store in active aggregators
+          this.activeStreamingAggregators.set(workflowInstanceId, streamingAggregator);
+          
+          // Use the aggregator in the workflow state
+          initialState.variables.streamingAggregator = streamingAggregator;
+          
+          // Create a streaming handler that will be used by individual agents
+          initialState.variables.streamingHandler = {
+            handleNewToken: (token: string) => {
+              // Individual tokens will be handled by the aggregator
+              // We don't need to do anything here as the agents will register with the aggregator
+            },
+            handleError: (error: Error) => {
+              this.logger.error('Streaming error in workflow', {
+                workflowInstanceId,
+                error: error.message,
+              });
+              
+              // Cancel the aggregator on error
+              streamingAggregator.cancel(`Error in workflow: ${error.message}`);
+            },
+            handleComplete: (fullResponse: string) => {
+              this.logger.info('Response complete in workflow', {
+                workflowInstanceId,
+                responseLength: fullResponse.length,
+              });
+              
+              // The aggregator handles completion on its own
+            },
+          };
+        } else {
+          // Simple single-agent streaming
+          initialState.variables.streamingHandler = {
+            handleNewToken: options.streamingCallback,
+            handleError: (error: Error) => {
+              this.logger.error('Streaming error in workflow', {
+                workflowInstanceId,
+                error: error.message,
+              });
+            },
+            handleComplete: (fullResponse: string) => {
+              this.logger.info('Response complete in workflow', {
+                workflowInstanceId,
+                responseLength: fullResponse.length,
+              });
+            },
+          };
+        }
 
         // Set streaming required flag
         initialState.variables.streamingRequired = true;
@@ -253,6 +306,13 @@ export class EnhancedWorkflowExecutorService {
 
       // Execute the workflow
       const finalState = await enhancedGraph.invoke(initialState);
+
+      // Clean up streaming aggregator if it exists
+      if (this.activeStreamingAggregators.has(workflowInstanceId)) {
+        const aggregator = this.activeStreamingAggregators.get(workflowInstanceId);
+        aggregator?.complete();
+        this.activeStreamingAggregators.delete(workflowInstanceId);
+      }
 
       // Calculate total execution time
       const totalExecutionTimeMs = Date.now() - startTime;
@@ -337,6 +397,13 @@ export class EnhancedWorkflowExecutorService {
 
       return executionResult;
     } catch (error) {
+      // Clean up streaming aggregator if it exists on error
+      if (this.activeStreamingAggregators.has(workflowInstanceId)) {
+        const aggregator = this.activeStreamingAggregators.get(workflowInstanceId);
+        aggregator?.cancel(error instanceof Error ? error.message : String(error));
+        this.activeStreamingAggregators.delete(workflowInstanceId);
+      }
+
       this.logger.error(`Enhanced workflow execution failed`, {
         workflowInstanceId,
         error: error instanceof Error ? error.message : String(error),
@@ -477,5 +544,47 @@ export class EnhancedWorkflowExecutorService {
 
       branches: [],
     };
+  }
+
+  /**
+   * Create a streaming aggregator for a workflow execution
+   */
+  private createStreamingAggregator(
+    workflowInstanceId: string,
+    options: EnhancedWorkflowExecutionOptions
+  ): MultiAgentStreamingAggregator {
+    // Create a streaming callback that will forward tokens to the user's callback
+    const streamingCallback: StreamAggregationCallback = {
+      onToken: (token: string, metadata?: Record<string, any>) => {
+        if (options.streamingCallback) {
+          options.streamingCallback(token);
+        }
+      },
+      onComplete: (fullResponse: string, metadata?: Record<string, any>) => {
+        this.logger.info('Multi-agent streaming complete', {
+          workflowInstanceId,
+          responseLength: fullResponse.length,
+          agents: metadata?.agents || []
+        });
+      },
+      onError: (error: Error, metadata?: Record<string, any>) => {
+        this.logger.error('Error in multi-agent streaming', {
+          workflowInstanceId,
+          error: error.message,
+          metadata
+        });
+      }
+    };
+    
+    // Create and return the aggregator
+    return new MultiAgentStreamingAggregator(streamingCallback, {
+      aggregationId: workflowInstanceId,
+      strategy: options.streamingOptions?.strategy || StreamAggregationStrategy.SEQUENTIAL,
+      formatOptions: {
+        showAgentNames: options.streamingOptions?.showAgentNames !== false,
+        aggregateAsTable: options.streamingOptions?.aggregateAsTable || false
+      },
+      logger: this.logger
+    });
   }
 }

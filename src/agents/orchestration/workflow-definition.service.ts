@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
 import { Logger } from '../../shared/logger/logger.interface.ts';
+import { StreamAggregationStrategy } from './multi-agent-streaming-aggregator.ts';
 
 /**
  * Workflow step definition
@@ -20,6 +21,9 @@ export interface WorkflowStepDefinition {
   onFailure?: string[];
   maxRetries?: number;
   timeout?: number;
+  streaming?: boolean;
+  // Whether this step should register with the streaming aggregator
+  streamingRole?: 'leader' | 'follower' | 'parallel';
 }
 
 /**
@@ -32,6 +36,17 @@ export interface WorkflowBranchDefinition {
   condition: (state: Record<string, any>) => boolean;
   thenStepId: string;
   elseStepId: string;
+}
+
+/**
+ * Streaming options for workflow execution
+ */
+export interface WorkflowStreamingOptions {
+  enabled: boolean;
+  multiAgent: boolean;
+  strategy: StreamAggregationStrategy;
+  showAgentNames: boolean;
+  aggregateAsTable: boolean;
 }
 
 /**
@@ -49,6 +64,7 @@ export interface WorkflowDefinition {
   startAt: string; // ID of the first step
   parallelSteps?: Record<string, string[]>; // Map of step ID to array of parallel step IDs
   metadata?: Record<string, any>;
+  streaming?: WorkflowStreamingOptions;
 }
 
 /**
@@ -59,6 +75,7 @@ export class WorkflowDefinitionService {
   private logger: Logger;
   private workflows: Map<string, WorkflowDefinition> = new Map();
   private workflowsByName: Map<string, string[]> = new Map(); // name -> [id1, id2, ...] (for versioning)
+  private latestVersions: Map<string, string> = new Map();
 
   private constructor(logger?: Logger) {
     this.logger = logger || new ConsoleLogger();
@@ -74,6 +91,34 @@ export class WorkflowDefinitionService {
       );
     }
     return WorkflowDefinitionService.instance;
+  }
+
+  /**
+   * Register a workflow definition
+   */
+  public registerWorkflow(workflow: WorkflowDefinition): void {
+    // Generate ID if not provided
+    if (!workflow.id) {
+      workflow.id = uuidv4();
+    }
+    
+    // Add creation date if not set
+    if (!workflow.createdAt) {
+      workflow.createdAt = Date.now();
+    }
+    
+    // Set updated date to current time
+    workflow.updatedAt = Date.now();
+    
+    // Store the workflow
+    this.workflows.set(workflow.id, workflow);
+    
+    // Update latest version mapping
+    this.latestVersions.set(workflow.name, workflow.id);
+    
+    this.logger.info(`Workflow registered: ${workflow.name} (${workflow.id})`, {
+      version: workflow.version
+    });
   }
 
   /**
@@ -147,14 +192,8 @@ export class WorkflowDefinitionService {
    * Get the latest version of a workflow by name
    */
   public getLatestWorkflow(name: string): WorkflowDefinition | undefined {
-    const ids = this.workflowsByName.get(name);
-    if (!ids || ids.length === 0) {
-      return undefined;
-    }
-
-    // Get the latest version (last in the array)
-    const latestId = ids[ids.length - 1];
-    return this.workflows.get(latestId);
+    const id = this.latestVersions.get(name);
+    return id ? this.workflows.get(id) : undefined;
   }
 
   /**
@@ -334,5 +373,121 @@ export class WorkflowDefinitionService {
     );
 
     // Add more default workflows as needed
+
+    // Add a standard adaptive query workflow
+    const adaptiveQueryWorkflow: WorkflowDefinition = {
+      id: uuidv4(),
+      name: 'adaptive-query',
+      description: 'Process queries with adaptive model selection and knowledge retrieval',
+      startAt: 'retrieveKnowledge',
+      version: '1.0.0',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      steps: [
+        {
+          id: 'retrieveKnowledge',
+          name: 'Retrieve Knowledge',
+          description: 'Retrieve relevant knowledge for the query',
+          capability: 'retrieve_knowledge',
+          parameters: (state: Record<string, any>) => ({
+            strategy: 'hybrid',
+            maxItems: 5,
+            minRelevanceScore: 0.6,
+          }),
+          onSuccess: ['selectModel'],
+        },
+        {
+          id: 'selectModel',
+          name: 'Select Model',
+          description: 'Select the appropriate model based on query and context',
+          capability: 'select_model',
+          onSuccess: ['generateResponse'],
+        },
+        {
+          id: 'generateResponse',
+          name: 'Generate Response',
+          description: 'Generate a response using the selected model and context',
+          capability: 'generate_response',
+          streaming: true,
+        },
+      ],
+      branches: [],
+      // Add streaming options
+      streaming: {
+        enabled: true,
+        multiAgent: false,
+        strategy: StreamAggregationStrategy.SEQUENTIAL,
+        showAgentNames: false,
+        aggregateAsTable: false
+      }
+    };
+
+    // Add a multi-agent collaborative workflow
+    const collaborativeWorkflow: WorkflowDefinition = {
+      id: uuidv4(),
+      name: 'collaborative-analysis',
+      description: 'Analyze data with multiple specialized agents collaborating',
+      startAt: 'analyzeData',
+      version: '1.0.0',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      steps: [
+        {
+          id: 'analyzeData',
+          name: 'Analyze Data',
+          description: 'Perform initial data analysis',
+          capability: 'analyze_data',
+          streaming: true,
+          streamingRole: 'leader',
+          onSuccess: ['generateInsights', 'identifyTrends'],
+        },
+        {
+          id: 'generateInsights',
+          name: 'Generate Insights',
+          description: 'Generate business insights from data',
+          capability: 'generate_insights',
+          streaming: true,
+          streamingRole: 'follower',
+          onSuccess: ['createReport'],
+        },
+        {
+          id: 'identifyTrends',
+          name: 'Identify Trends',
+          description: 'Identify important trends in the data',
+          capability: 'identify_trends',
+          streaming: true,
+          streamingRole: 'follower',
+          onSuccess: ['createReport'],
+        },
+        {
+          id: 'createReport',
+          name: 'Create Report',
+          description: 'Create a comprehensive report combining all analyses',
+          capability: 'create_report',
+          streaming: true,
+          streamingRole: 'parallel',
+        },
+      ],
+      branches: [],
+      // Enable multi-agent streaming with LEADER_FOLLOWER strategy
+      streaming: {
+        enabled: true,
+        multiAgent: true,
+        strategy: StreamAggregationStrategy.LEADER_FOLLOWER,
+        showAgentNames: true,
+        aggregateAsTable: false
+      },
+      metadata: {
+        multiAgentStreaming: true
+      }
+    };
+
+    // Register the workflows
+    this.registerWorkflow(adaptiveQueryWorkflow);
+    this.registerWorkflow(collaborativeWorkflow);
+    
+    this.logger.info('Default workflows initialized', {
+      workflowCount: this.workflows.size
+    });
   }
 }

@@ -84,6 +84,117 @@ export interface ContextAwarePromptOptions {
 }
 
 /**
+ * Template versioning for prompts
+ */
+export interface PromptTemplate {
+  id: string;
+  version: string;
+  description: string;
+  components: string[];
+  defaultReplacements?: Record<string, string>;
+  metadata?: {
+    author?: string;
+    createdAt?: number;
+    updatedAt?: number;
+    tags?: string[];
+    modelCompatibility?: string[];
+  };
+}
+
+/**
+ * Prompt template library
+ */
+export class PromptTemplateLibrary {
+  private static templates: Map<string, PromptTemplate> = new Map();
+  
+  /**
+   * Register a template
+   */
+  public static registerTemplate(template: PromptTemplate): void {
+    this.templates.set(template.id, template);
+  }
+  
+  /**
+   * Get a template by ID
+   */
+  public static getTemplate(id: string): PromptTemplate | undefined {
+    return this.templates.get(id);
+  }
+  
+  /**
+   * List all available templates
+   */
+  public static listTemplates(): PromptTemplate[] {
+    return Array.from(this.templates.values());
+  }
+  
+  /**
+   * Initialize with default templates
+   */
+  public static initialize(): void {
+    this.registerDefaultTemplates();
+  }
+  
+  /**
+   * Register default templates
+   */
+  private static registerDefaultTemplates(): void {
+    // Task-specific templates
+    this.registerTemplate({
+      id: 'concise-qa',
+      version: '1.0',
+      description: 'Concise question answering template',
+      components: ['system.qa-specialist', 'instruction.concise-answers', 'instruction.cite-sources'],
+      metadata: {
+        author: 'system',
+        createdAt: Date.now(),
+        tags: ['qa', 'concise'],
+        modelCompatibility: ['gpt-3.5-turbo', 'gpt-4']
+      }
+    });
+    
+    this.registerTemplate({
+      id: 'detailed-analysis',
+      version: '1.0',
+      description: 'Detailed analysis of complex topics',
+      components: ['system.analyst', 'instruction.thorough-analysis', 'instruction.structured-format'],
+      metadata: {
+        author: 'system',
+        createdAt: Date.now(),
+        tags: ['analysis', 'detailed'],
+        modelCompatibility: ['gpt-4', 'claude-2']
+      }
+    });
+    
+    this.registerTemplate({
+      id: 'code-generation',
+      version: '1.0',
+      description: 'Code generation with explanations',
+      components: ['system.developer', 'instruction.code-best-practices', 'instruction.add-comments'],
+      metadata: {
+        author: 'system',
+        createdAt: Date.now(),
+        tags: ['code', 'development'],
+        modelCompatibility: ['gpt-4', 'claude-2']
+      }
+    });
+    
+    this.registerTemplate({
+      id: 'summarization',
+      version: '1.0',
+      description: 'Concise summarization of content',
+      components: ['system.summarizer', 'instruction.extract-key-points', 'instruction.brevity'],
+      metadata: {
+        author: 'system',
+        createdAt: Date.now(),
+        tags: ['summarization'],
+        modelCompatibility: ['gpt-3.5-turbo', 'gpt-4', 'claude-instant']
+      }
+    });
+  }
+}
+
+/**
  * Extended PromptManager with RAG capabilities
  * This service extends the base PromptManager to include
  * retrieval-augmented generation features
@@ -102,6 +213,9 @@ export class RagPromptManager {
 
     // Ensure the PromptLibrary is initialized
     PromptLibrary.initialize();
+    
+    // Initialize template library
+    PromptTemplateLibrary.initialize();
   }
 
   /**
@@ -770,5 +884,113 @@ export class RagPromptManager {
     }
 
     return interactionId;
+  }
+
+  /**
+   * Create a prompt using a template from the template library
+   */
+  async createPromptFromTemplate(
+    templateId: string,
+    content: string,
+    ragOptions: RagContextOptions,
+    replacements: Record<string, string> = {}
+  ): Promise<RagPromptResult> {
+    const template = PromptTemplateLibrary.getTemplate(templateId);
+    if (!template) {
+      throw new Error(`Template '${templateId}' not found`);
+    }
+    
+    // Retrieve context
+    const retrievedContext = await this.retrieveUserContext(ragOptions);
+    
+    // Combine replacements with default template replacements
+    const combinedReplacements = {
+      ...template.defaultReplacements,
+      ...replacements,
+      QUERY: content,
+      CONTEXT: retrievedContext.formattedContext
+    };
+    
+    // Use the PromptLibrary to build the prompt from components
+    const { prompt: systemPrompt, components } = PromptLibrary.createVersionedCompositePrompt(
+      template.components,
+      {
+        replacements: combinedReplacements,
+        includeDescriptions: false
+      }
+    );
+    
+    // Format messages for LLM
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content }
+    ];
+    
+    return {
+      messages,
+      retrievedContext,
+      templateName: templateId as any, // Cast to satisfy existing interface
+      systemRole: 'expert' as any, // Cast to satisfy existing interface
+      usedComponents: template.components
+    };
+  }
+  
+  /**
+   * Get template recommendations based on task analysis
+   */
+  getTemplateRecommendations(
+    query: string,
+    options: {
+      taskType?: 'summarization' | 'qa' | 'analysis' | 'code' | 'general';
+      count?: number;
+    } = {}
+  ): PromptTemplate[] {
+    const count = options.count || 3;
+    
+    // If task type is explicitly provided, filter by that
+    if (options.taskType) {
+      return PromptTemplateLibrary.listTemplates()
+        .filter(template => template.metadata?.tags?.includes(options.taskType!))
+        .slice(0, count);
+    }
+    
+    // Otherwise analyze the query to determine best templates
+    const isCodeQuery = this.containsCodePatterns(query);
+    const isSummarization = this.isSummarizationQuery(query);
+    const isAnalysis = /analyze|analysis|examine|evaluate|assess|review/.test(query.toLowerCase());
+    const isQA = /\?$|how|what|why|when|where|who|which/.test(query.toLowerCase());
+    
+    // Get all templates
+    const templates = PromptTemplateLibrary.listTemplates();
+    
+    // Score templates based on query
+    const scoredTemplates = templates.map(template => {
+      let score = 0;
+      
+      // Score based on detected task type
+      if (isCodeQuery && template.metadata?.tags?.includes('code')) {
+        score += 10;
+      }
+      
+      if (isSummarization && template.metadata?.tags?.includes('summarization')) {
+        score += 10;
+      }
+      
+      if (isAnalysis && template.metadata?.tags?.includes('analysis')) {
+        score += 10;
+      }
+      
+      if (isQA && template.metadata?.tags?.includes('qa')) {
+        score += 10;
+      }
+      
+      return { template, score };
+    });
+    
+    // Sort and return top templates
+    return scoredTemplates
+      .sort((a, b) => b.score - a.score)
+      .slice(0, count)
+      .map(item => item.template);
   }
 }

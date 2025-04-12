@@ -10,6 +10,9 @@ import {
   AIMessage,
   SystemMessage,
 } from '@langchain/core/messages';
+import { StreamingResponseManager } from './streaming-response-manager.ts';
+import { v4 as uuidv4 } from 'uuid';
+import { TokenUsageManager } from './token-usage-manager.ts';
 
 /**
  * Model configuration interface
@@ -21,6 +24,8 @@ export interface ModelConfig {
   streaming: boolean;
   temperature: number;
   costPerToken: number;
+  costPerInputToken?: number;
+  costPerOutputToken?: number;
   capabilities: string[];
   maxOutputTokens?: number;
 }
@@ -48,6 +53,19 @@ export interface ModelSelectionCriteria {
   streamingRequired: boolean;
   contextSize: number;
   requiresSpecialCapabilities?: string[];
+  userId?: string;
+  conversationId?: string;
+  sessionId?: string;
+  budgetConstraints?: {
+    maxTokenCost?: number;
+    totalBudget?: number;
+  };
+  adaptiveLearning?: {
+    taskHistory?: {
+      previousTasks: string[];
+      successRates: Record<string, number>; 
+    };
+  };
 }
 
 /**
@@ -69,6 +87,8 @@ export class ModelRouterService {
   private embeddingService: EmbeddingService;
   private modelConfigs: ModelConfig[];
   private llmInstances: Map<string, any> = new Map();
+  private streamingManager: StreamingResponseManager;
+  private tokenUsageManager: TokenUsageManager;
 
   private static instance: ModelRouterService;
 
@@ -101,6 +121,8 @@ export class ModelRouterService {
     this.logger = options.logger || new ConsoleLogger();
     this.ragPromptManager = options.ragPromptManager || new RagPromptManager();
     this.embeddingService = options.embeddingService || new EmbeddingService();
+    this.streamingManager = StreamingResponseManager.getInstance(this.logger);
+    this.tokenUsageManager = TokenUsageManager.getInstance(this.logger);
 
     // Initialize default model configurations
     this.modelConfigs = [
@@ -368,7 +390,7 @@ export class ModelRouterService {
   }
 
   /**
-   * Process a request with the selected model and streaming support
+   * Process a request with selected model
    */
   public async processRequest(
     messages: BaseMessage[],
@@ -376,48 +398,87 @@ export class ModelRouterService {
     streamingHandler?: StreamingHandler,
   ): Promise<string> {
     // Select the appropriate model
-    const selectedModel = this.selectModel(modelCriteria);
+    const modelConfig = this.selectModel(modelCriteria);
 
-    // Get or create LLM instance
-    const llm = this.getLLMInstance(selectedModel);
+    this.logger.info('Processing request with model', {
+      modelName: modelConfig.modelName,
+      provider: modelConfig.provider,
+      messageCount: messages.length,
+    });
 
     try {
-      let response;
+      const llm = this.getLLMInstance(modelConfig);
 
-      if (selectedModel.streaming && streamingHandler) {
-        // Handle streaming mode
-        const stream = await llm.stream(messages);
-        let fullResponse = '';
+      // Basic token count estimation for the prompt
+      const promptText = messages.map(msg => msg.content).join(' ');
+      const estimatedPromptTokens = this.estimateTokenCount(promptText);
+      
+      const requestId = uuidv4();
+      let result: string;
 
-        for await (const chunk of stream) {
-          const content = chunk.content;
-          if (content) {
-            fullResponse += content;
-            streamingHandler.handleNewToken(content);
-          }
-        }
+      if (streamingHandler && modelConfig.streaming) {
+        // Create a streaming handler using the StreamingResponseManager
+        const streamingOptions = {
+          userId: modelCriteria.userId,
+          conversationId: modelCriteria.conversationId,
+          sessionId: modelCriteria.sessionId,
+          modelName: modelConfig.modelName,
+          modelProvider: modelConfig.provider,
+          recordTokenUsage: true,
+        };
 
-        streamingHandler.handleComplete(fullResponse);
-        response = fullResponse;
+        const responseHandler = this.streamingManager.createStreamingHandler(
+          requestId,
+          {
+            onToken: streamingHandler.handleNewToken,
+            onComplete: streamingHandler.handleComplete,
+            onError: streamingHandler.handleError,
+          },
+          streamingOptions
+        );
+
+        result = await llm.invoke(messages, {
+          streaming: true,
+          callbacks: [
+            {
+              handleLLMNewToken(token: string) {
+                responseHandler.onToken(token);
+              },
+              handleLLMEnd(output: any) {
+                const fullResponse = output.generations[0][0].text;
+                responseHandler.onComplete(fullResponse);
+              },
+              handleLLMError(error: Error) {
+                responseHandler.onError(error);
+              },
+            },
+          ],
+        });
       } else {
-        // Handle regular mode
-        const result = await llm.invoke(messages);
-        response = result.content;
+        // Non-streaming call
+        result = await llm.invoke(messages);
+        
+        // Track token usage via TokenUsageManager
+        const completionTokens = this.estimateTokenCount(result);
+        
+        this.tokenUsageManager.recordUsage({
+          userId: modelCriteria.userId,
+          conversationId: modelCriteria.conversationId,
+          sessionId: modelCriteria.sessionId,
+          modelName: modelConfig.modelName,
+          modelProvider: modelConfig.provider,
+          promptTokens: estimatedPromptTokens,
+          completionTokens,
+          totalTokens: estimatedPromptTokens + completionTokens
+        });
       }
 
-      return response;
+      return result;
     } catch (error) {
-      this.logger.error('Error processing request with model', {
-        model: selectedModel.modelName,
+      this.logger.error('Error processing model request', {
+        modelName: modelConfig.modelName,
         error: error instanceof Error ? error.message : String(error),
       });
-
-      if (streamingHandler) {
-        streamingHandler.handleError(
-          error instanceof Error ? error : new Error(String(error)),
-        );
-      }
-
       throw error;
     }
   }
@@ -467,5 +528,57 @@ export class ModelRouterService {
    */
   private estimateTokenCount(text: string): number {
     return Math.ceil(text.split(/\s+/).length * 1.3);
+  }
+
+  /**
+   * Get eligible models that meet basic requirements
+   */
+  public getEligibleModels(criteria: ModelSelectionCriteria): ModelConfig[] {
+    this.logger.info('Getting eligible models based on criteria', { criteria });
+
+    // Filter models that meet basic requirements
+    const eligibleModels = this.modelConfigs.filter((model) => {
+      // Check streaming capability if required
+      if (criteria.streamingRequired && !model.streaming) {
+        return false;
+      }
+
+      // Check context window size
+      if (model.contextWindow < criteria.contextSize) {
+        return false;
+      }
+
+      // Check for special capabilities
+      if (
+        criteria.requiresSpecialCapabilities &&
+        criteria.requiresSpecialCapabilities.length > 0
+      ) {
+        const hasAllCapabilities = criteria.requiresSpecialCapabilities.every(
+          (cap) => model.capabilities.includes(cap),
+        );
+        if (!hasAllCapabilities) {
+          return false;
+        }
+      }
+
+      // Check budget constraints if specified
+      if (criteria.budgetConstraints?.maxTokenCost) {
+        if (model.costPerToken > criteria.budgetConstraints.maxTokenCost) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    if (eligibleModels.length === 0) {
+      this.logger.warn('No models match all criteria, relaxing constraints');
+      // Fall back to models that at least have sufficient context window
+      return this.modelConfigs.filter(
+        (model) => model.contextWindow >= criteria.contextSize,
+      );
+    }
+
+    return eligibleModels;
   }
 }
