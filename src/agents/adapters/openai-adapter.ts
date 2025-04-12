@@ -1,13 +1,10 @@
-import {
-  ChatOpenAI,
-  ChatOpenAICallOptions,
-} from '@langchain/openai';
+import { ChatOpenAI, ChatOpenAICallOptions } from '@langchain/openai';
 import { OpenAIEmbeddings } from '@langchain/openai';
-import { 
-  BaseMessage, 
-  HumanMessage, 
+import {
+  BaseMessage,
+  HumanMessage,
   AIMessage,
-  SystemMessage 
+  SystemMessage,
 } from '@langchain/core/messages';
 import {
   ChatPromptTemplate,
@@ -60,39 +57,44 @@ export class OpenAIAdapter {
   private chatModel: ChatOpenAI;
   private embeddings: OpenAIEmbeddings;
   private logger: Logger;
-  
-  constructor(options: {
-    modelConfig?: Partial<OpenAIModelConfig>;
-    embeddingConfig?: Partial<EmbeddingConfig>;
-    logger?: Logger;
-  } = {}) {
+
+  constructor(
+    options: {
+      modelConfig?: Partial<OpenAIModelConfig>;
+      embeddingConfig?: Partial<EmbeddingConfig>;
+      logger?: Logger;
+    } = {},
+  ) {
     this.logger = options.logger || new ConsoleLogger();
-    
+
     // Set up the chat model
     const modelConfig: OpenAIModelConfig = {
       model: options.modelConfig?.model || LangChainConfig.llm.model,
-      temperature: options.modelConfig?.temperature ?? LangChainConfig.llm.temperature,
-      maxTokens: options.modelConfig?.maxTokens || LangChainConfig.llm.maxTokens,
-      streaming: options.modelConfig?.streaming ?? LangChainConfig.llm.streaming,
+      temperature:
+        options.modelConfig?.temperature ?? LangChainConfig.llm.temperature,
+      maxTokens:
+        options.modelConfig?.maxTokens || LangChainConfig.llm.maxTokens,
+      streaming:
+        options.modelConfig?.streaming ?? LangChainConfig.llm.streaming,
     };
-    
+
     this.chatModel = new ChatOpenAI({
       modelName: modelConfig.model,
       temperature: modelConfig.temperature,
       maxTokens: modelConfig.maxTokens,
       streaming: modelConfig.streaming,
     });
-    
+
     // Set up the embeddings
     const embeddingConfig: EmbeddingConfig = {
       model: options.embeddingConfig?.model || LangChainConfig.embeddings.model,
     };
-    
+
     this.embeddings = new OpenAIEmbeddings({
       model: embeddingConfig.model,
     });
   }
-  
+
   /**
    * Initialize the OpenAI adapter
    */
@@ -100,12 +102,12 @@ export class OpenAIAdapter {
     this.logger.info('Initializing OpenAIAdapter');
     // No initialization needed for OpenAI models
   }
-  
+
   /**
    * Create message objects from message configs
    */
   private createMessages(messages: MessageConfig[]): BaseMessage[] {
-    return messages.map(msg => {
+    return messages.map((msg) => {
       switch (msg.role) {
         case 'system':
           return new SystemMessage(msg.content);
@@ -118,7 +120,7 @@ export class OpenAIAdapter {
       }
     });
   }
-  
+
   /**
    * Generate a chat completion
    * @param messages Array of messages for the conversation
@@ -126,11 +128,11 @@ export class OpenAIAdapter {
    */
   async generateChatCompletion(
     messages: MessageConfig[],
-    options?: Partial<OpenAIModelConfig>
+    options?: Partial<OpenAIModelConfig>,
   ): Promise<string> {
     try {
       const modelMessages = this.createMessages(messages);
-      
+
       // Create a temporary model with different options if needed
       let model = this.chatModel;
       if (options) {
@@ -141,7 +143,7 @@ export class OpenAIAdapter {
           streaming: options.streaming ?? this.chatModel.streaming,
         });
       }
-      
+
       const response = await model.invoke(modelMessages);
       return response.content.toString();
     } catch (error) {
@@ -151,7 +153,7 @@ export class OpenAIAdapter {
       throw error;
     }
   }
-  
+
   /**
    * Generate a chat completion with streaming
    * @param messages Array of messages for the conversation
@@ -161,11 +163,11 @@ export class OpenAIAdapter {
   async generateChatCompletionStream(
     messages: MessageConfig[],
     streamHandler: StreamHandler,
-    options?: Partial<OpenAIModelConfig>
+    options?: Partial<OpenAIModelConfig>,
   ): Promise<void> {
     try {
       const modelMessages = this.createMessages(messages);
-      
+
       // Ensure streaming is enabled
       const streamingModel = new ChatOpenAI({
         modelName: options?.model || this.chatModel.modelName,
@@ -173,17 +175,17 @@ export class OpenAIAdapter {
         maxTokens: options?.maxTokens || this.chatModel.maxTokens,
         streaming: true,
       });
-      
+
       // Create callback handlers for streaming
       const callbacks = {
         handleLLMNewToken(token: string) {
           streamHandler.onToken(token);
         },
       };
-      
+
       // Track the full response
       let fullResponse = '';
-      
+
       // Override the token handler to build the full response
       const wrappedCallbacks = {
         handleLLMNewToken(token: string) {
@@ -197,11 +199,13 @@ export class OpenAIAdapter {
         await streamingModel.invoke(modelMessages, {
           callbacks: [wrappedCallbacks],
         } as ChatOpenAICallOptions);
-        
+
         // Call the completion handler with the full response
         streamHandler.onComplete(fullResponse);
       } catch (error) {
-        streamHandler.onError(error instanceof Error ? error : new Error(String(error)));
+        streamHandler.onError(
+          error instanceof Error ? error : new Error(String(error)),
+        );
         throw error;
       }
     } catch (error) {
@@ -211,7 +215,7 @@ export class OpenAIAdapter {
       throw error;
     }
   }
-  
+
   /**
    * Generate embeddings for text
    * @param text Text to generate embeddings for
@@ -226,7 +230,7 @@ export class OpenAIAdapter {
       throw error;
     }
   }
-  
+
   /**
    * Generate embeddings for multiple texts
    * @param texts Array of texts to generate embeddings for
@@ -241,7 +245,7 @@ export class OpenAIAdapter {
       throw error;
     }
   }
-  
+
   /**
    * Create a prompt template
    * @param systemTemplate System message template
@@ -251,14 +255,14 @@ export class OpenAIAdapter {
   createPromptTemplate(
     systemTemplate: string,
     humanTemplate: string,
-    inputVariables: string[] = []
+    inputVariables: string[] = [],
   ): ChatPromptTemplate {
     return ChatPromptTemplate.fromMessages([
       SystemMessagePromptTemplate.fromTemplate(systemTemplate),
       HumanMessagePromptTemplate.fromTemplate(humanTemplate),
     ]);
   }
-  
+
   /**
    * Format a prompt template with variable values
    * @param template Prompt template
@@ -266,8 +270,8 @@ export class OpenAIAdapter {
    */
   async formatPromptTemplate(
     template: ChatPromptTemplate,
-    variables: Record<string, any>
+    variables: Record<string, any>,
   ): Promise<BaseMessage[]> {
     return template.formatMessages(variables);
   }
-} 
+}

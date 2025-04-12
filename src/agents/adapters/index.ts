@@ -34,18 +34,18 @@ export async function initializeAdapters(adapters: {
   openaiAdapter?: OpenAIAdapter;
 }) {
   const initPromises: Promise<void>[] = [];
-  
+
   if (adapters.contextAdapter) {
     initPromises.push(adapters.contextAdapter.initialize());
   }
-  
+
   if (adapters.pineconeAdapter) {
     initPromises.push(adapters.pineconeAdapter.initialize());
   }
-  
+
   if (adapters.openaiAdapter) {
     initPromises.push(adapters.openaiAdapter.initialize());
   }
-  
+
   await Promise.all(initPromises);
-} 
+}

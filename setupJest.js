@@ -42,9 +42,6 @@ jest.spyOn = function (object, methodName) {
   return originalSpyOn(object, methodName);
 };
 
-
-
-
 // Mock LangChain's OpenAI implementation
 jest.mock('@langchain/openai', () => {
   return {

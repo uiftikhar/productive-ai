@@ -22,7 +22,7 @@ export interface ContextAdapter {
       contextTypes?: string[];
       maxResults?: number;
       [key: string]: any;
-    }
+    },
   ): Promise<AgentContext>;
 
   /**
@@ -34,7 +34,7 @@ export interface ContextAdapter {
   storeContext(
     userId: string,
     content: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, any>,
   ): Promise<string>;
 
   /**
@@ -48,7 +48,7 @@ export interface ContextAdapter {
       contextTypes?: string[];
       olderThan?: number;
       [key: string]: any;
-    }
+    },
   ): Promise<void>;
 }
 
@@ -58,14 +58,14 @@ export interface ContextAdapter {
 export interface ConversationContextAdapter extends ContextAdapter {
   /**
    * Get conversation history
-   * @param userId User identifier 
+   * @param userId User identifier
    * @param conversationId Conversation identifier
    * @param limit Maximum number of turns to retrieve
    */
   getConversationHistory(
     userId: string,
     conversationId: string,
-    limit?: number
+    limit?: number,
   ): Promise<any[]>;
 
   /**
@@ -79,7 +79,7 @@ export interface ConversationContextAdapter extends ContextAdapter {
     userId: string,
     conversationId: string,
     message: string,
-    role: 'user' | 'assistant' | 'system'
+    role: 'user' | 'assistant' | 'system',
   ): Promise<string>;
 }
 
@@ -93,7 +93,7 @@ export interface DocumentContextAdapter extends ContextAdapter {
   getRelevantDocuments(
     userId: string,
     query: string,
-    limit?: number
+    limit?: number,
   ): Promise<any[]>;
 
   /**
@@ -105,7 +105,7 @@ export interface DocumentContextAdapter extends ContextAdapter {
   storeDocument(
     userId: string,
     document: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, any>,
   ): Promise<string>;
 }
 
@@ -119,7 +119,7 @@ export interface MemoryContextAdapter extends ContextAdapter {
   retrieveMemories(
     userId: string,
     query: string,
-    options?: Record<string, any>
+    options?: Record<string, any>,
   ): Promise<any[]>;
 
   /**
@@ -132,6 +132,6 @@ export interface MemoryContextAdapter extends ContextAdapter {
     userId: string,
     memory: string,
     importance?: number,
-    metadata?: Record<string, any>
+    metadata?: Record<string, any>,
   ): Promise<string>;
-} 
+}

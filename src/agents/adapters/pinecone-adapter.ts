@@ -2,7 +2,11 @@ import { RecordMetadata } from '@pinecone-database/pinecone';
 import { Logger } from '../../shared/logger/logger.interface.ts';
 import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
 import { PineconeConnectionService } from '../../pinecone/pinecone-connection.service.ts';
-import { VectorRecord, QueryOptions, QueryResponse } from '../../pinecone/pinecone.type.ts';
+import {
+  VectorRecord,
+  QueryOptions,
+  QueryResponse,
+} from '../../pinecone/pinecone.type.ts';
 
 /**
  * Adapter for PineconeConnectionService that provides a simplified interface
@@ -13,13 +17,16 @@ export class PineconeAdapter {
   private logger: Logger;
   private defaultNamespace: string;
 
-  constructor(options: {
-    pineconeService?: PineconeConnectionService;
-    logger?: Logger;
-    defaultNamespace?: string;
-  } = {}) {
+  constructor(
+    options: {
+      pineconeService?: PineconeConnectionService;
+      logger?: Logger;
+      defaultNamespace?: string;
+    } = {},
+  ) {
     this.logger = options.logger || new ConsoleLogger();
-    this.pineconeService = options.pineconeService || new PineconeConnectionService();
+    this.pineconeService =
+      options.pineconeService || new PineconeConnectionService();
     this.defaultNamespace = options.defaultNamespace || 'agent-data';
   }
 
@@ -44,23 +51,19 @@ export class PineconeAdapter {
     id: string,
     vector: number[],
     metadata: Record<string, any> = {},
-    namespace?: string
+    namespace?: string,
   ): Promise<void> {
     const ns = namespace || this.defaultNamespace;
-    
+
     const record: VectorRecord<RecordMetadata> = {
       id,
       values: vector,
-      metadata: metadata as RecordMetadata
+      metadata: metadata as RecordMetadata,
     };
 
     this.logger.debug('Storing vector', { indexName, id, namespace: ns });
-    
-    await this.pineconeService.upsertVectors(
-      indexName,
-      [record],
-      ns
-    );
+
+    await this.pineconeService.upsertVectors(indexName, [record], ns);
   }
 
   /**
@@ -76,27 +79,25 @@ export class PineconeAdapter {
       vector: number[];
       metadata?: Record<string, any>;
     }>,
-    namespace?: string
+    namespace?: string,
   ): Promise<void> {
     const ns = namespace || this.defaultNamespace;
-    
-    const vectorRecords: VectorRecord<RecordMetadata>[] = records.map(record => ({
-      id: record.id,
-      values: record.vector,
-      metadata: (record.metadata || {}) as RecordMetadata
-    }));
-    
-    this.logger.debug('Storing multiple vectors', { 
+
+    const vectorRecords: VectorRecord<RecordMetadata>[] = records.map(
+      (record) => ({
+        id: record.id,
+        values: record.vector,
+        metadata: (record.metadata || {}) as RecordMetadata,
+      }),
+    );
+
+    this.logger.debug('Storing multiple vectors', {
       indexName,
       count: records.length,
-      namespace: ns
+      namespace: ns,
     });
-    
-    await this.pineconeService.upsertVectors(
-      indexName,
-      vectorRecords,
-      ns
-    );
+
+    await this.pineconeService.upsertVectors(indexName, vectorRecords, ns);
   }
 
   /**
@@ -115,49 +116,52 @@ export class PineconeAdapter {
       includeValues?: boolean;
       minScore?: number;
     } = {},
-    namespace?: string
-  ): Promise<Array<{
-    id: string;
-    score: number;
-    metadata: T;
-    values?: number[];
-  }>> {
+    namespace?: string,
+  ): Promise<
+    Array<{
+      id: string;
+      score: number;
+      metadata: T;
+      values?: number[];
+    }>
+  > {
     const ns = namespace || this.defaultNamespace;
-    
-    this.logger.debug('Querying similar vectors', { 
+
+    this.logger.debug('Querying similar vectors', {
       indexName,
       namespace: ns,
-      topK: options.topK
+      topK: options.topK,
     });
-    
+
     const queryOptions: QueryOptions = {
       topK: options.topK || 10,
       filter: options.filter,
       includeValues: options.includeValues || false,
-      includeMetadata: true
+      includeMetadata: true,
     };
-    
+
     const response = await this.pineconeService.queryVectors<RecordMetadata>(
       indexName,
       queryVector,
       queryOptions,
-      ns
+      ns,
     );
-    
+
     // Filter results by minimum score if specified
     let matches = response.matches || [];
     if (options.minScore !== undefined) {
-      matches = matches.filter(match => 
-        match.score !== undefined && match.score >= (options.minScore || 0)
+      matches = matches.filter(
+        (match) =>
+          match.score !== undefined && match.score >= (options.minScore || 0),
       );
     }
-    
+
     // Transform to simplified format
-    return matches.map(match => ({
+    return matches.map((match) => ({
       id: match.id,
       score: match.score || 0,
       metadata: match.metadata as unknown as T,
-      values: match.values
+      values: match.values,
     }));
   }
 
@@ -170,21 +174,17 @@ export class PineconeAdapter {
   async deleteVectors(
     indexName: string,
     ids: string[],
-    namespace?: string
+    namespace?: string,
   ): Promise<void> {
     const ns = namespace || this.defaultNamespace;
-    
-    this.logger.debug('Deleting vectors', { 
+
+    this.logger.debug('Deleting vectors', {
       indexName,
       count: ids.length,
-      namespace: ns
+      namespace: ns,
     });
-    
-    await this.pineconeService.deleteVectors(
-      indexName,
-      ids,
-      ns
-    );
+
+    await this.pineconeService.deleteVectors(indexName, ids, ns);
   }
 
   /**
@@ -196,21 +196,17 @@ export class PineconeAdapter {
   async deleteVectorsByFilter(
     indexName: string,
     filter: Record<string, any>,
-    namespace?: string
+    namespace?: string,
   ): Promise<void> {
     const ns = namespace || this.defaultNamespace;
-    
-    this.logger.debug('Deleting vectors by filter', { 
+
+    this.logger.debug('Deleting vectors by filter', {
       indexName,
       filter,
-      namespace: ns
+      namespace: ns,
     });
-    
-    await this.pineconeService.deleteVectorsByFilter(
-      indexName,
-      filter,
-      ns
-    );
+
+    await this.pineconeService.deleteVectorsByFilter(indexName, filter, ns);
   }
 
   /**
@@ -222,43 +218,51 @@ export class PineconeAdapter {
   async fetchVectors<T extends Record<string, any> = Record<string, any>>(
     indexName: string,
     ids: string[],
-    namespace?: string
-  ): Promise<Record<string, {
-    id: string;
-    values: number[];
-    metadata: T;
-  }>> {
+    namespace?: string,
+  ): Promise<
+    Record<
+      string,
+      {
+        id: string;
+        values: number[];
+        metadata: T;
+      }
+    >
+  > {
     const ns = namespace || this.defaultNamespace;
-    
-    this.logger.debug('Fetching vectors', { 
+
+    this.logger.debug('Fetching vectors', {
       indexName,
       count: ids.length,
-      namespace: ns
+      namespace: ns,
     });
-    
+
     const response = await this.pineconeService.fetchVectors(
       indexName,
       ids,
-      ns
+      ns,
     );
-    
+
     // Transform to better typed records
-    const result: Record<string, {
-      id: string;
-      values: number[];
-      metadata: T;
-    }> = {};
-    
+    const result: Record<
+      string,
+      {
+        id: string;
+        values: number[];
+        metadata: T;
+      }
+    > = {};
+
     if (response.records) {
       for (const [id, record] of Object.entries(response.records)) {
         result[id] = {
           id,
           values: record.values || [],
-          metadata: record.metadata as unknown as T
+          metadata: record.metadata as unknown as T,
         };
       }
     }
-    
+
     return result;
   }
 
@@ -269,11 +273,8 @@ export class PineconeAdapter {
    */
   async namespaceExists(
     indexName: string,
-    namespace: string
+    namespace: string,
   ): Promise<boolean> {
-    return this.pineconeService.namespaceExists(
-      indexName,
-      namespace
-    );
+    return this.pineconeService.namespaceExists(indexName, namespace);
   }
-} 
+}

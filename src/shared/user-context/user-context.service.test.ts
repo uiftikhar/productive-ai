@@ -6,7 +6,11 @@ import {
   UserContextNotFoundError,
 } from './user-context.service.ts';
 import { Logger } from '../../shared/logger/logger.interface.ts';
-import { ContextType, ActionItemStatus, KnowledgeGapType } from './context-types.ts';
+import {
+  ContextType,
+  ActionItemStatus,
+  KnowledgeGapType,
+} from './context-types.ts';
 
 // Mock the pinecone service
 jest.mock('../../pinecone/pinecone-connection.service.ts');

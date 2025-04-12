@@ -16,6 +16,8 @@ import { DocumentContextService } from '../../shared/user-context/services/docum
 import { ConversationContextService } from '../../shared/user-context/services/conversation-context.service.ts';
 import { MeetingContextService } from '../../shared/user-context/services/meeting-context.service.ts';
 import { RelevanceCalculationService } from '../../shared/user-context/services/relevance-calculation.service.ts';
+import { AgentContextAdapter } from '../adapters/agent-context.adapter.ts';
+import { BaseAgent } from '../base/base-agent.ts';
 
 // Mock dependencies
 jest.mock('../../shared/services/rag-prompt-manager.service');
@@ -24,11 +26,23 @@ jest.mock('../../shared/user-context/services/document-context.service');
 jest.mock('../../shared/user-context/services/conversation-context.service');
 jest.mock('../../shared/user-context/services/meeting-context.service');
 jest.mock('../../shared/user-context/services/relevance-calculation.service');
+jest.mock('../adapters/agent-context.adapter.ts');
 jest.mock('@langchain/core/messages', () => ({
   HumanMessage: jest
     .fn()
     .mockImplementation((props) => ({ content: props.content })),
 }));
+
+// Create a patch to stop auto-initialization
+const originalInitializeMethod = KnowledgeRetrievalAgent.prototype.initialize;
+KnowledgeRetrievalAgent.prototype.initialize = jest
+  .fn()
+  .mockImplementation(async function (config) {
+    this.isInitialized = true;
+    this.state.status = 'ready';
+    this.logger.info('Knowledge Retrieval Agent initialized');
+    return Promise.resolve();
+  });
 
 describe('KnowledgeRetrievalAgent Integration Tests', () => {
   // Use any to avoid TypeScript checking mocked implementations
@@ -39,6 +53,7 @@ describe('KnowledgeRetrievalAgent Integration Tests', () => {
   let relevanceCalculationService: any;
   let ragPromptManager: any;
   let embeddingService: any;
+  let mockContextAdapter: any;
   let logger: ConsoleLogger;
 
   // Sample context items for testing
@@ -82,7 +97,7 @@ describe('KnowledgeRetrievalAgent Integration Tests', () => {
     },
   ];
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Reset mocks
     jest.clearAllMocks();
 
@@ -142,6 +157,21 @@ describe('KnowledgeRetrievalAgent Integration Tests', () => {
       embeddings: [new Array(1536).fill(0).map((_, i) => i / 1536)],
     });
 
+    // Setup mocked AgentContextAdapter
+    mockContextAdapter = new AgentContextAdapter();
+    mockContextAdapter.initialize = jest.fn().mockResolvedValue(undefined);
+    mockContextAdapter.getContext = jest.fn().mockResolvedValue({
+      userId: 'test-user-123',
+      conversationId: 'test-conversation-123',
+      metadata: {
+        memories: [{ text: 'Test memory' }],
+        documents: [{ text: 'Test document' }],
+        conversations: [{ text: 'Test conversation' }],
+      },
+    });
+    mockContextAdapter.storeContext = jest.fn().mockResolvedValue('ctx-123');
+    mockContextAdapter.clearContext = jest.fn().mockResolvedValue(undefined);
+
     // Setup logger
     logger = new ConsoleLogger();
     logger.setLogLevel('error'); // Reduce noise in tests
@@ -164,8 +194,26 @@ describe('KnowledgeRetrievalAgent Integration Tests', () => {
       logger,
     });
 
+    // Add context adapter to fix BaseAgent errors and explicitly initialize
+    knowledgeRetrievalAgent.contextAdapter = mockContextAdapter;
+    knowledgeRetrievalAgent.openaiAdapter = {
+      initialize: jest.fn().mockResolvedValue(undefined),
+    };
+    knowledgeRetrievalAgent.pineconeAdapter = {
+      initialize: jest.fn().mockResolvedValue(undefined),
+    };
+
+    // Manually ensure the agent is ready
+    knowledgeRetrievalAgent.isInitialized = true;
+    knowledgeRetrievalAgent.state.status = 'ready';
+
     // Mock the LLM
     knowledgeRetrievalAgent.llm = mockLlm;
+  });
+
+  afterAll(() => {
+    // Restore original method
+    KnowledgeRetrievalAgent.prototype.initialize = originalInitializeMethod;
   });
 
   test('Should retrieve knowledge successfully', async () => {
@@ -326,14 +374,20 @@ describe('KnowledgeRetrievalAgent Integration Tests', () => {
       },
     };
 
-    // Execute the agent and check for error in response
+    // Execute the agent - BaseAgent handles errors and returns a response with error info
     const response = await knowledgeRetrievalAgent.execute(request);
-    
-    // Test assertions
+
+    // Verify error is properly captured in response
     expect(response).toBeDefined();
-    expect(response.output).toContain('Error in agent Knowledge Retrieval Agent');
+    expect(response.output).toContain(
+      'Error in agent Knowledge Retrieval Agent',
+    );
     expect(response.output).toContain('Test retrieval error');
-    expect(response.artifacts).toHaveProperty('error.message', 'Test retrieval error');
+    expect(response.artifacts).toHaveProperty(
+      'error.message',
+      'Test retrieval error',
+    );
+    expect(response.artifacts.error.stack).toBeDefined();
   });
 
   test('Should filter by specific context types', async () => {
