@@ -156,13 +156,16 @@ export class ModelSelectionService {
   /**
    * Task complexity profiles that map complexity to requirements
    */
-  private complexityProfiles: Record<'simple' | 'medium' | 'complex', {
-    minContextSize: number;
-    recommendedContextSize: number;
-    preferredModels: string[];
-    costSensitivity: 'low' | 'medium' | 'high';
-    responseTime: 'fast' | 'balanced' | 'thorough';
-  }> = {
+  private complexityProfiles: Record<
+    'simple' | 'medium' | 'complex',
+    {
+      minContextSize: number;
+      recommendedContextSize: number;
+      preferredModels: string[];
+      costSensitivity: 'low' | 'medium' | 'high';
+      responseTime: 'fast' | 'balanced' | 'thorough';
+    }
+  > = {
     simple: {
       minContextSize: 2000,
       recommendedContextSize: 4000,
@@ -183,7 +186,7 @@ export class ModelSelectionService {
       preferredModels: ['gpt-4', 'claude-2'],
       costSensitivity: 'low',
       responseTime: 'thorough',
-    }
+    },
   };
 
   constructor(
@@ -226,21 +229,27 @@ export class ModelSelectionService {
 
     // Apply complexity profile recommendations if not explicitly overridden
     const complexityProfile = this.complexityProfiles[analysis.complexity];
-    
+
     // Create selection criteria
     const criteria: ModelSelectionCriteria = {
       taskComplexity: analysis.complexity,
-      responseTime: options.responseSpeed || analysis.suggestedResponseTime || complexityProfile.responseTime,
-      costSensitivity: options.costSensitivity || complexityProfile.costSensitivity,
-      streamingRequired: options.requiresStreaming || analysis.requiresStreaming,
-      contextSize: options.estimatedContextSize || 
-                  analysis.estimatedContextSize || 
-                  complexityProfile.recommendedContextSize,
+      responseTime:
+        options.responseSpeed ||
+        analysis.suggestedResponseTime ||
+        complexityProfile.responseTime,
+      costSensitivity:
+        options.costSensitivity || complexityProfile.costSensitivity,
+      streamingRequired:
+        options.requiresStreaming || analysis.requiresStreaming,
+      contextSize:
+        options.estimatedContextSize ||
+        analysis.estimatedContextSize ||
+        complexityProfile.recommendedContextSize,
       requiresSpecialCapabilities: analysis.requiredCapabilities,
       budgetConstraints: options.budgetConstraints,
       adaptiveLearning: {
-        taskHistory: options.taskHistory
-      }
+        taskHistory: options.taskHistory,
+      },
     };
 
     this.logger.debug('Model selection criteria', { criteria });
@@ -324,7 +333,7 @@ export class ModelSelectionService {
       'architecture',
       'transitioning',
       'scalable',
-      'system architecture'
+      'system architecture',
     ];
 
     // Check for medium complexity indicators
@@ -341,7 +350,7 @@ export class ModelSelectionService {
       'therapy',
       'planning',
       'financial',
-      'crisis'
+      'crisis',
     ];
 
     // Check for simple task indicators
@@ -412,8 +421,9 @@ export class ModelSelectionService {
       lowerTask.includes('marketing campaign') ||
       lowerTask.includes('logo') ||
       lowerTask.includes('design') ||
-      lowerTask.includes('write') && (lowerTask.includes('story') || lowerTask.includes('poem')) ||
-      lowerTask.includes('generate') && !lowerTask.includes('code')
+      (lowerTask.includes('write') &&
+        (lowerTask.includes('story') || lowerTask.includes('poem'))) ||
+      (lowerTask.includes('generate') && !lowerTask.includes('code'))
     ) {
       if (!capabilities.includes('creative')) {
         capabilities.push('creative');
@@ -553,22 +563,23 @@ export class ModelSelectionService {
    */
   public estimateModelCost(
     modelConfig: ModelConfig,
-    estimatedTokens: number
+    estimatedTokens: number,
   ): { cost: number; tokenLimit: number; withinBudget: boolean } {
     const inputCost = modelConfig.costPerInputToken || modelConfig.costPerToken;
-    const outputCost = modelConfig.costPerOutputToken || modelConfig.costPerToken;
-    
+    const outputCost =
+      modelConfig.costPerOutputToken || modelConfig.costPerToken;
+
     // Estimate output tokens (typically 25-40% of input for most tasks)
     const estimatedOutputTokens = Math.ceil(estimatedTokens * 0.3);
-    
+
     // Calculate total cost
-    const totalCost = (estimatedTokens * inputCost) + 
-                      (estimatedOutputTokens * outputCost);
-    
+    const totalCost =
+      estimatedTokens * inputCost + estimatedOutputTokens * outputCost;
+
     return {
       cost: totalCost,
       tokenLimit: modelConfig.contextWindow,
-      withinBudget: true // Default to true unless we have budget constraints
+      withinBudget: true, // Default to true unless we have budget constraints
     };
   }
 
@@ -584,7 +595,7 @@ export class ModelSelectionService {
       tokensUsed: number;
       cost: number;
       feedback?: string;
-    }
+    },
   ): void {
     // Store outcome for adaptive learning
     // This would be connected to a persistent store in a production system
@@ -594,7 +605,7 @@ export class ModelSelectionService {
       tokens: outcome.tokensUsed,
       executionTime: outcome.executionTimeMs,
     });
-    
+
     // In a real implementation, this would update a model performance database
     // that would be used to inform future model selections
   }
@@ -608,7 +619,7 @@ export class ModelSelectionService {
       count?: number;
       includeCostEstimates?: boolean;
       includeReasoning?: boolean;
-    } = {}
+    } = {},
   ): Array<{
     model: ModelConfig;
     score: number;
@@ -617,7 +628,7 @@ export class ModelSelectionService {
   }> {
     const count = options.count || 3;
     const analysis = this.analyzeTask(task);
-    
+
     const criteria: ModelSelectionCriteria = {
       taskComplexity: analysis.complexity,
       responseTime: analysis.suggestedResponseTime,
@@ -626,32 +637,39 @@ export class ModelSelectionService {
       contextSize: analysis.estimatedContextSize,
       requiresSpecialCapabilities: analysis.requiredCapabilities,
     };
-    
+
     // Get eligible models directly from the router
     const eligibleModels = this.modelRouter.getEligibleModels(criteria);
-    
+
     // Score the models ourselves
     const scoredModels = eligibleModels.map((model: ModelConfig) => {
       let score = 0;
-      
+
       // Score based on task complexity
-      if (criteria.taskComplexity === 'complex' && model.contextWindow > 16000) {
+      if (
+        criteria.taskComplexity === 'complex' &&
+        model.contextWindow > 16000
+      ) {
         score += 10;
-      } else if (criteria.taskComplexity === 'simple' && model.costPerToken < 0.00005) {
+      } else if (
+        criteria.taskComplexity === 'simple' &&
+        model.costPerToken < 0.00005
+      ) {
         score += 10;
       }
-      
+
       // Score based on capabilities match
       if (criteria.requiresSpecialCapabilities) {
-        const matchingCapabilities = criteria.requiresSpecialCapabilities.filter(
-          cap => model.capabilities.includes(cap)
-        );
+        const matchingCapabilities =
+          criteria.requiresSpecialCapabilities.filter((cap) =>
+            model.capabilities.includes(cap),
+          );
         score += matchingCapabilities.length * 5;
       }
-      
+
       return { model, score };
     });
-    
+
     // Take top N models
     return scoredModels
       .sort((a: { score: number }, b: { score: number }) => b.score - a.score)
@@ -663,19 +681,23 @@ export class ModelSelectionService {
           estimatedCost?: number;
           reasoning?: string;
         } = { model, score };
-        
+
         if (options.includeCostEstimates) {
           const costEstimate = this.estimateModelCost(
-            model, 
-            analysis.estimatedContextSize
+            model,
+            analysis.estimatedContextSize,
           );
           result.estimatedCost = costEstimate.cost;
         }
-        
+
         if (options.includeReasoning) {
-          result.reasoning = this.generateSelectionReasoning(model, analysis, criteria);
+          result.reasoning = this.generateSelectionReasoning(
+            model,
+            analysis,
+            criteria,
+          );
         }
-        
+
         return result;
       });
   }
@@ -686,32 +708,40 @@ export class ModelSelectionService {
   private generateSelectionReasoning(
     model: ModelConfig,
     analysis: TaskAnalysisResult,
-    criteria: ModelSelectionCriteria
+    criteria: ModelSelectionCriteria,
   ): string {
     const reasons = [
       `Model ${model.modelName} selected based on the following factors:`,
     ];
-    
+
     if (analysis.complexity === 'complex') {
-      reasons.push(`- Task complexity is high, requiring advanced reasoning capabilities`);
+      reasons.push(
+        `- Task complexity is high, requiring advanced reasoning capabilities`,
+      );
     }
-    
+
     if (analysis.requiredCapabilities.length > 0) {
-      reasons.push(`- Task requires specialized capabilities: ${analysis.requiredCapabilities.join(', ')}`);
+      reasons.push(
+        `- Task requires specialized capabilities: ${analysis.requiredCapabilities.join(', ')}`,
+      );
     }
-    
+
     if (criteria.streamingRequired) {
       reasons.push(`- Streaming support is required for real-time responses`);
     }
-    
+
     if (analysis.estimatedContextSize > 8000) {
-      reasons.push(`- Large context window (${model.contextWindow} tokens) needed for this task`);
+      reasons.push(
+        `- Large context window (${model.contextWindow} tokens) needed for this task`,
+      );
     }
-    
+
     if (criteria.costSensitivity === 'high') {
-      reasons.push(`- Cost efficiency is prioritized (${model.costPerToken} per token)`);
+      reasons.push(
+        `- Cost efficiency is prioritized (${model.costPerToken} per token)`,
+      );
     }
-    
+
     return reasons.join('\n');
   }
 }

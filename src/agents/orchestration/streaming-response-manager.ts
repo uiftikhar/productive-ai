@@ -1,6 +1,6 @@
 /**
  * Streaming Response Manager
- * 
+ *
  * Organizes streaming functionality across the system, providing:
  * - Token-by-token streaming
  * - Event handling for streaming responses
@@ -78,10 +78,10 @@ export interface StreamingStatus {
 export class StreamingResponseManager {
   private logger: Logger;
   private tokenUsageManager: TokenUsageManager;
-  
+
   // Store active streaming sessions
   private activeStreams: Map<string, StreamingStatus> = new Map();
-  
+
   private static instance: StreamingResponseManager;
 
   /**
@@ -114,7 +114,7 @@ export class StreamingResponseManager {
     this.activeStreams.set(streamId, {
       inProgress: false,
       totalTokens: 0,
-      hasError: false
+      hasError: false,
     });
 
     // Return a handler that processes the stream
@@ -132,30 +132,30 @@ export class StreamingResponseManager {
         let processedToken = token;
         if (options.formatOptions) {
           const { prefix, removeNewlines, transformFn } = options.formatOptions;
-          
+
           if (prefix && status?.totalTokens === 0) {
             processedToken = prefix + processedToken;
           }
-          
+
           if (removeNewlines) {
             processedToken = processedToken.replace(/\n/g, ' ');
           }
-          
+
           if (transformFn) {
             processedToken = transformFn(processedToken);
           }
         }
-        
+
         // Update token count
         if (status) {
           status.totalTokens += 1;
           this.activeStreams.set(streamId, status);
         }
-        
+
         // Call the original handler
         callback.onToken(processedToken);
       },
-      
+
       onComplete: (fullResponse: string) => {
         // Update stream status
         const status = this.activeStreams.get(streamId);
@@ -164,19 +164,20 @@ export class StreamingResponseManager {
           status.endTime = Date.now();
           status.response = fullResponse;
           this.activeStreams.set(streamId, status);
-          
+
           // Apply suffix if needed
           let finalResponse = fullResponse;
           if (options.formatOptions?.suffix) {
             finalResponse += options.formatOptions.suffix;
           }
-          
+
           // Record token usage if enabled
           if (options.recordTokenUsage) {
-            const completionTokens = this.tokenUsageManager.estimateTokenCount(fullResponse);
+            const completionTokens =
+              this.tokenUsageManager.estimateTokenCount(fullResponse);
             // We don't have exact prompt tokens, so we'll estimate based on response length
             const promptTokens = Math.floor(completionTokens * 0.3); // Rough estimate
-            
+
             this.tokenUsageManager.recordUsage({
               userId: options.userId,
               conversationId: options.conversationId,
@@ -185,15 +186,15 @@ export class StreamingResponseManager {
               modelProvider: options.modelProvider,
               promptTokens,
               completionTokens,
-              totalTokens: promptTokens + completionTokens
+              totalTokens: promptTokens + completionTokens,
             });
           }
-          
+
           // Call the original handler
           callback.onComplete(finalResponse);
         }
       },
-      
+
       onError: (error: Error) => {
         // Update stream status
         const status = this.activeStreams.get(streamId);
@@ -203,17 +204,17 @@ export class StreamingResponseManager {
           status.error = error;
           this.activeStreams.set(streamId, status);
         }
-        
+
         // Log the error
         this.logger.error('Streaming error', {
           streamId,
           error: error.message,
-          modelName: options.modelName
+          modelName: options.modelName,
         });
-        
+
         // Call the original handler
         callback.onError(error);
-      }
+      },
     };
   }
 
@@ -230,16 +231,16 @@ export class StreamingResponseManager {
   public createEventStreamHandler(
     streamId: string,
     eventCallback: (event: StreamingEvent) => void,
-    options: StreamingOptions
+    options: StreamingOptions,
   ): StreamingResponseHandler {
     let responseBuffer = '';
-    
+
     return this.createStreamingHandler(
       streamId,
       {
         onToken: (token: string) => {
           responseBuffer += token;
-          
+
           // Emit token event
           eventCallback({
             type: StreamingEventType.TOKEN,
@@ -247,11 +248,11 @@ export class StreamingResponseManager {
             payload: token,
             metadata: {
               streamId,
-              modelName: options.modelName
-            }
+              modelName: options.modelName,
+            },
           });
         },
-        
+
         onComplete: (fullResponse: string) => {
           // Emit complete event
           eventCallback({
@@ -261,11 +262,12 @@ export class StreamingResponseManager {
             metadata: {
               streamId,
               modelName: options.modelName,
-              tokenCount: this.tokenUsageManager.estimateTokenCount(fullResponse)
-            }
+              tokenCount:
+                this.tokenUsageManager.estimateTokenCount(fullResponse),
+            },
           });
         },
-        
+
         onError: (error: Error) => {
           // Emit error event
           eventCallback({
@@ -274,12 +276,12 @@ export class StreamingResponseManager {
             payload: error,
             metadata: {
               streamId,
-              modelName: options.modelName
-            }
+              modelName: options.modelName,
+            },
           });
-        }
+        },
       },
-      options
+      options,
     );
   }
 
@@ -293,15 +295,15 @@ export class StreamingResponseManager {
       thinkingMessage?: string;
       intervalMs?: number;
       maxDots?: number;
-    } = {}
+    } = {},
   ): { start: () => void; stop: () => void } {
     const thinkingMessage = options.thinkingMessage || 'Thinking';
     const intervalMs = options.intervalMs || 500;
     const maxDots = options.maxDots || 3;
-    
+
     let intervalId: NodeJS.Timeout | null = null;
     let dotCount = 0;
-    
+
     return {
       start: () => {
         // Emit initial thinking event
@@ -311,32 +313,32 @@ export class StreamingResponseManager {
           payload: `${thinkingMessage}`,
           metadata: {
             streamId,
-            isComplete: false
-          }
+            isComplete: false,
+          },
         });
-        
+
         // Set up interval for thinking animation
         intervalId = setInterval(() => {
           dotCount = (dotCount % maxDots) + 1;
           const dots = '.'.repeat(dotCount);
-          
+
           eventCallback({
             type: StreamingEventType.THINKING,
             timestamp: Date.now(),
             payload: `${thinkingMessage}${dots}`,
             metadata: {
               streamId,
-              isComplete: false
-            }
+              isComplete: false,
+            },
           });
         }, intervalMs);
       },
-      
+
       stop: () => {
         if (intervalId) {
           clearInterval(intervalId);
           intervalId = null;
-          
+
           // Emit final thinking event
           eventCallback({
             type: StreamingEventType.THINKING,
@@ -344,11 +346,11 @@ export class StreamingResponseManager {
             payload: '',
             metadata: {
               streamId,
-              isComplete: true
-            }
+              isComplete: true,
+            },
           });
         }
-      }
+      },
     };
   }
 
@@ -362,4 +364,4 @@ export class StreamingResponseManager {
       }
     }
   }
-} 
+}

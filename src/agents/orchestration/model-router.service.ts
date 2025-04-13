@@ -2,6 +2,7 @@ import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
 import { Logger } from '../../shared/logger/logger.interface.ts';
 import { RagPromptManager } from '../../shared/services/rag-prompt-manager.service.ts';
 import { EmbeddingService } from '../../shared/embedding/embedding.service.ts';
+import { OpenAIAdapter } from '../../agents/adapters/openai-adapter.ts';
 import { ChatOpenAI } from '@langchain/openai';
 import { BaseLLMParams } from '@langchain/core/language_models/llms';
 import { BaseMessage } from '@langchain/core/messages';
@@ -63,7 +64,7 @@ export interface ModelSelectionCriteria {
   adaptiveLearning?: {
     taskHistory?: {
       previousTasks: string[];
-      successRates: Record<string, number>; 
+      successRates: Record<string, number>;
     };
   };
 }
@@ -100,6 +101,7 @@ export class ModelRouterService {
       logger?: Logger;
       ragPromptManager?: RagPromptManager;
       embeddingService?: EmbeddingService;
+      openAIAdapter?: OpenAIAdapter;
     } = {},
   ): ModelRouterService {
     if (!ModelRouterService.instance) {
@@ -116,11 +118,26 @@ export class ModelRouterService {
       logger?: Logger;
       ragPromptManager?: RagPromptManager;
       embeddingService?: EmbeddingService;
+      openAIAdapter?: OpenAIAdapter;
     } = {},
   ) {
     this.logger = options.logger || new ConsoleLogger();
     this.ragPromptManager = options.ragPromptManager || new RagPromptManager();
-    this.embeddingService = options.embeddingService || new EmbeddingService();
+
+    // Use provided embedding service or create a new one with proper parameters
+    if (options.embeddingService) {
+      this.embeddingService = options.embeddingService;
+    } else if (options.openAIAdapter) {
+      this.embeddingService = new EmbeddingService(
+        options.openAIAdapter,
+        this.logger,
+      );
+    } else {
+      throw new Error(
+        'Either embeddingService or openAIAdapter must be provided to ModelRouterService',
+      );
+    }
+
     this.streamingManager = StreamingResponseManager.getInstance(this.logger);
     this.tokenUsageManager = TokenUsageManager.getInstance(this.logger);
 
@@ -280,10 +297,7 @@ export class ModelRouterService {
       // Create embedding for the query if we need to score by relevance
       let queryEmbedding: number[] | undefined;
       if (contextReq.importanceWeights.relevance > 0) {
-        const embeddingResult = await this.embeddingService.createEmbeddings([
-          query,
-        ]);
-        queryEmbedding = embeddingResult.embeddings[0];
+        queryEmbedding = await this.embeddingService.generateEmbedding(query);
       }
 
       // Score each context item
@@ -410,9 +424,9 @@ export class ModelRouterService {
       const llm = this.getLLMInstance(modelConfig);
 
       // Basic token count estimation for the prompt
-      const promptText = messages.map(msg => msg.content).join(' ');
+      const promptText = messages.map((msg) => msg.content).join(' ');
       const estimatedPromptTokens = this.estimateTokenCount(promptText);
-      
+
       const requestId = uuidv4();
       let result: string;
 
@@ -434,7 +448,7 @@ export class ModelRouterService {
             onComplete: streamingHandler.handleComplete,
             onError: streamingHandler.handleError,
           },
-          streamingOptions
+          streamingOptions,
         );
 
         result = await llm.invoke(messages, {
@@ -457,10 +471,10 @@ export class ModelRouterService {
       } else {
         // Non-streaming call
         result = await llm.invoke(messages);
-        
+
         // Track token usage via TokenUsageManager
         const completionTokens = this.estimateTokenCount(result);
-        
+
         this.tokenUsageManager.recordUsage({
           userId: modelCriteria.userId,
           conversationId: modelCriteria.conversationId,
@@ -469,7 +483,7 @@ export class ModelRouterService {
           modelProvider: modelConfig.provider,
           promptTokens: estimatedPromptTokens,
           completionTokens,
-          totalTokens: estimatedPromptTokens + completionTokens
+          totalTokens: estimatedPromptTokens + completionTokens,
         });
       }
 

@@ -1,7 +1,6 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "allowJs": true,
     "module": "NodeNext",
     "moduleResolution": "node16",
     "noEmit": true,
@@ -11,8 +10,12 @@
     "strict": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true
+    "declaration": true,
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "types": ["node", "jest"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/agents/orchestration/demo/-enhanced-workflow-demo"],
   "exclude": ["node_modules", "dist"]
 }

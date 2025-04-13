@@ -12,6 +12,7 @@ import { DocumentContextService } from '../../shared/user-context/services/docum
 import { ConversationContextService } from '../../shared/user-context/services/conversation-context.service.ts';
 import { MeetingContextService } from '../../shared/user-context/services/meeting-context.service.ts';
 import { RelevanceCalculationService } from '../../shared/user-context/services/relevance-calculation.service.ts';
+import { OpenAIAdapter } from '../../agents/adapters/openai-adapter.ts';
 
 /**
  * KnowledgeRetrievalAgent
@@ -33,6 +34,7 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
       relevanceCalculationService?: RelevanceCalculationService;
       ragPromptManager?: RagPromptManager;
       embeddingService?: EmbeddingService;
+      openAIAdapter?: OpenAIAdapter;
       logger?: any;
     } = {},
   ) {
@@ -51,7 +53,20 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
     this.relevanceCalculationService =
       options.relevanceCalculationService || new RelevanceCalculationService();
     this.ragPromptManager = options.ragPromptManager || new RagPromptManager();
-    this.embeddingService = options.embeddingService || new EmbeddingService();
+
+    // Use provided embedding service or create a new one with proper parameters
+    if (options.embeddingService) {
+      this.embeddingService = options.embeddingService;
+    } else if (options.openAIAdapter) {
+      this.embeddingService = new EmbeddingService(
+        options.openAIAdapter,
+        this.logger,
+      );
+    } else {
+      throw new Error(
+        'Either embeddingService or openAIAdapter must be provided',
+      );
+    }
 
     // Register capabilities
     this.registerCapability({
@@ -226,14 +241,8 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
   ): Promise<AgentResponse> {
     const startTime = Date.now();
 
-    const embeddingResult = await this.embeddingService.createEmbeddings([
-      query,
-    ]);
-    if (!embeddingResult || !embeddingResult.embeddings[0]) {
-      throw new Error('Failed to create embeddings for query');
-    }
-
-    const queryEmbedding = embeddingResult.embeddings[0];
+    // Generate embedding for the query
+    const queryEmbedding = await this.embeddingService.generateEmbedding(query);
 
     const results = await this.retrieveContextFromAllSources(
       userId,
@@ -279,15 +288,8 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
   ): Promise<AgentResponse> {
     const startTime = Date.now();
 
-    // Create embeddings for the query
-    const embeddingResult = await this.embeddingService.createEmbeddings([
-      query,
-    ]);
-    if (!embeddingResult || !embeddingResult.embeddings[0]) {
-      throw new Error('Failed to create embeddings for query');
-    }
-
-    const queryEmbedding = embeddingResult.embeddings[0];
+    // Create embedding for the query
+    const queryEmbedding = await this.embeddingService.generateEmbedding(query);
 
     // Determine retrieval options
     const retrievalOptions = parameters?.retrievalOptions || {};

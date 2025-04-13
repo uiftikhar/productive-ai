@@ -1,6 +1,6 @@
 /**
  * Model Router Integration Demo
- * 
+ *
  * This example demonstrates the integrated model router system with:
  * - Adaptive model selection
  * - Context window optimization
@@ -16,70 +16,75 @@ import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
 // Sample context items for the demo
 const sampleContextItems = [
   {
-    content: "The AI system needs to process customer service conversations to identify common issues and generate summaries.",
-    source: "requirement-doc",
+    content:
+      'The AI system needs to process customer service conversations to identify common issues and generate summaries.',
+    source: 'requirement-doc',
     metadata: {
       timestamp: Date.now() - 86400000 * 5, // 5 days ago
-      sourceType: "document",
-      importance: 0.8
-    }
+      sourceType: 'document',
+      importance: 0.8,
+    },
   },
   {
-    content: "We need to implement a context-aware system that can handle complex customer inquiries while maintaining a consistent tone.",
-    source: "meeting-notes",
+    content:
+      'We need to implement a context-aware system that can handle complex customer inquiries while maintaining a consistent tone.',
+    source: 'meeting-notes',
     metadata: {
       timestamp: Date.now() - 86400000 * 2, // 2 days ago
-      sourceType: "meeting",
-      importance: 0.9
-    }
+      sourceType: 'meeting',
+      importance: 0.9,
+    },
   },
   {
-    content: "The system should be able to handle at least 1000 requests per hour with response times under 2 seconds.",
-    source: "performance-spec",
+    content:
+      'The system should be able to handle at least 1000 requests per hour with response times under 2 seconds.',
+    source: 'performance-spec',
     metadata: {
       timestamp: Date.now() - 86400000 * 10, // 10 days ago
-      sourceType: "document",
-      importance: 0.7
-    }
+      sourceType: 'document',
+      importance: 0.7,
+    },
   },
   {
-    content: "Recent user testing showed that users prefer concise answers that directly address their question without unnecessary details.",
-    source: "user-research",
+    content:
+      'Recent user testing showed that users prefer concise answers that directly address their question without unnecessary details.',
+    source: 'user-research',
     metadata: {
       timestamp: Date.now() - 86400000 * 1, // 1 day ago
-      sourceType: "feedback",
-      importance: 0.95
-    }
+      sourceType: 'feedback',
+      importance: 0.95,
+    },
   },
   {
-    content: "The current implementation uses GPT-3.5-Turbo but struggles with complex reasoning tasks that have multiple steps.",
-    source: "technical-analysis",
+    content:
+      'The current implementation uses GPT-3.5-Turbo but struggles with complex reasoning tasks that have multiple steps.',
+    source: 'technical-analysis',
     metadata: {
       timestamp: Date.now() - 86400000 * 3, // 3 days ago
-      sourceType: "document",
-      importance: 0.85
-    }
-  }
+      sourceType: 'document',
+      importance: 0.85,
+    },
+  },
 ];
 
 // Sample user queries representing different complexity levels
 const sampleQueries = [
   {
-    text: "How can I reset my password?",
-    complexity: "simple"
+    text: 'How can I reset my password?',
+    complexity: 'simple',
   },
   {
-    text: "Can you explain how the recommendation algorithm works?",
-    complexity: "medium"
+    text: 'Can you explain how the recommendation algorithm works?',
+    complexity: 'medium',
   },
   {
-    text: "I need a detailed analysis of our customer service performance over the last quarter, including trends and recommendations for improvement.",
-    complexity: "complex"
+    text: 'I need a detailed analysis of our customer service performance over the last quarter, including trends and recommendations for improvement.',
+    complexity: 'complex',
   },
   {
-    text: "Write a Python function to analyze sentiment in customer reviews and visualize the results using matplotlib.",
-    complexity: "code"
-  }
+    text: 'Write a Python function to analyze sentiment in customer reviews and visualize the results using matplotlib.',
+    complexity: 'code',
+  },
 ];
 
 /**
@@ -87,14 +92,14 @@ const sampleQueries = [
  */
 async function runModelRouterDemo() {
   const logger = new ConsoleLogger();
-  logger.info("Starting Model Router Integration Demo");
-  
+  logger.info('Starting Model Router Integration Demo');
+
   // Initialize services
   const modelRouter = ModelRouterService.getInstance({ logger });
   const modelSelector = new ModelSelectionService({ logger, modelRouter });
   const contextOptimizer = new ContextWindowOptimizer({ logger });
   const promptManager = new RagPromptManager();
-  
+
   // Register custom model configurations
   modelRouter.initialize([
     {
@@ -142,25 +147,28 @@ async function runModelRouterDemo() {
       costPerToken: 0.0000001,
       capabilities: ['creative', 'summarization'],
       maxOutputTokens: 2048,
-    }
+    },
   ]);
-  
+
   // Process each query through the integrated system
   for (const query of sampleQueries) {
     logger.info(`\n\n=== Processing query: ${query.text} ===\n`);
-    
+
     // 1. Analyze the query and select an appropriate model
-    const modelRecommendations = modelSelector.getModelRecommendations(query.text, {
-      includeCostEstimates: true,
-      includeReasoning: true
-    });
-    
+    const modelRecommendations = modelSelector.getModelRecommendations(
+      query.text,
+      {
+        includeCostEstimates: true,
+        includeReasoning: true,
+      },
+    );
+
     const selectedModel = modelRecommendations[0].model;
     logger.info(`Selected model: ${selectedModel.modelName}`, {
       reasoning: modelRecommendations[0].reasoning,
-      estimatedCost: modelRecommendations[0].estimatedCost
+      estimatedCost: modelRecommendations[0].estimatedCost,
     });
-    
+
     // 2. Optimize context based on model constraints
     const contextOptimizationResult = await contextOptimizer.optimizeContext(
       query.text,
@@ -168,60 +176,66 @@ async function runModelRouterDemo() {
       selectedModel.contextWindow * 0.8, // Use 80% of available context window
       {
         strategy: 'balanced',
-        chunkLongItems: true
-      }
+        chunkLongItems: true,
+      },
     );
-    
-    logger.info("Context optimization results", {
+
+    logger.info('Context optimization results', {
       selectedItems: contextOptimizationResult.selectedItems.length,
       totalTokens: contextOptimizationResult.totalTokens,
-      tokenLimit: contextOptimizationResult.tokenLimit
+      tokenLimit: contextOptimizationResult.tokenLimit,
     });
-    
+
     // 3. Select the appropriate prompt template
-    const recommendedTemplates = promptManager.getTemplateRecommendations(query.text);
+    const recommendedTemplates = promptManager.getTemplateRecommendations(
+      query.text,
+    );
     const selectedTemplate = recommendedTemplates[0];
-    
+
     logger.info(`Selected prompt template: ${selectedTemplate.id}`, {
       description: selectedTemplate.description,
-      components: selectedTemplate.components
+      components: selectedTemplate.components,
     });
-    
+
     // 4. Estimate the total cost
     const costEstimate = modelSelector.estimateModelCost(
       selectedModel,
-      contextOptimizationResult.totalTokens
+      contextOptimizationResult.totalTokens,
     );
-    
-    logger.info("Estimated execution cost", {
+
+    logger.info('Estimated execution cost', {
       cost: costEstimate.cost,
-      tokenLimit: costEstimate.tokenLimit
+      tokenLimit: costEstimate.tokenLimit,
     });
-    
+
     // 5. In a real implementation, this would now execute the query
-    logger.info(`Ready to execute query with ${selectedModel.modelName} using template '${selectedTemplate.id}'`);
-    
+    logger.info(
+      `Ready to execute query with ${selectedModel.modelName} using template '${selectedTemplate.id}'`,
+    );
+
     // Simulate execution outcome for feedback loop
     const success = Math.random() > 0.2; // 80% success rate for the demo
-    
+
     // 6. Record task outcome for adaptive learning
     modelSelector.recordTaskOutcome(query.text, selectedModel.modelName, {
       success,
       executionTimeMs: 1200 + Math.random() * 1000,
       tokensUsed: contextOptimizationResult.totalTokens,
       cost: costEstimate.cost,
-      feedback: success ? "Satisfactory response" : "Response did not fully address the query"
+      feedback: success
+        ? 'Satisfactory response'
+        : 'Response did not fully address the query',
     });
   }
-  
-  logger.info("\nModel Router Integration Demo completed");
+
+  logger.info('\nModel Router Integration Demo completed');
 }
 
 // Run the demo when this file is executed directly
 if (require.main === module) {
-  runModelRouterDemo().catch(error => {
-    console.error("Error in demo:", error);
+  runModelRouterDemo().catch((error) => {
+    console.error('Error in demo:', error);
   });
 }
 
-export { runModelRouterDemo }; 
+export { runModelRouterDemo };

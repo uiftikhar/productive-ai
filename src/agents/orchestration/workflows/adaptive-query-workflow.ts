@@ -306,7 +306,7 @@ class ResponseGeneratorAgent extends BaseAgent {
 }
 
 /**
- * Creates an adaptive query workflow that handles complex queries with 
+ * Creates an adaptive query workflow that handles complex queries with
  * multiple specialized agents and optimized response generation
  */
 export class AdaptiveQueryWorkflow {
@@ -317,7 +317,7 @@ export class AdaptiveQueryWorkflow {
     options: {
       registry?: AgentRegistryService;
       logger?: Logger;
-    } = {}
+    } = {},
   ) {
     this.registry = options.registry || AgentRegistryService.getInstance();
     this.logger = options.logger || new ConsoleLogger();
@@ -525,21 +525,22 @@ export class AdaptiveQueryWorkflow {
       ],
 
       branches: [],
-      
+
       // Add streaming configuration to the workflow
       streaming: {
         enabled: true,
         multiAgent: true,
         strategy: StreamAggregationStrategy.LEADER_FOLLOWER,
         showAgentNames: true,
-        aggregateAsTable: false
+        aggregateAsTable: false,
       },
-      
+
       // Mark as multi-agent streaming enabled
       metadata: {
         multiAgentStreaming: true,
         complexQueryHandling: true,
-        description: 'Enhanced query workflow with multi-agent streaming support',
+        description:
+          'Enhanced query workflow with multi-agent streaming support',
       },
     };
   }
@@ -550,7 +551,6 @@ export class AdaptiveQueryWorkflow {
   private ensureAgentsRegistered(): void {
     // Register agents if they don't exist
     // Implementation depends on actual agent registry implementation
-    
     // This method would register necessary agents for this workflow
     // such as query-analyzer, knowledge-retrieval, model-selector, etc.
   }

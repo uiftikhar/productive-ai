@@ -8,6 +8,7 @@
 import { Logger } from '../../shared/logger/logger.interface.ts';
 import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
 import { EmbeddingService } from '../../shared/embedding/embedding.service.ts';
+import { OpenAIAdapter } from '../../agents/adapters/openai-adapter.ts';
 
 /**
  * Context scoring parameters
@@ -69,10 +70,24 @@ export class ContextWindowOptimizer {
     options: {
       logger?: Logger;
       embeddingService?: EmbeddingService;
+      openAIAdapter?: OpenAIAdapter;
     } = {},
   ) {
     this.logger = options.logger || new ConsoleLogger();
-    this.embeddingService = options.embeddingService || new EmbeddingService();
+
+    // Use provided embedding service or create a new one with proper parameters
+    if (options.embeddingService) {
+      this.embeddingService = options.embeddingService;
+    } else if (options.openAIAdapter) {
+      this.embeddingService = new EmbeddingService(
+        options.openAIAdapter,
+        this.logger,
+      );
+    } else {
+      throw new Error(
+        'Either embeddingService or openAIAdapter must be provided',
+      );
+    }
   }
 
   /**
@@ -308,7 +323,7 @@ export class ContextWindowOptimizer {
     semanticCutoff = 0.6,
   ): Promise<Array<{ item: ContextItem; score: number }>> {
     // Get embedding for query
-    const queryEmbedding = await this.embeddingService.createEmbedding(query);
+    const queryEmbedding = await this.embeddingService.generateEmbedding(query);
 
     // Get embeddings for items that don't have them
     const itemsWithEmbeddings = await Promise.all(
@@ -317,7 +332,7 @@ export class ContextWindowOptimizer {
           return item;
         }
 
-        const embedding = await this.embeddingService.createEmbedding(
+        const embedding = await this.embeddingService.generateEmbedding(
           item.content,
         );
         return {

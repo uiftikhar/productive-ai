@@ -299,7 +299,7 @@ export abstract class BaseAgent implements AgentInterface {
     return {
       executionTimeMs,
       tokensUsed: tokenUsage,
-      stepCount: steps
+      stepCount: steps,
     };
   }
 
@@ -310,7 +310,7 @@ export abstract class BaseAgent implements AgentInterface {
     request: AgentRequest,
     promptText: string,
     responseText: string,
-    modelInfo: { modelName: string; modelProvider: string }
+    modelInfo: { modelName: string; modelProvider: string },
   ): void {
     // Estimate token counts
     const promptTokens = this.estimateTokenCount(promptText);
@@ -326,7 +326,7 @@ export abstract class BaseAgent implements AgentInterface {
       modelProvider: modelInfo.modelProvider,
       promptTokens,
       completionTokens,
-      totalTokens
+      totalTokens,
     });
 
     // Update local metrics
@@ -341,15 +341,16 @@ export abstract class BaseAgent implements AgentInterface {
     streamingHandler: any,
     modelInfo: { modelName: string; modelProvider: string },
     streamingAggregator?: MultiAgentStreamingAggregator,
-    streamingRole?: 'leader' | 'follower' | 'parallel'
+    streamingRole?: 'leader' | 'follower' | 'parallel',
   ): any {
     // If we have an aggregator, register with it
     if (streamingAggregator) {
       const metadata: AgentStreamMetadata = {
         agentId: this.id,
         agentName: this.name,
-        priority: streamingRole === 'leader' ? 1 : (streamingRole === 'follower' ? 2 : 3),
-        role: streamingRole
+        priority:
+          streamingRole === 'leader' ? 1 : streamingRole === 'follower' ? 2 : 3,
+        role: streamingRole,
       };
 
       // Create streaming options
@@ -359,16 +360,19 @@ export abstract class BaseAgent implements AgentInterface {
         sessionId: request.context?.sessionId,
         modelName: modelInfo.modelName,
         modelProvider: modelInfo.modelProvider,
-        recordTokenUsage: true
+        recordTokenUsage: true,
       };
 
       // Register with the aggregator
-      return streamingAggregator.registerAgentStream(metadata, streamingOptions);
+      return streamingAggregator.registerAgentStream(
+        metadata,
+        streamingOptions,
+      );
     }
 
     // Otherwise create a direct streaming handler
     const requestId = uuidv4();
-    
+
     return this.streamingManager.createStreamingHandler(
       requestId,
       streamingHandler,
@@ -378,8 +382,8 @@ export abstract class BaseAgent implements AgentInterface {
         sessionId: request.context?.sessionId,
         modelName: modelInfo.modelName,
         modelProvider: modelInfo.modelProvider,
-        recordTokenUsage: true
-      }
+        recordTokenUsage: true,
+      },
     );
   }
 

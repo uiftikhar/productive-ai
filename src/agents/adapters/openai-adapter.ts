@@ -14,6 +14,12 @@ import {
 import { LangChainConfig } from '../../langchain/config.ts';
 import { Logger } from '../../shared/logger/logger.interface.ts';
 import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
+import {
+  LanguageModelAdapter,
+  MessageConfig,
+  StreamHandler,
+  ModelResponse,
+} from './language-model-adapter.interface.ts';
 
 /**
  * Model configuration for OpenAI API calls
@@ -26,34 +32,17 @@ export interface OpenAIModelConfig {
 }
 
 /**
- * Configuration for embeddings generation
+ * Embedding configuration for OpenAI API calls
  */
 export interface EmbeddingConfig {
   model: string;
 }
 
 /**
- * Message type for OpenAI conversations
- */
-export interface MessageConfig {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
-
-/**
- * Stream handler for OpenAI streaming responses
- */
-export interface StreamHandler {
-  onToken(token: string): void;
-  onComplete(fullResponse: string): void;
-  onError(error: Error): void;
-}
-
-/**
  * OpenAI adapter for the agent framework
  * Provides a simplified interface for OpenAI API interactions
  */
-export class OpenAIAdapter {
+export class OpenAIAdapter implements LanguageModelAdapter {
   private chatModel: ChatOpenAI;
   private embeddings: OpenAIEmbeddings;
   private logger: Logger;
@@ -122,16 +111,20 @@ export class OpenAIAdapter {
   }
 
   /**
-   * Generate a chat completion
+   * Generate a response using the language model
    * @param messages Array of messages for the conversation
    * @param options Additional model options
    */
-  async generateChatCompletion(
-    messages: MessageConfig[],
+  async generateResponse(
+    messages: BaseMessage[] | MessageConfig[],
     options?: Partial<OpenAIModelConfig>,
-  ): Promise<string> {
+  ): Promise<ModelResponse> {
     try {
-      const modelMessages = this.createMessages(messages);
+      // Convert messages to the expected format if needed
+      const modelMessages =
+        Array.isArray(messages) && messages.length > 0 && 'role' in messages[0]
+          ? this.createMessages(messages as MessageConfig[])
+          : (messages as BaseMessage[]);
 
       // Create a temporary model with different options if needed
       let model = this.chatModel;
@@ -145,9 +138,15 @@ export class OpenAIAdapter {
       }
 
       const response = await model.invoke(modelMessages);
-      return response.content.toString();
+      return {
+        content: response.content.toString(),
+        metadata: {
+          model: model.modelName,
+          temperature: model.temperature,
+        },
+      };
     } catch (error) {
-      this.logger.error('Error generating chat completion', {
+      this.logger.error('Error generating response', {
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
@@ -155,18 +154,22 @@ export class OpenAIAdapter {
   }
 
   /**
-   * Generate a chat completion with streaming
+   * Generate a streaming response
    * @param messages Array of messages for the conversation
    * @param streamHandler Handler for streaming responses
    * @param options Additional model options
    */
-  async generateChatCompletionStream(
-    messages: MessageConfig[],
+  async generateStreamingResponse(
+    messages: BaseMessage[] | MessageConfig[],
     streamHandler: StreamHandler,
     options?: Partial<OpenAIModelConfig>,
   ): Promise<void> {
     try {
-      const modelMessages = this.createMessages(messages);
+      // Convert messages to the expected format if needed
+      const modelMessages =
+        Array.isArray(messages) && messages.length > 0 && 'role' in messages[0]
+          ? this.createMessages(messages as MessageConfig[])
+          : (messages as BaseMessage[]);
 
       // Ensure streaming is enabled
       const streamingModel = new ChatOpenAI({
@@ -176,17 +179,10 @@ export class OpenAIAdapter {
         streaming: true,
       });
 
-      // Create callback handlers for streaming
-      const callbacks = {
-        handleLLMNewToken(token: string) {
-          streamHandler.onToken(token);
-        },
-      };
-
       // Track the full response
       let fullResponse = '';
 
-      // Override the token handler to build the full response
+      // Create wrapped callbacks for streaming
       const wrappedCallbacks = {
         handleLLMNewToken(token: string) {
           fullResponse += token;
@@ -209,11 +205,46 @@ export class OpenAIAdapter {
         throw error;
       }
     } catch (error) {
-      this.logger.error('Error generating streaming chat completion', {
+      this.logger.error('Error generating streaming response', {
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
     }
+  }
+
+  /**
+   * Generate a chat completion
+   * @param messages Array of messages for the conversation
+   * @param options Additional model options
+   */
+  async generateChatCompletion(
+    messages: MessageConfig[],
+    options?: Partial<OpenAIModelConfig>,
+  ): Promise<string> {
+    const response = await this.generateResponse(messages, options);
+    return response.content;
+  }
+
+  /**
+   * Generate a chat completion with streaming
+   * @param messages Array of messages for the conversation
+   * @param streamHandler Handler for streaming responses
+   * @param options Additional model options
+   */
+  async generateChatCompletionStream(
+    messages: MessageConfig[],
+    streamHandler: StreamHandler,
+    options?: Partial<OpenAIModelConfig>,
+  ): Promise<void> {
+    return this.generateStreamingResponse(messages, streamHandler, options);
+  }
+
+  /**
+   * Generate embeddings for text
+   * @param text Text to generate embeddings for
+   */
+  async generateEmbedding(text: string): Promise<number[]> {
+    return this.generateEmbeddings(text);
   }
 
   /**

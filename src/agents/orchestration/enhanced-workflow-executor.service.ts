@@ -94,7 +94,10 @@ export class EnhancedWorkflowExecutorService {
   private registry: AgentRegistryService;
   private discovery: AgentDiscoveryService;
   private communicationBus: CommunicationBusService;
-  private activeStreamingAggregators: Map<string, MultiAgentStreamingAggregator> = new Map();
+  private activeStreamingAggregators: Map<
+    string,
+    MultiAgentStreamingAggregator
+  > = new Map();
 
   private static instance: EnhancedWorkflowExecutorService;
 
@@ -241,15 +244,18 @@ export class EnhancedWorkflowExecutorService {
           // Create a streaming aggregator for this workflow
           const streamingAggregator = this.createStreamingAggregator(
             workflowInstanceId,
-            options
+            options,
           );
-          
+
           // Store in active aggregators
-          this.activeStreamingAggregators.set(workflowInstanceId, streamingAggregator);
-          
+          this.activeStreamingAggregators.set(
+            workflowInstanceId,
+            streamingAggregator,
+          );
+
           // Use the aggregator in the workflow state
           initialState.variables.streamingAggregator = streamingAggregator;
-          
+
           // Create a streaming handler that will be used by individual agents
           initialState.variables.streamingHandler = {
             handleNewToken: (token: string) => {
@@ -261,7 +267,7 @@ export class EnhancedWorkflowExecutorService {
                 workflowInstanceId,
                 error: error.message,
               });
-              
+
               // Cancel the aggregator on error
               streamingAggregator.cancel(`Error in workflow: ${error.message}`);
             },
@@ -270,7 +276,7 @@ export class EnhancedWorkflowExecutorService {
                 workflowInstanceId,
                 responseLength: fullResponse.length,
               });
-              
+
               // The aggregator handles completion on its own
             },
           };
@@ -309,7 +315,8 @@ export class EnhancedWorkflowExecutorService {
 
       // Clean up streaming aggregator if it exists
       if (this.activeStreamingAggregators.has(workflowInstanceId)) {
-        const aggregator = this.activeStreamingAggregators.get(workflowInstanceId);
+        const aggregator =
+          this.activeStreamingAggregators.get(workflowInstanceId);
         aggregator?.complete();
         this.activeStreamingAggregators.delete(workflowInstanceId);
       }
@@ -399,8 +406,11 @@ export class EnhancedWorkflowExecutorService {
     } catch (error) {
       // Clean up streaming aggregator if it exists on error
       if (this.activeStreamingAggregators.has(workflowInstanceId)) {
-        const aggregator = this.activeStreamingAggregators.get(workflowInstanceId);
-        aggregator?.cancel(error instanceof Error ? error.message : String(error));
+        const aggregator =
+          this.activeStreamingAggregators.get(workflowInstanceId);
+        aggregator?.cancel(
+          error instanceof Error ? error.message : String(error),
+        );
         this.activeStreamingAggregators.delete(workflowInstanceId);
       }
 
@@ -551,7 +561,7 @@ export class EnhancedWorkflowExecutorService {
    */
   private createStreamingAggregator(
     workflowInstanceId: string,
-    options: EnhancedWorkflowExecutionOptions
+    options: EnhancedWorkflowExecutionOptions,
   ): MultiAgentStreamingAggregator {
     // Create a streaming callback that will forward tokens to the user's callback
     const streamingCallback: StreamAggregationCallback = {
@@ -564,27 +574,29 @@ export class EnhancedWorkflowExecutorService {
         this.logger.info('Multi-agent streaming complete', {
           workflowInstanceId,
           responseLength: fullResponse.length,
-          agents: metadata?.agents || []
+          agents: metadata?.agents || [],
         });
       },
       onError: (error: Error, metadata?: Record<string, any>) => {
         this.logger.error('Error in multi-agent streaming', {
           workflowInstanceId,
           error: error.message,
-          metadata
+          metadata,
         });
-      }
+      },
     };
-    
+
     // Create and return the aggregator
     return new MultiAgentStreamingAggregator(streamingCallback, {
       aggregationId: workflowInstanceId,
-      strategy: options.streamingOptions?.strategy || StreamAggregationStrategy.SEQUENTIAL,
+      strategy:
+        options.streamingOptions?.strategy ||
+        StreamAggregationStrategy.SEQUENTIAL,
       formatOptions: {
         showAgentNames: options.streamingOptions?.showAgentNames !== false,
-        aggregateAsTable: options.streamingOptions?.aggregateAsTable || false
+        aggregateAsTable: options.streamingOptions?.aggregateAsTable || false,
       },
-      logger: this.logger
+      logger: this.logger,
     });
   }
 }

@@ -1,6 +1,6 @@
 /**
  * Token Usage Manager
- * 
+ *
  * Centralizes token usage tracking across the system, providing:
  * - Token usage tracking by model, user, conversation, and session
  * - Token estimation for different model providers
@@ -48,12 +48,15 @@ export interface TokenUsageSummary {
   totalTokens: number;
   totalCost: number;
   recordCount: number;
-  byModel: Record<string, {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-    totalCost: number;
-  }>;
+  byModel: Record<
+    string,
+    {
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+      totalCost: number;
+    }
+  >;
 }
 
 /**
@@ -63,27 +66,30 @@ export class TokenUsageManager {
   private logger: Logger;
   private usageRecords: TokenUsageRecord[] = [];
   private budgets: TokenBudget[] = [];
-  
+
   // Token cost per 1000 tokens by provider and model
-  private tokenCosts: Record<string, Record<string, { prompt: number; completion: number }>> = {
+  private tokenCosts: Record<
+    string,
+    Record<string, { prompt: number; completion: number }>
+  > = {
     openai: {
       'gpt-4-turbo': { prompt: 0.01, completion: 0.03 },
       'gpt-4': { prompt: 0.03, completion: 0.06 },
       'gpt-3.5-turbo': { prompt: 0.0015, completion: 0.002 },
-      'default': { prompt: 0.01, completion: 0.03 }
+      default: { prompt: 0.01, completion: 0.03 },
     },
     anthropic: {
       'claude-3-opus': { prompt: 0.015, completion: 0.075 },
       'claude-3-sonnet': { prompt: 0.003, completion: 0.015 },
       'claude-3-haiku': { prompt: 0.00025, completion: 0.00125 },
-      'default': { prompt: 0.003, completion: 0.015 }
+      default: { prompt: 0.003, completion: 0.015 },
     },
     azure: {
-      'default': { prompt: 0.01, completion: 0.03 }
+      default: { prompt: 0.01, completion: 0.03 },
     },
     default: {
-      'default': { prompt: 0.01, completion: 0.03 }
-    }
+      default: { prompt: 0.01, completion: 0.03 },
+    },
   };
 
   private static instance: TokenUsageManager;
@@ -108,28 +114,30 @@ export class TokenUsageManager {
   /**
    * Record token usage for a single API call
    */
-  public recordUsage(usage: Omit<TokenUsageRecord, 'timestamp' | 'cost'>): TokenUsageRecord {
+  public recordUsage(
+    usage: Omit<TokenUsageRecord, 'timestamp' | 'cost'>,
+  ): TokenUsageRecord {
     // Calculate cost
     const cost = this.calculateCost(
       usage.modelProvider,
       usage.modelName,
       usage.promptTokens,
-      usage.completionTokens
+      usage.completionTokens,
     );
 
     const record: TokenUsageRecord = {
       ...usage,
       timestamp: Date.now(),
-      cost
+      cost,
     };
 
     this.usageRecords.push(record);
-    
+
     // Log the usage
     this.logger.info('Token usage recorded', {
       model: usage.modelName,
       tokens: usage.totalTokens,
-      cost: cost.toFixed(4)
+      cost: cost.toFixed(4),
     });
 
     // Check if usage exceeds any budgets
@@ -145,18 +153,18 @@ export class TokenUsageManager {
     provider: string,
     modelName: string,
     promptTokens: number,
-    completionTokens: number
+    completionTokens: number,
   ): number {
     // Get provider costs or default
     const providerCosts = this.tokenCosts[provider] || this.tokenCosts.default;
-    
+
     // Get model costs or default for that provider
     const modelCosts = providerCosts[modelName] || providerCosts.default;
-    
+
     // Calculate cost (converting to cost per token from cost per 1000 tokens)
     const promptCost = (promptTokens / 1000) * modelCosts.prompt;
     const completionCost = (completionTokens / 1000) * modelCosts.completion;
-    
+
     return promptCost + completionCost;
   }
 
@@ -173,39 +181,47 @@ export class TokenUsageManager {
       if (budget.provider && budget.provider !== usage.modelProvider) continue;
 
       // Filter records for this budget
-      const relevantRecords = this.usageRecords.filter(record => {
+      const relevantRecords = this.usageRecords.filter((record) => {
         // Check user, model, provider filters
         const userMatch = !budget.userId || record.userId === budget.userId;
-        const modelMatch = !budget.modelName || record.modelName === budget.modelName;
-        const providerMatch = !budget.provider || record.modelProvider === budget.provider;
-        
+        const modelMatch =
+          !budget.modelName || record.modelName === budget.modelName;
+        const providerMatch =
+          !budget.provider || record.modelProvider === budget.provider;
+
         // Check timeframe
         let timeMatch = true;
         if (budget.timeframe) {
           const msInDay = 24 * 60 * 60 * 1000;
-          
+
           switch (budget.timeframe) {
             case 'daily':
-              timeMatch = (now - record.timestamp) <= msInDay;
+              timeMatch = now - record.timestamp <= msInDay;
               break;
             case 'weekly':
-              timeMatch = (now - record.timestamp) <= 7 * msInDay;
+              timeMatch = now - record.timestamp <= 7 * msInDay;
               break;
             case 'monthly':
-              timeMatch = (now - record.timestamp) <= 30 * msInDay;
+              timeMatch = now - record.timestamp <= 30 * msInDay;
               break;
             case 'total':
               timeMatch = true;
               break;
           }
         }
-        
+
         return userMatch && modelMatch && providerMatch && timeMatch;
       });
 
       // Calculate totals
-      const totalTokens = relevantRecords.reduce((sum, record) => sum + record.totalTokens, 0);
-      const totalCost = relevantRecords.reduce((sum, record) => sum + record.cost, 0);
+      const totalTokens = relevantRecords.reduce(
+        (sum, record) => sum + record.totalTokens,
+        0,
+      );
+      const totalCost = relevantRecords.reduce(
+        (sum, record) => sum + record.cost,
+        0,
+      );
 
       // Check if budget is exceeded
       if (budget.maxTokens && totalTokens > budget.maxTokens) {
@@ -214,7 +230,7 @@ export class TokenUsageManager {
           used: totalTokens,
           modelName: budget.modelName || 'all',
           userId: budget.userId || 'all',
-          timeframe: budget.timeframe || 'total'
+          timeframe: budget.timeframe || 'total',
         });
       }
 
@@ -224,7 +240,7 @@ export class TokenUsageManager {
           used: totalCost.toFixed(4),
           modelName: budget.modelName || 'all',
           userId: budget.userId || 'all',
-          timeframe: budget.timeframe || 'total'
+          timeframe: budget.timeframe || 'total',
         });
       }
     }
@@ -240,7 +256,7 @@ export class TokenUsageManager {
       maxCost: budget.maxCost,
       modelName: budget.modelName || 'all',
       userId: budget.userId || 'all',
-      timeframe: budget.timeframe || 'total'
+      timeframe: budget.timeframe || 'total',
     });
   }
 
@@ -265,12 +281,19 @@ export class TokenUsageManager {
     conversationId?: string;
   }): TokenUsageSummary {
     // Filter records based on criteria
-    const filteredRecords = this.usageRecords.filter(record => {
+    const filteredRecords = this.usageRecords.filter((record) => {
       if (filter?.userId && record.userId !== filter.userId) return false;
-      if (filter?.modelName && record.modelName !== filter.modelName) return false;
-      if (filter?.provider && record.modelProvider !== filter.provider) return false;
-      if (filter?.conversationId && record.conversationId !== filter.conversationId) return false;
-      if (filter?.startTime && record.timestamp < filter.startTime) return false;
+      if (filter?.modelName && record.modelName !== filter.modelName)
+        return false;
+      if (filter?.provider && record.modelProvider !== filter.provider)
+        return false;
+      if (
+        filter?.conversationId &&
+        record.conversationId !== filter.conversationId
+      )
+        return false;
+      if (filter?.startTime && record.timestamp < filter.startTime)
+        return false;
       if (filter?.endTime && record.timestamp > filter.endTime) return false;
       return true;
     });
@@ -282,7 +305,7 @@ export class TokenUsageManager {
       totalTokens: 0,
       totalCost: 0,
       recordCount: filteredRecords.length,
-      byModel: {}
+      byModel: {},
     };
 
     // Calculate totals
@@ -298,7 +321,7 @@ export class TokenUsageManager {
           promptTokens: 0,
           completionTokens: 0,
           totalTokens: 0,
-          totalCost: 0
+          totalCost: 0,
         };
       }
 
@@ -325,12 +348,12 @@ export class TokenUsageManager {
   public setTokenCosts(
     provider: string,
     modelName: string,
-    costs: { prompt: number; completion: number }
+    costs: { prompt: number; completion: number },
   ): void {
     if (!this.tokenCosts[provider]) {
       this.tokenCosts[provider] = { default: this.tokenCosts.default.default };
     }
-    
+
     this.tokenCosts[provider][modelName] = costs;
   }
-} 
+}

@@ -282,15 +282,15 @@ describe('BaseAgent', () => {
     // Mock Date.now to ensure consistent timing
     const originalDateNow = Date.now;
     let callCount = 0;
-    
+
     try {
       // Mock Date.now to return increasing values
       jest.spyOn(global.Date, 'now').mockImplementation(() => {
         callCount++;
         // Return base time + 100ms per call to simulate time passing
-        return 1600000000000 + (callCount * 100);
+        return 1600000000000 + callCount * 100;
       });
-      
+
       // Execute multiple times to build up metrics
       const request: AgentRequest = {
         input: 'Test',
@@ -739,15 +739,15 @@ describe('BaseAgent', () => {
     // Mock Date.now to ensure consistent timing
     const originalDateNow = Date.now;
     let callCount = 0;
-    
+
     try {
       // Mock Date.now to return increasing values
       jest.spyOn(global.Date, 'now').mockImplementation(() => {
         callCount++;
         // Return base time + 100ms per call to simulate time passing
-        return 1600000000000 + (callCount * 100);
+        return 1600000000000 + callCount * 100;
       });
-    
+
       // Create a custom agent to target specific lines
       class EdgeCaseAgent extends BaseAgent {
         constructor() {

@@ -101,23 +101,23 @@ export class WorkflowDefinitionService {
     if (!workflow.id) {
       workflow.id = uuidv4();
     }
-    
+
     // Add creation date if not set
     if (!workflow.createdAt) {
       workflow.createdAt = Date.now();
     }
-    
+
     // Set updated date to current time
     workflow.updatedAt = Date.now();
-    
+
     // Store the workflow
     this.workflows.set(workflow.id, workflow);
-    
+
     // Update latest version mapping
     this.latestVersions.set(workflow.name, workflow.id);
-    
+
     this.logger.info(`Workflow registered: ${workflow.name} (${workflow.id})`, {
-      version: workflow.version
+      version: workflow.version,
     });
   }
 
@@ -378,7 +378,8 @@ export class WorkflowDefinitionService {
     const adaptiveQueryWorkflow: WorkflowDefinition = {
       id: uuidv4(),
       name: 'adaptive-query',
-      description: 'Process queries with adaptive model selection and knowledge retrieval',
+      description:
+        'Process queries with adaptive model selection and knowledge retrieval',
       startAt: 'retrieveKnowledge',
       version: '1.0.0',
       createdAt: Date.now(),
@@ -399,14 +400,16 @@ export class WorkflowDefinitionService {
         {
           id: 'selectModel',
           name: 'Select Model',
-          description: 'Select the appropriate model based on query and context',
+          description:
+            'Select the appropriate model based on query and context',
           capability: 'select_model',
           onSuccess: ['generateResponse'],
         },
         {
           id: 'generateResponse',
           name: 'Generate Response',
-          description: 'Generate a response using the selected model and context',
+          description:
+            'Generate a response using the selected model and context',
           capability: 'generate_response',
           streaming: true,
         },
@@ -418,15 +421,16 @@ export class WorkflowDefinitionService {
         multiAgent: false,
         strategy: StreamAggregationStrategy.SEQUENTIAL,
         showAgentNames: false,
-        aggregateAsTable: false
-      }
+        aggregateAsTable: false,
+      },
     };
 
     // Add a multi-agent collaborative workflow
     const collaborativeWorkflow: WorkflowDefinition = {
       id: uuidv4(),
       name: 'collaborative-analysis',
-      description: 'Analyze data with multiple specialized agents collaborating',
+      description:
+        'Analyze data with multiple specialized agents collaborating',
       startAt: 'analyzeData',
       version: '1.0.0',
       createdAt: Date.now(),
@@ -475,19 +479,19 @@ export class WorkflowDefinitionService {
         multiAgent: true,
         strategy: StreamAggregationStrategy.LEADER_FOLLOWER,
         showAgentNames: true,
-        aggregateAsTable: false
+        aggregateAsTable: false,
       },
       metadata: {
-        multiAgentStreaming: true
-      }
+        multiAgentStreaming: true,
+      },
     };
 
     // Register the workflows
     this.registerWorkflow(adaptiveQueryWorkflow);
     this.registerWorkflow(collaborativeWorkflow);
-    
+
     this.logger.info('Default workflows initialized', {
-      workflowCount: this.workflows.size
+      workflowCount: this.workflows.size,
     });
   }
 }

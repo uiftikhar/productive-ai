@@ -5,6 +5,7 @@ export * from './agent-context.adapter.ts';
 export * from './pinecone-adapter.ts';
 export * from './openai-adapter.ts';
 export * from './context-adapter.interface.ts';
+export * from './language-model-adapter.interface.ts';
 
 // Export adapter factory
 import { AgentContextAdapter } from './agent-context.adapter.ts';
@@ -17,10 +18,13 @@ import { Logger } from '../../shared/logger/logger.interface.ts';
  * @param logger Optional logger to use with all adapters
  */
 export function createAdapters(logger?: Logger) {
+  const openaiAdapter = new OpenAIAdapter({ logger });
+
   return {
     contextAdapter: new AgentContextAdapter({ logger }),
     pineconeAdapter: new PineconeAdapter({ logger }),
-    openaiAdapter: new OpenAIAdapter({ logger }),
+    openaiAdapter: openaiAdapter,
+    languageModelAdapter: openaiAdapter, // The OpenAIAdapter implements LanguageModelAdapter
   };
 }
 
