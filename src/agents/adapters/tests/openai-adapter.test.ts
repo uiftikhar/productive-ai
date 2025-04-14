@@ -89,12 +89,9 @@ describe('OpenAIAdapter', () => {
     await expect(adapter.generateChatCompletion(messages)).rejects.toThrow(
       'LLM API error',
     );
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      'Error generating chat completion',
-      {
-        error: 'LLM API error',
-      },
-    );
+    expect(mockLogger.error).toHaveBeenCalledWith('Error generating response', {
+      error: 'LLM API error',
+    });
 
     // Restore original chatModel
     adapter['chatModel'] = originalChatModel;

@@ -1,14 +1,16 @@
 import OpenAI from 'openai';
 
 import { PromptManager } from '../shared/services/prompt-manager.service.ts';
+import { SystemRoleEnum } from '../shared/prompts/prompt-registry.ts';
+import { InstructionTemplateNameEnum } from '../shared/prompts/instruction-templates.ts';
 
 export async function processFinalSummary(
   combinedSummaries: string,
   client: OpenAI,
 ): Promise<string> {
   const prompt = PromptManager.createPrompt(
-    'MEETING_CHUNK_SUMMARIZER',
-    'FINAL_MEETING_SUMMARY',
+    SystemRoleEnum.MEETING_CHUNK_SUMMARIZER,
+    InstructionTemplateNameEnum.FINAL_MEETING_SUMMARY,
     combinedSummaries,
   );
 

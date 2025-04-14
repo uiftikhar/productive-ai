@@ -1,9 +1,13 @@
+import { InstructionTemplateNameEnum } from '../../prompts/instruction-templates.ts';
+import { SystemRoleEnum } from '../../prompts/prompt-types.ts';
 import { PromptManager } from '../prompt-manager.service.ts';
 
 describe('PromptManager', () => {
   describe('getSystemMessage', () => {
     it('should return correct system message for AGILE_COACH role', () => {
-      const message = PromptManager.getSystemMessage('AGILE_COACH');
+      const message = PromptManager.getSystemMessage(
+        SystemRoleEnum.AGILE_COACH,
+      );
       expect(message.role).toBe('system');
       expect(message.content).toContain('Agile Coach');
     });
@@ -18,8 +22,8 @@ describe('PromptManager', () => {
   describe('createPrompt', () => {
     it('should create valid prompt with user context', () => {
       const prompt = PromptManager.createPrompt(
-        'AGILE_COACH',
-        'TICKET_GENERATION',
+        SystemRoleEnum.AGILE_COACH,
+        InstructionTemplateNameEnum.TICKET_GENERATION,
         'Test content',
         'User prefers detailed tickets',
       );

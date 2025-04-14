@@ -153,9 +153,9 @@ describe('KnowledgeRetrievalAgent Integration Tests', () => {
 
     // Setup mocked EmbeddingService
     embeddingService = new EmbeddingService();
-    embeddingService.createEmbeddings = jest.fn().mockResolvedValue({
-      embeddings: [new Array(1536).fill(0).map((_, i) => i / 1536)],
-    });
+    embeddingService.generateEmbedding = jest
+      .fn()
+      .mockResolvedValue(new Array(1536).fill(0).map((_, i) => i / 1536));
 
     // Setup mocked AgentContextAdapter
     mockContextAdapter = new AgentContextAdapter();
@@ -239,9 +239,9 @@ describe('KnowledgeRetrievalAgent Integration Tests', () => {
     expect(JSON.parse(response.output).length).toBeGreaterThan(0);
 
     // Verify that embeddings were created for the query
-    expect(embeddingService.createEmbeddings).toHaveBeenCalledWith([
+    expect(embeddingService.generateEmbedding).toHaveBeenCalledWith(
       request.input,
-    ]);
+    );
 
     // Verify that document search was called
     expect(documentContextService.searchDocumentContent).toHaveBeenCalledWith(
@@ -292,9 +292,9 @@ describe('KnowledgeRetrievalAgent Integration Tests', () => {
     expect(response.artifacts.strategy).toBe(RagRetrievalStrategy.HYBRID);
 
     // Verify that embeddings were created for the query
-    expect(embeddingService.createEmbeddings).toHaveBeenCalledWith([
+    expect(embeddingService.generateEmbedding).toHaveBeenCalledWith(
       request.input,
-    ]);
+    );
 
     // Verify that the RAG prompt was created
     expect(ragPromptManager.createRagPrompt).toHaveBeenCalledWith(

@@ -1,7 +1,10 @@
 // TODOO Remove User context service
 import { PromptManager } from './prompt-manager.service.ts';
-import type { SystemRole } from '../prompts/prompt-types.ts';
-import type { InstructionTemplateName } from '../prompts/instruction-templates.ts';
+import { SystemRoleEnum, type SystemRole } from '../prompts/prompt-types.ts';
+import {
+  InstructionTemplateNameEnum,
+  type InstructionTemplateName,
+} from '../prompts/instruction-templates.ts';
 import { ContextType } from '../user-context/context-types.ts';
 import {
   PromptLibrary,
@@ -334,8 +337,8 @@ export class RagPromptManager {
     return {
       messages,
       retrievedContext,
-      templateName: 'CUSTOM' as InstructionTemplateName, // Using custom template
-      systemRole: 'ASSISTANT' as SystemRole, // Default role
+      templateName: InstructionTemplateNameEnum.CUSTOM, // Using custom template
+      systemRole: SystemRoleEnum.ASSISTANT, // Default role
       usedComponents: [
         ...promptComponents.systemComponents,
         ...promptComponents.instructionComponents,

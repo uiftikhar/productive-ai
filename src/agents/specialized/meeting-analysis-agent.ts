@@ -7,6 +7,20 @@ import { OpenAIAdapter } from '../adapters/openai-adapter.ts';
 import { EmbeddingService } from '../../shared/embedding/embedding.service.ts';
 import { ContextType } from '../../shared/user-context/types/context.types.ts';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  RagPromptManager,
+  RagRetrievalStrategy,
+} from '../../shared/services/rag-prompt-manager.service.ts';
+import { splitTranscript } from '../../shared/utils/split-transcript.ts';
+import {
+  SystemRole,
+  SystemRoleEnum,
+} from '../../shared/prompts/prompt-types.ts';
+import {
+  InstructionTemplateName,
+  InstructionTemplateNameEnum,
+} from '../../shared/prompts/instruction-templates.ts';
+import { MessageConfig } from '../adapters/language-model-adapter.interface.ts';
 
 export interface MeetingAnalysisResult {
   summary: string;
@@ -45,6 +59,7 @@ export interface MeetingAnalysisResult {
 export class MeetingAnalysisAgent extends BaseAgent {
   private meetingContextService: MeetingContextService;
   private embeddingService: EmbeddingService;
+  private ragPromptManager: RagPromptManager;
 
   constructor(
     options: {
@@ -55,6 +70,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
       openaiAdapter?: OpenAIAdapter;
       meetingContextService?: MeetingContextService;
       embeddingService?: EmbeddingService;
+      ragPromptManager?: RagPromptManager;
     } = {},
   ) {
     super(
@@ -86,6 +102,9 @@ export class MeetingAnalysisAgent extends BaseAgent {
       );
     }
 
+    // Initialize RAG prompt manager
+    this.ragPromptManager = options.ragPromptManager || new RagPromptManager();
+
     // Register capabilities
     this.registerCapability({
       name: 'analyze_meeting',
@@ -97,6 +116,8 @@ export class MeetingAnalysisAgent extends BaseAgent {
         participantIds: 'IDs of meeting participants',
         meetingStartTime: 'Start time of the meeting (timestamp)',
         meetingEndTime: 'End time of the meeting (timestamp)',
+        previousMeetingIds:
+          'IDs of related previous meetings to provide context',
       },
     });
 
@@ -106,6 +127,8 @@ export class MeetingAnalysisAgent extends BaseAgent {
       parameters: {
         meetingId: 'Unique identifier for the meeting',
         transcript: 'Meeting transcript text or segment',
+        previousMeetingIds:
+          'IDs of related previous meetings to provide context',
       },
     });
 
@@ -115,6 +138,8 @@ export class MeetingAnalysisAgent extends BaseAgent {
       parameters: {
         meetingId: 'Unique identifier for the meeting',
         transcript: 'Meeting transcript text or segment',
+        previousMeetingIds:
+          'IDs of related previous meetings to provide context',
       },
     });
 
@@ -124,6 +149,8 @@ export class MeetingAnalysisAgent extends BaseAgent {
       parameters: {
         meetingId: 'Unique identifier for the meeting',
         transcript: 'Meeting transcript text or segment',
+        previousMeetingIds:
+          'IDs of related previous meetings to provide context',
       },
     });
 
@@ -134,6 +161,8 @@ export class MeetingAnalysisAgent extends BaseAgent {
         meetingId: 'Unique identifier for the meeting',
         transcript: 'Meeting transcript text',
         maxLength: 'Maximum length of the summary in characters',
+        previousMeetingIds:
+          'IDs of related previous meetings to provide context',
       },
     });
 
@@ -240,6 +269,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
 
   /**
    * Analyze a meeting transcript and extract all key information
+   * Updated to use RAG prompt manager instead of hardcoded prompts
    */
   private async analyzeMeeting(
     userId: string,
@@ -261,6 +291,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
     const participantIds = parameters.participantIds || [];
     const meetingStartTime = parameters.meetingStartTime || Date.now();
     const meetingEndTime = parameters.meetingEndTime || Date.now();
+    const previousMeetingIds = parameters.previousMeetingIds || [];
 
     // Generate embedding for the transcript
     const transcriptEmbeddings =
@@ -278,43 +309,89 @@ export class MeetingAnalysisAgent extends BaseAgent {
       meetingEndTime,
     );
 
-    // Process the transcript to extract key information
-    const analysisPrompt = `
-    You are an AI assistant tasked with analyzing a meeting transcript.
-    Extract the following information:
-    1. A concise summary (max 3 paragraphs)
-    2. All decisions made during the meeting
-    3. All action items, including who they are assigned to
-    4. Any questions that were asked but not answered
-    5. Key topics discussed
-    6. Overall sentiment analysis
+    // Split transcript into manageable chunks
+    const chunks = splitTranscript(transcript, 2000, 3);
+    const partialAnalyses: string[] = [];
 
-    For each action item, include the assignee name and any mentioned due date.
-    For each decision, provide the specific decision text.
-    For unanswered questions, list the question text.
+    // Process each chunk with RAG context
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
 
-    Format your response as JSON with the following structure:
-    {
-      "summary": "Meeting summary text",
-      "decisions": [{"text": "Decision text", "summary": "Brief decision summary"}],
-      "actionItems": [{"text": "Action item text", "assignee": "Assignee name", "dueDate": "Due date (if mentioned)"}],
-      "questions": [{"text": "Question text", "isAnswered": false}],
-      "keyTopics": ["Topic 1", "Topic 2"],
-      "sentimentAnalysis": {"overall": "positive/neutral/negative"}
+      // Create RAG context options with previous meetings as context
+      const contextOptions = {
+        userId,
+        queryText: chunk,
+        queryEmbedding: transcriptEmbeddings,
+        strategy: RagRetrievalStrategy.HYBRID,
+        maxItems: 3,
+        documentIds: previousMeetingIds,
+        contentTypes: [
+          ContextType.MEETING,
+          ContextType.DECISION,
+          ContextType.ACTION_ITEM,
+        ],
+      };
+
+      // Generate prompt using RAG prompt manager
+      const ragPrompt = await this.ragPromptManager.createRagPrompt(
+        SystemRoleEnum.ASSISTANT,
+        InstructionTemplateNameEnum.MEETING_ANALYSIS_CHUNK,
+        chunk,
+        contextOptions,
+      );
+
+      if (!this.openaiAdapter) {
+        throw new Error('OpenAI adapter is required for meeting analysis');
+      }
+
+      // Generate analysis for this chunk
+      const messages: MessageConfig[] = ragPrompt.messages.map((m) => ({
+        role: m.role as 'system' | 'user' | 'assistant',
+        content: m.content,
+      }));
+
+      const chunkAnalysis =
+        await this.openaiAdapter.generateChatCompletion(messages);
+
+      if (chunkAnalysis) {
+        partialAnalyses.push(chunkAnalysis);
+      }
     }
 
-    Transcript:
-    ${transcript}
-    `;
+    // Combine the partial analyses into a final prompt
+    const combinedAnalysis = partialAnalyses.join('\n\n');
 
-    if (!this.openaiAdapter) {
-      throw new Error('OpenAI adapter is required for meeting analysis');
-    }
+    // Create final analysis context options
+    const finalContextOptions = {
+      userId,
+      queryText: `Final meeting analysis for ${meetingTitle}`,
+      queryEmbedding: transcriptEmbeddings,
+      strategy: RagRetrievalStrategy.HYBRID,
+      maxItems: 5,
+      documentIds: previousMeetingIds,
+      contentTypes: [
+        ContextType.MEETING,
+        ContextType.DECISION,
+        ContextType.ACTION_ITEM,
+      ],
+    };
 
-    // Call the LLM to analyze the meeting
-    const llmResponse = await this.openaiAdapter.generateChatCompletion([
-      { role: 'user', content: analysisPrompt },
-    ]);
+    // Generate final prompt with RAG context
+    const finalRagPrompt = await this.ragPromptManager.createRagPrompt(
+      SystemRoleEnum.MEETING_ANALYST,
+      InstructionTemplateNameEnum.FINAL_MEETING_SUMMARY,
+      combinedAnalysis,
+      finalContextOptions,
+    );
+
+    // Generate final analysis
+    const finalMessages: MessageConfig[] = finalRagPrompt.messages.map((m) => ({
+      role: m.role as 'system' | 'user' | 'assistant',
+      content: m.content,
+    }));
+
+    const llmResponse =
+      await this.openaiAdapter!.generateChatCompletion(finalMessages);
 
     if (!llmResponse) {
       throw new Error('Failed to analyze meeting transcript');
@@ -333,6 +410,17 @@ export class MeetingAnalysisAgent extends BaseAgent {
 
     // Store extracted data in the context database
     await this.storeExtractedMeetingData(userId, meetingId, analysisResult);
+
+    // Store the RAG interaction for future context
+    await this.ragPromptManager.storeRagInteraction(
+      userId,
+      transcript.substring(0, 1000) + '...',
+      transcriptEmbeddings,
+      JSON.stringify(analysisResult),
+      transcriptEmbeddings, // Simplified - should get proper embedding for response
+      finalRagPrompt.retrievedContext,
+      meetingId, // Using meetingId as conversationId for context tracking
+    );
 
     return {
       output: JSON.stringify(analysisResult),

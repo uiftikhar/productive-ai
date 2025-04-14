@@ -2,6 +2,8 @@ import OpenAI from 'openai';
 
 import { processAllChunks } from '../shared/utils/process-chunk.ts';
 import { splitTranscript } from '../shared/utils/split-transcript.ts';
+import { InstructionTemplateNameEnum } from '../shared/prompts/instruction-templates.ts';
+import { SystemRoleEnum } from '../shared/prompts/prompt-types.ts';
 
 export interface Ticket {
   ticketType: string;
@@ -112,8 +114,8 @@ export async function generateJiraTickets(
     const partialTickets = await processAllChunks(
       chunks,
       client,
-      'AGILE_COACH',
-      'TICKET_GENERATION',
+      SystemRoleEnum.AGILE_COACH,
+      InstructionTemplateNameEnum.TICKET_GENERATION,
       userId,
     );
 

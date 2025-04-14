@@ -11,6 +11,8 @@ import {
   RagPromptManager,
 } from '../shared/services/rag-prompt-manager.service.ts';
 import { ContextType } from '../shared/user-context/context-types.ts';
+import { InstructionTemplateNameEnum } from '../shared/prompts/instruction-templates.ts';
+import { SystemRoleEnum } from '../shared/prompts/prompt-types.ts';
 
 /**
  * Generate Jira tickets using RAG-enhanced context
@@ -71,8 +73,8 @@ export async function generateRagTickets(
 
       // Generate RAG-enhanced prompt with context
       const ragPrompt = await ragManager.createRagPrompt(
-        'AGILE_COACH',
-        'TICKET_GENERATION',
+        SystemRoleEnum.AGILE_COACH,
+        InstructionTemplateNameEnum.TICKET_GENERATION,
         chunk,
         contextOptions,
       );

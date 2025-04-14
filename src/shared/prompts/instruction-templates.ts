@@ -1,9 +1,18 @@
 import type { InstructionTemplate } from './prompt-types.ts';
 
+export enum InstructionTemplateNameEnum {
+  TICKET_GENERATION = 'TICKET_GENERATION',
+  MEETING_CHUNK_SUMMARY = 'MEETING_CHUNK_SUMMARY',
+  FINAL_MEETING_SUMMARY = 'FINAL_MEETING_SUMMARY',
+  MEETING_ANALYSIS_CHUNK = 'MEETING_ANALYSIS_CHUNK',
+  CUSTOM = 'CUSTOM',
+}
 export type InstructionTemplateName =
-  | 'TICKET_GENERATION'
-  | 'MEETING_CHUNK_SUMMARY'
-  | 'FINAL_MEETING_SUMMARY';
+  | InstructionTemplateNameEnum.TICKET_GENERATION
+  | InstructionTemplateNameEnum.MEETING_CHUNK_SUMMARY
+  | InstructionTemplateNameEnum.FINAL_MEETING_SUMMARY
+  | InstructionTemplateNameEnum.MEETING_ANALYSIS_CHUNK
+  | InstructionTemplateNameEnum.CUSTOM;
 
 export const InstructionTemplates: Record<
   InstructionTemplateName,
@@ -88,6 +97,51 @@ export const InstructionTemplates: Record<
       'All sections must be complete and detailed',
     ],
   },
+  MEETING_ANALYSIS_CHUNK: {
+    format: {
+      requiredSections: [
+        'action items',
+        'decisions',
+        'questions',
+        'key topics',
+      ],
+      outputFormat: 'json_object',
+      jsonSchema: {
+        properties: {
+          actionItems: {
+            type: 'array',
+            description: 'Action items with assignees and due dates',
+          },
+          decisions: {
+            type: 'array',
+            description: 'Key decisions made in the meeting',
+          },
+          questions: {
+            type: 'array',
+            description:
+              'Questions asked during the meeting, marked if answered',
+          },
+          keyTopics: {
+            type: 'array',
+            description: 'Main topics discussed in the meeting',
+          },
+        },
+      },
+    },
+    rules: [
+      'Extract all action items with assignees and any mentioned due dates',
+      'Identify all decisions made during the discussion',
+      'Capture all questions and mark whether they were answered',
+      'List all key topics that were discussed',
+      'Maintain the original context and meaning',
+      'Format output in structured JSON format',
+    ],
+    outputRequirements: [
+      'Complete structured data in JSON format',
+      'Include all identified elements for comprehensive analysis',
+      'Ensure proper attribution for action items',
+    ],
+  },
   FINAL_MEETING_SUMMARY: {
     format: {
       requiredSections: ['Meeting Title', 'Summary', 'Decisions'],
@@ -123,6 +177,29 @@ export const InstructionTemplates: Record<
       'At least 3 key decisions, each explained in 3+ sentences',
       'Complete JSON object with all required fields',
       'Decisions must include title and detailed content',
+    ],
+  },
+  CUSTOM: {
+    format: {
+      requiredSections: ['content'],
+      outputFormat: 'json_object',
+      jsonSchema: {
+        properties: {
+          content: {
+            type: 'string',
+            description:
+              'Custom formatted content based on the specific request',
+          },
+        },
+      },
+    },
+    rules: [
+      'Follow the specific instructions provided for this custom template',
+      'Adapt output format to the task requirements',
+    ],
+    outputRequirements: [
+      'Follows specific formatting requirements as instructed',
+      'Complete and detailed output as required by the task',
     ],
   },
 };

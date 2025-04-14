@@ -5,6 +5,8 @@ import {
 } from '../shared/services/rag-prompt-manager.service.ts';
 import { splitTranscript } from '../shared/utils/split-transcript.ts';
 import { ContextType } from '../shared/user-context/context-types.ts';
+import { SystemRoleEnum } from '../shared/prompts/prompt-types.ts';
+import { InstructionTemplateNameEnum } from '../shared/prompts/instruction-templates.ts';
 
 /**
  * Generates a summary for a meeting transcript using RAG-enhanced context
@@ -65,8 +67,8 @@ export async function generateRagSummary(
 
       // Generate RAG-enhanced prompt with context
       const ragPrompt = await ragManager.createRagPrompt(
-        'MEETING_CHUNK_SUMMARIZER',
-        'MEETING_CHUNK_SUMMARY',
+        SystemRoleEnum.MEETING_CHUNK_SUMMARIZER,
+        InstructionTemplateNameEnum.MEETING_CHUNK_SUMMARY,
         chunk,
         contextOptions,
       );
@@ -116,8 +118,8 @@ export async function generateRagSummary(
 
     // Generate RAG-enhanced prompt for final summary
     const finalRagPrompt = await ragManager.createRagPrompt(
-      'MEETING_CHUNK_SUMMARIZER',
-      'FINAL_MEETING_SUMMARY',
+      SystemRoleEnum.MEETING_CHUNK_SUMMARIZER,
+      InstructionTemplateNameEnum.FINAL_MEETING_SUMMARY,
       combinedSummaries,
       finalContextOptions,
     );
