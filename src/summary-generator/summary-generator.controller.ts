@@ -1,8 +1,62 @@
 import type { Request, Response } from 'express';
 import express from 'express';
 import { promises as fs } from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 
-import { generateSummary } from './summary-generator.ts';
+import { SpecializedAgentOrchestratorImpl } from '../agents/specialized/orchestration/specialized-agent-orchestrator.ts';
+import { MeetingAnalysisAgent } from '../agents/specialized/meeting-analysis-agent.ts';
+import { MeetingContextService } from '../shared/user-context/services/meeting-context.service.ts';
+import { OpenAIAdapter } from '../agents/adapters/openai-adapter.ts';
+import { EmbeddingService } from '../shared/embedding/embedding.service.ts';
+import { RagPromptManager } from '../shared/services/rag-prompt-manager.service.ts';
+import { ConsoleLogger } from '../shared/logger/console-logger.ts';
+import { LangChainTracer } from 'langchain/callbacks';
+import { DecisionTrackingAgent } from '../agents/specialized/decision-tracking-agent.ts';
+import { specializedAgentOrchestrator } from '../agents/specialized/orchestration/specialized-agent-orchestrator.ts';
+
+// Initialize services
+const logger = new ConsoleLogger();
+const openaiAdapter = new OpenAIAdapter();
+const meetingContextService = new MeetingContextService();
+const embeddingService = new EmbeddingService(openaiAdapter, logger);
+const ragPromptManager = new RagPromptManager();
+
+// Initialize agent orchestrator
+specializedAgentOrchestrator.setLogger(logger);
+
+// Initialize specialized agents
+const meetingAnalysisAgent = new MeetingAnalysisAgent({
+  id: 'meeting-analysis-agent',
+  logger,
+  openaiAdapter,
+  meetingContextService,
+  embeddingService,
+  ragPromptManager
+});
+
+// Initialize the Decision Tracking Agent
+// const decisionTrackingAgent = new DecisionTrackingAgent(
+//   'Decision Tracking Agent',
+//   'Analyzes and tracks decisions across meetings',
+//   {
+//     id: 'decision-tracking-agent',
+//     logger,
+//     openaiAdapter
+//   }
+// );
+
+// Register agents with the singleton orchestrator
+specializedAgentOrchestrator.registerAgent(
+  'meeting-analysis',
+  ['meeting_analysis', 'summary_generation', 'action_item_detection'],
+  meetingAnalysisAgent
+);
+
+// orchestrator.registerAgent(
+//   'decision-tracking',
+//   ['analyze_decisions', 'generate_report', 'query_decisions'],
+//   decisionTrackingAgent
+// );
 
 export const getSummary = async (
   req: Request,
@@ -11,7 +65,6 @@ export const getSummary = async (
 ) => {
   try {
     // Optionally, you can accept transcript data from the request body.
-
     if (!req.file) {
       return res.status(400).json({ error: 'No transcript file uploaded.' });
     }
@@ -25,9 +78,96 @@ export const getSummary = async (
     // Optionally, you can remove the file after reading (cleanup)
     await fs.unlink(filePath);
 
-    const summary = await generateSummary(transcript);
-    res.json({ summary });
+    // Set up LangChain tracing if requested
+    let tracingEnabled = req.query.trace === 'true';
+    
+    // Comment out LangChain tracing for now as it needs proper implementation
+    /*
+    let tracer;
+    if (tracingEnabled) {
+      tracer = new LangChainTracer();
+      tracer.startTrace({
+        name: "Meeting Analysis",
+      });
+    }
+    */
+
+    // Generate meetingId
+    const meetingId = uuidv4();
+    
+    // Create agent request for meeting analysis
+    const meetingAnalysisRequest = {
+      input: transcript,
+      capability: 'analyze_meeting',
+      context: {
+        userId: req.body.userId || 'anonymous'
+      },
+      parameters: {
+        meetingId,
+        meetingTitle: req.body.meetingTitle || 'Untitled Meeting',
+        participantIds: req.body.participantIds || [],
+        includeTopics: true,
+        includeActionItems: true,
+        includeSentiment: req.body.includeSentiment === 'true',
+        trackDecisions: true
+      }
+    };
+
+    // Use the singleton for routing
+    const analysisResult = await specializedAgentOrchestrator.routeRequest(meetingAnalysisRequest);
+
+    // End tracing if enabled
+    /*
+    if (tracingEnabled && tracer) {
+      await tracer.endTrace();
+    }
+    */
+
+    // Return the analysis result
+    res.json({
+      meetingId,
+      analysis: analysisResult.output,
+      // visualizationUrl: tracingEnabled ? `/visualization?traceId=${tracer?.traceId}` : undefined
+    });
   } catch (error) {
+    logger.error('Error in getSummary', { error });
+    next(error);
+  }
+};
+
+// Add a new endpoint for decision reporting
+export const getDecisionReport = async (
+  req: Request,
+  res: Response,
+  next: express.NextFunction,
+) => {
+  try {
+    // Create agent request for decision reporting
+    const decisionReportRequest = {
+      input: "Generate decision report",
+      capability: 'generate_report',
+      context: {
+        userId: req.body.userId || 'anonymous'
+      },
+      parameters: {
+        format: req.body.format || 'summary',
+        groupBy: req.body.groupBy,
+        includeRationale: req.body.includeRationale === 'true',
+        includeImpact: req.body.includeImpact === 'true',
+        dateRange: req.body.dateRange,
+        filters: req.body.filters || {}
+      }
+    };
+
+    // Route the request to the decision tracking agent
+    const reportResult = await specializedAgentOrchestrator.routeRequest(decisionReportRequest);
+
+    // Return the report
+    res.json(typeof reportResult.output === 'string' 
+      ? JSON.parse(reportResult.output) 
+      : reportResult.output);
+  } catch (error) {
+    logger.error('Error in getDecisionReport', { error });
     next(error);
   }
 };

@@ -246,6 +246,7 @@ export class PromptLibrary {
       },
     );
 
+    // Instruction template
     // Task-specific components
     this.registerComponent(
       'summarization_instruction',

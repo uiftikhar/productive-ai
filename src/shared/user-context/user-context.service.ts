@@ -1,3 +1,8 @@
+// @deprecated
+// DO NOT USE THIS FILE
+// IT IS DEPRECATED AND WILL BE REMOVED SOON
+// USE THE NEW services in the src/shared/services folder instead 
+
 import {
   RecordMetadata,
   RecordMetadataValue,
@@ -11,6 +16,7 @@ import {
   ContextType,
   KnowledgeGapType,
 } from './context-types.ts';
+import { deprecate } from 'util';
 
 /**
  * Custom error types for UserContextService

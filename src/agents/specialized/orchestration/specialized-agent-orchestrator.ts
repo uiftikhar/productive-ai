@@ -27,7 +27,6 @@ class InMemoryCommunicationChannel implements AgentCommunicationChannel {
       message: AgentCommunicationMessage,
     ) => Promise<AgentCommunicationMessage | void>
   > = [];
-  private messageQueue: Map<string, AgentCommunicationMessage> = new Map();
   private pendingRequests: Map<
     string,
     {
@@ -163,6 +162,14 @@ export class SpecializedAgentOrchestratorImpl
 
   constructor(private logger: Logger = new ConsoleLogger()) {
     this.logger.info('Specialized Agent Orchestrator initialized');
+  }
+
+  /**
+   * Set the logger instance
+   */
+  setLogger(logger: Logger): void {
+    this.logger = logger;
+    this.logger.info('Specialized Agent Orchestrator logger updated');
   }
 
   /**
