@@ -210,9 +210,6 @@ export class MeetingAnalysisAgent extends BaseAgent {
   protected async executeInternal(
     request: AgentRequest,
   ): Promise<AgentResponse> {
-    this.logger.info('Executing Meeting Analysis Agent', {
-      request,
-    });
     const startTime = Date.now();
     const capability = request.capability || 'analyze_meeting';
 
@@ -293,37 +290,84 @@ export class MeetingAnalysisAgent extends BaseAgent {
     const meetingEndTime = parameters.meetingEndTime || Date.now();
     const previousMeetingIds = parameters.previousMeetingIds || [];
 
-    // Generate embedding for the transcript
-    const transcriptEmbeddings =
-      await this.embeddingService.generateEmbedding(transcript);
+    try {
+      // Generate embedding for the transcript - the embedding service now handles large texts
+      const transcriptEmbeddings =
+        await this.embeddingService.generateEmbedding(transcript);
 
-    // Store the meeting content in the database
-    await this.meetingContextService.storeMeetingContent(
-      userId,
-      meetingId,
-      meetingTitle,
-      transcript,
-      transcriptEmbeddings,
-      participantIds,
-      meetingStartTime,
-      meetingEndTime,
-    );
-
-    // Split transcript into manageable chunks
-    const chunks = splitTranscript(transcript, 2000, 3);
-    const partialAnalyses: string[] = [];
-
-    // Process each chunk with RAG context
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-
-      // Create RAG context options with previous meetings as context
-      const contextOptions = {
+      // Store the meeting content in the database
+      await this.meetingContextService.storeMeetingContent(
         userId,
-        queryText: chunk,
+        meetingId,
+        meetingTitle,
+        transcript,
+        transcriptEmbeddings,
+        participantIds,
+        meetingStartTime,
+        meetingEndTime,
+      );
+
+      // Split transcript into manageable chunks
+      const chunks = splitTranscript(transcript, 2000, 3);
+      const partialAnalyses: string[] = [];
+
+      // Process each chunk with RAG context
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        this.logger.info(`Processing chunk ${i + 1}/${chunks.length} (${chunk.length} chars)`);
+
+        // Create RAG context options with previous meetings as context
+        const contextOptions = {
+          userId,
+          queryText: chunk,
+          // Use the transcript embeddings for all chunks to maintain consistency
+          queryEmbedding: transcriptEmbeddings,
+          strategy: RagRetrievalStrategy.HYBRID,
+          maxItems: 3,
+          documentIds: previousMeetingIds,
+          contentTypes: [
+            ContextType.MEETING,
+            ContextType.DECISION,
+            ContextType.ACTION_ITEM,
+          ],
+        };
+
+        // Generate prompt using RAG prompt manager
+        const ragPrompt = await this.ragPromptManager.createRagPrompt(
+          SystemRoleEnum.ASSISTANT,
+          InstructionTemplateNameEnum.MEETING_ANALYSIS_CHUNK,
+          chunk,
+          contextOptions,
+        );
+
+        if (!this.openaiAdapter) {
+          throw new Error('OpenAI adapter is required for meeting analysis');
+        }
+
+        // Generate analysis for this chunk
+        const messages: MessageConfig[] = ragPrompt.messages.map((m) => ({
+          role: m.role as 'system' | 'user' | 'assistant',
+          content: m.content,
+        }));
+
+        const chunkAnalysis =
+          await this.openaiAdapter.generateChatCompletion(messages);
+
+        if (chunkAnalysis) {
+          partialAnalyses.push(chunkAnalysis);
+        }
+      }
+
+      // Combine the partial analyses into a final prompt
+      const combinedAnalysis = partialAnalyses.join('\n\n');
+
+      // Create final analysis context options
+      const finalContextOptions = {
+        userId,
+        queryText: `Final meeting analysis for ${meetingTitle}`,
         queryEmbedding: transcriptEmbeddings,
         strategy: RagRetrievalStrategy.HYBRID,
-        maxItems: 3,
+        maxItems: 5,
         documentIds: previousMeetingIds,
         contentTypes: [
           ContextType.MEETING,
@@ -332,107 +376,74 @@ export class MeetingAnalysisAgent extends BaseAgent {
         ],
       };
 
-      // Generate prompt using RAG prompt manager
-      const ragPrompt = await this.ragPromptManager.createRagPrompt(
-        SystemRoleEnum.ASSISTANT,
-        InstructionTemplateNameEnum.MEETING_ANALYSIS_CHUNK,
-        chunk,
-        contextOptions,
+      // Generate final prompt with RAG context
+      const finalRagPrompt = await this.ragPromptManager.createRagPrompt(
+        SystemRoleEnum.MEETING_ANALYST,
+        InstructionTemplateNameEnum.FINAL_MEETING_SUMMARY,
+        combinedAnalysis,
+        finalContextOptions,
       );
 
-      if (!this.openaiAdapter) {
-        throw new Error('OpenAI adapter is required for meeting analysis');
-      }
-
-      // Generate analysis for this chunk
-      const messages: MessageConfig[] = ragPrompt.messages.map((m) => ({
+      // Generate final analysis
+      const finalMessages: MessageConfig[] = finalRagPrompt.messages.map((m) => ({
         role: m.role as 'system' | 'user' | 'assistant',
         content: m.content,
       }));
 
-      const chunkAnalysis =
-        await this.openaiAdapter.generateChatCompletion(messages);
+      const llmResponse =
+        await this.openaiAdapter!.generateChatCompletion(finalMessages);
 
-      if (chunkAnalysis) {
-        partialAnalyses.push(chunkAnalysis);
+      if (!llmResponse) {
+        throw new Error('Failed to analyze meeting transcript');
       }
-    }
 
-    // Combine the partial analyses into a final prompt
-    const combinedAnalysis = partialAnalyses.join('\n\n');
+      let analysisResult: MeetingAnalysisResult;
+      try {
+        analysisResult = JSON.parse(llmResponse);
+      } catch (e) {
+        this.logger.error('Failed to parse meeting analysis result', {
+          error: e instanceof Error ? e.message : String(e),
+          content: llmResponse,
+        });
+        throw new Error('Failed to parse meeting analysis result');
+      }
 
-    // Create final analysis context options
-    const finalContextOptions = {
-      userId,
-      queryText: `Final meeting analysis for ${meetingTitle}`,
-      queryEmbedding: transcriptEmbeddings,
-      strategy: RagRetrievalStrategy.HYBRID,
-      maxItems: 5,
-      documentIds: previousMeetingIds,
-      contentTypes: [
-        ContextType.MEETING,
-        ContextType.DECISION,
-        ContextType.ACTION_ITEM,
-      ],
-    };
+      // Store extracted data in the context database
+      await this.storeExtractedMeetingData(userId, meetingId, analysisResult);
 
-    // Generate final prompt with RAG context
-    const finalRagPrompt = await this.ragPromptManager.createRagPrompt(
-      SystemRoleEnum.MEETING_ANALYST,
-      InstructionTemplateNameEnum.FINAL_MEETING_SUMMARY,
-      combinedAnalysis,
-      finalContextOptions,
-    );
+      // Store the RAG interaction for future context
+      // Use a truncated version of the transcript in the RAG interaction
+      const truncatedTranscript = 
+        transcript.length > 1000 ? transcript.substring(0, 1000) + '...' : transcript;
+        
+      await this.ragPromptManager.storeRagInteraction(
+        userId,
+        truncatedTranscript,
+        transcriptEmbeddings,
+        JSON.stringify(analysisResult),
+        transcriptEmbeddings, // Simplified - should get proper embedding for response
+        finalRagPrompt.retrievedContext,
+        meetingId, // Using meetingId as conversationId for context tracking
+      );
 
-    // Generate final analysis
-    const finalMessages: MessageConfig[] = finalRagPrompt.messages.map((m) => ({
-      role: m.role as 'system' | 'user' | 'assistant',
-      content: m.content,
-    }));
-
-    const llmResponse =
-      await this.openaiAdapter!.generateChatCompletion(finalMessages);
-
-    if (!llmResponse) {
-      throw new Error('Failed to analyze meeting transcript');
-    }
-
-    let analysisResult: MeetingAnalysisResult;
-    try {
-      analysisResult = JSON.parse(llmResponse);
-    } catch (e) {
-      this.logger.error('Failed to parse meeting analysis result', {
-        error: e instanceof Error ? e.message : String(e),
-        content: llmResponse,
-      });
-      throw new Error('Failed to parse meeting analysis result');
-    }
-
-    // Store extracted data in the context database
-    await this.storeExtractedMeetingData(userId, meetingId, analysisResult);
-
-    // Store the RAG interaction for future context
-    await this.ragPromptManager.storeRagInteraction(
-      userId,
-      transcript.substring(0, 1000) + '...',
-      transcriptEmbeddings,
-      JSON.stringify(analysisResult),
-      transcriptEmbeddings, // Simplified - should get proper embedding for response
-      finalRagPrompt.retrievedContext,
-      meetingId, // Using meetingId as conversationId for context tracking
-    );
-
-    return {
-      output: JSON.stringify(analysisResult),
-      artifacts: {
-        result: analysisResult,
+      return {
+        output: JSON.stringify(analysisResult),
+        artifacts: {
+          result: analysisResult,
+          meetingId,
+          meetingTitle,
+          analysisTimestamp: Date.now(),
+          participantCount: participantIds.length,
+        },
+        metrics: this.processMetrics(startTime, undefined, 1),
+      };
+    } catch (error) {
+      this.logger.error('Error analyzing meeting', {
+        error: error instanceof Error ? error.message : String(error),
         meetingId,
-        meetingTitle,
-        analysisTimestamp: Date.now(),
-        participantCount: participantIds.length,
-      },
-      metrics: this.processMetrics(startTime, undefined, 1),
-    };
+      });
+      throw error;
+    }
   }
 
   /**

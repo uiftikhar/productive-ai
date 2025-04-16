@@ -26,7 +26,8 @@ export class EmbeddingService {
   }
 
   /**
-   * Generates an embedding for the provided text
+   * Generate embedding for text, handling large inputs by chunking
+   * Maximum token length for embedding models is typically 8191 tokens
    */
   async generateEmbedding(text: string): Promise<number[]> {
     try {
@@ -34,22 +35,60 @@ export class EmbeddingService {
         `Generating embedding for text of length ${text.length}`,
       );
 
-      const response = await this.openAIAdapter.generateEmbedding(text.trim());
+      // If text is very short, generate directly
+      if (text.length < 5000) {
+        const response = await this.openAIAdapter.generateEmbedding(text.trim());
+        this.logger.debug(`Successfully generated embedding directly`);
+        return response;
+      }
 
-      // In actual implementation, this would parse the OpenAI response
-      // For now, simulate a valid embedding vector (e.g., 1536 dimensions for ada-002)
-      const mockEmbedding = Array(1536)
-        .fill(0)
-        .map(() => Math.random() * 2 - 1);
-
-      this.logger.debug(`Successfully generated embedding`);
-      return mockEmbedding;
+      // For longer text, use chunking strategy
+      return this.generateEmbeddingWithChunking(text);
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       this.logger.error(`Error generating embedding: ${errorMessage}`);
       throw new Error(`Failed to generate embedding: ${errorMessage}`);
     }
+  }
+
+  /**
+   * Generate embedding for large text by chunking and combining embeddings
+   */
+  private async generateEmbeddingWithChunking(text: string): Promise<number[]> {
+    this.logger.debug(`Using chunking strategy for large text`);
+    
+    // Split text into chunks of roughly 4000 characters (~1000 tokens)
+    const chunkSize = 4000;
+    const chunks: string[] = [];
+    
+    for (let i = 0; i < text.length; i += chunkSize) {
+      // Use overlap of 500 characters to maintain context across chunks
+      const start = Math.max(0, i - 500);
+      const end = Math.min(text.length, i + chunkSize);
+      chunks.push(text.substring(start, end).trim());
+    }
+    
+    this.logger.debug(`Split text into ${chunks.length} chunks`);
+    
+    // Generate embeddings for each chunk
+    const chunkEmbeddings: number[][] = [];
+    for (const chunk of chunks) {
+      try {
+        const embedding = await this.openAIAdapter.generateEmbedding(chunk);
+        chunkEmbeddings.push(embedding);
+      } catch (error) {
+        this.logger.warn(`Error embedding chunk, skipping: ${error}`);
+        // Continue with other chunks even if one fails
+      }
+    }
+    
+    if (chunkEmbeddings.length === 0) {
+      throw new Error('Failed to generate any chunk embeddings');
+    }
+    
+    // Combine the embeddings
+    return this.combineEmbeddings(chunkEmbeddings);
   }
 
   /**
