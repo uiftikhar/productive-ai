@@ -1,21 +1,21 @@
 import { v4 as uuidv4 } from 'uuid';
-import { MasterOrchestratorAgent } from './master-orchestrator.ts';
+import { MasterOrchestratorAgent } from './master-orchestrator';
 import {
   WorkflowDefinitionService,
   WorkflowDefinition,
-} from './workflow-definition.service.ts';
-import { GraphBuilder, WorkflowState } from './graph-builder.ts';
-import { AgentRegistryService } from '../services/agent-registry.service.ts';
-import { AgentCommunicationBus } from '../messaging/communication-bus-agent.ts';
-import { AgentRequest, AgentResponse } from '../interfaces/agent.interface.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
+} from './workflow-definition.service';
+import { GraphBuilder, WorkflowState } from './graph-builder';
+import { AgentRegistryService } from '../services/agent-registry.service';
+import { AgentCommunicationBus } from '../messaging/communication-bus-agent';
+import { AgentRequest, AgentResponse } from '../interfaces/agent.interface';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { Logger } from '../../shared/logger/logger.interface';
 import {
   AgentMessage,
   AgentMessageType,
   createAgentMessage,
   AgentMessagePriority,
-} from '../messaging/messaging-agent.ts';
+} from '../messaging/messaging-agent';
 
 /**
  * Enhanced Orchestrator Service

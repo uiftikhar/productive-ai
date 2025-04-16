@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 
-import { IUser } from '../../database/index.ts';
-import { isAuthenticated } from '../middlewares/index.ts';
+import { IUser } from '../../database/index';
+import { isAuthenticated } from '../middlewares/index';
 
 interface AuthenticatedRequest extends Request {
   user: IUser;

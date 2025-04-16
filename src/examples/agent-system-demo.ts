@@ -1,10 +1,10 @@
 // src/examples/agent-system-demo.ts
 
-import { AgentRegistryService } from '../agents/services/agent-registry.service.ts';
-import { ConsoleLogger } from '../shared/logger/console-logger.ts';
-import { MasterOrchestratorAgent } from '../agents/orchestration/master-orchestrator.ts';
-import { KnowledgeRetrievalAgent } from '../agents/specialized/knowledge-retrieval-agent.ts';
-import { AgentRequest } from '../agents/interfaces/agent.interface.ts';
+import { AgentRegistryService } from '../agents/services/agent-registry.service';
+import { ConsoleLogger } from '../shared/logger/console-logger';
+import { MasterOrchestratorAgent } from '../agents/orchestration/master-orchestrator';
+import { KnowledgeRetrievalAgent } from '../agents/specialized/knowledge-retrieval-agent';
+import { AgentRequest } from '../agents/interfaces/agent.interface';
 
 /**
  * Demo application for the agent system

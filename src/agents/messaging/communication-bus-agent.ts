@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { AgentMessage, AgentMessageType } from './messaging-agent.ts';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { Logger } from '../../shared/logger/logger.interface';
+import { AgentMessage, AgentMessageType } from './messaging-agent';
 
 /**
  * Agent Communication Bus

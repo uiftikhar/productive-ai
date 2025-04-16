@@ -4,12 +4,9 @@
  * Defines the communication protocols between specialized agents
  */
 
-import { MeetingAnalysis } from '../types/meeting-analysis.types.ts';
-import { Decision, DecisionReport } from '../types/decision-tracking.types.ts';
-import {
-  AgentRequest,
-  AgentResponse,
-} from '../../interfaces/agent.interface.ts';
+import { MeetingAnalysis } from '../types/meeting-analysis.types';
+import { Decision, DecisionReport } from '../types/decision-tracking.types';
+import { AgentRequest, AgentResponse } from '../../interfaces/agent.interface';
 
 /**
  * Communication message between agents

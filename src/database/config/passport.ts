@@ -4,8 +4,8 @@ import bcryptjs from 'bcryptjs';
 import passport from 'passport';
 import { Strategy as LocalStrategy } from 'passport-local';
 
-import type { IUser } from '../models/User.model.ts';
-import { User } from '../models/User.model.ts';
+import type { IUser } from '../models/User.model';
+import { User } from '../models/User.model';
 
 passport.use(
   new LocalStrategy(

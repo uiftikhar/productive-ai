@@ -1,13 +1,13 @@
 // src/examples/enhanced-orchestration-demo.ts
 
-import { ConsoleLogger } from '../shared/logger/console-logger.ts';
-import { EnhancedOrchestratorService } from '../agents/orchestration/enhanced-orchestrator.service.ts';
+import { ConsoleLogger } from '../shared/logger/console-logger';
+import { EnhancedOrchestratorService } from '../agents/orchestration/enhanced-orchestrator.service';
 import {
   WorkflowDefinitionService,
   WorkflowStepDefinition,
-} from '../agents/orchestration/workflow-definition.service.ts';
-import { AgentRegistryService } from '../agents/services/agent-registry.service.ts';
-import { KnowledgeRetrievalAgent } from '../agents/specialized/knowledge-retrieval-agent.ts';
+} from '../agents/orchestration/workflow-definition.service';
+import { AgentRegistryService } from '../agents/services/agent-registry.service';
+import { KnowledgeRetrievalAgent } from '../agents/specialized/knowledge-retrieval-agent';
 
 /**
  * Demo application for testing the enhanced orchestration system

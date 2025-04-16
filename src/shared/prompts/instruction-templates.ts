@@ -1,4 +1,4 @@
-import type { InstructionTemplate } from './prompt-types.ts';
+import type { InstructionTemplate } from './prompt-types';
 
 export enum InstructionTemplateNameEnum {
   TICKET_GENERATION = 'TICKET_GENERATION',

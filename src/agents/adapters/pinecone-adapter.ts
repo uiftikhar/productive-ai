@@ -1,12 +1,12 @@
 import { RecordMetadata } from '@pinecone-database/pinecone';
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { PineconeConnectionService } from '../../pinecone/pinecone-connection.service.ts';
+import { Logger } from '../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { PineconeConnectionService } from '../../pinecone/pinecone-connection.service';
 import {
   VectorRecord,
   QueryOptions,
   QueryResponse,
-} from '../../pinecone/pinecone.type.ts';
+} from '../../pinecone/pinecone.type';
 
 /**
  * Adapter for PineconeConnectionService that provides a simplified interface

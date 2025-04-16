@@ -1,7 +1,7 @@
 import {
   EmbeddingService,
   SearchResult,
-} from '../shared/embeddings/embedding.service.ts';
+} from '../shared/embeddings/embedding.service';
 
 // Simple console logger
 const logger = {

@@ -5,15 +5,15 @@
  */
 
 import { RecordMetadata } from '@pinecone-database/pinecone';
-import { BaseContextService } from './base-context.service.ts';
-import { Logger } from '../../../shared/logger/logger.interface.ts';
-import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
+import { BaseContextService } from './base-context.service';
+import { Logger } from '../../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../../shared/logger/console-logger';
 import {
   USER_CONTEXT_INDEX,
   UserContextMetadata,
-} from '../user-context.service.ts';
-import { ContextType, KnowledgeGapType } from '../types/context.types.ts';
-import { EmbeddingService } from '../../../services/embedding.service.ts';
+} from '../user-context.service';
+import { ContextType, KnowledgeGapType } from '../types/context.types';
+import { EmbeddingService } from '../../../services/embedding.service';
 
 /**
  * Structure representing a knowledge gap

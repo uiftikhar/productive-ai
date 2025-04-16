@@ -1,4 +1,4 @@
-import type { SystemMessage, SystemRole } from './prompt-types.ts';
+import type { SystemMessage, SystemRole } from './prompt-types';
 
 export const SystemPrompts: Record<SystemRole, SystemMessage> = {
   AGILE_COACH: {

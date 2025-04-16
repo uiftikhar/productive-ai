@@ -11,9 +11,9 @@ import {
   ModelConfig,
   ModelSelectionCriteria,
   ModelRouterService,
-} from './model-router.service.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
+} from './model-router.service';
+import { Logger } from '../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
 
 /**
  * Task analysis result

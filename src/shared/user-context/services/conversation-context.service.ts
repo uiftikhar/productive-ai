@@ -4,14 +4,14 @@
  */
 
 import { RecordMetadata } from '@pinecone-database/pinecone';
-import { BaseContextService } from './base-context.service.ts';
-import { MetadataValidationService } from './metadata-validation.service.ts';
+import { BaseContextService } from './base-context.service';
+import { MetadataValidationService } from './metadata-validation.service';
 import {
   BaseContextMetadata,
   ContextType,
   USER_CONTEXT_INDEX,
   UserContextValidationError,
-} from '../types/context.types.ts';
+} from '../types/context.types';
 
 /**
  * Service for managing conversation context operations

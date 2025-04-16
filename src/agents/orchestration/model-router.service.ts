@@ -1,8 +1,8 @@
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { RagPromptManager } from '../../shared/services/rag-prompt-manager.service.ts';
-import { EmbeddingService } from '../../shared/embedding/embedding.service.ts';
-import { OpenAIAdapter } from '../../agents/adapters/openai-adapter.ts';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { Logger } from '../../shared/logger/logger.interface';
+import { RagPromptManager } from '../../shared/services/rag-prompt-manager.service';
+import { EmbeddingService } from '../../shared/embedding/embedding.service';
+import { OpenAIAdapter } from '../../agents/adapters/openai-adapter';
 import { ChatOpenAI } from '@langchain/openai';
 import { BaseLLMParams } from '@langchain/core/language_models/llms';
 import { BaseMessage } from '@langchain/core/messages';
@@ -11,9 +11,9 @@ import {
   AIMessage,
   SystemMessage,
 } from '@langchain/core/messages';
-import { StreamingResponseManager } from './streaming-response-manager.ts';
+import { StreamingResponseManager } from './streaming-response-manager';
 import { v4 as uuidv4 } from 'uuid';
-import { TokenUsageManager } from './token-usage-manager.ts';
+import { TokenUsageManager } from './token-usage-manager';
 
 /**
  * Model configuration interface

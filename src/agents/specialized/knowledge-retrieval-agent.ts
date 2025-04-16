@@ -1,18 +1,18 @@
 import { BaseMessage, HumanMessage } from '@langchain/core/messages';
-import { BaseAgent } from '../base/base-agent.ts';
-import { AgentRequest, AgentResponse } from '../interfaces/agent.interface.ts';
+import { BaseAgent } from '../base/base-agent';
+import { AgentRequest, AgentResponse } from '../interfaces/agent.interface';
 import {
   RagPromptManager,
   RagRetrievalStrategy,
-} from '../../shared/services/rag-prompt-manager.service.ts';
-import { ContextType } from '../../shared/user-context/context-types.ts';
-import { UserRole } from '../../shared/user-context/types/context.types.ts';
-import { EmbeddingService } from '../../shared/embedding/embedding.service.ts';
-import { DocumentContextService } from '../../shared/user-context/services/document-context.service.ts';
-import { ConversationContextService } from '../../shared/user-context/services/conversation-context.service.ts';
-import { MeetingContextService } from '../../shared/user-context/services/meeting-context.service.ts';
-import { RelevanceCalculationService } from '../../shared/user-context/services/relevance-calculation.service.ts';
-import { OpenAIAdapter } from '../../agents/adapters/openai-adapter.ts';
+} from '../../shared/services/rag-prompt-manager.service';
+import { ContextType } from '../../shared/user-context/context-types';
+import { UserRole } from '../../shared/user-context/types/context.types';
+import { EmbeddingService } from '../../shared/embedding/embedding.service';
+import { DocumentContextService } from '../../shared/user-context/services/document-context.service';
+import { ConversationContextService } from '../../shared/user-context/services/conversation-context.service';
+import { MeetingContextService } from '../../shared/user-context/services/meeting-context.service';
+import { RelevanceCalculationService } from '../../shared/user-context/services/relevance-calculation.service';
+import { OpenAIAdapter } from '../../agents/adapters/openai-adapter';
 
 /**
  * KnowledgeRetrievalAgent

@@ -1,8 +1,8 @@
 import OpenAI from 'openai';
 
-import { generateSummary } from '../summary-generator.ts';
-import { SystemRole } from '../../shared/prompts/prompt-types.ts';
-import { InstructionTemplateName } from '../../shared/prompts/instruction-templates.ts';
+import { generateSummary } from '../summary-generator';
+import { SystemRole } from '../../shared/prompts/prompt-types';
+import { InstructionTemplateName } from '../../shared/prompts/instruction-templates';
 
 // All jest.mock calls need to be at the top level, before any other code
 jest.mock('fs/promises', () => ({

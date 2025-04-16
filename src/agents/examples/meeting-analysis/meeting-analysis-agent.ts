@@ -1,17 +1,17 @@
-import { BaseAgent } from '../../base/base-agent.ts';
-import { AgentCapability } from '../../interfaces/agent.interface.ts';
-import { ContextAdapter } from '../../adapters/context-adapter.interface.ts';
-import { MeetingContextService } from '../../../shared/user-context/services/meeting-context.service.ts';
-import { EmbeddingService } from '../../../shared/embedding/embedding.service.ts';
-import { Logger } from '../../../shared/logger/logger.interface.ts';
-import { LanguageModelAdapter } from '../../adapters/language-model-adapter.interface.ts';
+import { BaseAgent } from '../../base/base-agent';
+import { AgentCapability } from '../../interfaces/agent.interface';
+import { ContextAdapter } from '../../adapters/context-adapter.interface';
+import { MeetingContextService } from '../../../shared/user-context/services/meeting-context.service';
+import { EmbeddingService } from '../../../shared/embedding/embedding.service';
+import { Logger } from '../../../shared/logger/logger.interface';
+import { LanguageModelAdapter } from '../../adapters/language-model-adapter.interface';
 import {
   BaseMessage,
   HumanMessage,
   SystemMessage,
 } from '@langchain/core/messages';
 import { v4 as uuidv4 } from 'uuid';
-import { AgentContextAdapter } from '../../adapters/agent-context.adapter.ts';
+import { AgentContextAdapter } from '../../adapters/agent-context.adapter';
 
 // Define agent capabilities
 export enum MeetingAnalysisCapability {

@@ -1,5 +1,5 @@
-import { computeEmbedding } from './compute-embedding.ts';
-import { queryMemory, upsertMemoryRecord } from './mem0-operations.ts';
+import { computeEmbedding } from './compute-embedding';
+import { queryMemory, upsertMemoryRecord } from './mem0-operations';
 
 export async function main() {
   // Example text and metadata for upserting

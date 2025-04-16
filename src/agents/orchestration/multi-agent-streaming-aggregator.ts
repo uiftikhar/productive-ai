@@ -8,15 +8,15 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
+import { Logger } from '../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
 import {
   StreamingResponseManager,
   StreamingResponseHandler,
   StreamingOptions,
   StreamingEvent,
   StreamingEventType,
-} from './streaming-response-manager.ts';
+} from './streaming-response-manager';
 
 /**
  * Agent stream metadata

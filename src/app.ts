@@ -2,11 +2,11 @@ import dotenv from 'dotenv';
 import express from 'express';
 import session from 'express-session';
 
-import { authRoutes } from './auth/index.ts';
-import { passportClient } from './database/index.ts';
-import { ticketGeneratorRoutes } from './jira-ticket-generator/jira-ticket-generator.routes.ts';
-import { summaryRoutes } from './summary-generator/index.ts';
-import { visualizationRoutes } from './summary-generator/visualization.routes.ts';
+import { authRoutes } from './auth/index';
+import { passportClient } from './database/index';
+import { ticketGeneratorRoutes } from './jira-ticket-generator/jira-ticket-generator.routes';
+import { summaryRoutes } from './summary-generator/index';
+import { visualizationRoutes } from './summary-generator/visualization.routes';
 
 dotenv.config();
 

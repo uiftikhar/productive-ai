@@ -5,18 +5,15 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { Logger } from '../../../shared/logger/logger.interface.ts';
-import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
-import {
-  AgentRequest,
-  AgentResponse,
-} from '../../interfaces/agent.interface.ts';
+import { Logger } from '../../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../../shared/logger/console-logger';
+import { AgentRequest, AgentResponse } from '../../interfaces/agent.interface';
 import {
   AgentCommunicationMessage,
   AgentCommunicationChannel,
   SpecializedAgentOrchestrator,
-} from '../interfaces/agent-communication.interface.ts';
-import { BaseAgent } from '../../base/base-agent.ts';
+} from '../interfaces/agent-communication.interface';
+import { BaseAgent } from '../../base/base-agent';
 
 /**
  * In-memory communication channel implementation

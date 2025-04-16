@@ -1,13 +1,13 @@
-import type { InstructionTemplateName } from '../prompts/instruction-templates.ts';
-import { InstructionTemplates } from '../prompts/instruction-templates.ts';
+import type { InstructionTemplateName } from '../prompts/instruction-templates';
+import { InstructionTemplates } from '../prompts/instruction-templates';
 import type {
   InstructionTemplate,
   MeetingSummaryFormat,
   SystemMessage,
   SystemRole,
   TicketFormat,
-} from '../prompts/prompt-types.ts';
-import { SystemPrompts } from '../prompts/system-prompts.ts';
+} from '../prompts/prompt-types';
+import { SystemPrompts } from '../prompts/system-prompts';
 
 export class PromptManager {
   static getSystemMessage(role: SystemRole): SystemMessage {

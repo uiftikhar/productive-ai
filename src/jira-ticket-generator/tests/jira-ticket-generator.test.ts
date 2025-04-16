@@ -5,9 +5,9 @@ import {
   extractValidObjects,
   cleanJsonArray,
   Ticket,
-} from '../jira-ticket-generator.ts';
-import * as processChunkModule from '../../shared/utils/process-chunk.ts';
-import * as splitTranscriptModule from '../../shared/utils/split-transcript.ts';
+} from '../jira-ticket-generator';
+import * as processChunkModule from '../../shared/utils/process-chunk';
+import * as splitTranscriptModule from '../../shared/utils/split-transcript';
 
 jest.mock('p-limit', () => {
   return jest.fn(() => {

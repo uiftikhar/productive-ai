@@ -2,14 +2,14 @@
 import { jest } from '@jest/globals';
 
 import { v4 as uuid } from 'uuid';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { MessageType } from '../messaging/agent-message.interface.ts';
-import { CommunicationBusService } from '../messaging/communication-bus.service.ts';
-import { EnhancedWorkflowExecutorService } from '../orchestration/enhanced-workflow-executor.service.ts';
-import { WorkflowDefinition } from '../orchestration/workflow-definition.service.ts';
-import { AgentDiscoveryService } from '../services/agent-discovery.service.ts';
-import { AgentRegistryService } from '../services/agent-registry.service.ts';
-import { AgentRequest } from '../interfaces/agent.interface.ts';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { MessageType } from '../messaging/agent-message.interface';
+import { CommunicationBusService } from '../messaging/communication-bus.service';
+import { EnhancedWorkflowExecutorService } from '../orchestration/enhanced-workflow-executor.service';
+import { WorkflowDefinition } from '../orchestration/workflow-definition.service';
+import { AgentDiscoveryService } from '../services/agent-discovery.service';
+import { AgentRegistryService } from '../services/agent-registry.service';
+import { AgentRequest } from '../interfaces/agent.interface';
 
 // Mock dependencies
 jest.mock('../services/agent-registry.service');

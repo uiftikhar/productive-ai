@@ -2,16 +2,13 @@
 // src/agents/base/tests/base-agent.test.ts
 
 import { describe, test, expect, jest, beforeEach } from '@jest/globals';
-import { BaseAgent } from '../base-agent.ts';
-import {
-  AgentRequest,
-  AgentResponse,
-} from '../../interfaces/agent.interface.ts';
-import { AgentContextAdapter } from '../../adapters/agent-context.adapter.ts';
-import { PineconeAdapter } from '../../adapters/pinecone-adapter.ts';
-import { OpenAIAdapter } from '../../adapters/openai-adapter.ts';
-import { Logger } from '../../../shared/logger/logger.interface.ts';
-import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
+import { BaseAgent } from '../base-agent';
+import { AgentRequest, AgentResponse } from '../../interfaces/agent.interface';
+import { AgentContextAdapter } from '../../adapters/agent-context.adapter';
+import { PineconeAdapter } from '../../adapters/pinecone-adapter';
+import { OpenAIAdapter } from '../../adapters/openai-adapter';
+import { Logger } from '../../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../../shared/logger/console-logger';
 
 // Mock the adapters
 jest.mock('../../adapters/agent-context.adapter.ts');

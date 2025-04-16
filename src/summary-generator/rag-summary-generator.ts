@@ -2,11 +2,11 @@ import OpenAI from 'openai';
 import {
   RagPromptManager,
   RagRetrievalStrategy,
-} from '../shared/services/rag-prompt-manager.service.ts';
-import { splitTranscript } from '../shared/utils/split-transcript.ts';
-import { ContextType } from '../shared/user-context/context-types.ts';
-import { SystemRoleEnum } from '../shared/prompts/prompt-types.ts';
-import { InstructionTemplateNameEnum } from '../shared/prompts/instruction-templates.ts';
+} from '../shared/services/rag-prompt-manager.service';
+import { splitTranscript } from '../shared/utils/split-transcript';
+import { ContextType } from '../shared/user-context/context-types';
+import { SystemRoleEnum } from '../shared/prompts/prompt-types';
+import { InstructionTemplateNameEnum } from '../shared/prompts/instruction-templates';
 
 /**
  * Generates a summary for a meeting transcript using RAG-enhanced context

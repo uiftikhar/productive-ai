@@ -1,11 +1,11 @@
 // @ts-nocheck
 
 import { jest } from '@jest/globals';
-import { AgentDiscoveryService } from '../services/agent-discovery.service.ts';
-import { AgentRegistryService } from '../services/agent-registry.service.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
+import { AgentDiscoveryService } from '../services/agent-discovery.service';
+import { AgentRegistryService } from '../services/agent-registry.service';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { v4 as uuid } from 'uuid';
-import { AgentInterface } from '../interfaces/agent.interface.ts';
+import { AgentInterface } from '../interfaces/agent.interface';
 
 // Mock dependencies
 jest.mock('../services/agent-registry.service.ts', () => ({

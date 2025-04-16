@@ -1,10 +1,10 @@
 // src/agents/specialized/retrieval-agent.ts
 
-import { BaseAgent } from '../base/base-agent.ts';
-import { AgentRequest, AgentResponse } from '../interfaces/agent.interface.ts';
-import { OpenAIAdapter } from '../adapters/openai-adapter.ts';
-import { PineconeAdapter } from '../adapters/pinecone-adapter.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
+import { BaseAgent } from '../base/base-agent';
+import { AgentRequest, AgentResponse } from '../interfaces/agent.interface';
+import { OpenAIAdapter } from '../adapters/openai-adapter';
+import { PineconeAdapter } from '../adapters/pinecone-adapter';
+import { Logger } from '../../shared/logger/logger.interface';
 
 /**
  * Abstract retrieval agent that provides common retrieval functionality

@@ -4,19 +4,19 @@
  */
 
 import { RecordMetadata } from '@pinecone-database/pinecone';
-import { VectorRecord } from '../../../pinecone/pinecone.type.ts';
-import { BaseContextService } from './base-context.service.ts';
-import { MetadataValidationService } from './metadata-validation.service.ts';
+import { VectorRecord } from '../../../pinecone/pinecone.type';
+import { BaseContextService } from './base-context.service';
+import { MetadataValidationService } from './metadata-validation.service';
 import {
   USER_CONTEXT_INDEX,
   UserContextNotFoundError,
-} from '../types/context.types.ts';
+} from '../types/context.types';
 import {
   MemoryType,
   EpisodicContext,
   SemanticStructure,
   ProceduralSteps,
-} from '../types/memory.types.ts';
+} from '../types/memory.types';
 
 /**
  * Service for managing cognitive memory operations

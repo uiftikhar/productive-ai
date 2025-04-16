@@ -6,7 +6,7 @@ import {
   IndexList,
   ServerlessSpecCloudEnum,
 } from '@pinecone-database/pinecone';
-import { PineconeConfig } from './pincone-config.service.ts';
+import { PineconeConfig } from './pincone-config.service';
 
 export enum VectorIndexes {
   USER_CONTEXT = 'user-context',

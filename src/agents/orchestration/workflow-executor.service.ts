@@ -1,12 +1,12 @@
-import { GraphBuilder, WorkflowState } from './graph-builder.ts';
-import { WorkflowDefinition } from './workflow-definition.service.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
+import { GraphBuilder, WorkflowState } from './graph-builder';
+import { WorkflowDefinition } from './workflow-definition.service';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { Logger } from '../../shared/logger/logger.interface';
 import {
   ModelRouterService,
   ModelSelectionCriteria,
-} from './model-router.service.ts';
-import { AgentRegistryService } from '../services/agent-registry.service.ts';
+} from './model-router.service';
+import { AgentRegistryService } from '../services/agent-registry.service';
 import { v4 as uuid } from 'uuid';
 
 /**

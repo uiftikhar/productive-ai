@@ -2,8 +2,8 @@
 // src/agents/adapters/tests/openai-adapter.test.ts
 
 import { describe, test, expect, jest, beforeEach } from '@jest/globals';
-import { OpenAIAdapter, MessageConfig } from '../openai-adapter.ts';
-import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
+import { OpenAIAdapter, MessageConfig } from '../openai-adapter';
+import { ConsoleLogger } from '../../../shared/logger/console-logger';
 
 // Note: We don't need to mock OpenAI here as it's already mocked in setupJest.js
 // The mock implementation provides methods like:

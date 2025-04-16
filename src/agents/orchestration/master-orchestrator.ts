@@ -1,19 +1,19 @@
 // src/agents/orchestration/master-orchestrator.ts
 
 import { StateGraph, END, START } from '@langchain/langgraph';
-import { BaseAgent } from '../base/base-agent.ts';
-import { AgentRequest, AgentResponse } from '../interfaces/agent.interface.ts';
-import { AgentCommunicationBus } from '../messaging/communication-bus-agent.ts';
+import { BaseAgent } from '../base/base-agent';
+import { AgentRequest, AgentResponse } from '../interfaces/agent.interface';
+import { AgentCommunicationBus } from '../messaging/communication-bus-agent';
 import {
   AgentMessage,
   AgentMessageType,
   createAgentMessage,
   AgentMessagePriority,
-} from '../messaging/messaging-agent.ts';
-import { AgentRegistryService } from '../services/agent-registry.service.ts';
-import { EnhancedOrchestratorService } from './enhanced-orchestrator.service.ts';
-import { WorkflowDefinitionService } from './workflow-definition.service.ts';
-import { GraphBuilder } from './graph-builder.ts';
+} from '../messaging/messaging-agent';
+import { AgentRegistryService } from '../services/agent-registry.service';
+import { EnhancedOrchestratorService } from './enhanced-orchestrator.service';
+import { WorkflowDefinitionService } from './workflow-definition.service';
+import { GraphBuilder } from './graph-builder';
 
 /**
  * Orchestrator state type

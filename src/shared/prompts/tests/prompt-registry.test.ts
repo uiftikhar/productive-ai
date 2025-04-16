@@ -2,8 +2,8 @@ import {
   InstructionTemplateEnum,
   PromptRegistry,
   SystemRoleEnum,
-} from '../prompt-registry.ts';
-import { PromptLibrary } from '../prompt-library.ts';
+} from '../prompt-registry';
+import { PromptLibrary } from '../prompt-library';
 
 describe('PromptRegistry', () => {
   beforeAll(() => {

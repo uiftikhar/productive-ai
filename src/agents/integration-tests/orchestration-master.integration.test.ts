@@ -1,12 +1,12 @@
 // @ts-nocheck
 import { jest } from '@jest/globals';
-import { MasterOrchestratorAgent } from '../orchestration/master-orchestrator.ts';
-import { EnhancedOrchestratorService } from '../orchestration/enhanced-orchestrator.service.ts';
-import { WorkflowDefinitionService } from '../orchestration/workflow-definition.service.ts';
-import { AgentRegistryService } from '../services/agent-registry.service.ts';
-import { AgentCommunicationBus } from '../messaging/communication-bus-agent.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { AgentMessageType } from '../messaging/messaging-agent.ts';
+import { MasterOrchestratorAgent } from '../orchestration/master-orchestrator';
+import { EnhancedOrchestratorService } from '../orchestration/enhanced-orchestrator.service';
+import { WorkflowDefinitionService } from '../orchestration/workflow-definition.service';
+import { AgentRegistryService } from '../services/agent-registry.service';
+import { AgentCommunicationBus } from '../messaging/communication-bus-agent';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { AgentMessageType } from '../messaging/messaging-agent';
 import { v4 as uuid } from 'uuid';
 
 // Mock dependencies

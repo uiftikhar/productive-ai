@@ -1,7 +1,7 @@
 /**
  * Types related to themes and their relationships
  */
-import { UserRole } from './context.types.ts';
+import { UserRole } from './context.types';
 
 /**
  * Types of relationships between themes

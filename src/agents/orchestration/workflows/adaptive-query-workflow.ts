@@ -1,25 +1,22 @@
-import { WorkflowDefinition } from '../workflow-definition.service.ts';
-import { AgentRegistryService } from '../../services/agent-registry.service.ts';
+import { WorkflowDefinition } from '../workflow-definition.service';
+import { AgentRegistryService } from '../../services/agent-registry.service';
 import {
   ModelRouterService,
   ModelSelectionCriteria,
-} from '../model-router.service.ts';
-import { KnowledgeRetrievalAgent } from '../../specialized/knowledge-retrieval-agent.ts';
-import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
-import { RagRetrievalStrategy } from '../../../shared/services/rag-prompt-manager.service.ts';
-import { BaseAgent } from '../../base/base-agent.ts';
-import {
-  AgentRequest,
-  AgentResponse,
-} from '../../interfaces/agent.interface.ts';
+} from '../model-router.service';
+import { KnowledgeRetrievalAgent } from '../../specialized/knowledge-retrieval-agent';
+import { ConsoleLogger } from '../../../shared/logger/console-logger';
+import { RagRetrievalStrategy } from '../../../shared/services/rag-prompt-manager.service';
+import { BaseAgent } from '../../base/base-agent';
+import { AgentRequest, AgentResponse } from '../../interfaces/agent.interface';
 import {
   BaseMessage,
   HumanMessage,
   SystemMessage,
 } from '@langchain/core/messages';
 import { v4 as uuid } from 'uuid';
-import { Logger } from '../../../shared/logger/logger.interface.ts';
-import { StreamAggregationStrategy } from '../multi-agent-streaming-aggregator.ts';
+import { Logger } from '../../../shared/logger/logger.interface';
+import { StreamAggregationStrategy } from '../multi-agent-streaming-aggregator';
 
 /**
  * Query Analyzer Agent

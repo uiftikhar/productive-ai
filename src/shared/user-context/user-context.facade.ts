@@ -3,20 +3,20 @@
  * Provides a unified interface to all user context services
  */
 
-import { PineconeConnectionService } from '../../pinecone/pinecone-connection.service.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { BaseContextService } from './services/base-context.service.ts';
-import { ConversationContextService } from './services/conversation-context.service.ts';
-import { DocumentContextService } from './services/document-context.service.ts';
-import { IntegrationService } from './services/integration.service.ts';
-import { MemoryManagementService } from './services/memory-management.service.ts';
-import { MetadataValidationService } from './services/metadata-validation.service.ts';
-import { BaseContextMetadata, ContextType } from './types/context.types.ts';
+import { PineconeConnectionService } from '../../pinecone/pinecone-connection.service';
+import { Logger } from '../../shared/logger/logger.interface';
+import { BaseContextService } from './services/base-context.service';
+import { ConversationContextService } from './services/conversation-context.service';
+import { DocumentContextService } from './services/document-context.service';
+import { IntegrationService } from './services/integration.service';
+import { MemoryManagementService } from './services/memory-management.service';
+import { MetadataValidationService } from './services/metadata-validation.service';
+import { BaseContextMetadata, ContextType } from './types/context.types';
 import {
   EpisodicContext,
   SemanticStructure,
   ProceduralSteps,
-} from './types/memory.types.ts';
+} from './types/memory.types';
 
 /**
  * Facade service that provides a unified interface to all user context services

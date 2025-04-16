@@ -7,11 +7,11 @@
  * - Template-based prompt management
  */
 
-import { ModelRouterService } from '../model-router.service.ts';
-import { ModelSelectionService } from '../model-selection.service.ts';
-import { ContextWindowOptimizer } from '../context-window-optimizer.service.ts';
-import { RagPromptManager } from '../../../shared/services/rag-prompt-manager.service.ts';
-import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
+import { ModelRouterService } from '../model-router.service';
+import { ModelSelectionService } from '../model-selection.service';
+import { ContextWindowOptimizer } from '../context-window-optimizer.service';
+import { RagPromptManager } from '../../../shared/services/rag-prompt-manager.service';
+import { ConsoleLogger } from '../../../shared/logger/console-logger';
 
 // Sample context items for the demo
 const sampleContextItems = [

@@ -1,4 +1,4 @@
-import { EmbeddingService } from '../embedding.service.ts';
+import { EmbeddingService } from '../embedding.service';
 
 jest.mock('openai', () => {
   return {

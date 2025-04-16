@@ -1,2 +1,2 @@
-export { hasRole } from './hasRole.ts';
-export { isAuthenticated } from './isAuthenticated.ts';
+export { hasRole } from './hasRole';
+export { isAuthenticated } from './isAuthenticated';

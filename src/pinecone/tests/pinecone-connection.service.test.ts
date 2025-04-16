@@ -1,9 +1,9 @@
 // src/pinecone/tests/pinecone-connection.service.test.ts
 
 import { Index, RecordMetadata } from '@pinecone-database/pinecone';
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { PineconeConnectionService } from '../pinecone-connection.service.ts';
-import { PineconeIndexService } from '../pinecone-index.service.ts';
+import { Logger } from '../../shared/logger/logger.interface';
+import { PineconeConnectionService } from '../pinecone-connection.service';
+import { PineconeIndexService } from '../pinecone-index.service';
 
 jest.unmock('../pinecone-connection.service.ts');
 jest.unmock('../pinecone-index.service.ts');

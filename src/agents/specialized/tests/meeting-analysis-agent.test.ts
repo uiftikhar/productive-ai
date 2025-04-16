@@ -1,8 +1,8 @@
-import { MeetingAnalysisAgent } from '../meeting-analysis-agent.ts';
-import { AgentRequest } from '../../interfaces/agent.interface.ts';
-import { MeetingContextService } from '../../../shared/user-context/services/meeting-context.service.ts';
-import { OpenAIAdapter } from '../../adapters/openai-adapter.ts';
-import { EmbeddingService } from '../../../shared/embedding/embedding.service.ts';
+import { MeetingAnalysisAgent } from '../meeting-analysis-agent';
+import { AgentRequest } from '../../interfaces/agent.interface';
+import { MeetingContextService } from '../../../shared/user-context/services/meeting-context.service';
+import { OpenAIAdapter } from '../../adapters/openai-adapter';
+import { EmbeddingService } from '../../../shared/embedding/embedding.service';
 import { BaseMessage } from '@langchain/core/messages';
 
 jest.mock('../../../shared/user-context/services/meeting-context.service');

@@ -1,4 +1,4 @@
-import { PromptLibrary } from './prompt-library.ts';
+import { PromptLibrary } from './prompt-library';
 
 /**
  * SystemRole enum defines the available system roles

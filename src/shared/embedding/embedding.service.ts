@@ -1,8 +1,8 @@
 // src/shared/embedding/embedding.service.ts
 
-import { OpenAIAdapter } from '../../agents/adapters/openai-adapter.ts';
-import { ConsoleLogger } from '../logger/console-logger.ts';
-import { Logger } from '../logger/logger.interface.ts';
+import { OpenAIAdapter } from '../../agents/adapters/openai-adapter';
+import { ConsoleLogger } from '../logger/console-logger';
+import { Logger } from '../logger/logger.interface';
 
 /**
  * Interface for embedding service results

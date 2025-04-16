@@ -1,2 +1,2 @@
-export { connectDB } from './db.ts';
-export { passportClient } from './passport.ts';
+export { connectDB } from './db';
+export { passportClient } from './passport';

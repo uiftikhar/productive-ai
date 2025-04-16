@@ -1,21 +1,21 @@
 // TODOO Remove User context service
-import { PromptManager } from './prompt-manager.service.ts';
-import { SystemRoleEnum, type SystemRole } from '../prompts/prompt-types.ts';
+import { PromptManager } from './prompt-manager.service';
+import { SystemRoleEnum, type SystemRole } from '../prompts/prompt-types';
 import {
   InstructionTemplateNameEnum,
   type InstructionTemplateName,
-} from '../prompts/instruction-templates.ts';
-import { ContextType } from '../user-context/context-types.ts';
+} from '../prompts/instruction-templates';
+import { ContextType } from '../user-context/context-types';
 import {
   PromptLibrary,
   PromptCompositionOptions,
-} from '../prompts/prompt-library.ts';
+} from '../prompts/prompt-library';
 
 // Import specialized context services instead of the deprecated UserContextService
-import { BaseContextService } from '../user-context/services/base-context.service.ts';
-import { DocumentContextService } from '../user-context/services/document-context.service.ts';
-import { ConversationContextService } from '../user-context/services/conversation-context.service.ts';
-import { RelevanceCalculationService } from '../user-context/services/relevance-calculation.service.ts';
+import { BaseContextService } from '../user-context/services/base-context.service';
+import { DocumentContextService } from '../user-context/services/document-context.service';
+import { ConversationContextService } from '../user-context/services/conversation-context.service';
+import { RelevanceCalculationService } from '../user-context/services/relevance-calculation.service';
 
 /**
  * Different strategies for retrieving context for RAG

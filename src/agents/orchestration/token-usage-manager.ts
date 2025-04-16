@@ -8,8 +8,8 @@
  * - Budget enforcement
  */
 
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
+import { Logger } from '../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
 
 /**
  * Token usage record structure

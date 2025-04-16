@@ -3,9 +3,9 @@
  * Handles validation of different types of metadata
  */
 
-import { UserContextValidationError } from '../types/context.types.ts';
-import { MemoryType } from '../types/memory.types.ts';
-import { TemporalRelevanceModel } from '../types/temporal.types.ts';
+import { UserContextValidationError } from '../types/context.types';
+import { MemoryType } from '../types/memory.types';
+import { TemporalRelevanceModel } from '../types/temporal.types';
 
 /**
  * Service for validating metadata objects to ensure they have the required fields

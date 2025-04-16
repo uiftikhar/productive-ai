@@ -1,4 +1,4 @@
-import { FeedbackEntry, retrieveAllFeedback } from './feedback-store.ts';
+import { FeedbackEntry, retrieveAllFeedback } from './feedback-store';
 
 /**
  * Build a JSONL string from feedback entries.

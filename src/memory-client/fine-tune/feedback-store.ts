@@ -1,4 +1,4 @@
-import { mem0Client } from '../mem0-client.ts';
+import { mem0Client } from '../mem0-client';
 
 /**
  * Represents a user feedback record stored in mem0.

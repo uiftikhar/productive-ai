@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 
-import { hasRole } from '../middlewares/index.ts';
+import { hasRole } from '../middlewares/index';
 
 describe('hasRole middleware', () => {
   let mockReq: Partial<Request>;

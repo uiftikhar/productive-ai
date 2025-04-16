@@ -2,12 +2,13 @@
   "name": "productive-ai",
   "version": "1.0.0",
   "description": "AI system for productivity enhancements",
-  "main": "index.js",
-  "type": "module",
+  "main": "dist/index.js",
   "license": "MIT",
   "scripts": {
-    "build": "tsc",
-    "start:build": "node dist/index.cjs",
+    "fix:imports": "node fixSourceImports.js",
+    "build": "npm run fix:imports && tsc && node fixImports.js",
+    "build:watch": "tsc -w",
+    "start:build": "node dist/index.js",
     "start": "ts-node src/index.ts",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
@@ -15,7 +16,7 @@
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:agents": "jest src/agents --testPathIgnorePatterns=node_modules",
-    "dev": "nodemon --exec ts-node src/index.ts"
+    "dev": "nodemon --watch src --ext ts,json --exec \"ts-node\" src/index.ts"
   },
   "dependencies": {
     "@langchain/core": "^0.3.44",
@@ -67,6 +68,7 @@
     "ts-jest": "^29.1.0",
     "ts-jest-mock-import-meta": "^1.2.1",
     "ts-node": "^10.9.1",
+    "tsc-alias": "^1.8.15",
     "typescript": "^5.0.4"
   }
 }

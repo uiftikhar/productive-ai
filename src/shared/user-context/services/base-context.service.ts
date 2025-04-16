@@ -7,17 +7,17 @@ import {
   RecordMetadata,
   RecordMetadataValue,
 } from '@pinecone-database/pinecone';
-import { PineconeConnectionService } from '../../../pinecone/pinecone-connection.service.ts';
-import { VectorRecord } from '../../../pinecone/pinecone.type.ts';
-import { Logger } from '../../../shared/logger/logger.interface.ts';
-import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
+import { PineconeConnectionService } from '../../../pinecone/pinecone-connection.service';
+import { VectorRecord } from '../../../pinecone/pinecone.type';
+import { Logger } from '../../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../../shared/logger/console-logger';
 import {
   USER_CONTEXT_INDEX,
   UserContextError,
   UserContextNotFoundError,
   UserContextValidationError,
   BaseContextMetadata,
-} from '../types/context.types.ts';
+} from '../types/context.types';
 
 /**
  * Base service for managing user context data in vector databases

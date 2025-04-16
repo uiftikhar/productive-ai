@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
-import { processFinalSummary } from '../process-final-summary.ts';
-import { PromptManager } from '../../shared/services/prompt-manager.service.ts';
+import { processFinalSummary } from '../process-final-summary';
+import { PromptManager } from '../../shared/services/prompt-manager.service';
 
 // Mock the PromptManager
 jest.mock('../../shared/services/prompt-manager.service.ts', () => ({

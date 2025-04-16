@@ -5,12 +5,12 @@ import { describe, test, expect, jest, beforeEach } from '@jest/globals';
 import {
   ModelSelectionService,
   TaskAnalysisResult,
-} from '../model-selection.service.ts';
+} from '../model-selection.service';
 import {
   ModelRouterService,
   ModelSelectionCriteria,
   ModelConfig,
-} from '../model-router.service.ts';
+} from '../model-router.service';
 
 // Mock ModelRouterService
 jest.mock('../model-router.service.ts', () => {

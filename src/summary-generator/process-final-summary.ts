@@ -1,8 +1,8 @@
 import OpenAI from 'openai';
 
-import { PromptManager } from '../shared/services/prompt-manager.service.ts';
-import { SystemRoleEnum } from '../shared/prompts/prompt-registry.ts';
-import { InstructionTemplateNameEnum } from '../shared/prompts/instruction-templates.ts';
+import { PromptManager } from '../shared/services/prompt-manager.service';
+import { SystemRoleEnum } from '../shared/prompts/prompt-registry';
+import { InstructionTemplateNameEnum } from '../shared/prompts/instruction-templates';
 
 export async function processFinalSummary(
   combinedSummaries: string,

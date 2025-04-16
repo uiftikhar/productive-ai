@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 // connectDB.test.ts
-import { connectDB } from '../db.ts'; // adjust the path accordingly
+import { connectDB } from '../db'; // adjust the path accordingly
 
 jest.mock('mongoose', () => ({
   connect: jest.fn(),

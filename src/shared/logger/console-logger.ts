@@ -1,4 +1,4 @@
-import { Logger } from './logger.interface.ts';
+import { Logger } from './logger.interface';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'none';
 

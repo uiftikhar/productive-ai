@@ -5,7 +5,7 @@ import {
   ContextType,
   ActionItemStatus,
   KnowledgeGapType,
-} from '../context-types.ts';
+} from '../context-types';
 
 /**
  * Custom error types for UserContextService

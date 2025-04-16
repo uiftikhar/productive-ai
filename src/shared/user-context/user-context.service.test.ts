@@ -1,16 +1,16 @@
-import { PineconeConnectionService } from '../../pinecone/pinecone-connection.service.ts';
+import { PineconeConnectionService } from '../../pinecone/pinecone-connection.service';
 import {
   UserContextService,
   UserContextError,
   UserContextValidationError,
   UserContextNotFoundError,
-} from './user-context.service.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
+} from './user-context.service';
+import { Logger } from '../../shared/logger/logger.interface';
 import {
   ContextType,
   ActionItemStatus,
   KnowledgeGapType,
-} from './context-types.ts';
+} from './context-types';
 
 // Mock the pinecone service
 jest.mock('../../pinecone/pinecone-connection.service.ts');

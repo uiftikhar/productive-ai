@@ -4,12 +4,12 @@ import {
   AgentStreamMetadata,
   StreamAggregationStrategy,
   StreamAggregationCallback,
-} from '../multi-agent-streaming-aggregator.ts';
+} from '../multi-agent-streaming-aggregator';
 import {
   StreamingOptions,
   StreamingResponseHandler,
   StreamingResponseManager,
-} from '../streaming-response-manager.ts';
+} from '../streaming-response-manager';
 import { jest } from '@jest/globals';
 
 // Mock StreamingResponseManager

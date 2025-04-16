@@ -4,22 +4,22 @@
  */
 
 import { RecordMetadata } from '@pinecone-database/pinecone';
-import { BaseContextService } from './base-context.service.ts';
-import { MetadataValidationService } from './metadata-validation.service.ts';
+import { BaseContextService } from './base-context.service';
+import { MetadataValidationService } from './metadata-validation.service';
 import {
   BaseContextMetadata,
   ContextType,
   USER_CONTEXT_INDEX,
   UserContextNotFoundError,
   UserRole,
-} from '../types/context.types.ts';
+} from '../types/context.types';
 import {
   ThemeRelationship,
   ThemeOrigin,
   ThemeEvolution,
   ThemeMetadata,
-} from '../types/theme.types.ts';
-import { UserContextMetadata } from '../user-context.service.ts';
+} from '../types/theme.types';
+import { UserContextMetadata } from '../user-context.service';
 
 /**
  * Service for managing theme-related operations

@@ -4,7 +4,7 @@ import FormData from 'form-data';
 import fs from 'fs';
 import path from 'path';
 
-import { buildFineTuneDataset } from './fine-tune-dataset.ts';
+import { buildFineTuneDataset } from './fine-tune-dataset';
 
 dotenv.config();
 

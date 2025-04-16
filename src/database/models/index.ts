@@ -1,2 +1,2 @@
-export { User } from './User.model.ts';
-export type { IUser } from './User.model.ts';
+export { User } from './User.model';
+export type { IUser } from './User.model';

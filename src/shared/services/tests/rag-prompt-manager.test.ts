@@ -2,15 +2,15 @@ import {
   RagPromptManager,
   RagRetrievalStrategy,
   ContextAwarePromptOptions,
-} from '../rag-prompt-manager.service.ts';
-import { PromptLibrary } from '../../prompts/prompt-library.ts';
-import { BaseContextService } from '../../user-context/services/base-context.service.ts';
-import { DocumentContextService } from '../../user-context/services/document-context.service.ts';
-import { ConversationContextService } from '../../user-context/services/conversation-context.service.ts';
-import { RelevanceCalculationService } from '../../user-context/services/relevance-calculation.service.ts';
-import { ContextType } from '../../user-context/context-types.ts';
-import { SystemRole } from '../../prompts/prompt-types.ts';
-import { InstructionTemplateName } from '../../prompts/instruction-templates.ts';
+} from '../rag-prompt-manager.service';
+import { PromptLibrary } from '../../prompts/prompt-library';
+import { BaseContextService } from '../../user-context/services/base-context.service';
+import { DocumentContextService } from '../../user-context/services/document-context.service';
+import { ConversationContextService } from '../../user-context/services/conversation-context.service';
+import { RelevanceCalculationService } from '../../user-context/services/relevance-calculation.service';
+import { ContextType } from '../../user-context/context-types';
+import { SystemRole } from '../../prompts/prompt-types';
+import { InstructionTemplateName } from '../../prompts/instruction-templates';
 
 // Mock the services
 jest.mock('../../user-context/services/base-context.service.ts');

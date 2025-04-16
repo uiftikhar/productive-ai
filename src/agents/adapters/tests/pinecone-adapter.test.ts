@@ -2,9 +2,9 @@
 // src/agents/adapters/tests/pinecone-adapter.test.ts
 
 import { describe, test, expect, jest, beforeEach } from '@jest/globals';
-import { PineconeAdapter } from '../pinecone-adapter.ts';
-import { PineconeConnectionService } from '../../../pinecone/pinecone-connection.service.ts';
-import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
+import { PineconeAdapter } from '../pinecone-adapter';
+import { PineconeConnectionService } from '../../../pinecone/pinecone-connection.service';
+import { ConsoleLogger } from '../../../shared/logger/console-logger';
 
 // Note: PineconeConnectionService is already mocked in setupJest.js
 // We don't need to provide mock implementations here

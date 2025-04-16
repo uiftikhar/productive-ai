@@ -1,12 +1,12 @@
-import { PineconeConnectionService } from '../../../../pinecone/pinecone-connection.service.ts';
-import { Logger } from '../../../logger/logger.interface.ts';
-import { IntegrationService } from '../integration.service.ts';
+import { PineconeConnectionService } from '../../../../pinecone/pinecone-connection.service';
+import { Logger } from '../../../logger/logger.interface';
+import { IntegrationService } from '../integration.service';
 import {
   ActionItemStatus,
   ContextType,
   UserContextNotFoundError,
   UserContextValidationError,
-} from '../../types/context.types.ts';
+} from '../../types/context.types';
 
 // Mock Logger
 class MockLogger implements Logger {

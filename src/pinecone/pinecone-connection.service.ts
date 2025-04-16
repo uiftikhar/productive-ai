@@ -1,15 +1,12 @@
 import { Index, RecordMetadata } from '@pinecone-database/pinecone';
-import {
-  PineconeIndexService,
-  VectorIndexes,
-} from './pinecone-index.service.ts';
-import { Logger } from '../shared/logger/logger.interface.ts';
-import { ConsoleLogger } from '../shared/logger/console-logger.ts';
+import { PineconeIndexService, VectorIndexes } from './pinecone-index.service';
+import { Logger } from '../shared/logger/logger.interface';
+import { ConsoleLogger } from '../shared/logger/console-logger';
 import {
   PineconeConnectionConfig,
   DEFAULT_CONFIG,
-} from './pinecone-connection.config.ts';
-import { VectorRecord, QueryOptions, QueryResponse } from './pinecone.type.ts';
+} from './pinecone-connection.config';
+import { VectorRecord, QueryOptions, QueryResponse } from './pinecone.type';
 
 export class PineconeConnectionService {
   private indexService: PineconeIndexService;

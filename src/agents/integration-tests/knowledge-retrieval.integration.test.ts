@@ -4,20 +4,20 @@
  * @jest-environment node
  */
 import { jest } from '@jest/globals';
-import { EmbeddingService } from '../../shared/embedding/embedding.service.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
+import { EmbeddingService } from '../../shared/embedding/embedding.service';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
 import {
   RagPromptManager,
   RagRetrievalStrategy,
-} from '../../shared/services/rag-prompt-manager.service.ts';
-import { KnowledgeRetrievalAgent } from '../specialized/knowledge-retrieval-agent.ts';
-import { ContextType } from '../../shared/user-context/context-types.ts';
-import { DocumentContextService } from '../../shared/user-context/services/document-context.service.ts';
-import { ConversationContextService } from '../../shared/user-context/services/conversation-context.service.ts';
-import { MeetingContextService } from '../../shared/user-context/services/meeting-context.service.ts';
-import { RelevanceCalculationService } from '../../shared/user-context/services/relevance-calculation.service.ts';
-import { AgentContextAdapter } from '../adapters/agent-context.adapter.ts';
-import { BaseAgent } from '../base/base-agent.ts';
+} from '../../shared/services/rag-prompt-manager.service';
+import { KnowledgeRetrievalAgent } from '../specialized/knowledge-retrieval-agent';
+import { ContextType } from '../../shared/user-context/context-types';
+import { DocumentContextService } from '../../shared/user-context/services/document-context.service';
+import { ConversationContextService } from '../../shared/user-context/services/conversation-context.service';
+import { MeetingContextService } from '../../shared/user-context/services/meeting-context.service';
+import { RelevanceCalculationService } from '../../shared/user-context/services/relevance-calculation.service';
+import { AgentContextAdapter } from '../adapters/agent-context.adapter';
+import { BaseAgent } from '../base/base-agent';
 
 // Mock dependencies
 jest.mock('../../shared/services/rag-prompt-manager.service');

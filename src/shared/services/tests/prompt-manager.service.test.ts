@@ -1,6 +1,6 @@
-import { InstructionTemplateNameEnum } from '../../prompts/instruction-templates.ts';
-import { SystemRoleEnum } from '../../prompts/prompt-types.ts';
-import { PromptManager } from '../prompt-manager.service.ts';
+import { InstructionTemplateNameEnum } from '../../prompts/instruction-templates';
+import { SystemRoleEnum } from '../../prompts/prompt-types';
+import { PromptManager } from '../prompt-manager.service';
 
 describe('PromptManager', () => {
   describe('getSystemMessage', () => {

@@ -4,8 +4,8 @@
  */
 
 import { RecordMetadata } from '@pinecone-database/pinecone';
-import { BaseContextService } from './base-context.service.ts';
-import { MetadataValidationService } from './metadata-validation.service.ts';
+import { BaseContextService } from './base-context.service';
+import { MetadataValidationService } from './metadata-validation.service';
 import {
   BaseContextMetadata,
   ContextType,
@@ -13,9 +13,9 @@ import {
   ActionItemStatus,
   UserContextNotFoundError,
   UserContextValidationError,
-} from '../types/context.types.ts';
-import { ConsoleLogger } from '../../logger/console-logger.ts';
-import { Logger } from '../../logger/logger.interface.ts';
+} from '../types/context.types';
+import { ConsoleLogger } from '../../logger/console-logger';
+import { Logger } from '../../logger/logger.interface';
 
 // Types for meeting data
 export interface MeetingContent {

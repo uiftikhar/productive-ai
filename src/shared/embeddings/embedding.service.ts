@@ -1,6 +1,6 @@
 // import { Injectable } from '@nestjs/common';
 import { OpenAI } from 'openai';
-import { Logger } from '../logger/logger.interface.ts';
+import { Logger } from '../logger/logger.interface';
 
 export interface EmbeddingConfig {
   openAIApiKey?: string;

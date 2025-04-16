@@ -5,10 +5,10 @@ import {
   ModelRouterService,
   ModelSelectionCriteria,
   StreamingHandler,
-} from '../orchestration/model-router.service.ts';
-import { RagPromptManager } from '../../shared/services/rag-prompt-manager.service.ts';
-import { EmbeddingService } from '../../shared/embedding/embedding.service.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
+} from '../orchestration/model-router.service';
+import { RagPromptManager } from '../../shared/services/rag-prompt-manager.service';
+import { EmbeddingService } from '../../shared/embedding/embedding.service';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
 import {
   BaseMessage,
   HumanMessage,

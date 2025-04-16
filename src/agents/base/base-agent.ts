@@ -8,31 +8,31 @@ import {
   SystemMessage,
   HumanMessage,
 } from '@langchain/core/messages';
-import { LangChainConfig } from '../../langchain/config.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
+import { LangChainConfig } from '../../langchain/config';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { Logger } from '../../shared/logger/logger.interface';
 import {
   AgentInterface,
   AgentCapability,
   AgentResponse,
   AgentRequest,
   AgentContext,
-} from '../interfaces/agent.interface.ts';
+} from '../interfaces/agent.interface';
 
 import {
   AgentContextAdapter,
   PineconeAdapter,
   OpenAIAdapter,
   createAdapters,
-} from '../adapters/index.ts';
+} from '../adapters/index';
 
-import { TokenUsageManager } from '../orchestration/token-usage-manager.ts';
-import { StreamingResponseManager } from '../orchestration/streaming-response-manager.ts';
+import { TokenUsageManager } from '../orchestration/token-usage-manager';
+import { StreamingResponseManager } from '../orchestration/streaming-response-manager';
 import {
   StreamAggregationStrategy,
   AgentStreamMetadata,
   MultiAgentStreamingAggregator,
-} from '../orchestration/multi-agent-streaming-aggregator.ts';
+} from '../orchestration/multi-agent-streaming-aggregator';
 
 /**
  * Agent state types

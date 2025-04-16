@@ -9,14 +9,14 @@
  * 4. Generates a streaming response
  */
 
-import { WorkflowExecutorService } from '../workflow-executor.service.ts';
+import { WorkflowExecutorService } from '../workflow-executor.service';
 import {
   ModelRouterService,
   ModelSelectionCriteria,
-} from '../model-router.service.ts';
-import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
-import { KnowledgeRetrievalAgent } from '../../specialized/knowledge-retrieval-agent.ts';
-import { AgentRegistryService } from '../../services/agent-registry.service.ts';
+} from '../model-router.service';
+import { ConsoleLogger } from '../../../shared/logger/console-logger';
+import { KnowledgeRetrievalAgent } from '../../specialized/knowledge-retrieval-agent';
+import { AgentRegistryService } from '../../services/agent-registry.service';
 import { v4 as uuid } from 'uuid';
 
 // Initialize services

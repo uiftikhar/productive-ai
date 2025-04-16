@@ -2,14 +2,14 @@
 // src/agents/adapters/tests/agent-context-adapter.test.ts
 
 import { describe, test, expect, jest, beforeEach } from '@jest/globals';
-import { AgentContextAdapter } from '../agent-context.adapter.ts';
-import { ConversationContextService } from '../../../shared/user-context/services/conversation-context.service.ts';
-import { DocumentContextService } from '../../../shared/user-context/services/document-context.service.ts';
-import { MemoryManagementService } from '../../../shared/user-context/services/memory-management.service.ts';
-import { KnowledgeGapService } from '../../../shared/user-context/services/knowledge-gap.service.ts';
-import { ContextType } from '../../../shared/user-context/types/context.types.ts';
-import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
-import { AgentContext } from '../../interfaces/agent.interface.ts';
+import { AgentContextAdapter } from '../agent-context.adapter';
+import { ConversationContextService } from '../../../shared/user-context/services/conversation-context.service';
+import { DocumentContextService } from '../../../shared/user-context/services/document-context.service';
+import { MemoryManagementService } from '../../../shared/user-context/services/memory-management.service';
+import { KnowledgeGapService } from '../../../shared/user-context/services/knowledge-gap.service';
+import { ContextType } from '../../../shared/user-context/types/context.types';
+import { ConsoleLogger } from '../../../shared/logger/console-logger';
+import { AgentContext } from '../../interfaces/agent.interface';
 
 // Mock all the context services
 jest.mock(

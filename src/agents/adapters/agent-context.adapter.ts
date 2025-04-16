@@ -1,15 +1,15 @@
 import { OpenAIEmbeddings } from '@langchain/openai';
-import { ContextAdapter } from './context-adapter.interface.ts';
-import { AgentContext } from '../interfaces/agent.interface.ts';
-import { BaseContextService } from '../../shared/user-context/services/base-context.service.ts';
-import { ConversationContextService } from '../../shared/user-context/services/conversation-context.service.ts';
-import { DocumentContextService } from '../../shared/user-context/services/document-context.service.ts';
-import { MemoryManagementService } from '../../shared/user-context/services/memory-management.service.ts';
-import { KnowledgeGapService } from '../../shared/user-context/services/knowledge-gap.service.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { LangChainConfig } from '../../langchain/config.ts';
-import { ContextType } from '../../shared/user-context/types/context.types.ts';
+import { ContextAdapter } from './context-adapter.interface';
+import { AgentContext } from '../interfaces/agent.interface';
+import { BaseContextService } from '../../shared/user-context/services/base-context.service';
+import { ConversationContextService } from '../../shared/user-context/services/conversation-context.service';
+import { DocumentContextService } from '../../shared/user-context/services/document-context.service';
+import { MemoryManagementService } from '../../shared/user-context/services/memory-management.service';
+import { KnowledgeGapService } from '../../shared/user-context/services/knowledge-gap.service';
+import { Logger } from '../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { LangChainConfig } from '../../langchain/config';
+import { ContextType } from '../../shared/user-context/types/context.types';
 
 /**
  * Primary context adapter that combines multiple context services

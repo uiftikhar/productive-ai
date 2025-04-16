@@ -3,7 +3,7 @@
  * Creates vector embeddings for text content using OpenAI's API
  */
 
-import { computeEmbedding } from '../memory-client/compute-embedding.ts';
+import { computeEmbedding } from '../memory-client/compute-embedding';
 
 /**
  * Service for creating vector embeddings from text content

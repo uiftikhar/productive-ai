@@ -11,15 +11,15 @@ import {
   HumanMessagePromptTemplate,
   SystemMessagePromptTemplate,
 } from '@langchain/core/prompts';
-import { LangChainConfig } from '../../langchain/config.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
+import { LangChainConfig } from '../../langchain/config';
+import { Logger } from '../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
 import {
   LanguageModelAdapter,
   MessageConfig,
   StreamHandler,
   ModelResponse,
-} from './language-model-adapter.interface.ts';
+} from './language-model-adapter.interface';
 
 /**
  * Model configuration for OpenAI API calls

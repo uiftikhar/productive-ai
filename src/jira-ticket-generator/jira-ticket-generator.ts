@@ -1,9 +1,9 @@
 import OpenAI from 'openai';
 
-import { processAllChunks } from '../shared/utils/process-chunk.ts';
-import { splitTranscript } from '../shared/utils/split-transcript.ts';
-import { InstructionTemplateNameEnum } from '../shared/prompts/instruction-templates.ts';
-import { SystemRoleEnum } from '../shared/prompts/prompt-types.ts';
+import { processAllChunks } from '../shared/utils/process-chunk';
+import { splitTranscript } from '../shared/utils/split-transcript';
+import { InstructionTemplateNameEnum } from '../shared/prompts/instruction-templates';
+import { SystemRoleEnum } from '../shared/prompts/prompt-types';
 
 export interface Ticket {
   ticketType: string;

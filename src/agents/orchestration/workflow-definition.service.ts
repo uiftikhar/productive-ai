@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { StreamAggregationStrategy } from './multi-agent-streaming-aggregator.ts';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { Logger } from '../../shared/logger/logger.interface';
+import { StreamAggregationStrategy } from './multi-agent-streaming-aggregator';
 
 /**
  * Workflow step definition

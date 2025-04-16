@@ -2,4 +2,4 @@ export {
   EmbeddingService,
   EmbeddingConfig,
   SearchResult,
-} from './embedding.service.ts';
+} from './embedding.service';

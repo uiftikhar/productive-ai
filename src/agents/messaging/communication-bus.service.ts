@@ -1,11 +1,11 @@
 import { v4 as uuid } from 'uuid';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { Logger } from '../../shared/logger/logger.interface';
 import {
   AgentMessage,
   MessagePriority,
   MessageType,
-} from './agent-message.interface.ts';
+} from './agent-message.interface';
 import { EventEmitter } from 'events';
 
 /**

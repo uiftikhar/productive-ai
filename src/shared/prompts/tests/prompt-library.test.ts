@@ -1,4 +1,4 @@
-import { PromptLibrary, PromptComponent } from '../prompt-library.ts';
+import { PromptLibrary, PromptComponent } from '../prompt-library';
 
 describe('PromptLibrary', () => {
   // Enable fake timers for this test suite

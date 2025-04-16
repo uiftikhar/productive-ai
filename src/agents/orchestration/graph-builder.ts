@@ -5,10 +5,10 @@ import {
   WorkflowDefinition,
   WorkflowStepDefinition,
   WorkflowBranchDefinition,
-} from './workflow-definition.service.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { AgentRegistryService } from '../services/agent-registry.service.ts';
+} from './workflow-definition.service';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { Logger } from '../../shared/logger/logger.interface';
+import { AgentRegistryService } from '../services/agent-registry.service';
 
 /**
  * Default state type for workflow graphs

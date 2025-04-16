@@ -8,11 +8,11 @@ const router = Router();
 // Serve the visualization HTML page
 router.get('/', (req: Request, res: Response) => {
   const traceId = req.query.traceId as string;
-  
+
   if (!traceId) {
     return res.status(400).send('Missing traceId parameter');
   }
-  
+
   // Serve a simple HTML page that loads the LangChain visualization
   res.send(`
     <!DOCTYPE html>
@@ -50,13 +50,15 @@ router.get('/api/trace/:traceId', async (req: Request, res: Response) => {
   try {
     const traceId = req.params.traceId;
     const tracer = new LangChainTracer();
-    const traceData = await tracer.getTrace(traceId);
-    
-    res.json(traceData);
+
+    // Use convertToRunTree which is available in the API
+    const runTree = tracer.convertToRunTree(traceId);
+
+    res.json(runTree || { error: 'Trace not found' });
   } catch (error) {
     console.error('Error retrieving trace data:', error);
     res.status(500).json({ error: 'Failed to retrieve trace data' });
   }
 });
 
-export { router as visualizationRoutes }; 
+export { router as visualizationRoutes };

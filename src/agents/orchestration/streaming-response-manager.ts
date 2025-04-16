@@ -7,9 +7,9 @@
  * - Utilities for streaming response formatting and processing
  */
 
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { TokenUsageManager } from './token-usage-manager.ts';
+import { Logger } from '../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { TokenUsageManager } from './token-usage-manager';
 
 /**
  * Base streaming response handler interface

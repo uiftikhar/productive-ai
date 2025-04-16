@@ -1,6 +1,6 @@
 import type { Memory } from 'mem0ai';
 
-import { mem0Client } from './mem0-client.ts';
+import { mem0Client } from './mem0-client';
 
 /**
  * Upsert (i.e. add) a memory record.

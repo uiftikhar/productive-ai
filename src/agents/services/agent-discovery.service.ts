@@ -1,7 +1,7 @@
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { AgentRegistryService } from './agent-registry.service.ts';
-import { AgentInterface } from '../interfaces/agent.interface.ts';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { Logger } from '../../shared/logger/logger.interface';
+import { AgentRegistryService } from './agent-registry.service';
+import { AgentInterface } from '../interfaces/agent.interface';
 
 /**
  * Agent discovery metrics

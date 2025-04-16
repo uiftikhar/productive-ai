@@ -1,21 +1,21 @@
 // @deprecated
 // DO NOT USE THIS FILE
 // IT IS DEPRECATED AND WILL BE REMOVED SOON
-// USE THE NEW services in the src/shared/services folder instead 
+// USE THE NEW services in the src/shared/services folder instead
 
 import {
   RecordMetadata,
   RecordMetadataValue,
 } from '@pinecone-database/pinecone';
-import { PineconeConnectionService } from '../../pinecone/pinecone-connection.service.ts';
-import { VectorRecord } from '../../pinecone/pinecone.type.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
+import { PineconeConnectionService } from '../../pinecone/pinecone-connection.service';
+import { VectorRecord } from '../../pinecone/pinecone.type';
+import { Logger } from '../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
 import {
   ActionItemStatus,
   ContextType,
   KnowledgeGapType,
-} from './context-types.ts';
+} from './context-types';
 import { deprecate } from 'util';
 
 /**

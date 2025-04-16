@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { jest } from '@jest/globals';
-import { CommunicationBusService } from '../messaging/communication-bus.service.ts';
+import { CommunicationBusService } from '../messaging/communication-bus.service';
 import {
   AgentMessage,
   MessageType,
@@ -9,10 +9,10 @@ import {
   createRequestMessage,
   createResponseMessage,
   createTaskMessage,
-} from '../messaging/agent-message.interface.ts';
-import { AgentRegistryService } from '../services/agent-registry.service.ts';
-import { BaseAgent } from '../base/base-agent.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
+} from '../messaging/agent-message.interface';
+import { AgentRegistryService } from '../services/agent-registry.service';
+import { BaseAgent } from '../base/base-agent';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { v4 as uuid } from 'uuid';
 
 // Mock the CommunicationBusService

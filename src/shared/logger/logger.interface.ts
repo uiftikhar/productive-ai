@@ -1,4 +1,4 @@
-import { LogLevel } from './console-logger.ts';
+import { LogLevel } from './console-logger';
 
 export interface Logger {
   setLogLevel(level: LogLevel): void;

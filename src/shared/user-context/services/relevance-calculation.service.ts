@@ -4,11 +4,11 @@
  * including role-based, content-type-based, and recency-based relevance.
  */
 
-import { BaseContextService } from './base-context.service.ts';
-import { Logger } from '../../../shared/logger/logger.interface.ts';
-import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
-import { UserContextMetadata, UserRole } from '../user-context.service.ts';
-import { ContextType } from '../context-types.ts';
+import { BaseContextService } from './base-context.service';
+import { Logger } from '../../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../../shared/logger/console-logger';
+import { UserContextMetadata, UserRole } from '../user-context.service';
+import { ContextType } from '../context-types';
 
 // Constants for relevance calculation
 const DECAY_FACTOR = 0.01; // How much relevance decays per day

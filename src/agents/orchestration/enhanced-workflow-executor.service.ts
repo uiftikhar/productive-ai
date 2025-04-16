@@ -1,27 +1,27 @@
 import { v4 as uuid } from 'uuid';
-import { GraphBuilder, WorkflowState } from './graph-builder.ts';
-import { WorkflowDefinition } from './workflow-definition.service.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
+import { GraphBuilder, WorkflowState } from './graph-builder';
+import { WorkflowDefinition } from './workflow-definition.service';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { Logger } from '../../shared/logger/logger.interface';
 import {
   ModelRouterService,
   ModelSelectionCriteria,
-} from './model-router.service.ts';
-import { AgentRegistryService } from '../services/agent-registry.service.ts';
-import { AgentDiscoveryService } from '../services/agent-discovery.service.ts';
-import { CommunicationBusService } from '../messaging/communication-bus.service.ts';
+} from './model-router.service';
+import { AgentRegistryService } from '../services/agent-registry.service';
+import { AgentDiscoveryService } from '../services/agent-discovery.service';
+import { CommunicationBusService } from '../messaging/communication-bus.service';
 import {
   AgentMessage,
   MessageType,
   createTaskMessage,
   createNotificationMessage,
-} from '../messaging/agent-message.interface.ts';
+} from '../messaging/agent-message.interface';
 import {
   MultiAgentStreamingAggregator,
   StreamAggregationStrategy,
   AgentStreamMetadata,
   StreamAggregationCallback,
-} from './multi-agent-streaming-aggregator.ts';
+} from './multi-agent-streaming-aggregator';
 
 /**
  * Options for workflow execution

@@ -1,8 +1,8 @@
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { AgentInterface } from '../interfaces/agent.interface.ts';
-import { KnowledgeRetrievalAgent } from '../specialized/knowledge-retrieval-agent.ts';
-import { MasterOrchestratorAgent } from '../orchestration/master-orchestrator.ts';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { Logger } from '../../shared/logger/logger.interface';
+import { AgentInterface } from '../interfaces/agent.interface';
+import { KnowledgeRetrievalAgent } from '../specialized/knowledge-retrieval-agent';
+import { MasterOrchestratorAgent } from '../orchestration/master-orchestrator';
 
 /**
  * Agent Registry Service

@@ -1,26 +1,23 @@
 import { BaseMessage, HumanMessage } from '@langchain/core/messages';
-import { BaseAgent } from '../base/base-agent.ts';
-import { AgentRequest, AgentResponse } from '../interfaces/agent.interface.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { MeetingContextService } from '../../shared/user-context/services/meeting-context.service.ts';
-import { OpenAIAdapter } from '../adapters/openai-adapter.ts';
-import { EmbeddingService } from '../../shared/embedding/embedding.service.ts';
-import { ContextType } from '../../shared/user-context/types/context.types.ts';
+import { BaseAgent } from '../base/base-agent';
+import { AgentRequest, AgentResponse } from '../interfaces/agent.interface';
+import { Logger } from '../../shared/logger/logger.interface';
+import { MeetingContextService } from '../../shared/user-context/services/meeting-context.service';
+import { OpenAIAdapter } from '../adapters/openai-adapter';
+import { EmbeddingService } from '../../shared/embedding/embedding.service';
+import { ContextType } from '../../shared/user-context/types/context.types';
 import { v4 as uuidv4 } from 'uuid';
 import {
   RagPromptManager,
   RagRetrievalStrategy,
-} from '../../shared/services/rag-prompt-manager.service.ts';
-import { splitTranscript } from '../../shared/utils/split-transcript.ts';
-import {
-  SystemRole,
-  SystemRoleEnum,
-} from '../../shared/prompts/prompt-types.ts';
+} from '../../shared/services/rag-prompt-manager.service';
+import { splitTranscript } from '../../shared/utils/split-transcript';
+import { SystemRole, SystemRoleEnum } from '../../shared/prompts/prompt-types';
 import {
   InstructionTemplateName,
   InstructionTemplateNameEnum,
-} from '../../shared/prompts/instruction-templates.ts';
-import { MessageConfig } from '../adapters/language-model-adapter.interface.ts';
+} from '../../shared/prompts/instruction-templates';
+import { MessageConfig } from '../adapters/language-model-adapter.interface';
 
 export interface MeetingAnalysisResult {
   summary: string;
@@ -213,6 +210,9 @@ export class MeetingAnalysisAgent extends BaseAgent {
   protected async executeInternal(
     request: AgentRequest,
   ): Promise<AgentResponse> {
+    this.logger.info('Executing Meeting Analysis Agent', {
+      request,
+    });
     const startTime = Date.now();
     const capability = request.capability || 'analyze_meeting';
 

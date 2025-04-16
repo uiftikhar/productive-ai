@@ -5,10 +5,10 @@
  * while preserving the most relevant context for LLM interactions.
  */
 
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { ConsoleLogger } from '../../shared/logger/console-logger.ts';
-import { EmbeddingService } from '../../shared/embedding/embedding.service.ts';
-import { OpenAIAdapter } from '../../agents/adapters/openai-adapter.ts';
+import { Logger } from '../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { EmbeddingService } from '../../shared/embedding/embedding.service';
+import { OpenAIAdapter } from '../../agents/adapters/openai-adapter';
 
 /**
  * Context scoring parameters

@@ -5,9 +5,9 @@
  */
 
 import { RecordMetadata } from '@pinecone-database/pinecone';
-import { BaseContextService } from './base-context.service.ts';
-import { Logger } from '../../../shared/logger/logger.interface.ts';
-import { ConsoleLogger } from '../../../shared/logger/console-logger.ts';
+import { BaseContextService } from './base-context.service';
+import { Logger } from '../../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../../shared/logger/console-logger';
 import {
   BaseContextMetadata,
   ContextType,
@@ -15,8 +15,8 @@ import {
   UserContextError,
   UserContextNotFoundError,
   UserContextValidationError,
-} from '../types/context.types.ts';
-import { VectorRecord } from '../../../pinecone/pinecone.type.ts';
+} from '../types/context.types';
+import { VectorRecord } from '../../../pinecone/pinecone.type';
 
 /**
  * Service for managing integrations with external systems

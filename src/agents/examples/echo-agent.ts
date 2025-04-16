@@ -1,10 +1,10 @@
 // src/agents/examples/echo-agent.ts
 
-import { BaseAgent } from '../base/base-agent.ts';
-import { AgentRequest, AgentResponse } from '../interfaces/agent.interface.ts';
-import { OpenAIAdapter } from '../adapters/openai-adapter.ts';
-import { Logger } from '../../shared/logger/logger.interface.ts';
-import { MessageConfig } from '../adapters/language-model-adapter.interface.ts';
+import { BaseAgent } from '../base/base-agent';
+import { AgentRequest, AgentResponse } from '../interfaces/agent.interface';
+import { OpenAIAdapter } from '../adapters/openai-adapter';
+import { Logger } from '../../shared/logger/logger.interface';
+import { MessageConfig } from '../adapters/language-model-adapter.interface';
 
 /**
  * A simple echo agent that demonstrates the BaseAgent functionality.
