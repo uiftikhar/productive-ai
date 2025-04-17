@@ -137,6 +137,8 @@ export const InstructionTemplates: Record<
       'Format output in structured JSON format',
     ],
     outputRequirements: [
+      'The output should be only be a valid json object',
+      'The output should not include any other text or formatting',
       'Complete structured data in JSON format',
       'Include all identified elements for comprehensive analysis',
       'Ensure proper attribution for action items',
@@ -177,6 +179,8 @@ export const InstructionTemplates: Record<
       'At least 3 key decisions, each explained in 3+ sentences',
       'Complete JSON object with all required fields',
       'Decisions must include title and detailed content',
+      'The output should be only be a valid json object',
+      'The output should not include any other text or formatting',
     ],
   },
   CUSTOM: {

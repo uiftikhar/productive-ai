@@ -1,4 +1,4 @@
-import { ChatOpenAI, ChatOpenAICallOptions } from '@langchain/openai';
+import { ChatOpenAI, ChatOpenAICallOptions, ChatOpenAIFields } from '@langchain/openai';
 import { OpenAIEmbeddings } from '@langchain/openai';
 import {
   BaseMessage,
@@ -29,6 +29,9 @@ export interface OpenAIModelConfig {
   temperature: number;
   maxTokens?: number;
   streaming?: boolean;
+  responseFormat?: {
+    type: 'json_object' | 'json_array' | 'text';
+  };
 }
 
 /**
@@ -126,15 +129,33 @@ export class OpenAIAdapter implements LanguageModelAdapter {
           ? this.createMessages(messages as MessageConfig[])
           : (messages as BaseMessage[]);
 
+      // Check if response format is specified in messages
+      let responseFormat = options?.responseFormat;
+      if (!responseFormat && Array.isArray(messages) && messages.length > 0 && 'responseFormat' in messages[0]) {
+        responseFormat = (messages[0] as MessageConfig).responseFormat;
+      }
+
+      this.logger.info('********* Model Messages *********', {
+        messages: modelMessages,
+        responseFormat,
+      });
+
       // Create a temporary model with different options if needed
       let model = this.chatModel;
-      if (options) {
-        model = new ChatOpenAI({
-          modelName: options.model || this.chatModel.modelName,
-          temperature: options.temperature ?? this.chatModel.temperature,
-          maxTokens: options.maxTokens || this.chatModel.maxTokens,
-          streaming: options.streaming ?? this.chatModel.streaming,
-        });
+      if (options || responseFormat) {
+        const modelOptions: any = {
+          modelName: options?.model || this.chatModel.modelName,
+          temperature: options?.temperature ?? this.chatModel.temperature,
+          maxTokens: options?.maxTokens || this.chatModel.maxTokens,
+          streaming: options?.streaming ?? this.chatModel.streaming,
+        };
+        
+        // Add response format if specified
+        if (responseFormat) {
+          modelOptions.responseFormat = responseFormat;
+        }
+        
+        model = new ChatOpenAI(modelOptions);
       }
 
       const response = await model.invoke(modelMessages);
@@ -143,6 +164,7 @@ export class OpenAIAdapter implements LanguageModelAdapter {
         metadata: {
           model: model.modelName,
           temperature: model.temperature,
+          responseFormat: responseFormat?.type,
         },
       };
     } catch (error) {

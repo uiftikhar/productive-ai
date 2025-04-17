@@ -345,10 +345,20 @@ export class MeetingAnalysisAgent extends BaseAgent {
         }
 
         // Generate analysis for this chunk
-        const messages: MessageConfig[] = ragPrompt.messages.map((m) => ({
-          role: m.role as 'system' | 'user' | 'assistant',
-          content: m.content,
-        }));
+        const messages: MessageConfig[] = ragPrompt.messages.map((m) => {
+          // Create the basic message config
+          const messageConfig: MessageConfig = {
+            role: m.role as 'system' | 'user' | 'assistant',
+            content: m.content,
+          };
+          
+          // Preserve responseFormat if it exists
+          if ((m as any).responseFormat) {
+            messageConfig.responseFormat = (m as any).responseFormat;
+          }
+          
+          return messageConfig;
+        });
 
         const chunkAnalysis =
           await this.openaiAdapter.generateChatCompletion(messages);
@@ -385,13 +395,23 @@ export class MeetingAnalysisAgent extends BaseAgent {
       );
 
       // Generate final analysis
-      const finalMessages: MessageConfig[] = finalRagPrompt.messages.map((m) => ({
-        role: m.role as 'system' | 'user' | 'assistant',
-        content: m.content,
-      }));
+      const finalMessages: MessageConfig[] = finalRagPrompt.messages.map((m) => {
+        // Create the basic message config
+        const messageConfig: MessageConfig = {
+          role: m.role as 'system' | 'user' | 'assistant',
+          content: m.content,
+        };
+        
+        // Preserve responseFormat if it exists
+        if ((m as any).responseFormat) {
+          messageConfig.responseFormat = (m as any).responseFormat;
+        }
+        
+        return messageConfig;
+      });
 
-      const llmResponse =
-        await this.openaiAdapter!.generateChatCompletion(finalMessages);
+
+      const llmResponse = await this.openaiAdapter!.generateChatCompletion(finalMessages);
 
       if (!llmResponse) {
         throw new Error('Failed to analyze meeting transcript');
@@ -399,6 +419,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
 
       let analysisResult: MeetingAnalysisResult;
       try {
+        // Parse the JSON response directly - now it's guaranteed to be proper JSON
         analysisResult = JSON.parse(llmResponse);
       } catch (e) {
         this.logger.error('Failed to parse meeting analysis result', {
@@ -408,6 +429,9 @@ export class MeetingAnalysisAgent extends BaseAgent {
         throw new Error('Failed to parse meeting analysis result');
       }
 
+      this.logger.info("********* Analysis Result *********", {
+        analysisResult,
+      });
       // Store extracted data in the context database
       await this.storeExtractedMeetingData(userId, meetingId, analysisResult);
 
@@ -455,50 +479,92 @@ export class MeetingAnalysisAgent extends BaseAgent {
     analysisResult: MeetingAnalysisResult,
   ): Promise<void> {
     // Store decisions
-    for (const decision of analysisResult.decisions) {
-      const decisionId = decision.id || uuidv4();
-      const decisionEmbedding = await this.generateEmbedding(decision.text);
+    if (analysisResult.decisions && Array.isArray(analysisResult.decisions)) {
+      for (const decision of analysisResult.decisions) {
+        if (!decision.text) {
+          this.logger.warn('Skipping decision with empty text');
+          continue;
+        }
+        
+        const decisionId = decision.id || uuidv4();
+        try {
+          const decisionEmbedding = await this.generateEmbedding(decision.text);
 
-      await this.meetingContextService.storeDecision(
-        userId,
-        meetingId,
-        decisionId,
-        decision.text,
-        decision.summary || null,
-        decisionEmbedding,
-      );
+          await this.meetingContextService.storeDecision(
+            userId,
+            meetingId,
+            decisionId,
+            decision.text,
+            decision.summary || null,
+            decisionEmbedding,
+          );
+        } catch (error) {
+          this.logger.error('Error storing decision', {
+            error: error instanceof Error ? error.message : String(error),
+            decisionText: decision.text.substring(0, 100) + '...',
+          });
+        }
+      }
     }
 
     // Store action items
-    for (const actionItem of analysisResult.actionItems) {
-      const actionItemId = actionItem.id || uuidv4();
-      const actionItemEmbedding = await this.generateEmbedding(actionItem.text);
+    if (analysisResult.actionItems && Array.isArray(analysisResult.actionItems)) {
+      for (const actionItem of analysisResult.actionItems) {
+        if (!actionItem.text) {
+          this.logger.warn('Skipping action item with empty text');
+          continue;
+        }
+        
+        const actionItemId = actionItem.id || uuidv4();
+        try {
+          const actionItemEmbedding = await this.generateEmbedding(actionItem.text);
 
-      await this.meetingContextService.storeActionItem(
-        userId,
-        meetingId,
-        actionItemId,
-        actionItem.text,
-        actionItem.assignee,
-        actionItem.dueDate || null,
-        actionItemEmbedding,
-      );
+          await this.meetingContextService.storeActionItem(
+            userId,
+            meetingId,
+            actionItemId,
+            actionItem.text,
+            actionItem.assignee || 'Unassigned',
+            actionItem.dueDate || null,
+            actionItemEmbedding,
+          );
+        } catch (error) {
+          this.logger.error('Error storing action item', {
+            error: error instanceof Error ? error.message : String(error),
+            actionItemText: actionItem.text.substring(0, 100) + '...',
+          });
+        }
+      }
     }
 
     // Store questions
-    for (const question of analysisResult.questions) {
-      const questionId = question.id || uuidv4();
-      const questionEmbedding = await this.generateEmbedding(question.text);
+    if (analysisResult.questions && Array.isArray(analysisResult.questions)) {
+      for (const question of analysisResult.questions) {
+        if (!question.text) {
+          this.logger.warn('Skipping question with empty text');
+          continue;
+        }
+        
+        const questionId = question.id || uuidv4();
+        try {
+          const questionEmbedding = await this.generateEmbedding(question.text);
 
-      await this.meetingContextService.storeQuestion(
-        userId,
-        meetingId,
-        questionId,
-        question.text,
-        questionEmbedding,
-        question.isAnswered,
-        question.answerContextId,
-      );
+          await this.meetingContextService.storeQuestion(
+            userId,
+            meetingId,
+            questionId,
+            question.text,
+            questionEmbedding,
+            question.isAnswered || false,
+            question.answerContextId,
+          );
+        } catch (error) {
+          this.logger.error('Error storing question', {
+            error: error instanceof Error ? error.message : String(error),
+            questionText: question.text.substring(0, 100) + '...',
+          });
+        }
+      }
     }
   }
 
@@ -547,7 +613,11 @@ export class MeetingAnalysisAgent extends BaseAgent {
     }
 
     const llmResponse = await this.openaiAdapter.generateChatCompletion([
-      { role: 'user', content: prompt },
+      { 
+        role: 'user', 
+        content: prompt,
+        responseFormat: { type: 'json_array' }
+      },
     ]);
 
     if (!llmResponse) {
@@ -556,6 +626,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
 
     let actionItems = [];
     try {
+      // Parse the response with normal JSON.parse - no markdown cleanup needed
       actionItems = JSON.parse(llmResponse);
     } catch (e) {
       throw new Error('Failed to parse action items extraction result');
@@ -642,7 +713,11 @@ export class MeetingAnalysisAgent extends BaseAgent {
     }
 
     const llmResponse = await this.openaiAdapter.generateChatCompletion([
-      { role: 'user', content: prompt },
+      { 
+        role: 'user', 
+        content: prompt,
+        responseFormat: { type: 'json_array' }
+      },
     ]);
 
     if (!llmResponse) {
@@ -651,6 +726,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
 
     let decisions = [];
     try {
+      // Parse the response with normal JSON.parse - no markdown cleanup needed
       decisions = JSON.parse(llmResponse);
     } catch (e) {
       throw new Error('Failed to parse decisions extraction result');
@@ -723,7 +799,11 @@ export class MeetingAnalysisAgent extends BaseAgent {
     }
 
     const llmResponse = await this.openaiAdapter.generateChatCompletion([
-      { role: 'user', content: prompt },
+      { 
+        role: 'user', 
+        content: prompt,
+        responseFormat: { type: 'json_array' }
+      },
     ]);
 
     if (!llmResponse) {
@@ -732,6 +812,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
 
     let questions = [];
     try {
+      // Parse the response with normal JSON.parse - no markdown cleanup needed
       questions = JSON.parse(llmResponse);
     } catch (e) {
       throw new Error('Failed to parse questions extraction result');

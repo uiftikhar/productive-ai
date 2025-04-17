@@ -7,6 +7,9 @@ import { ChatPromptTemplate } from '@langchain/core/prompts';
 export interface MessageConfig {
   role: 'system' | 'user' | 'assistant';
   content: string;
+  responseFormat?: {
+    type: 'json_object' | 'json_array' | 'text';
+  };
 }
 
 /**

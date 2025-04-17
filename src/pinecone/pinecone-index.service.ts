@@ -63,32 +63,24 @@ export class PineconeIndexService {
 
     if (!exists) {
       console.log(`Creating Pinecone index: ${indexName}`);
-      console.log(`Using configuration: dimensions=${config.dimension}, metric=${config.metric}, cloud=${config.cloud}, region=${config.region}`);
 
-      // Use standard createIndex instead of createIndexForModel
-      try {
-        await this.pinecone.createIndex({
-          name: indexName,
-          dimension: config.dimension,  // Explicitly set dimension from config
+      // Use createIndexForModel with proper typing
+      await this.pinecone.createIndexForModel({
+        name: indexName,
+        cloud: config.cloud as ServerlessSpecCloudEnum,
+        region: config.region,
+        embed: {
+          model: config.embeddingModel || 'multilingual-e5-large',
           metric: config.metric || 'cosine',
-          spec: {
-            serverless: {
-              cloud: config.cloud as ServerlessSpecCloudEnum,
-              region: config.region
-            }
-          },
-          waitUntilReady: true,
-          tags: {
-            'model-dimensions': `${config.dimension}`,
-            'created-by': 'productive-ai',
-            ...(config.tags || {})
-          },
-        });
-        console.log(`Index ${indexName} created and ready.`);
-      } catch (error) {
-        console.error(`Error creating index ${indexName}:`, error);
-        throw error;
-      }
+          fieldMap: {
+            text: 'text'
+          }
+        },
+        waitUntilReady: true,
+        tags: config.tags || { project: 'transcript-analysis' },
+      });
+
+      console.log(`Index ${indexName} created and ready.`);
     } else {
       console.log(`Index ${indexName} already exists.`);
     }

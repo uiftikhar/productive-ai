@@ -250,7 +250,10 @@ export class RagPromptManager {
     // 1. Retrieve relevant context based on the query
     const retrievedContext = await this.retrieveUserContext(ragOptions);
 
-    // 2. Use the base PromptManager to create the prompt with the retrieved context
+    // 2. Get the output format for the template if available
+    const responseFormat = this.getOutputFormatForTemplate(templateName);
+
+    // 3. Use the base PromptManager to create the prompt with the retrieved context
     const prompt = PromptManager.createPrompt(
       role,
       templateName,
@@ -258,7 +261,16 @@ export class RagPromptManager {
       retrievedContext.formattedContext,
     );
 
-    // 3. Return the result with additional RAG-specific information
+    // 4. Add response format to the first message if it's available
+    if (responseFormat && prompt.messages.length > 0) {
+      // If we have a system message, add response format to it
+      if (prompt.messages[0].role === 'system') {
+        // Cast to any to allow adding responseFormat property
+        (prompt.messages[0] as any).responseFormat = responseFormat;
+      }
+    }
+
+    // 5. Return the result with additional RAG-specific information
     return {
       messages: prompt.messages,
       retrievedContext,
@@ -1018,5 +1030,50 @@ export class RagPromptManager {
       .sort((a, b) => b.score - a.score)
       .slice(0, count)
       .map((item) => item.template);
+  }
+
+  /**
+   * Get the output format from an instruction template
+   * @param templateName The name of the instruction template
+   * @returns Response format object or undefined if not applicable
+   */
+  getOutputFormatForTemplate(
+    templateName: InstructionTemplateName
+  ): { type: 'json_object' | 'json_array' | 'text' } | undefined {
+    try {
+      // Import the template definitions
+      const { InstructionTemplates } = require('../prompts/instruction-templates');
+      
+      console.log(`Looking for template: ${templateName}`);
+      console.log(`Available templates: ${Object.keys(InstructionTemplates).join(', ')}`);
+      
+      // Try to access the template directly
+      const template = InstructionTemplates[templateName as string];
+      
+      if (!template) {
+        console.log(`Template not found: ${templateName}`);
+        return undefined;
+      }
+      
+      // Check if the template has a format with outputFormat
+      if (template?.format?.outputFormat) {
+        const outputFormat = template.format.outputFormat;
+        
+        console.log(`Found output format for template ${templateName}: ${outputFormat}`);
+        
+        // Only return if it's a supported format type
+        if (outputFormat === 'json_object' || outputFormat === 'json_array') {
+          return { type: outputFormat };
+        }
+      } else {
+        console.log(`No output format found for template ${templateName}`);
+      }
+      
+      // Default to undefined if no format or unsupported format
+      return undefined;
+    } catch (error) {
+      console.error('Error getting output format for template:', error);
+      return undefined;
+    }
   }
 }

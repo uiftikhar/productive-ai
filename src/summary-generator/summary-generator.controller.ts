@@ -155,7 +155,9 @@ export const getSummary = async (
     // Return the analysis result
     res.json({
       meetingId,
-      analysis: analysisResult.output,
+      analysis: typeof analysisResult.output === 'string' 
+                ? JSON.parse(analysisResult.output) 
+                : analysisResult.output,
       // visualizationUrl: tracingEnabled ? `/visualization?traceId=${tracer?.traceId}` : undefined
     });
   } catch (error) {
