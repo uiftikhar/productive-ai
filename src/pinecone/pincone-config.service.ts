@@ -1,5 +1,7 @@
 // src/shared/config/services/pinecone-config.service.ts
 import { Pinecone } from '@pinecone-database/pinecone';
+import dotenv from 'dotenv';
+dotenv.config();
 
 export class PineconeConfig {
   private static instance: Pinecone;

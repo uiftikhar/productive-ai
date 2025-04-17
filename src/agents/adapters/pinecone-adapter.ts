@@ -2,6 +2,7 @@ import { RecordMetadata } from '@pinecone-database/pinecone';
 import { Logger } from '../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { PineconeConnectionService } from '../../pinecone/pinecone-connection.service';
+import { VectorIndexes } from '../../pinecone/pinecone-index.service';
 import {
   VectorRecord,
   QueryOptions,
@@ -32,10 +33,25 @@ export class PineconeAdapter {
 
   /**
    * Initialize the Pinecone adapter
+   * This now only logs the initialization and doesn't actually initialize the indexes
+   * since that's now handled centrally in index.ts
    */
   async initialize(): Promise<void> {
-    this.logger.info('Initializing PineconeAdapter');
-    await this.pineconeService.initialize();
+    this.logger.info('Initializing PineconeAdapter connection');
+    // We don't call pineconeService.initialize() here anymore since
+    // initialization is now handled in index.ts
+    
+    // Just verify the connection by checking if an index exists
+    try {
+      // Check if at least one of our indexes exists to verify connection
+      const indexExists = await this.pineconeService.getIndex(VectorIndexes.USER_CONTEXT);
+      this.logger.info('Connected to Pinecone successfully');
+    } catch (error) {
+      this.logger.warn('Could not verify Pinecone connection', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Don't throw here, as the central initialization might still be in progress
+    }
   }
 
   /**

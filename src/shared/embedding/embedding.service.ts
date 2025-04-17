@@ -18,7 +18,7 @@ export interface EmbeddingResult {
 export class EmbeddingService {
   private logger: Logger;
   private openAIAdapter: OpenAIAdapter;
-  private readonly embeddingModelName = 'text-embedding-ada-002';
+  private readonly embeddingModelName = 'text-embedding-3-large';
 
   constructor(openAIAdapter: OpenAIAdapter, logger?: Logger) {
     this.openAIAdapter = openAIAdapter;
