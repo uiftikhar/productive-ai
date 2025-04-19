@@ -82,4 +82,46 @@ ts-node src/examples/agent-langgraph-demo.ts
 - Improve type safety as LangGraph's TypeScript support matures
 - Add more specialized adapters for different agent types
 - Implement more complex workflows with branching logic
-- Add telemetry and performance monitoring capabilities 
+- Add telemetry and performance monitoring capabilities
+
+## RAG-Enhanced Meeting Analysis
+
+The Productive AI application now features an enhanced meeting analysis workflow that uses Retrieval-Augmented Generation (RAG) to improve analysis quality. This implementation:
+
+1. **Generates embeddings** for meeting transcripts and analysis results
+2. **Stores context** in a vector database (Pinecone) for future retrieval 
+3. **Retrieves relevant context** when analyzing new meetings
+4. **Builds knowledge over time** by accumulating meeting insights
+
+### Architecture
+
+The RAG-enhanced meeting analysis uses these components:
+
+- **MeetingAnalysisAgent**: Specialized agent with RAG capabilities
+- **EmbeddingService**: Handles embedding generation for text
+- **BaseContextService**: Manages vector database storage and retrieval
+- **RagPromptManager**: Creates prompts with relevant retrieved context
+- **StandardizedMeetingAnalysisAdapter**: Orchestrates the full workflow
+
+### Workflow
+
+The RAG-enhanced workflow follows these steps:
+
+1. A meeting transcript is submitted for analysis
+2. The transcript is split into manageable chunks
+3. For each chunk:
+   - Embeddings are generated
+   - Relevant context is retrieved from the vector database
+   - The chunk is analyzed with the benefit of this context
+   - Results are stored back in the vector database with embeddings
+4. Partial analyses are combined for a final comprehensive analysis
+5. The final analysis is stored in the vector database for future reference
+
+### Benefits
+
+This RAG-enhanced approach provides several benefits:
+
+- **Continuity**: Maintains knowledge across multiple meetings
+- **Consistency**: Ensures consistent identification of recurring topics and decisions
+- **Context-awareness**: Enhances analysis with relevant historical information
+- **Knowledge building**: Creates an evolving knowledge base of meeting insights 

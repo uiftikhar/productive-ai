@@ -352,7 +352,8 @@ export class BaseContextService {
     // Find expired records
     const result = await this.pineconeService.queryVectors<RecordMetadata>(
       USER_CONTEXT_INDEX,
-      [], // Empty vector for metadata-only query
+      // Create a valid placeholder vector (3072 dimensions with zeros)
+      Array(3072).fill(0),
       {
         topK: 1000, // Fetch a large number to check for expiration
         filter: {
@@ -402,7 +403,8 @@ export class BaseContextService {
     // Get all entries for this namespace to analyze
     const result = await this.pineconeService.queryVectors<RecordMetadata>(
       USER_CONTEXT_INDEX,
-      [], // Empty vector for metadata-only query
+      // Create a valid placeholder vector (3072 dimensions with zeros)
+      Array(3072).fill(0),
       {
         topK: 1000, // Fetch a large number to analyze
         includeValues: false,

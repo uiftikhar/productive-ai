@@ -7,6 +7,7 @@
 import { MeetingAnalysis } from '../types/meeting-analysis.types';
 import { Decision, DecisionReport } from '../types/decision-tracking.types';
 import { AgentRequest, AgentResponse } from '../../interfaces/agent.interface';
+import { Logger } from '../../../shared/logger/logger.interface';
 
 /**
  * Communication message between agents
@@ -120,13 +121,22 @@ export interface DecisionReportResponse extends AgentCommunicationMessage {
 }
 
 /**
- * Agent orchestration service for specialized agent communication
+ * Interface for the specialized agent orchestrator
  */
 export interface SpecializedAgentOrchestrator {
   /**
-   * Register a specialized agent
+   * Set the logger instance
    */
-  registerAgent(agentId: string, capabilities: string[]): void;
+  setLogger(logger: Logger): void;
+
+  /**
+   * Register an agent with the orchestrator
+   */
+  registerAgent(
+    agentId: string, 
+    capabilities: string[],
+    agent?: any  // Make the agent parameter optional and accept any agent type
+  ): void;
 
   /**
    * Find an agent with the specified capability
@@ -139,7 +149,7 @@ export interface SpecializedAgentOrchestrator {
   routeRequest(request: AgentRequest): Promise<AgentResponse>;
 
   /**
-   * Get communication channel for agent-to-agent communication
+   * Get a communication channel for an agent
    */
   getCommunicationChannel(fromAgentId: string): AgentCommunicationChannel;
 }

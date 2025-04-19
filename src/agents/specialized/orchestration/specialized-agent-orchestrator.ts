@@ -173,13 +173,13 @@ export class SpecializedAgentOrchestratorImpl
    * Register an agent with the orchestrator
    */
   registerAgent(
-    agentId: string,
+    agentKey: string,
     capabilities: string[],
-    instance?: BaseAgent,
+    agent: any // Change from BaseAgent to any to accept MeetingAnalysisAgent or other agent types
   ): void {
-    this.agents.set(agentId, { capabilities, instance });
+    this.agents.set(agentKey, { capabilities, instance: agent });
     this.logger.info(
-      `Registered agent ${agentId} with ${capabilities.length} capabilities`,
+      `Registered agent ${agentKey} with ${capabilities.length} capabilities`,
     );
   }
 

@@ -6,14 +6,14 @@ import { StateGraph, START, END } from '@langchain/langgraph';
 import { BaseAgent } from '../../../agents/base/base-agent';
 import { AgentRequest, AgentResponse } from '../../../agents/interfaces/agent.interface';
 import { BaseAgentAdapter } from './base-agent.adapter';
-import { 
+import {
   AgentStatus,
   AgentMessage
 } from '../state/base-agent-state';
-import { 
-  logStateTransition, 
-  startTrace, 
-  endTrace 
+import {
+  logStateTransition,
+  startTrace,
+  endTrace
 } from '../utils/tracing';
 
 /**
@@ -23,27 +23,27 @@ export interface ConversationState {
   // Core identifiers
   conversationId: string;
   userId: string;
-  
+
   // Messages
   messages: AgentMessage[];
   currentMessageIndex: number;
-  
+
   // Processing state
   status: string;
   thinking: boolean;
-  
+
   // Content and context
   userInput?: string;
   agentResponse?: string;
   context?: Record<string, any>;
-  
+
   // Metrics
   startTime: number;
   endTime?: number;
   tokensUsed?: number;
   executionTimeMs?: number;
   totalExecutionTimeMs?: number;
-  
+
   // Miscellaneous
   metadata: Record<string, any>;
 }
@@ -81,7 +81,7 @@ export interface SendMessageResult {
  */
 export type ConversationNodeFunction = (
   state: ConversationState,
-) => Partial<ConversationState>;
+) => Partial<ConversationState> | Promise<Partial<ConversationState>>;
 
 /**
  * ConversationAdapter
@@ -106,7 +106,7 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
     const startTime = Date.now();
     const conversationId = params.conversationId || uuidv4();
     const userId = params.userId || 'anonymous';
-    
+
     try {
       // 1. Initialize the agent if needed
       if (!this.agent.getInitializationStatus()) {
@@ -142,10 +142,10 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
         agentId: this.agent.id,
         conversationId
       });
-      
+
       // 4. Execute the graph
       const result = await graph.invoke(initialState);
-      
+
       // 5. End the trace
       endTrace(traceId, 'conversation', result, {
         agentId: this.agent.id,
@@ -169,7 +169,7 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
       };
     } catch (error) {
       console.error(`Error in conversation for ${conversationId}:`, error);
-      
+
       return {
         conversationId,
         userId,
@@ -196,15 +196,15 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
         status: 'processing',
         thinking: true
       });
-      
+
       return {
         status: 'processing',
         thinking: true,
         processStartTime: Date.now()
       };
     };
-    
-    const generateResponse: ConversationNodeFunction = (state) => {
+
+    const generateResponse: ConversationNodeFunction = async (state) => {
       try {
         // Create the agent request
         const request: AgentRequest = {
@@ -216,9 +216,11 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
             ...(state.context || {})
           }
         };
-        
-        // This is async, but we need to wrap it to handle async properly
-        return this.agent.execute(request).then(response => {
+
+        try {
+          // Execute the agent request
+          const response = await this.agent.execute(request);
+
           // Create the agent message
           const message: AgentMessage = {
             role: 'assistant',
@@ -229,10 +231,10 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
               executionTimeMs: response.metrics?.executionTimeMs
             }
           };
-          
+
           // Add the message to the state
           const updatedMessages = [...state.messages, message];
-          
+
           return {
             messages: updatedMessages,
             agentResponse: message.content,
@@ -242,10 +244,10 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
             thinking: false,
             endTime: Date.now()
           };
-        }).catch(error => {
+        } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
           console.error('Error generating response:', errorMessage);
-          
+
           // Create error message
           const errorMsg: AgentMessage = {
             role: 'system',
@@ -255,7 +257,7 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
               error: errorMessage
             }
           };
-          
+
           return {
             messages: [...state.messages, errorMsg],
             agentResponse: errorMsg.content,
@@ -263,11 +265,11 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
             thinking: false,
             endTime: Date.now()
           };
-        });
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error('Error in generate response:', errorMessage);
-        
+
         // Create error message
         const errorMsg: AgentMessage = {
           role: 'system',
@@ -277,7 +279,7 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
             error: errorMessage
           }
         };
-        
+
         return {
           messages: [...state.messages, errorMsg],
           agentResponse: errorMsg.content,
@@ -287,11 +289,11 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
         };
       }
     };
-    
+
     const finalizeConversation: ConversationNodeFunction = (state) => {
       // Calculate metrics and prepare final state
       const totalTimeMs = Date.now() - state.startTime;
-      
+
       return {
         status: 'finished',
         totalExecutionTimeMs: totalTimeMs,
@@ -302,7 +304,7 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
         }
       };
     };
-    
+
     // Wrap node functions to make them compatible with LangGraph's expected type
     const wrapNodeFunction = (fn: ConversationNodeFunction) => {
       return {
@@ -311,7 +313,7 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
         },
       };
     };
-    
+
     // Create state channels for the graph
     const channels = {
       conversationId: {
@@ -390,23 +392,23 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
         default: () => ({}),
       },
     };
-    
+
     // Create the state graph with the defined channels
     const workflow = new StateGraph<ConversationState>({
-      channels: channels as any,
-    });
-    
+      channels: channels,
+    }) as any;
+
     // Add nodes to the graph (wrapped for compatibility)
     workflow.addNode("process_message", wrapNodeFunction(processMessage));
     workflow.addNode("generate_response", wrapNodeFunction(generateResponse));
     workflow.addNode("finalize", wrapNodeFunction(finalizeConversation));
-    
+
     // Add edges
     workflow.addEdge(START, "process_message");
     workflow.addEdge("process_message", "generate_response");
     workflow.addEdge("generate_response", "finalize");
     workflow.addEdge("finalize", END);
-    
+
     // Compile and return
     return workflow.compile();
   }

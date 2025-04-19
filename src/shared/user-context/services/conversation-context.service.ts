@@ -84,12 +84,12 @@ export class ConversationContextService extends BaseContextService {
       filter.timestamp = { $lt: beforeTimestamp };
     }
 
-    // Use an empty vector for a metadata-only search
+    // Use a proper placeholder vector for a metadata-only search
     const result = await this.executeWithRetry(
       () =>
         this.pineconeService.queryVectors<RecordMetadata>(
           USER_CONTEXT_INDEX,
-          [], // Empty vector for metadata-only query
+          Array(3072).fill(0), // Placeholder vector filled with zeros - matching index dimension
           {
             topK: limit,
             filter,
@@ -126,7 +126,7 @@ export class ConversationContextService extends BaseContextService {
       () =>
         this.pineconeService.queryVectors<RecordMetadata>(
           USER_CONTEXT_INDEX,
-          [], // Empty vector for metadata-only query
+          Array(3072).fill(0), // Placeholder vector filled with zeros - matching index dimension
           {
             topK: 1000,
             filter: {
@@ -176,7 +176,7 @@ export class ConversationContextService extends BaseContextService {
       () =>
         this.pineconeService.queryVectors<RecordMetadata>(
           USER_CONTEXT_INDEX,
-          [],
+          Array(3072).fill(0), // Placeholder vector filled with zeros - matching index dimension
           {
             topK: 10000,
             filter: {

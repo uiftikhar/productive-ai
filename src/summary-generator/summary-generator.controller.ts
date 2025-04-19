@@ -2,39 +2,67 @@ import { Request, Response } from 'express';
 import express from 'express';
 import { promises as fs } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import path from 'path';
 import { MeetingAnalysisAgent } from '../agents/specialized/meeting-analysis-agent';
 import 'reflect-metadata';
-import { MeetingAnalysisAdapter } from '../langgraph/core/adapters/meeting-analysis.adapter';
+import { StandardizedMeetingAnalysisAdapter } from '../langgraph/core/adapters/standardized-meeting-analysis.adapter';
 
-import { MeetingContextService } from '../shared/user-context/services/meeting-context.service';
 import { EmbeddingService } from '../shared/embedding/embedding.service';
-import { RagPromptManager } from '../shared/services/rag-prompt-manager.service';
 import { ConsoleLogger } from '../shared/logger/console-logger';
 import { specializedAgentOrchestrator } from '../agents/specialized/orchestration/specialized-agent-orchestrator';
 import { configureTracing } from '../langgraph/core/utils/tracing';
-import { saveGraphHtml } from '../langgraph/core/utils/graph-visualization';
 import { OpenAIAdapter } from '../agents/adapters';
+import { BaseContextService } from '../shared/user-context/services/base-context.service';
+
+// Type imports to help with type casting
+import { AgentRequest } from '../agents/interfaces/unified-agent.interface';
 
 // Initialize services
 const logger = new ConsoleLogger();
-const openaiAdapter = new OpenAIAdapter();
-const meetingContextService = new MeetingContextService();
+const openaiAdapter = new OpenAIAdapter({
+  logger
+});
 const embeddingService = new EmbeddingService(openaiAdapter, logger);
-const ragPromptManager = new RagPromptManager();
+const baseContextService = new BaseContextService({ logger });
+
+// Initialize the base context service
+// TODO move to main or app.ts
+(async () => {
+  try {
+    await baseContextService.initialize();
+    logger.info('Base context service initialized successfully');
+  } catch (error) {
+    logger.error('Failed to initialize base context service', { error });
+  }
+})();
 
 // Initialize agent orchestrator
 specializedAgentOrchestrator.setLogger(logger);
 
-// Initialize specialized agents
-const meetingAnalysisAgent = new MeetingAnalysisAgent({
-  id: 'meeting-analysis-agent',
-  logger,
-  openaiAdapter,
-  meetingContextService,
-  embeddingService,
-  ragPromptManager,
-});
+// Initialize specialized agents - using the standard adapter for backward compatibility
+const standardMeetingAnalysisAgent = new MeetingAnalysisAgent(
+  'Meeting Analysis Agent',
+  'Analyzes meeting transcripts to extract key information, action items, and insights',
+  {
+    id: 'meeting-analysis-agent',
+    logger,
+    openAIAdapter: openaiAdapter,
+    embeddingService: embeddingService,
+    baseContextService: baseContextService
+  }
+);
+
+// Initialize RAG-enhanced agent for the standardized adapter
+const ragEnhancedMeetingAnalysisAgent = new MeetingAnalysisAgent(
+  'RAG Meeting Analysis Agent',
+  'Analyzes meeting transcripts with RAG capabilities',
+  {
+    id: 'rag-meeting-analysis-agent',
+    logger,
+    openAIAdapter: openaiAdapter,
+    embeddingService: embeddingService,
+    baseContextService: baseContextService
+  }
+);
 
 // Configure LangGraph tracing
 configureTracing({
@@ -46,34 +74,44 @@ configureTracing({
   },
 });
 
-// Create LangGraph adapter for meeting analysis
-const meetingAnalysisAdapter = new MeetingAnalysisAdapter(meetingAnalysisAgent, {
+// Create Standardized LangGraph adapter for meeting analysis with RAG capabilities
+// Cast only the needed properties to satisfy TypeScript
+const standardizedAdapter = new StandardizedMeetingAnalysisAdapter({
+  //  TODO Fix this hack
+  // Type compatibility issue: we're using the MeetingAnalysisAgent class instead of BaseAgent
+  // but we know it has the required functionality
+  id: ragEnhancedMeetingAnalysisAgent.id,
+  name: ragEnhancedMeetingAnalysisAgent.name,
+  description: ragEnhancedMeetingAnalysisAgent.description,
+  getCapabilities: () => ragEnhancedMeetingAnalysisAgent.getCapabilities(),
+  execute: (request: AgentRequest) => ragEnhancedMeetingAnalysisAgent.execute(request),
+  initialize: () => ragEnhancedMeetingAnalysisAgent.initialize(),
+  getState: () => ragEnhancedMeetingAnalysisAgent.getState(),
+  canHandle: (capability: string) => ragEnhancedMeetingAnalysisAgent.canHandle(capability),
+  getInitializationStatus: () => ragEnhancedMeetingAnalysisAgent.getInitializationStatus(),
+  terminate: () => ragEnhancedMeetingAnalysisAgent.terminate(),
+  getMetrics: () => ragEnhancedMeetingAnalysisAgent.getMetrics(),
+} as any, {
   tracingEnabled: true,
+  logger,
+  maxChunkSize: 2000,
+  chunkOverlap: 200
 });
 
 // Check if LangSmith is configured
 const isLangSmithConfigured = process.env.LANGSMITH_API_KEY && process.env.LANGSMITH_PROJECT;
 
-// Initialize the agent using an immediately invoked async function
+// TODO move to main or app.ts
+// Initialize the agents using an immediately invoked async function
 (async () => {
   try {
-    await meetingAnalysisAgent.initialize();
-    logger.info('Meeting analysis agent initialized successfully');
+    await standardMeetingAnalysisAgent.initialize();
+    await ragEnhancedMeetingAnalysisAgent.initialize();
+    logger.info('Meeting analysis agents initialized successfully');
   } catch (error) {
-    logger.error('Failed to initialize meeting analysis agent', { error });
+    logger.error('Failed to initialize meeting analysis agents', { error });
   }
 })();
-
-// Initialize the Decision Tracking Agent
-// const decisionTrackingAgent = new DecisionTrackingAgent(
-//   'Decision Tracking Agent',
-//   'Analyzes and tracks decisions across meetings',
-//   {
-//     id: 'decision-tracking-agent',
-//     logger,
-//     openaiAdapter
-//   }
-// );
 
 // Register agents with the singleton orchestrator
 specializedAgentOrchestrator.registerAgent(
@@ -84,28 +122,8 @@ specializedAgentOrchestrator.registerAgent(
     'summary_generation',
     'action_item_detection',
   ],
-  meetingAnalysisAgent,
+  standardMeetingAnalysisAgent,
 );
-
-// orchestrator.registerAgent(
-//   'decision-tracking',
-//   ['analyze_decisions', 'generate_report', 'query_decisions'],
-//   decisionTrackingAgent
-// );
-
-// Ensure visualization directory exists
-const VISUALIZATION_DIR = path.join(process.cwd(), 'visualizations');
-(async () => {
-  try {
-    await fs.access(VISUALIZATION_DIR);
-    console.log('Visualizations directory exists');
-  } catch (error) {
-    console.log('Creating visualizations directory');
-    await fs.mkdir(VISUALIZATION_DIR, { recursive: true });
-  }
-})().catch(error => {
-  console.error('Error setting up visualizations directory:', error);
-});
 
 export const getSummary = async (
   req: Request,
@@ -113,8 +131,8 @@ export const getSummary = async (
   next: express.NextFunction,
 ) => {
   try {
-    // Check if agent is initialized by checking its state
-    const agentState = meetingAnalysisAgent.getState();
+    // Check if agents are initialized by checking their state
+    const agentState = standardMeetingAnalysisAgent.getState();
     if (agentState.status !== 'ready') {
       return res.status(503).json({
         error: 'Service unavailable',
@@ -126,14 +144,14 @@ export const getSummary = async (
 
     // Generate meetingId
     const meetingId = uuidv4();
-
-    // Check if LangGraph tracing is requested
-    let useLangGraph = req.query.langgraph === 'true';
-    let visualizationPath = null;
+      
     let langSmithTraceUrl = null;
     let analysisResult: { output: any } | null = null;
     let transcript = '';
     let hasTranscript = false;
+    
+    // Get userId from request
+    const userId = req.body.userId || 'anonymous';
 
     // Check for transcript
     if (req.file) {
@@ -148,94 +166,85 @@ export const getSummary = async (
       
       hasTranscript = true;
     } else {
-      // No transcript file, but we'll still generate a visualization if requested
-      logger.warn('No transcript file uploaded, will generate error visualization');
+      // No transcript file
+      logger.warn('No transcript file uploaded');
     }
 
-    if (useLangGraph) {
-      // Use LangGraph adapter for processing
-      logger.info('Using LangGraph for meeting analysis', { meetingId });
+    // Always use the standardized adapter with RAG capabilities
+    logger.info('Using RAG-enhanced meeting analysis with LangGraph', { meetingId });
+    
+    try {
+      // Process the transcript using the standardized adapter with RAG capabilities
+      const result = await standardizedAdapter.processMeetingTranscript({
+        meetingId,
+        transcript,
+        title: req.body.meetingTitle || 'Untitled Meeting',
+        participantIds: req.body.participantIds || [],
+        userId: userId,
+        includeTopics: true,
+        includeActionItems: true,
+        includeSentiment: req.body.includeSentiment === 'true',
+      });
+      
+      // Get the analysis output
+      analysisResult = {
+        output: result.output
+      };
+      
+      // Generate a trace ID for LangSmith
+      const traceId = `rag-meeting-analysis-${meetingId}`;
+      
+      // Get LangSmith trace URL if available
+      if (isLangSmithConfigured) {
+        langSmithTraceUrl = `https://smith.langchain.com/projects/${process.env.LANGSMITH_PROJECT}/traces/${traceId}`;
+        logger.info('Generated LangSmith trace URL', { langSmithTraceUrl });
+      }
+    } catch (error) {
+      logger.error('Error in RAG-enhanced processing', { error });
+      
+      // Fall back to traditional approach
+      logger.info('Falling back to traditional approach after RAG error');
       
       try {
-        // Always process using the adapter, even if there's no transcript
-        // The adapter will handle the error and still provide a graph
-        const result = await meetingAnalysisAdapter.processMeetingTranscript({
-          meetingId,
-          transcript,
-          title: req.body.meetingTitle || 'Untitled Meeting',
-          participantIds: req.body.participantIds || [],
-          userId: req.body.userId || 'anonymous',
-          includeTopics: true,
-          includeActionItems: true,
-          includeSentiment: req.body.includeSentiment === 'true',
-        });
-        
-        // Get the analysis output
-        analysisResult = {
-          output: result.output
+        // Use the traditional approach as fallback
+        const meetingAnalysisRequest = {
+          input: '',
+          capability: 'analyze_meeting',
+          context: {
+            userId: userId,
+          },
+          parameters: {
+            meetingId,
+            transcript,
+            meetingTitle: req.body.meetingTitle || 'Untitled Meeting',
+            participantIds: req.body.participantIds || [],
+            includeTopics: true,
+            includeActionItems: true,
+            includeSentiment: req.body.includeSentiment === 'true',
+            trackDecisions: true,
+            storeInContext: true, // Enable storing in context
+          },
         };
+
+        analysisResult = await specializedAgentOrchestrator.routeRequest(
+          meetingAnalysisRequest,
+        );
+      } catch (fallbackError) {
+        logger.error('Error in fallback processing', { error: fallbackError });
         
-        // Generate visualization if requested
-        if (result.graph) {
-          try {
-            const visualizationFilename = `meeting-analysis-${meetingId}`;
-            await saveGraphHtml(
-              result.graph,
-              visualizationFilename,
-              `Meeting Analysis - ${req.body.meetingTitle || 'Untitled Meeting'}`,
-              VISUALIZATION_DIR
-            );
-            
-            // Set the visualization path - this should correspond to the static file route
-            visualizationPath = `/visualizations/${visualizationFilename}.html`;
-            
-            // Verify the file exists after saving
-            const fullPath = path.join(VISUALIZATION_DIR, `${visualizationFilename}.html`);
-            await fs.access(fullPath);
-            logger.info('Visualization file successfully created', { path: fullPath });
-            
-            // If LangSmith is configured, provide LangSmith URL too
-            if (isLangSmithConfigured && result.traceId) {
-              langSmithTraceUrl = `https://smith.langchain.com/projects/${process.env.LANGSMITH_PROJECT}/traces/${result.traceId}`;
-              logger.info('Generated LangSmith trace URL', { langSmithTraceUrl });
-            }
-          } catch (error) {
-            logger.error('Failed to generate graph visualization', { error });
+        // If all else fails, provide an error message
+        analysisResult = {
+          output: {
+            error: "Processing failed",
+            details: "There was an error during processing",
+            timestamp: new Date().toISOString()
           }
-        }
-      } catch (error) {
-        logger.error('Error in LangGraph processing', { error });
-        // Fall back to traditional approach
-        logger.info('Falling back to traditional approach after LangGraph error');
-        useLangGraph = false;
+        };
       }
     }
-    
-    // Use the traditional orchestrator approach if LangGraph is not used or failed and we have a transcript
-    if ((!useLangGraph || !analysisResult) && hasTranscript) {
-      const meetingAnalysisRequest = {
-        input: '',
-        capability: 'analyze_meeting',
-        context: {
-          userId: req.body.userId || 'anonymous',
-        },
-        parameters: {
-          meetingId,
-          transcript,
-          meetingTitle: req.body.meetingTitle || 'Untitled Meeting',
-          participantIds: req.body.participantIds || [],
-          includeTopics: true,
-          includeActionItems: true,
-          includeSentiment: req.body.includeSentiment === 'true',
-          trackDecisions: true,
-        },
-      };
 
-      analysisResult = await specializedAgentOrchestrator.routeRequest(
-        meetingAnalysisRequest,
-      );
-    } else if (!analysisResult) {
-      // We have no result at all, provide an error
+    // If we still have no result, provide an error
+    if (!analysisResult) {
       analysisResult = {
         output: {
           error: "No transcript provided or processing failed",
@@ -245,15 +254,14 @@ export const getSummary = async (
       };
     }
 
-    // At this point, analysisResult is guaranteed to be defined
     // Return the analysis result
     res.json({
       meetingId,
-      analysis: typeof analysisResult.output === 'string' 
+      analysis: typeof analysisResult?.output === 'string' 
                 ? JSON.parse(analysisResult.output) 
-                : analysisResult.output,
-      visualizationUrl: visualizationPath,
-      langSmithUrl: langSmithTraceUrl
+                : analysisResult?.output,
+      langSmithUrl: langSmithTraceUrl,
+      ragEnhanced: true // Always true since we're using RAG by default
     });
   } catch (error) {
     logger.error('Error in getSummary', { error });
@@ -299,30 +307,5 @@ export const getDecisionReport = async (
   } catch (error) {
     logger.error('Error in getDecisionReport', { error });
     next(error);
-  }
-};
-
-export const getVisualization = async (req: Request, res: Response) => {
-  try {
-    const traceId = req.params.id;
-    if (!traceId) {
-      return res.status(400).send({ error: 'Trace ID is required' });
-    }
-    
-    // Set the path to the visualization file
-    const visualizationPath = path.join(__dirname, '../../visualizations', `${traceId}.html`);
-    
-    // Check if the visualization file exists
-    try {
-      await fs.access(visualizationPath);
-    } catch (error) {
-      return res.status(404).send({ error: 'Visualization not found for the given trace ID' });
-    }
-    
-    // Send the HTML file
-    res.sendFile(visualizationPath);
-  } catch (error) {
-    console.error('Error retrieving visualization:', error);
-    res.status(500).send({ error: 'Failed to retrieve visualization' });
   }
 };

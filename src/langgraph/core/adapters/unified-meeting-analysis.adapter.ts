@@ -4,12 +4,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { 
   BaseLangGraphAdapter, 
   BaseLangGraphState,
-  WorkflowStatus,
-  WorkflowError
+  WorkflowStatus
 } from './base-langgraph.adapter';
 import { MeetingAnalysisAgent } from '../../../agents/specialized/meeting-analysis-agent';
 import { splitTranscript } from '../../../shared/utils/split-transcript';
-import { ContextType } from '../../../shared/user-context/types/context.types';
+import { Logger } from '../../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../../shared/logger/console-logger';
 
 /**
  * Meeting analysis state interface
@@ -59,12 +59,14 @@ export interface ProcessMeetingTranscriptResult {
 }
 
 /**
- * StandardizedMeetingAnalysisAdapter
+ * UnifiedMeetingAnalysisAdapter
  * 
- * A refined implementation of the meeting analysis adapter using
- * the standardized BaseLangGraphAdapter pattern.
+ * A meeting analysis adapter using the unified agent architecture
+ * and standardized LangGraph approach
+ * 
+ * @status STABLE
  */
-export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
+export class UnifiedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
   MeetingAnalysisState, 
   ProcessMeetingTranscriptParams, 
   ProcessMeetingTranscriptResult
@@ -72,9 +74,10 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
   // Default configuration
   protected maxChunkSize: number;
   protected chunkOverlap: number;
+  protected logger: Logger;
 
   /**
-   * Creates a new instance of the StandardizedMeetingAnalysisAdapter
+   * Creates a new instance of the UnifiedMeetingAnalysisAdapter
    */
   constructor(
     protected readonly agent: MeetingAnalysisAgent,
@@ -82,16 +85,16 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
       tracingEnabled?: boolean;
       maxChunkSize?: number;
       chunkOverlap?: number;
-      logger?: any;
+      logger?: Logger;
     } = {}
   ) {
     super({
       tracingEnabled: options.tracingEnabled,
-      logger: options.logger,
     });
     
     this.maxChunkSize = options.maxChunkSize || 2000;
     this.chunkOverlap = options.chunkOverlap || 200;
+    this.logger = options.logger || new ConsoleLogger();
   }
 
   /**
@@ -118,7 +121,10 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
       status: Annotation<string>(),
       startTime: Annotation<number>(),
       endTime: Annotation<number | undefined>(),
-      errorCount: Annotation<number>(),
+      errorCount: Annotation<number>({
+        default: () => 0,
+        value: (curr, update) => (curr || 0) + (update || 0),
+      }),
       errors: Annotation<any[]>({
         default: () => [],
         reducer: (curr, update) => [...(curr || []), ...(Array.isArray(update) ? update : [update])],
@@ -323,23 +329,17 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
           meetingId: state.meetingId
         });
         
-        // Process the current chunk using the agent with the analyze-transcript-chunk capability
+        // Process the current chunk using the agent's analyze-transcript-chunk capability
         const result = await this.agent.execute({
           input: chunk,
           capability: 'analyze-transcript-chunk',
           parameters: {
-            userId: state.userId,
             chunkIndex,
             totalChunks: state.chunks.length,
             meetingId: state.meetingId,
-            meetingTitle: state.meetingTitle,
-            participantIds: state.participantIds,
             includeTopics: state.metadata?.includeTopics,
             includeActionItems: state.metadata?.includeActionItems,
             includeSentiment: state.metadata?.includeSentiment,
-            conversationId: state.runId, // Using runId as a conversationId for tracking
-            storeInContext: true, // Enable storage of analysis in context
-            documentIds: [state.meetingId], // Include the meetingId as a document filter
           }
         });
         
@@ -413,18 +413,13 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
           input: combinedAnalyses,
           capability: 'generate-final-analysis',
           parameters: {
-            userId: state.userId,
             meetingId: state.meetingId,
-            meetingTitle: state.meetingTitle,
             totalChunks: state.chunks.length,
+            meetingTitle: state.meetingTitle,
             participantIds: state.participantIds,
             includeTopics: state.metadata?.includeTopics,
             includeActionItems: state.metadata?.includeActionItems,
             includeSentiment: state.metadata?.includeSentiment,
-            conversationId: state.runId, // Using runId as a conversationId for tracking
-            storeInContext: true, // Enable storage of analysis in context
-            documentIds: [state.meetingId], // Include the meetingId as a document filter
-            includeHistorical: true, // Include historical data for final analysis
           }
         });
         
@@ -443,10 +438,14 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
           );
         } catch (parseError) {
           // If parsing fails, use the raw text
+          const rawContent = typeof result.output === 'string' 
+            ? result.output 
+            : result.output.content;
+            
           analysisResult = {
-            rawAnalysis: typeof result.output === 'string' 
-              ? result.output 
-              : result.output.content
+            rawAnalysis: typeof rawContent === 'string'
+              ? rawContent
+              : JSON.stringify(rawContent)
           };
         }
         
@@ -481,30 +480,29 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
       try {
         this.logger.info(`Storing results for meeting ${state.meetingId}`);
         
-        // Prepare a storage request for the meeting analysis
-        // This would typically save to a database, but for now we just prepare the request
-        const storageRequest = {
+        // In a production implementation, this would save to a database
+        // For now, we're just preparing the metadata and logging it
+        
+        const metadata = {
           meetingId: state.meetingId,
           userId: state.userId,
-          analysisResult: state.analysisResult,
-          contextType: ContextType.MEETING,
-          metadata: {
-            title: state.meetingTitle,
-            participantIds: state.participantIds,
-            transcriptLength: state.transcript.length,
-            chunkCount: state.chunks.length,
-            analysisTimestamp: new Date().toISOString(),
-          }
+          title: state.meetingTitle,
+          participantIds: state.participantIds,
+          transcriptLength: state.transcript.length,
+          chunkCount: state.chunks.length,
+          analysisTimestamp: new Date().toISOString(),
         };
         
-        // Store the results - this would be implemented with actual storage in a production system
-        // For now, we just log the request
-        this.logger.debug('Would store meeting analysis with request:', storageRequest);
+        this.logger.debug('Meeting analysis complete with metadata:', metadata);
         
         return {
           ...state,
           status: WorkflowStatus.COMPLETED,
           endTime: Date.now(),
+          metadata: {
+            ...state.metadata,
+            ...metadata
+          }
         };
       } catch (error) {
         return this.addErrorToState(
