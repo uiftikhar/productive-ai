@@ -1,4 +1,8 @@
-import { ChatOpenAI, ChatOpenAICallOptions, ChatOpenAIFields } from '@langchain/openai';
+import {
+  ChatOpenAI,
+  ChatOpenAICallOptions,
+  ChatOpenAIFields,
+} from '@langchain/openai';
 import { OpenAIEmbeddings } from '@langchain/openai';
 import {
   BaseMessage,
@@ -131,7 +135,12 @@ export class OpenAIAdapter implements LanguageModelAdapter {
 
       // Check if response format is specified in messages
       let responseFormat = options?.responseFormat;
-      if (!responseFormat && Array.isArray(messages) && messages.length > 0 && 'responseFormat' in messages[0]) {
+      if (
+        !responseFormat &&
+        Array.isArray(messages) &&
+        messages.length > 0 &&
+        'responseFormat' in messages[0]
+      ) {
         responseFormat = (messages[0] as MessageConfig).responseFormat;
       }
 
@@ -149,12 +158,12 @@ export class OpenAIAdapter implements LanguageModelAdapter {
           maxTokens: options?.maxTokens || this.chatModel.maxTokens,
           streaming: options?.streaming ?? this.chatModel.streaming,
         };
-        
+
         // Add response format if specified
         if (responseFormat) {
           modelOptions.responseFormat = responseFormat;
         }
-        
+
         model = new ChatOpenAI(modelOptions);
       }
 

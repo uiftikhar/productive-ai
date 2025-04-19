@@ -1,8 +1,7 @@
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { Logger } from '../../shared/logger/logger.interface';
-import { AgentInterface } from '../interfaces/agent.interface';
+import { UnifiedAgentInterface } from '../interfaces/unified-agent.interface';
 import { KnowledgeRetrievalAgent } from '../specialized/knowledge-retrieval-agent';
-import { MasterOrchestratorAgent } from '../orchestration/master-orchestrator';
 
 /**
  * Agent Registry Service
@@ -10,7 +9,7 @@ import { MasterOrchestratorAgent } from '../orchestration/master-orchestrator';
  */
 export class AgentRegistryService {
   private static instance: AgentRegistryService;
-  private agents: Map<string, AgentInterface> = new Map();
+  private agents: Map<string, UnifiedAgentInterface> = new Map();
   private logger: Logger;
 
   private constructor(logger?: Logger) {
@@ -30,7 +29,7 @@ export class AgentRegistryService {
   /**
    * Register an agent with the registry
    */
-  registerAgent(agent: AgentInterface): void {
+  registerAgent(agent: UnifiedAgentInterface): void {
     if (this.agents.has(agent.id)) {
       this.logger.warn(
         `Agent with ID ${agent.id} already registered, replacing it`,
@@ -54,29 +53,16 @@ export class AgentRegistryService {
   }
 
   /**
-   * Register the Master Orchestrator Agent
-   */
-  registerMasterOrchestratorAgent(options?: any): MasterOrchestratorAgent {
-    const agent = new MasterOrchestratorAgent({
-      registry: this,
-      logger: this.logger,
-      ...options,
-    });
-    this.registerAgent(agent);
-    return agent;
-  }
-
-  /**
    * Get an agent by ID
    */
-  getAgent(id: string): AgentInterface | undefined {
+  getAgent(id: string): UnifiedAgentInterface | undefined {
     return this.agents.get(id);
   }
 
   /**
    * Find agents that can handle a specific capability
    */
-  findAgentsWithCapability(capability: string): AgentInterface[] {
+  findAgentsWithCapability(capability: string): UnifiedAgentInterface[] {
     return Array.from(this.agents.values()).filter((agent) =>
       agent.canHandle(capability),
     );
@@ -85,7 +71,7 @@ export class AgentRegistryService {
   /**
    * List all registered agents
    */
-  listAgents(): AgentInterface[] {
+  listAgents(): UnifiedAgentInterface[] {
     return Array.from(this.agents.values());
   }
 

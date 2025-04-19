@@ -1,19 +1,28 @@
 import { UnifiedAgent } from '../base/unified-agent';
-import { AgentRequest, AgentResponse } from '../interfaces/unified-agent.interface';
+import {
+  AgentRequest,
+  AgentResponse,
+} from '../interfaces/unified-agent.interface';
 import { Logger } from '../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { ChatOpenAI } from '@langchain/openai';
-import { BaseMessage, SystemMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
+import {
+  BaseMessage,
+  SystemMessage,
+  HumanMessage,
+  AIMessage,
+} from '@langchain/core/messages';
 
 // Import RagPromptManager and template types
-import { RagPromptManager, RagRetrievalStrategy, RagContextOptions } from '../../shared/services/rag-prompt-manager.service';
-import { 
-  SystemRoleEnum, 
-  SystemRole 
-} from '../../shared/prompts/prompt-types';
-import { 
-  InstructionTemplateNameEnum, 
-  InstructionTemplateName 
+import {
+  RagPromptManager,
+  RagRetrievalStrategy,
+  RagContextOptions,
+} from '../../shared/services/rag-prompt-manager.service';
+import { SystemRoleEnum, SystemRole } from '../../shared/prompts/prompt-types';
+import {
+  InstructionTemplateNameEnum,
+  InstructionTemplateName,
 } from '../../shared/prompts/instruction-templates';
 import { ContextType } from '../../shared/user-context/types/context.types';
 
@@ -38,74 +47,84 @@ export class MeetingAnalysisAgent extends UnifiedAgent {
   constructor(
     name: string = 'Meeting Analysis Agent',
     description: string = 'Analyzes meeting transcripts to extract key information, action items, and insights',
-    options: any = {}
+    options: any = {},
   ) {
     super(name, description, options);
     this.logger = options.logger || new ConsoleLogger();
-    
+
     // Initialize the OpenAI adapter
-    this.openAIAdapter = options.openAIAdapter || new OpenAIAdapter({
-      logger: this.logger,
-    });
-    
+    this.openAIAdapter =
+      options.openAIAdapter ||
+      new OpenAIAdapter({
+        logger: this.logger,
+      });
+
     // Initialize the embedding service
-    this.embeddingService = options.embeddingService || new EmbeddingService(
-      this.openAIAdapter,
-      this.logger
-    );
-    
+    this.embeddingService =
+      options.embeddingService ||
+      new EmbeddingService(this.openAIAdapter, this.logger);
+
     // Initialize the base context service for vector retrieval
-    this.baseContextService = options.baseContextService || new BaseContextService({
-      logger: this.logger,
-    });
-    
+    this.baseContextService =
+      options.baseContextService ||
+      new BaseContextService({
+        logger: this.logger,
+      });
+
     // Initialize the RAG Prompt Manager
     this.ragPromptManager = new RagPromptManager();
-    
+
     // Register agent capabilities
     this.registerCapability({
       name: 'analyze-transcript-chunk',
-      description: 'Analyze a chunk of a meeting transcript to extract key information',
+      description:
+        'Analyze a chunk of a meeting transcript to extract key information',
     });
-    
+
     this.registerCapability({
       name: 'generate-final-analysis',
-      description: 'Generate a comprehensive analysis from partial analyses of transcript chunks',
+      description:
+        'Generate a comprehensive analysis from partial analyses of transcript chunks',
     });
-    
+
     this.registerCapability({
       name: 'extract-action-items',
-      description: 'Extract action items and their owners from a meeting transcript',
+      description:
+        'Extract action items and their owners from a meeting transcript',
     });
-    
+
     this.registerCapability({
       name: 'extract-topics',
       description: 'Extract main topics discussed in a meeting',
     });
-    
+
     this.registerCapability({
       name: 'extract-decisions',
       description: 'Extract decisions made during a meeting',
     });
   }
-  
+
   /**
    * Initialize the agent
    */
   async initialize(config?: Record<string, any>): Promise<void> {
     await super.initialize(config);
-    
+
     try {
       // Initialize the base context service
       await this.baseContextService.initialize();
-      
-      this.logger.info(`Initializing ${this.name} with model: ${this.llm.modelName}`);
+
+      this.logger.info(
+        `Initializing ${this.name} with model: ${this.llm.modelName}`,
+      );
     } catch (error) {
-      this.logger.error(`Error initializing MeetingAnalysisAgent: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `Error initializing MeetingAnalysisAgent: ${error instanceof Error ? error.message : String(error)}`,
+      );
       throw error;
     }
   }
-  
+
   /**
    * Get template and role for a specific capability
    */
@@ -117,42 +136,42 @@ export class MeetingAnalysisAgent extends UnifiedAgent {
       case 'analyze-transcript-chunk':
         return {
           template: InstructionTemplateNameEnum.MEETING_ANALYSIS_CHUNK,
-          role: SystemRoleEnum.MEETING_ANALYST
+          role: SystemRoleEnum.MEETING_ANALYST,
         };
-          
+
       case 'generate-final-analysis':
         return {
           template: InstructionTemplateNameEnum.FINAL_MEETING_SUMMARY,
-          role: SystemRoleEnum.FINAL_SUMMARY_GENERATOR
+          role: SystemRoleEnum.FINAL_SUMMARY_GENERATOR,
         };
-          
+
       case 'extract-action-items':
         // For specialized extraction, we're using a custom template
         return {
           template: InstructionTemplateNameEnum.CUSTOM,
-          role: SystemRoleEnum.MEETING_ANALYST
+          role: SystemRoleEnum.MEETING_ANALYST,
         };
-          
+
       case 'extract-topics':
         return {
           template: InstructionTemplateNameEnum.CUSTOM,
-          role: SystemRoleEnum.MEETING_ANALYST
+          role: SystemRoleEnum.MEETING_ANALYST,
         };
-          
+
       case 'extract-decisions':
         return {
           template: InstructionTemplateNameEnum.CUSTOM,
-          role: SystemRoleEnum.MEETING_ANALYST
+          role: SystemRoleEnum.MEETING_ANALYST,
         };
-          
+
       default:
         return {
           template: InstructionTemplateNameEnum.MEETING_ANALYSIS_CHUNK,
-          role: SystemRoleEnum.MEETING_ANALYST
+          role: SystemRoleEnum.MEETING_ANALYST,
         };
     }
   }
-  
+
   /**
    * Generate embeddings for the input query
    * @param text Text to generate embeddings for
@@ -161,47 +180,53 @@ export class MeetingAnalysisAgent extends UnifiedAgent {
     try {
       return await this.embeddingService.generateEmbedding(text);
     } catch (error) {
-      this.logger.error(`Error generating embeddings: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `Error generating embeddings: ${error instanceof Error ? error.message : String(error)}`,
+      );
       // Fallback to a zero vector if embedding generation fails
       return new Array(1536).fill(0);
     }
   }
-  
+
   /**
    * Prepare RAG context options for retrieval
    */
   private async prepareRagContextOptions(
-    capability: string, 
+    capability: string,
     inputText: string,
-    parameters: any
+    parameters: any,
   ): Promise<{
-    ragOptions: RagContextOptions,
-    embeddingGenerated: boolean
+    ragOptions: RagContextOptions;
+    embeddingGenerated: boolean;
   }> {
     // Generate embeddings for the input text
     let queryEmbedding: number[] = [];
     let embeddingGenerated = false;
-    
+
     try {
       // Generate embeddings for relevant RAG lookup
-      queryEmbedding = await this.generateEmbeddings(inputText.substring(0, 5000)); // Limit input length
+      queryEmbedding = await this.generateEmbeddings(
+        inputText.substring(0, 5000),
+      ); // Limit input length
       embeddingGenerated = true;
     } catch (error) {
-      this.logger.warn(`Failed to generate embeddings, using fallback: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Failed to generate embeddings, using fallback: ${error instanceof Error ? error.message : String(error)}`,
+      );
       // Fallback to a zero vector if embedding generation fails
       queryEmbedding = new Array(1536).fill(0);
     }
-    
+
     // Determine relevant context types based on capability
     const contentTypes: ContextType[] = [ContextType.MEETING];
-    
+
     // Add more context types based on capability
     // TODO CHeck if needed
     if (capability === 'generate-final-analysis') {
       contentTypes.push(ContextType.DECISION);
       contentTypes.push(ContextType.ACTION_ITEM);
     }
-    
+
     // Set up RAG request options
     const ragOptions: RagContextOptions = {
       userId: parameters?.userId || 'system',
@@ -213,36 +238,48 @@ export class MeetingAnalysisAgent extends UnifiedAgent {
       conversationId: parameters?.conversationId,
       contentTypes,
       // Only include context from the last 30 days (if not analyzing historical data)
-      timeWindow: parameters?.includeHistorical ? undefined : 30 * 24 * 60 * 60 * 1000,
+      timeWindow: parameters?.includeHistorical
+        ? undefined
+        : 30 * 24 * 60 * 60 * 1000,
       // Add document ID filter if specified
       documentIds: parameters?.documentIds,
     };
-    
+
     return { ragOptions, embeddingGenerated };
   }
-  
+
   /**
    * Process transcript through the agent
    */
-  protected async executeInternal(request: AgentRequest): Promise<AgentResponse> {
+  protected async executeInternal(
+    request: AgentRequest,
+  ): Promise<AgentResponse> {
     const startTime = Date.now();
     const capability = request.capability || 'analyze-transcript-chunk';
-    
+
     this.logger.debug(`Executing capability: ${capability}`, {
-      parameters: request.parameters
+      parameters: request.parameters,
     });
-    
+
     try {
       // Get the appropriate template and role for this capability
-      const { template, role } = this.getTemplateAndRoleForCapability(capability);
-      
+      const { template, role } =
+        this.getTemplateAndRoleForCapability(capability);
+
       // Get the input text (can be string or array of messages)
-      const inputText = typeof request.input === 'string' 
-        ? request.input 
-        : Array.isArray(request.input)
-          ? request.input.map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join("\n")
-          : '';
-      
+      const inputText =
+        typeof request.input === 'string'
+          ? request.input
+          : Array.isArray(request.input)
+            ? request.input
+                .map((m) =>
+                  typeof m.content === 'string'
+                    ? m.content
+                    : JSON.stringify(m.content),
+                )
+                .join('\n')
+            : '';
+
       // Handle custom instruction cases
       let customInstruction = '';
       if (template === InstructionTemplateNameEnum.CUSTOM) {
@@ -285,14 +322,15 @@ export class MeetingAnalysisAgent extends UnifiedAgent {
             break;
         }
       }
-      
+
       // Prepare RAG options with real embeddings
-      const { ragOptions, embeddingGenerated } = await this.prepareRagContextOptions(
-        capability, 
-        inputText,
-        request.parameters
-      );
-      
+      const { ragOptions, embeddingGenerated } =
+        await this.prepareRagContextOptions(
+          capability,
+          inputText,
+          request.parameters,
+        );
+
       // Create a prompt using RagPromptManager
       const ragResult = await this.ragPromptManager.createRagPrompt(
         role,
@@ -301,18 +339,18 @@ export class MeetingAnalysisAgent extends UnifiedAgent {
         template === InstructionTemplateNameEnum.CUSTOM
           ? `${customInstruction}\n\nTranscript to analyze:\n${inputText}`
           : inputText,
-        ragOptions
+        ragOptions,
       );
-      
+
       // Log information about retrieved context
       this.logger.debug('Retrieved context for analysis', {
         contextCount: ragResult.retrievedContext.items.length,
         sources: ragResult.retrievedContext.sources,
-        embeddingGenerated
+        embeddingGenerated,
       });
-      
+
       // Convert the messages to BaseMessage format for the LLM
-      const messages = ragResult.messages.map(msg => {
+      const messages = ragResult.messages.map((msg) => {
         if (msg.role === 'system') {
           return new SystemMessage(msg.content);
         } else if (msg.role === 'user') {
@@ -324,29 +362,35 @@ export class MeetingAnalysisAgent extends UnifiedAgent {
           return new HumanMessage(msg.content);
         }
       });
-      
+
       // Call the language model
       const response = await this.llm.invoke(messages);
-      
+
       // Calculate tokens (approximate)
       const inputTokens = this.estimateTokenCount(
-        messages.map(m => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content))).join('\n')
+        messages
+          .map((m) =>
+            typeof m.content === 'string'
+              ? m.content
+              : JSON.stringify(m.content),
+          )
+          .join('\n'),
       );
       const outputTokens = this.estimateTokenCount(
-        typeof response.content === 'string' 
-          ? response.content 
-          : JSON.stringify(response.content)
+        typeof response.content === 'string'
+          ? response.content
+          : JSON.stringify(response.content),
       );
-      
+
       // Store analysis results in context if needed
       if (request.parameters?.storeInContext && request.parameters?.userId) {
         await this.storeAnalysisInContext(
-          response.content.toString(), 
+          response.content.toString(),
           capability,
-          request.parameters
+          request.parameters,
         );
       }
-      
+
       // Format the response
       return {
         output: response,
@@ -357,21 +401,23 @@ export class MeetingAnalysisAgent extends UnifiedAgent {
           roleUsed: role,
           contextRetrieved: {
             count: ragResult.retrievedContext.items.length,
-            sources: ragResult.retrievedContext.sources
-          }
+            sources: ragResult.retrievedContext.sources,
+          },
         },
         metrics: {
           executionTimeMs: Date.now() - startTime,
           tokensUsed: inputTokens + outputTokens,
-          stepCount: 1
-        }
+          stepCount: 1,
+        },
       };
     } catch (error) {
-      this.logger.error(`Error in MeetingAnalysisAgent: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `Error in MeetingAnalysisAgent: ${error instanceof Error ? error.message : String(error)}`,
+      );
       throw error;
     }
   }
-  
+
   /**
    * Store analysis results in the user's context for future reference
    * @param content Analysis content to store
@@ -379,17 +425,17 @@ export class MeetingAnalysisAgent extends UnifiedAgent {
    * @param parameters Request parameters
    */
   private async storeAnalysisInContext(
-    content: string, 
+    content: string,
     capability: string,
-    parameters: any
+    parameters: any,
   ): Promise<void> {
     try {
       // Don't store if no userId provided
       if (!parameters.userId) return;
-      
+
       // Generate embeddings for the content
       const embeddings = await this.generateEmbeddings(content);
-      
+
       // Determine context type based on capability
       let contextType = ContextType.MEETING;
       if (capability === 'extract-action-items') {
@@ -397,7 +443,7 @@ export class MeetingAnalysisAgent extends UnifiedAgent {
       } else if (capability === 'extract-decisions') {
         contextType = ContextType.DECISION;
       }
-      
+
       // Store in context
       await this.baseContextService.storeUserContext(
         parameters.userId,
@@ -412,39 +458,41 @@ export class MeetingAnalysisAgent extends UnifiedAgent {
           // Include additional metadata from parameters
           documentId: parameters.meetingId,
           title: parameters.meetingTitle || 'Meeting Analysis',
-        }
+        },
       );
-      
+
       this.logger.debug('Stored analysis in context', {
         userId: parameters.userId,
         contextType,
-        capability
+        capability,
       });
     } catch (error) {
       // Log but don't fail if storage fails
-      this.logger.error(`Failed to store analysis in context: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `Failed to store analysis in context: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
-  
+
   /**
    * Extract specific information from a transcript
    */
   async extractSpecificInformation(
     transcript: string,
     infoType: 'action-items' | 'topics' | 'decisions',
-    options: Record<string, any> = {}
+    options: Record<string, any> = {},
   ): Promise<any> {
     const capability = `extract-${infoType}`;
-    
+
     const response = await this.execute({
       input: transcript,
       capability,
       parameters: {
         ...options,
-        storeInContext: options.storeInContext !== false // Default to true
-      }
+        storeInContext: options.storeInContext !== false, // Default to true
+      },
     });
-    
+
     return response;
   }
 }

@@ -32,22 +32,23 @@ export interface GraphMetadata {
 export function extractGraphMetadata(
   graph: any,
   title: string = 'LangGraph Workflow',
-  nodeDescriptions: Record<string, string> = {}
+  nodeDescriptions: Record<string, string> = {},
 ): GraphMetadata {
   // Default node descriptions
   const defaultDescriptions: Record<string, string> = {
-    "__start__": "Starting point of the workflow",
-    "__end__": "End point of the workflow",
-    "initialize": "Initializes the workflow state",
-    "process_chunk": "Processes a chunk of the input data",
-    "check_chunks": "Checks if there are more chunks to process",
-    "generate_final_analysis": "Generates the final analysis from processed chunks",
-    "store_results": "Stores the analysis results",
-    "handle_error": "Handles any errors that occur during processing",
-    "prepare": "Prepares the task for execution",
-    "execute": "Executes the main task logic",
-    "finalize": "Finalizes the task and cleans up resources",
-    "error_handler": "Handles errors and determines retry strategy"
+    __start__: 'Starting point of the workflow',
+    __end__: 'End point of the workflow',
+    initialize: 'Initializes the workflow state',
+    process_chunk: 'Processes a chunk of the input data',
+    check_chunks: 'Checks if there are more chunks to process',
+    generate_final_analysis:
+      'Generates the final analysis from processed chunks',
+    store_results: 'Stores the analysis results',
+    handle_error: 'Handles any errors that occur during processing',
+    prepare: 'Prepares the task for execution',
+    execute: 'Executes the main task logic',
+    finalize: 'Finalizes the task and cleans up resources',
+    error_handler: 'Handles errors and determines retry strategy',
   };
 
   // Merge default and custom descriptions
@@ -67,31 +68,31 @@ export function extractGraphMetadata(
     } else if (graph.graph) {
       vizData = graph.graph;
     }
-    
+
     // If we have vizData and it has nodes, use that for consistent node data
     if (vizData && vizData.nodes && Array.isArray(vizData.nodes)) {
       // Extract nodes from vizData
       for (const node of vizData.nodes) {
         let nodeType: 'start' | 'end' | 'process' | 'conditional' = 'process';
-        
+
         if (node.id === '__start__') nodeType = 'start';
         else if (node.id === '__end__') nodeType = 'end';
         else if (node.id.includes('conditional')) nodeType = 'conditional';
-        
+
         nodes.push({
           id: node.id,
           type: nodeType,
-          description: descriptions[node.id] || `Node ${node.id}`
+          description: descriptions[node.id] || `Node ${node.id}`,
         });
       }
-      
+
       // Extract edges from vizData
       if (vizData.edges && Array.isArray(vizData.edges)) {
         for (const edge of vizData.edges) {
           edges.push({
             source: edge.source,
             target: edge.target,
-            condition: edge.conditional ? 'Conditional' : undefined
+            condition: edge.conditional ? 'Conditional' : undefined,
           });
         }
       }
@@ -100,70 +101,70 @@ export function extractGraphMetadata(
     else if (graph._graph) {
       // Extract from compiled graph
       const graphData = graph._graph;
-      
+
       // Extract nodes
       for (const nodeId in graphData.nodes) {
         let nodeType: 'start' | 'end' | 'process' | 'conditional' = 'process';
-        
+
         if (nodeId === '__start__') nodeType = 'start';
         else if (nodeId === '__end__') nodeType = 'end';
         else if (nodeId.includes('conditional')) nodeType = 'conditional';
-        
+
         nodes.push({
           id: nodeId,
           type: nodeType,
-          description: descriptions[nodeId] || `Node ${nodeId}`
+          description: descriptions[nodeId] || `Node ${nodeId}`,
         });
       }
-      
+
       // Extract edges
       for (const edge of graphData.edges) {
         edges.push({
           source: edge.source,
           target: edge.target,
-          condition: edge.condition ? 'Conditional' : undefined
+          condition: edge.condition ? 'Conditional' : undefined,
         });
       }
-    } 
+    }
     // If we have a state graph with internal structure
     else if (graph.nodes && graph.edges) {
       // Extract nodes
       for (const nodeId in graph.nodes) {
         let nodeType: 'start' | 'end' | 'process' | 'conditional' = 'process';
-        
+
         if (nodeId === '__start__') nodeType = 'start';
         else if (nodeId === '__end__') nodeType = 'end';
         else if (nodeId.includes('conditional')) nodeType = 'conditional';
-        
+
         nodes.push({
           id: nodeId,
           type: nodeType,
-          description: descriptions[nodeId] || `Node ${nodeId}`
+          description: descriptions[nodeId] || `Node ${nodeId}`,
         });
       }
-      
+
       // Extract edges
       for (const edge of graph.edges) {
         edges.push({
           source: edge.source,
           target: edge.target,
-          condition: edge.condition ? 'Conditional' : undefined
+          condition: edge.condition ? 'Conditional' : undefined,
         });
       }
     }
-    
+
     // If we still don't have any nodes, use default fallback
     if (nodes.length === 0) {
       // Use default metadata for unknown graph structure
       nodes = [
         { id: '__start__', type: 'start', description: 'Start of workflow' },
         { id: 'process', type: 'process', description: 'Process node' },
-        { id: '__end__', type: 'end', description: 'End of workflow' }
+        { id: '__end__', type: 'end', description: 'End of workflow' },
       ];
-      
+
       edges = [
         { source: '__start__', target: 'process' },
-        { source: 'process', target: '__end__' }
+        { source: 'process', target: '__end__' },
       ];
     }
   } catch (error) {
@@ -172,19 +173,19 @@ export function extractGraphMetadata(
     nodes = [
       { id: '__start__', type: 'start', description: 'Start of workflow' },
       { id: 'process', type: 'process', description: 'Process node' },
-      { id: '__end__', type: 'end', description: 'End of workflow' }
+      { id: '__end__', type: 'end', description: 'End of workflow' },
     ];
-    
+
     edges = [
       { source: '__start__', target: 'process' },
-      { source: 'process', target: '__end__' }
+      { source: 'process', target: '__end__' },
     ];
   }
 
   return {
     title,
     nodes,
-    edges
+    edges,
   };
 }
 
@@ -197,20 +198,20 @@ export function extractGraphMetadata(
 export async function saveGraphVisualization(
   graph: any,
   filename: string,
-  outputDir: string = './visualizations'
+  outputDir: string = './visualizations',
 ): Promise<string> {
   // Create output directory if it doesn't exist
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
   }
-  
+
   // Get visualization data
   let vizData: string;
   try {
     // Check if it's a compiled graph with a `get_graph` method
     if (typeof graph.get_graph === 'function') {
       vizData = await graph.get_graph();
-    } 
+    }
     // Check if it's a state graph with a `getGraph` method
     else if (typeof graph.getGraph === 'function') {
       vizData = await graph.getGraph();
@@ -225,13 +226,13 @@ export async function saveGraphVisualization(
     console.error('Error extracting graph visualization data:', error);
     throw error;
   }
-  
+
   // Create full file path
   const filePath = path.join(outputDir, `${filename}.json`);
-  
+
   // Save the visualization data
   fs.writeFileSync(filePath, JSON.stringify(vizData, null, 2));
-  
+
   console.log(`Graph visualization saved to: ${filePath}`);
   return filePath;
 }
@@ -245,7 +246,7 @@ export async function saveGraphVisualization(
 export async function generateGraphHtml(
   graph: any,
   title: string = 'LangGraph Visualization',
-  metadata?: GraphMetadata
+  metadata?: GraphMetadata,
 ): Promise<string> {
   // Get visualization data
   let vizData: any;
@@ -253,7 +254,7 @@ export async function generateGraphHtml(
     // Check if it's a compiled graph with a `get_graph` method
     if (typeof graph.get_graph === 'function') {
       vizData = await graph.get_graph();
-    } 
+    }
     // Check if it's a state graph with a `getGraph` method
     else if (typeof graph.getGraph === 'function') {
       vizData = await graph.getGraph();
@@ -277,35 +278,39 @@ export async function generateGraphHtml(
   if (vizData && vizData.nodes && Array.isArray(vizData.nodes)) {
     // Create a mapping of node IDs from vizData for the table
     const nodeMap = new Map();
-    vizData.nodes.forEach((node: { id: string, type?: string }) => {
+    vizData.nodes.forEach((node: { id: string; type?: string }) => {
       let nodeType = 'process';
       if (node.id === '__start__') nodeType = 'start';
       else if (node.id === '__end__') nodeType = 'end';
       else if (node.id.includes('conditional')) nodeType = 'conditional';
-      
+
       // Lookup description from metadata if available
-      const existingNode = graphMetadata.nodes.find(n => n.id === node.id);
-      const description = existingNode ? existingNode.description : `Node ${node.id}`;
-      
+      const existingNode = graphMetadata.nodes.find((n) => n.id === node.id);
+      const description = existingNode
+        ? existingNode.description
+        : `Node ${node.id}`;
+
       nodeMap.set(node.id, {
         id: node.id,
         type: nodeType,
-        description: description
+        description: description,
       });
     });
-    
+
     // Convert map to array
     nodeData = Array.from(nodeMap.values());
   }
-  
+
   // Generate edge data from vizData if available
   let edgeData = graphMetadata.edges;
   if (vizData && vizData.edges && Array.isArray(vizData.edges)) {
-    edgeData = vizData.edges.map((edge: { source: string, target: string, conditional?: boolean }) => ({
-      source: edge.source,
-      target: edge.target,
-      condition: edge.conditional ? 'Conditional' : undefined
-    }));
+    edgeData = vizData.edges.map(
+      (edge: { source: string; target: string; conditional?: boolean }) => ({
+        source: edge.source,
+        target: edge.target,
+        condition: edge.conditional ? 'Conditional' : undefined,
+      }),
+    );
   }
 
   // Create HTML with embedded visualization
@@ -481,13 +486,17 @@ export async function generateGraphHtml(
           </tr>
         </thead>
         <tbody>
-          ${nodeData.map(node => `
+          ${nodeData
+            .map(
+              (node) => `
             <tr data-node-id="${node.id}" class="node-row">
               <td>${node.id}</td>
               <td>${node.type}</td>
               <td>${node.description || ''}</td>
             </tr>
-          `).join('')}
+          `,
+            )
+            .join('')}
         </tbody>
       </table>
 
@@ -502,13 +511,17 @@ export async function generateGraphHtml(
             </tr>
           </thead>
           <tbody>
-            ${edgeData.map(edge => `
+            ${edgeData
+              .map(
+                (edge) => `
               <tr>
                 <td>${edge.source}</td>
                 <td>${edge.target}</td>
                 <td>${edge.condition ? 'Conditional' : 'Direct'}</td>
               </tr>
-            `).join('')}
+            `,
+              )
+              .join('')}
           </tbody>
         </table>
       </div>
@@ -585,7 +598,7 @@ export async function generateGraphHtml(
 </body>
 </html>
   `;
-  
+
   return html;
 }
 
@@ -600,22 +613,22 @@ export async function saveGraphHtml(
   graph: any,
   filename: string,
   title: string = 'LangGraph Visualization',
-  outputDir: string = './visualizations'
+  outputDir: string = './visualizations',
 ): Promise<string> {
   // Create output directory if it doesn't exist
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
   }
-  
+
   // Generate HTML
   const html = await generateGraphHtml(graph, title);
-  
+
   // Create full file path
   const filePath = path.join(outputDir, `${filename}.html`);
-  
+
   // Save the HTML
   fs.writeFileSync(filePath, html);
-  
+
   console.log(`Graph HTML visualization saved to: ${filePath}`);
   return filePath;
 }
@@ -629,7 +642,7 @@ export async function saveGraphHtml(
 export function createVisualizationServer(
   graph: any,
   port: number = 3300,
-  title: string = 'LangGraph Visualization'
+  title: string = 'LangGraph Visualization',
 ): http.Server {
   // Create a simple HTTP server
   const server = http.createServer(async (req, res) => {
@@ -651,7 +664,7 @@ export function createVisualizationServer(
         // Check if it's a compiled graph with a `get_graph` method
         if (typeof graph.get_graph === 'function') {
           vizData = await graph.get_graph();
-        } 
+        }
         // Check if it's a state graph with a `getGraph` method
         else if (typeof graph.getGraph === 'function') {
           vizData = await graph.getGraph();
@@ -662,7 +675,7 @@ export function createVisualizationServer(
         } else {
           throw new Error('Unable to extract graph visualization data');
         }
-        
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(vizData));
       } catch (error) {
@@ -677,8 +690,10 @@ export function createVisualizationServer(
   });
 
   server.listen(port, () => {
-    console.log(`LangGraph visualization server running at http://localhost:${port}/`);
+    console.log(
+      `LangGraph visualization server running at http://localhost:${port}/`,
+    );
   });
 
   return server;
-} 
+}

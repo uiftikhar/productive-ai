@@ -1,16 +1,20 @@
 // src/agents/adapters/index.ts
 
-// Export all adapters
-export * from './agent-context.adapter';
-export * from './pinecone-adapter';
-export * from './openai-adapter';
-export * from './context-adapter.interface';
+/**
+ * Export all adapter implementations
+ */
 export * from './language-model-adapter.interface';
+export * from './context-adapter.interface';
+export * from './openai-adapter';
+
+// Export instances for module-wide singletons
+import { OpenAIAdapter } from './openai-adapter';
+
+// Create exports for direct use
+export const openAIAdapter = new OpenAIAdapter();
 
 // Export adapter factory
-import { AgentContextAdapter } from './agent-context.adapter';
 import { PineconeAdapter } from './pinecone-adapter';
-import { OpenAIAdapter } from './openai-adapter';
 import { Logger } from '../../shared/logger/logger.interface';
 
 /**
@@ -21,7 +25,6 @@ export function createAdapters(logger?: Logger) {
   const openaiAdapter = new OpenAIAdapter({ logger });
 
   return {
-    contextAdapter: new AgentContextAdapter({ logger }),
     pineconeAdapter: new PineconeAdapter({ logger }),
     openaiAdapter: openaiAdapter,
     languageModelAdapter: openaiAdapter, // The OpenAIAdapter implements LanguageModelAdapter
@@ -33,15 +36,10 @@ export function createAdapters(logger?: Logger) {
  * @param adapters Object containing adapter instances
  */
 export async function initializeAdapters(adapters: {
-  contextAdapter?: AgentContextAdapter;
   pineconeAdapter?: PineconeAdapter;
   openaiAdapter?: OpenAIAdapter;
 }) {
   const initPromises: Promise<void>[] = [];
-
-  if (adapters.contextAdapter) {
-    initPromises.push(adapters.contextAdapter.initialize());
-  }
 
   if (adapters.pineconeAdapter) {
     initPromises.push(adapters.pineconeAdapter.initialize());

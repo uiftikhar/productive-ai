@@ -1,9 +1,9 @@
 import { MeetingAnalysisAgent } from '../meeting-analysis-agent';
-import { AgentRequest } from '../../interfaces/agent.interface';
 import { MeetingContextService } from '../../../shared/user-context/services/meeting-context.service';
 import { OpenAIAdapter } from '../../adapters/openai-adapter';
 import { EmbeddingService } from '../../../shared/embedding/embedding.service';
 import { BaseMessage } from '@langchain/core/messages';
+import { AgentRequest } from '../../interfaces/unified-agent.interface';
 
 jest.mock('../../../shared/user-context/services/meeting-context.service');
 jest.mock('../../adapters/openai-adapter');
@@ -128,11 +128,15 @@ describe('MeetingAnalysisAgent', () => {
     // Mock the initialize method to avoid external dependencies
     mockOpenAIAdapter.initialize = jest.fn().mockResolvedValue(undefined);
 
-    agent = new MeetingAnalysisAgent({
-      meetingContextService: mockMeetingContextService,
-      openaiAdapter: mockOpenAIAdapter,
-      embeddingService: mockEmbeddingService,
-    });
+    agent = new MeetingAnalysisAgent(
+      'Meeting Analysis Agent',
+      'Agent for analyzing meeting transcripts',
+      {
+        meetingContextService: mockMeetingContextService,
+        openaiAdapter: mockOpenAIAdapter,
+        embeddingService: mockEmbeddingService,
+      },
+    );
 
     // Explicitly initialize the agent before testing
     await agent.initialize();
@@ -143,7 +147,10 @@ describe('MeetingAnalysisAgent', () => {
   });
 
   it('should initialize with default values', async () => {
-    const defaultAgent = new MeetingAnalysisAgent();
+    const defaultAgent = new MeetingAnalysisAgent(
+      'Meeting Analysis Agent',
+      'Agent for analyzing meeting transcripts',
+    );
     await defaultAgent.initialize(); // Explicitly initialize
     expect(defaultAgent).toBeDefined();
     expect(defaultAgent['name']).toBe('Meeting Analysis Agent');

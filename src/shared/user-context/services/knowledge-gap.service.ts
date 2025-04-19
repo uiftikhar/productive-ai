@@ -9,7 +9,11 @@ import { BaseContextService } from './base-context.service';
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
 
-import { ContextType, KnowledgeGapType, USER_CONTEXT_INDEX } from '../types/context.types';
+import {
+  ContextType,
+  KnowledgeGapType,
+  USER_CONTEXT_INDEX,
+} from '../types/context.types';
 import { EmbeddingService } from '../../embedding/embedding.service';
 import { OpenAIAdapter } from '../../../agents/adapters/openai-adapter';
 
@@ -54,7 +58,8 @@ export class KnowledgeGapService extends BaseContextService {
   constructor(options: any = {}) {
     super(options);
     this.logger = options.logger || new ConsoleLogger();
-    this.embeddingService = options.embeddingService || new EmbeddingService(new OpenAIAdapter());
+    this.embeddingService =
+      options.embeddingService || new EmbeddingService(new OpenAIAdapter());
   }
 
   /**

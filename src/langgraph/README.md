@@ -124,4 +124,41 @@ This RAG-enhanced approach provides several benefits:
 - **Continuity**: Maintains knowledge across multiple meetings
 - **Consistency**: Ensures consistent identification of recurring topics and decisions
 - **Context-awareness**: Enhances analysis with relevant historical information
-- **Knowledge building**: Creates an evolving knowledge base of meeting insights 
+- **Knowledge building**: Creates an evolving knowledge base of meeting insights
+
+## Codebase Consolidation
+
+As part of the recent cleanup, we've consolidated the codebase to use LangGraph as the primary workflow orchestration system. This reduces duplication and creates a more maintainable architecture.
+
+### Changes Made
+
+1. **Simplified Meeting Analysis Flow**: 
+   - Removed direct dependencies on the `specializedAgentOrchestrator` in favor of direct LangGraph adapter usage
+   - Consolidated agent instantiation to use a single meeting analysis agent
+   - Removed the fallback mechanism since LangGraph is now the primary and only workflow orchestrator
+
+2. **Essential Components**:
+   - `MeetingAnalysisAgent`: Our specialized agent for analyzing meeting transcripts
+   - `StandardizedMeetingAnalysisAdapter`: The LangGraph adapter that orchestrates the workflow
+   - `OpenAIAdapter`: Core adapter for model operations
+   - Base Agent classes and interfaces
+   - LangGraph state management
+
+3. **Benefits**:
+   - Cleaner control flow
+   - Reduced duplication of functionality
+   - Better traceability through the LangGraph workflow
+   - Simplified code maintenance
+
+### Recommended Follow-ups
+
+1. Consider removing unused adapters and orchestration code:
+   - `src/agents/orchestration/` (Replaced by LangGraph)
+   - `src/agents/messaging/` (Replaced by LangGraph state management)
+   - `src/agents/registry/` (Not needed with direct agent instantiation)
+   - Redundant context adapters
+
+2. Consider implementing additional LangGraph-native features:
+   - Structured trace visualization
+   - Automated agent evaluation
+   - Comprehensive error handling and recovery 

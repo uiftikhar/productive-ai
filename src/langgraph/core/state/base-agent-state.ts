@@ -73,26 +73,26 @@ export interface BaseAgentState {
   // Core identifiers
   agentId: string;
   runId: string;
-  
+
   // Status tracking
   status: AgentStatus;
   lastExecutionTime?: number;
   errorCount: number;
   executionCount: number;
-  
+
   // Messages and interactions
   messages: AgentMessage[];
   errors?: AgentError[];
-  
+
   // Request data
   input?: string;
   capability?: string;
   parameters?: Record<string, any>;
-  
+
   // Response data
   output?: string;
   artifacts?: Record<string, any>;
-  
+
   // Metrics and metadata
   metrics?: AgentMetrics;
   metadata: Record<string, any>;
@@ -103,33 +103,35 @@ export const BaseAgentStateSchema = z.object({
   // Core identifiers
   agentId: z.string(),
   runId: z.string().uuid(),
-  
+
   // Status tracking
   status: AgentStatusSchema,
   lastExecutionTime: z.number().optional(),
   errorCount: z.number(),
   executionCount: z.number(),
-  
+
   // Messages and interactions
   messages: z.array(AgentMessageSchema),
   errors: z.array(AgentErrorSchema).optional(),
-  
+
   // Request data
   input: z.string().optional(),
   capability: z.string().optional(),
   parameters: z.record(z.any()).optional(),
-  
+
   // Response data
   output: z.string().optional(),
   artifacts: z.record(z.any()).optional(),
-  
+
   // Metrics and metadata
   metrics: AgentMetricsSchema.optional(),
   metadata: z.record(z.any()),
 });
 
 // Helper to create a new base agent state
-export function createBaseAgentState(overrides: Partial<BaseAgentState> = {}): BaseAgentState {
+export function createBaseAgentState(
+  overrides: Partial<BaseAgentState> = {},
+): BaseAgentState {
   const baseState: BaseAgentState = {
     agentId: overrides.agentId || crypto.randomUUID(),
     runId: overrides.runId || crypto.randomUUID(),
@@ -139,7 +141,7 @@ export function createBaseAgentState(overrides: Partial<BaseAgentState> = {}): B
     messages: overrides.messages || [],
     metadata: overrides.metadata || {},
   };
-  
+
   return {
     ...baseState,
     ...overrides,
@@ -151,7 +153,7 @@ export function addMessage(
   state: BaseAgentState,
   role: AgentMessage['role'],
   content: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, any>,
 ): BaseAgentState {
   const message: AgentMessage = {
     role,
@@ -172,7 +174,7 @@ export function addError(
   type: string,
   message: string,
   node?: string,
-  details?: any
+  details?: any,
 ): BaseAgentState {
   const error: AgentError = {
     type,
@@ -191,13 +193,14 @@ export function addError(
 
 // Helper to update state status
 export function updateStatus(
-  state: BaseAgentState, 
-  status: AgentStatus
+  state: BaseAgentState,
+  status: AgentStatus,
 ): BaseAgentState {
   return {
     ...state,
     status,
-    lastExecutionTime: status === AgentStatus.EXECUTING ? Date.now() : state.lastExecutionTime,
+    lastExecutionTime:
+      status === AgentStatus.EXECUTING ? Date.now() : state.lastExecutionTime,
   };
 }
 
@@ -207,4 +210,4 @@ export function incrementExecutionCount(state: BaseAgentState): BaseAgentState {
     ...state,
     executionCount: state.executionCount + 1,
   };
-} 
+}

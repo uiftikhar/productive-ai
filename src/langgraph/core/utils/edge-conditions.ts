@@ -39,8 +39,8 @@ export function hasProperty(propertyName: string) {
  */
 export function hasMoreChunks(state: any): boolean {
   return (
-    state.chunks && 
-    state.currentChunkIndex !== undefined && 
+    state.chunks &&
+    state.currentChunkIndex !== undefined &&
     state.currentChunkIndex < state.chunks.length
   );
 }
@@ -57,7 +57,11 @@ export function routeOnError(errorTarget: string, successTarget: string) {
 /**
  * Routes to different targets based on a custom condition
  */
-export function routeIf(condition: (state: any) => boolean, trueTarget: string, falseTarget: string) {
+export function routeIf(
+  condition: (state: any) => boolean,
+  trueTarget: string,
+  falseTarget: string,
+) {
   return (state: any): string => {
     return condition(state) ? trueTarget : falseTarget;
   };
@@ -66,23 +70,31 @@ export function routeIf(condition: (state: any) => boolean, trueTarget: string, 
 /**
  * Routes to a specific target if the state has a non-empty array property
  */
-export function routeIfHasItems(propertyName: string, hasItemsTarget: string, noItemsTarget: string) {
+export function routeIfHasItems(
+  propertyName: string,
+  hasItemsTarget: string,
+  noItemsTarget: string,
+) {
   return (state: any): string => {
-    return (
-      Array.isArray(state[propertyName]) && 
-      state[propertyName].length > 0
-    ) ? hasItemsTarget : noItemsTarget;
+    return Array.isArray(state[propertyName]) && state[propertyName].length > 0
+      ? hasItemsTarget
+      : noItemsTarget;
   };
 }
 
 /**
  * Routes to a specific target if a minimum number of items exists in an array property
  */
-export function routeIfHasMinItems(propertyName: string, minCount: number, hasMinItemsTarget: string, notEnoughItemsTarget: string) {
+export function routeIfHasMinItems(
+  propertyName: string,
+  minCount: number,
+  hasMinItemsTarget: string,
+  notEnoughItemsTarget: string,
+) {
   return (state: any): string => {
-    return (
-      Array.isArray(state[propertyName]) && 
+    return Array.isArray(state[propertyName]) &&
       state[propertyName].length >= minCount
-    ) ? hasMinItemsTarget : notEnoughItemsTarget;
+      ? hasMinItemsTarget
+      : notEnoughItemsTarget;
   };
-} 
+}

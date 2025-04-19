@@ -51,17 +51,17 @@ router.get('/visualizations/:filename', (req: Request, res: Response) => {
   const filename = req.params.filename;
   const visualizationDir = path.join(process.cwd(), 'visualizations');
   const filePath = path.join(visualizationDir, filename);
-  
+
   // Security check - make sure we're only serving HTML files from the visualizations directory
   if (!filePath.startsWith(visualizationDir) || !filePath.endsWith('.html')) {
     return res.status(403).send('Access denied');
   }
-  
+
   // Check if file exists
   if (!fs.existsSync(filePath)) {
     return res.status(404).send('Visualization not found');
   }
-  
+
   // Serve the static visualization file
   res.sendFile(filePath);
 });
@@ -85,27 +85,30 @@ router.get('/api/trace/:traceId', async (req: Request, res: Response) => {
 // API endpoint to provide information about visualization options
 router.get('/api/visualization-options', (req: Request, res: Response) => {
   try {
-    const hasLangSmith = !!(process.env.LANGSMITH_API_KEY && process.env.LANGSMITH_PROJECT);
-    
+    const hasLangSmith = !!(
+      process.env.LANGSMITH_API_KEY && process.env.LANGSMITH_PROJECT
+    );
+
     res.json({
       options: {
         langgraph: {
           available: true,
-          description: "Uses LangGraph for a visualized workflow of the meeting analysis process"
+          description:
+            'Uses LangGraph for a visualized workflow of the meeting analysis process',
         },
         langsmith: {
           available: hasLangSmith,
-          description: hasLangSmith 
-            ? "Uses LangSmith for detailed tracing and debugging of the meeting analysis" 
-            : "LangSmith is not configured - set LANGSMITH_API_KEY and LANGSMITH_PROJECT environment variables"
-        }
+          description: hasLangSmith
+            ? 'Uses LangSmith for detailed tracing and debugging of the meeting analysis'
+            : 'LangSmith is not configured - set LANGSMITH_API_KEY and LANGSMITH_PROJECT environment variables',
+        },
       },
       usage: {
-        langgraph: "Add ?langgraph=true to your API request",
-        langsmith: hasLangSmith 
-          ? "LangSmith tracing is automatically enabled when langgraph=true" 
-          : "Not available"
-      }
+        langgraph: 'Add ?langgraph=true to your API request',
+        langsmith: hasLangSmith
+          ? 'LangSmith tracing is automatically enabled when langgraph=true'
+          : 'Not available',
+      },
     });
   } catch (error) {
     console.error('Error retrieving visualization options:', error);
@@ -117,15 +120,17 @@ router.get('/api/visualization-options', (req: Request, res: Response) => {
 router.get('/dashboard', async (req: Request, res: Response) => {
   try {
     const visualizationDir = path.join(process.cwd(), 'visualizations');
-    const hasLangSmith = !!(process.env.LANGSMITH_API_KEY && process.env.LANGSMITH_PROJECT);
-    
+    const hasLangSmith = !!(
+      process.env.LANGSMITH_API_KEY && process.env.LANGSMITH_PROJECT
+    );
+
     // Get list of visualization files
     let visualizationFiles: string[] = [];
     if (fs.existsSync(visualizationDir)) {
       const files = await fs.promises.readdir(visualizationDir);
-      visualizationFiles = files.filter(file => file.endsWith('.html'));
+      visualizationFiles = files.filter((file) => file.endsWith('.html'));
     }
-    
+
     // Generate HTML for the dashboard
     res.send(`
       <!DOCTYPE html>
@@ -165,16 +170,20 @@ router.get('/dashboard', async (req: Request, res: Response) => {
                 <h3>LangSmith</h3>
                 <p>Provides detailed tracing and debugging of the meeting analysis process.</p>
                 <p><strong>Status:</strong> ${hasLangSmith ? 'Available' : 'Not Configured'}</p>
-                <p><strong>Usage:</strong> ${hasLangSmith 
-                  ? 'Automatically enabled with LangGraph' 
-                  : 'Set LANGSMITH_API_KEY and LANGSMITH_PROJECT environment variables'}</p>
+                <p><strong>Usage:</strong> ${
+                  hasLangSmith
+                    ? 'Automatically enabled with LangGraph'
+                    : 'Set LANGSMITH_API_KEY and LANGSMITH_PROJECT environment variables'
+                }</p>
               </div>
             </div>
           </div>
           
           <div class="files">
             <h2>Available Visualizations</h2>
-            ${visualizationFiles.length > 0 ? `
+            ${
+              visualizationFiles.length > 0
+                ? `
               <table>
                 <thead>
                   <tr>
@@ -184,13 +193,18 @@ router.get('/dashboard', async (req: Request, res: Response) => {
                   </tr>
                 </thead>
                 <tbody>
-                  ${visualizationFiles.map(file => {
-                    const filePath = path.join(visualizationDir, file);
-                    const stats = fs.statSync(filePath);
-                    const created = new Date(stats.birthtime).toLocaleString();
-                    const meetingId = file.replace('meeting-analysis-', '').replace('.html', '');
-                    
-                    return `
+                  ${visualizationFiles
+                    .map((file) => {
+                      const filePath = path.join(visualizationDir, file);
+                      const stats = fs.statSync(filePath);
+                      const created = new Date(
+                        stats.birthtime,
+                      ).toLocaleString();
+                      const meetingId = file
+                        .replace('meeting-analysis-', '')
+                        .replace('.html', '');
+
+                      return `
                       <tr>
                         <td>${file}</td>
                         <td>${created}</td>
@@ -199,14 +213,17 @@ router.get('/dashboard', async (req: Request, res: Response) => {
                         </td>
                       </tr>
                     `;
-                  }).join('')}
+                    })
+                    .join('')}
                 </tbody>
               </table>
-            ` : `
+            `
+                : `
               <div class="no-files">
                 <p>No visualizations available yet. Generate a meeting analysis with <code>?langgraph=true</code> to create visualizations.</p>
               </div>
-            `}
+            `
+            }
           </div>
         </div>
       </body>
@@ -222,7 +239,7 @@ router.get('/dashboard', async (req: Request, res: Response) => {
 router.get('/debug', async (req: Request, res: Response) => {
   try {
     const visualizationDir = path.join(process.cwd(), 'visualizations');
-    
+
     interface FileInfo {
       name: string;
       path: string;
@@ -233,39 +250,43 @@ router.get('/debug', async (req: Request, res: Response) => {
       isFile: boolean;
       exists: boolean;
     }
-    
+
     interface DebugInfo {
       directory: string;
       exists: boolean;
       isDirectory: boolean;
       files: FileInfo[];
     }
-    
+
     const debug: DebugInfo = {
       directory: visualizationDir,
       exists: fs.existsSync(visualizationDir),
-      isDirectory: fs.existsSync(visualizationDir) ? fs.statSync(visualizationDir).isDirectory() : false,
-      files: []
+      isDirectory: fs.existsSync(visualizationDir)
+        ? fs.statSync(visualizationDir).isDirectory()
+        : false,
+      files: [],
     };
-    
+
     if (debug.exists && debug.isDirectory) {
       const files = await fs.promises.readdir(visualizationDir);
-      debug.files = await Promise.all(files.map(async (file) => {
-        const filePath = path.join(visualizationDir, file);
-        const stats = fs.statSync(filePath);
-        return {
-          name: file,
-          path: filePath,
-          url: `/visualizations/${file}`,
-          size: stats.size,
-          created: stats.birthtime,
-          isDirectory: stats.isDirectory(),
-          isFile: stats.isFile(),
-          exists: fs.existsSync(filePath)
-        };
-      }));
+      debug.files = await Promise.all(
+        files.map(async (file) => {
+          const filePath = path.join(visualizationDir, file);
+          const stats = fs.statSync(filePath);
+          return {
+            name: file,
+            path: filePath,
+            url: `/visualizations/${file}`,
+            size: stats.size,
+            created: stats.birthtime,
+            isDirectory: stats.isDirectory(),
+            isFile: stats.isFile(),
+            exists: fs.existsSync(filePath),
+          };
+        }),
+      );
     }
-    
+
     res.json(debug);
   } catch (error) {
     console.error('Error in debug endpoint:', error);

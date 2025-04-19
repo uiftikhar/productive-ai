@@ -40,11 +40,13 @@ export class PineconeAdapter {
     this.logger.info('Initializing PineconeAdapter connection');
     // We don't call pineconeService.initialize() here anymore since
     // initialization is now handled in index.ts
-    
+
     // Just verify the connection by checking if an index exists
     try {
       // Check if at least one of our indexes exists to verify connection
-      const indexExists = await this.pineconeService.getIndex(VectorIndexes.USER_CONTEXT);
+      const indexExists = await this.pineconeService.getIndex(
+        VectorIndexes.USER_CONTEXT,
+      );
       this.logger.info('Connected to Pinecone successfully');
     } catch (error) {
       this.logger.warn('Could not verify Pinecone connection', {

@@ -2,24 +2,30 @@
  * Conversation adapter for implementing conversational workflows with LangGraph
  */
 import { v4 as uuidv4 } from 'uuid';
-import { StateGraph, START, END } from '@langchain/langgraph';
-import { BaseAgent } from '../../../agents/base/base-agent';
-import { AgentRequest, AgentResponse } from '../../../agents/interfaces/agent.interface';
-import { BaseAgentAdapter } from './base-agent.adapter';
 import {
-  AgentStatus,
-  AgentMessage
-} from '../state/base-agent-state';
+  StateGraph,
+  START,
+  END,
+  Annotation,
+  AnnotationRoot,
+} from '@langchain/langgraph';
+import { UnifiedAgent } from '../../../agents/base/unified-agent';
 import {
-  logStateTransition,
-  startTrace,
-  endTrace
-} from '../utils/tracing';
+  AgentRequest,
+  AgentResponse,
+} from '../../../agents/interfaces/unified-agent.interface';
+import {
+  BaseLangGraphAdapter,
+  BaseLangGraphState,
+  WorkflowStatus,
+} from './base-langgraph.adapter';
+import { AgentStatus, AgentMessage } from '../state/base-agent-state';
+import { logStateTransition, startTrace, endTrace } from '../utils/tracing';
 
 /**
  * Conversation state definition
  */
-export interface ConversationState {
+export interface ConversationState extends BaseLangGraphState {
   // Core identifiers
   conversationId: string;
   userId: string;
@@ -29,7 +35,6 @@ export interface ConversationState {
   currentMessageIndex: number;
 
   // Processing state
-  status: string;
   thinking: boolean;
 
   // Content and context
@@ -37,15 +42,8 @@ export interface ConversationState {
   agentResponse?: string;
   context?: Record<string, any>;
 
-  // Metrics
-  startTime: number;
-  endTime?: number;
-  tokensUsed?: number;
-  executionTimeMs?: number;
+  // Additional metrics
   totalExecutionTimeMs?: number;
-
-  // Miscellaneous
-  metadata: Record<string, any>;
 }
 
 /**
@@ -77,144 +75,307 @@ export interface SendMessageResult {
 }
 
 /**
- * Node function type for conversation graph
+ * Node function type for conversation graph - kept for internal usage
  */
-export type ConversationNodeFunction = (
+type ConversationNodeFunction = (
   state: ConversationState,
 ) => Partial<ConversationState> | Promise<Partial<ConversationState>>;
 
 /**
  * ConversationAdapter
- * 
+ *
  * This adapter specializes in conversational workflows using LangGraph
  */
-export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAgentAdapter<T> {
+export class ConversationAdapter extends BaseLangGraphAdapter<
+  ConversationState,
+  SendMessageParams,
+  SendMessageResult
+> {
+  protected readonly agent: UnifiedAgent;
+
   constructor(
-    protected readonly agent: T,
-    protected readonly options: {
+    agent: UnifiedAgent,
+    options: {
       tracingEnabled?: boolean;
       includeStateInLogs?: boolean;
-    } = {}
+      logger?: any;
+    } = {},
   ) {
-    super(agent, options);
+    super({
+      tracingEnabled: options.tracingEnabled,
+      logger: options.logger,
+    });
+
+    this.agent = agent;
   }
 
   /**
    * Send a message in a conversation and get a response
    */
   async sendMessage(params: SendMessageParams): Promise<SendMessageResult> {
-    const startTime = Date.now();
-    const conversationId = params.conversationId || uuidv4();
-    const userId = params.userId || 'anonymous';
-
-    try {
-      // 1. Initialize the agent if needed
-      if (!this.agent.getInitializationStatus()) {
-        await this.agent.initialize();
-      }
-
-      // 2. Create or update conversation state
-      const initialState: ConversationState = {
-        conversationId,
-        userId,
-        messages: [
-          {
-            role: 'user',
-            content: params.message,
-            timestamp: new Date().toISOString()
-          }
-        ],
-        currentMessageIndex: 0,
-        status: 'ready',
-        thinking: false,
-        userInput: params.message,
-        context: params.context || {},
-        startTime,
-        metadata: {
-          agentId: this.agent.id,
-          capability: params.capability
-        }
-      };
-
-      // 3. Create and run the graph
-      const graph = this.createConversationGraph();
-      const traceId = startTrace('conversation', initialState, {
-        agentId: this.agent.id,
-        conversationId
-      });
-
-      // 4. Execute the graph
-      const result = await graph.invoke(initialState);
-
-      // 5. End the trace
-      endTrace(traceId, 'conversation', result, {
-        agentId: this.agent.id,
-        conversationId,
-        executionTimeMs: Date.now() - startTime
-      });
-
-      // 6. Process and return results
-      return {
-        conversationId,
-        userId,
-        message: params.message,
-        response: result.agentResponse || 'No response generated',
-        status: result.status,
-        success: result.status !== 'error',
-        metrics: {
-          executionTimeMs: Date.now() - startTime,
-          tokensUsed: result.tokensUsed,
-          totalMessages: result.messages?.length || 1
-        }
-      };
-    } catch (error) {
-      console.error(`Error in conversation for ${conversationId}:`, error);
-
-      return {
-        conversationId,
-        userId,
-        message: params.message,
-        response: `Error in conversation: ${error instanceof Error ? error.message : String(error)}`,
-        status: 'error',
-        success: false,
-        metrics: {
-          executionTimeMs: Date.now() - startTime,
-          totalMessages: 1
-        }
-      };
-    }
+    return this.execute(params);
   }
 
   /**
-   * Create a LangGraph workflow for conversation
+   * Create the state schema for conversation
    */
-  private createConversationGraph() {
-    // Define node functions
-    const processMessage: ConversationNodeFunction = (state) => {
-      logStateTransition('process_message', state, {
-        ...state,
-        status: 'processing',
-        thinking: true
-      });
+  protected createStateSchema(): AnnotationRoot<any> {
+    return Annotation.Root({
+      // Base state fields
+      id: Annotation<string>(),
+      runId: Annotation<string>(),
+      status: Annotation<string>(),
+      startTime: Annotation<number>(),
+      endTime: Annotation<number | undefined>(),
+      errorCount: Annotation<number>(),
+      errors: Annotation<any[]>({
+        default: () => [],
+        reducer: (curr, update) => [
+          ...(curr || []),
+          ...(Array.isArray(update) ? update : [update]),
+        ],
+      }),
+      metrics: Annotation<any>({
+        default: () => ({}),
+        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+      }),
+      metadata: Annotation<Record<string, any>>({
+        default: () => ({}),
+        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+      }),
 
-      return {
-        status: 'processing',
-        thinking: true,
-        processStartTime: Date.now()
-      };
+      // Conversation-specific fields
+      conversationId: Annotation<string>(),
+      userId: Annotation<string>(),
+      messages: Annotation<AgentMessage[]>({
+        default: () => [],
+        reducer: (curr, update) => [
+          ...(curr || []),
+          ...(Array.isArray(update) ? update : [update]),
+        ],
+      }),
+      currentMessageIndex: Annotation<number>({
+        default: () => 0,
+        value: (curr, update) => update ?? curr,
+      }),
+      thinking: Annotation<boolean>({
+        default: () => false,
+        value: (curr, update) => update ?? curr,
+      }),
+      userInput: Annotation<string | undefined>(),
+      agentResponse: Annotation<string | undefined>(),
+      context: Annotation<Record<string, any>>({
+        default: () => ({}),
+        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+      }),
+      totalExecutionTimeMs: Annotation<number | undefined>(),
+    });
+  }
+
+  /**
+   * Create the state graph for conversation workflow
+   */
+  protected createStateGraph(
+    schema: ReturnType<typeof this.createStateSchema>,
+  ): StateGraph<any> {
+    const graph = new StateGraph(schema);
+
+    // Add the nodes
+    graph
+      // Common nodes from base adapter
+      .addNode('initialize', this.createInitializationNode())
+      .addNode('error_handler', this.createErrorHandlerNode())
+      .addNode('complete', this.createCompletionNode())
+
+      // Conversation-specific nodes
+      .addNode('process_message', this.createProcessMessageNode())
+      .addNode('generate_response', this.createGenerateResponseNode())
+      .addNode('finalize', this.createFinalizeNode());
+
+    // Conditional routing function
+    const routeAfterProcessMessage = (state: any) => {
+      if (state.status === WorkflowStatus.ERROR) {
+        return 'error_handler';
+      }
+      return 'generate_response';
     };
 
-    const generateResponse: ConversationNodeFunction = async (state) => {
+    const routeAfterGenerateResponse = (state: any) => {
+      if (state.status === WorkflowStatus.ERROR) {
+        return 'error_handler';
+      }
+      return 'finalize';
+    };
+
+    // Define the edges
+    const typedGraph = graph as any;
+
+    typedGraph
+      .addEdge(START, 'initialize')
+      .addEdge('initialize', 'process_message')
+      .addConditionalEdges('process_message', routeAfterProcessMessage)
+      .addConditionalEdges('generate_response', routeAfterGenerateResponse)
+      .addEdge('finalize', 'complete')
+      .addEdge('error_handler', END)
+      .addEdge('complete', END);
+
+    return graph;
+  }
+
+  /**
+   * Create the initial state for conversation
+   */
+  protected createInitialState(input: SendMessageParams): ConversationState {
+    // Get the base state
+    const baseState = super.createInitialState(input);
+
+    const conversationId = input.conversationId || uuidv4();
+    const userId = input.userId || 'anonymous';
+
+    return {
+      ...baseState,
+      conversationId,
+      userId,
+      messages: [
+        {
+          role: 'user',
+          content: input.message,
+          timestamp: new Date().toISOString(),
+        },
+      ],
+      currentMessageIndex: 0,
+      thinking: false,
+      userInput: input.message,
+      context: input.context || {},
+      metadata: {
+        ...baseState.metadata,
+        agentId: this.agent.id,
+        capability: input.capability,
+      },
+    };
+  }
+
+  /**
+   * Process the final state to produce the output
+   */
+  protected processResult(state: ConversationState): SendMessageResult {
+    // Calculate metrics
+    const executionTimeMs =
+      state.totalExecutionTimeMs ||
+      (state.endTime || Date.now()) - (state.startTime || Date.now());
+
+    // If error occurred, generate an error response
+    if ((state.status as string) === WorkflowStatus.ERROR) {
+      const errorMessage =
+        state.errors && state.errors.length > 0
+          ? state.errors[state.errors.length - 1].message
+          : 'Unknown error occurred during conversation';
+
+      return {
+        conversationId: state.conversationId,
+        userId: state.userId,
+        message: state.userInput || '',
+        response: errorMessage,
+        status: 'error',
+        success: false,
+        metrics: {
+          executionTimeMs,
+          tokensUsed: state.metrics?.tokensUsed,
+          totalMessages: state.messages?.length || 1,
+        },
+      };
+    }
+
+    // Return the successful conversation result
+    return {
+      conversationId: state.conversationId,
+      userId: state.userId,
+      message: state.userInput || '',
+      response: state.agentResponse || 'No response generated',
+      status: String(state.status),
+      success: (state.status as string) !== WorkflowStatus.ERROR,
+      metrics: {
+        executionTimeMs,
+        tokensUsed: state.metrics?.tokensUsed,
+        totalMessages: state.messages?.length || 1,
+      },
+    };
+  }
+
+  /**
+   * Create the initialization node
+   */
+  private createInitializationNode() {
+    return async (state: ConversationState) => {
+      this.logger.info(
+        `Initializing conversation ${state.conversationId} for user ${state.userId}`,
+      );
+
+      // Initialize the agent if needed
+      if (!this.agent.getInitializationStatus()) {
+        try {
+          await this.agent.initialize();
+        } catch (error) {
+          return this.addErrorToState(
+            state,
+            error instanceof Error ? error : new Error(String(error)),
+            'initialize',
+          );
+        }
+      }
+
+      return {
+        ...state,
+        status: WorkflowStatus.READY,
+      };
+    };
+  }
+
+  /**
+   * Create the process message node
+   */
+  private createProcessMessageNode() {
+    return async (state: ConversationState) => {
+      try {
+        this.logger.debug(
+          `Processing message for conversation ${state.conversationId}`,
+        );
+
+        logStateTransition('process_message', state, {
+          ...state,
+          status: WorkflowStatus.EXECUTING,
+          thinking: true,
+        });
+
+        return {
+          status: WorkflowStatus.EXECUTING,
+          thinking: true,
+        };
+      } catch (error) {
+        return this.addErrorToState(
+          state,
+          error instanceof Error ? error : String(error),
+          'process_message',
+        );
+      }
+    };
+  }
+
+  /**
+   * Create the generate response node
+   */
+  private createGenerateResponseNode() {
+    return async (state: ConversationState) => {
       try {
         // Create the agent request
         const request: AgentRequest = {
           input: state.userInput || '',
-          capability: state.metadata.capability,
+          capability: state.metadata?.capability as string,
           context: {
             userId: state.userId,
             conversationId: state.conversationId,
-            ...(state.context || {})
-          }
+            ...(state.context || {}),
+          },
         };
 
         try {
@@ -224,12 +385,15 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
           // Create the agent message
           const message: AgentMessage = {
             role: 'assistant',
-            content: typeof response.output === 'string' ? response.output : JSON.stringify(response.output),
+            content:
+              typeof response.output === 'string'
+                ? response.output
+                : JSON.stringify(response.output),
             timestamp: new Date().toISOString(),
             metadata: {
               tokensUsed: response.metrics?.tokensUsed,
-              executionTimeMs: response.metrics?.executionTimeMs
-            }
+              executionTimeMs: response.metrics?.executionTimeMs,
+            },
           };
 
           // Add the message to the state
@@ -238,15 +402,18 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
           return {
             messages: updatedMessages,
             agentResponse: message.content,
-            tokensUsed: response.metrics?.tokensUsed,
-            executionTimeMs: response.metrics?.executionTimeMs,
-            status: 'completed',
+            metrics: {
+              ...state.metrics,
+              tokensUsed: response.metrics?.tokensUsed,
+              executionTimeMs: response.metrics?.executionTimeMs,
+            },
+            status: WorkflowStatus.READY,
             thinking: false,
-            endTime: Date.now()
           };
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          console.error('Error generating response:', errorMessage);
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          // this.logger.error('Error generating response:', errorMessage);
 
           // Create error message
           const errorMsg: AgentMessage = {
@@ -254,162 +421,64 @@ export class ConversationAdapter<T extends BaseAgent = BaseAgent> extends BaseAg
             content: `Error generating response: ${errorMessage}`,
             timestamp: new Date().toISOString(),
             metadata: {
-              error: errorMessage
-            }
+              errorMessage: errorMessage,
+            },
           };
 
-          return {
-            messages: [...state.messages, errorMsg],
-            agentResponse: errorMsg.content,
-            status: 'error',
-            thinking: false,
-            endTime: Date.now()
-          };
+          const errorObj =
+            error instanceof Error
+              ? error
+              : new Error(`Error in generate response: ${String(error)}`);
+
+          return this.addErrorToState(
+            {
+              ...state,
+              messages: [...state.messages, errorMsg],
+              agentResponse: errorMsg.content,
+              thinking: false,
+            },
+            errorObj,
+            'generate_response',
+          );
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error('Error in generate response:', errorMessage);
+        const errorObj =
+          error instanceof Error
+            ? error
+            : new Error(`Error in generate response: ${String(error)}`);
 
-        // Create error message
-        const errorMsg: AgentMessage = {
-          role: 'system',
-          content: `Error generating response: ${errorMessage}`,
-          timestamp: new Date().toISOString(),
-          metadata: {
-            error: errorMessage
-          }
-        };
-
-        return {
-          messages: [...state.messages, errorMsg],
-          agentResponse: errorMsg.content,
-          status: 'error',
-          thinking: false,
-          endTime: Date.now()
-        };
+        return this.addErrorToState(state, errorObj, 'generate_response');
       }
     };
-
-    const finalizeConversation: ConversationNodeFunction = (state) => {
-      // Calculate metrics and prepare final state
-      const totalTimeMs = Date.now() - state.startTime;
-
-      return {
-        status: 'finished',
-        totalExecutionTimeMs: totalTimeMs,
-        metadata: {
-          ...state.metadata,
-          totalTimeMs,
-          finalResponseTimestamp: new Date().toISOString()
-        }
-      };
-    };
-
-    // Wrap node functions to make them compatible with LangGraph's expected type
-    const wrapNodeFunction = (fn: ConversationNodeFunction) => {
-      return {
-        invoke: async (state: ConversationState) => {
-          return fn(state);
-        },
-      };
-    };
-
-    // Create state channels for the graph
-    const channels = {
-      conversationId: {
-        value: (current: string, update?: string) => update ?? current,
-        default: () => uuidv4(),
-      },
-      userId: {
-        value: (current: string, update?: string) => update ?? current,
-        default: () => 'anonymous',
-      },
-      messages: {
-        value: (current: AgentMessage[], update?: AgentMessage[]) => {
-          if (update) {
-            return update;
-          }
-          return current;
-        },
-        default: () => [],
-      },
-      currentMessageIndex: {
-        value: (current: number, update?: number) => update ?? current,
-        default: () => 0,
-      },
-      status: {
-        value: (current: string, update?: string) => update ?? current,
-        default: () => 'initializing',
-      },
-      thinking: {
-        value: (current: boolean, update?: boolean) => update ?? current,
-        default: () => false,
-      },
-      userInput: {
-        value: (current: string | undefined, update?: string) => update ?? current,
-        default: () => undefined,
-      },
-      agentResponse: {
-        value: (current: string | undefined, update?: string) => update ?? current,
-        default: () => undefined,
-      },
-      context: {
-        value: (current: Record<string, any> | undefined, update?: Record<string, any>) => {
-          if (update) {
-            return { ...current, ...update };
-          }
-          return current;
-        },
-        default: () => ({}),
-      },
-      startTime: {
-        value: (current: number, update?: number) => update ?? current,
-        default: () => Date.now(),
-      },
-      endTime: {
-        value: (current: number | undefined, update?: number) => update ?? current,
-        default: () => undefined,
-      },
-      tokensUsed: {
-        value: (current: number | undefined, update?: number) => update ?? current,
-        default: () => undefined,
-      },
-      executionTimeMs: {
-        value: (current: number | undefined, update?: number) => update ?? current,
-        default: () => undefined,
-      },
-      totalExecutionTimeMs: {
-        value: (current: number | undefined, update?: number) => update ?? current,
-        default: () => undefined,
-      },
-      metadata: {
-        value: (current: Record<string, any>, update?: Record<string, any>) => {
-          if (update) {
-            return { ...current, ...update };
-          }
-          return current;
-        },
-        default: () => ({}),
-      },
-    };
-
-    // Create the state graph with the defined channels
-    const workflow = new StateGraph<ConversationState>({
-      channels: channels,
-    }) as any;
-
-    // Add nodes to the graph (wrapped for compatibility)
-    workflow.addNode("process_message", wrapNodeFunction(processMessage));
-    workflow.addNode("generate_response", wrapNodeFunction(generateResponse));
-    workflow.addNode("finalize", wrapNodeFunction(finalizeConversation));
-
-    // Add edges
-    workflow.addEdge(START, "process_message");
-    workflow.addEdge("process_message", "generate_response");
-    workflow.addEdge("generate_response", "finalize");
-    workflow.addEdge("finalize", END);
-
-    // Compile and return
-    return workflow.compile();
   }
-} 
+
+  /**
+   * Create the finalize node
+   */
+  private createFinalizeNode() {
+    return async (state: ConversationState) => {
+      try {
+        // Calculate metrics and prepare final state
+        const totalTimeMs =
+          state.startTime !== undefined ? Date.now() - state.startTime : 0;
+
+        return {
+          status: WorkflowStatus.COMPLETED,
+          totalExecutionTimeMs: totalTimeMs,
+          endTime: Date.now(),
+          metadata: {
+            ...state.metadata,
+            totalTimeMs,
+            finalResponseTimestamp: new Date().toISOString(),
+          },
+        };
+      } catch (error) {
+        return this.addErrorToState(
+          state,
+          error instanceof Error ? error : new Error(String(error)),
+          'finalize',
+        );
+      }
+    };
+  }
+}

@@ -295,7 +295,10 @@ export abstract class UnifiedAgent implements UnifiedAgentInterface {
 
       return response;
     } catch (error) {
-      return this.handleError(error instanceof Error ? error : new Error(String(error)), request);
+      return this.handleError(
+        error instanceof Error ? error : new Error(String(error)),
+        request,
+      );
     }
   }
 
@@ -305,4 +308,4 @@ export abstract class UnifiedAgent implements UnifiedAgentInterface {
   protected abstract executeInternal(
     request: AgentRequest,
   ): Promise<AgentResponse>;
-} 
+}

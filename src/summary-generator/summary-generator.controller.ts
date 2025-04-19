@@ -5,21 +5,21 @@ import { v4 as uuidv4 } from 'uuid';
 import { MeetingAnalysisAgent } from '../agents/specialized/meeting-analysis-agent';
 import 'reflect-metadata';
 import { StandardizedMeetingAnalysisAdapter } from '../langgraph/core/adapters/standardized-meeting-analysis.adapter';
+import { configureTracing } from '../langgraph/core/utils/tracing';
 
 import { EmbeddingService } from '../shared/embedding/embedding.service';
 import { ConsoleLogger } from '../shared/logger/console-logger';
-import { specializedAgentOrchestrator } from '../agents/specialized/orchestration/specialized-agent-orchestrator';
-import { configureTracing } from '../langgraph/core/utils/tracing';
 import { OpenAIAdapter } from '../agents/adapters';
 import { BaseContextService } from '../shared/user-context/services/base-context.service';
 
 // Type imports to help with type casting
 import { AgentRequest } from '../agents/interfaces/unified-agent.interface';
+import { AgentStatus } from '../agents/interfaces/unified-agent.interface';
 
 // Initialize services
 const logger = new ConsoleLogger();
 const openaiAdapter = new OpenAIAdapter({
-  logger
+  logger,
 });
 const embeddingService = new EmbeddingService(openaiAdapter, logger);
 const baseContextService = new BaseContextService({ logger });
@@ -35,24 +35,8 @@ const baseContextService = new BaseContextService({ logger });
   }
 })();
 
-// Initialize agent orchestrator
-specializedAgentOrchestrator.setLogger(logger);
-
-// Initialize specialized agents - using the standard adapter for backward compatibility
-const standardMeetingAnalysisAgent = new MeetingAnalysisAgent(
-  'Meeting Analysis Agent',
-  'Analyzes meeting transcripts to extract key information, action items, and insights',
-  {
-    id: 'meeting-analysis-agent',
-    logger,
-    openAIAdapter: openaiAdapter,
-    embeddingService: embeddingService,
-    baseContextService: baseContextService
-  }
-);
-
 // Initialize RAG-enhanced agent for the standardized adapter
-const ragEnhancedMeetingAnalysisAgent = new MeetingAnalysisAgent(
+const meetingAnalysisAgent = new MeetingAnalysisAgent(
   'RAG Meeting Analysis Agent',
   'Analyzes meeting transcripts with RAG capabilities',
   {
@@ -60,8 +44,8 @@ const ragEnhancedMeetingAnalysisAgent = new MeetingAnalysisAgent(
     logger,
     openAIAdapter: openaiAdapter,
     embeddingService: embeddingService,
-    baseContextService: baseContextService
-  }
+    baseContextService: baseContextService,
+  },
 );
 
 // Configure LangGraph tracing
@@ -76,54 +60,46 @@ configureTracing({
 
 // Create Standardized LangGraph adapter for meeting analysis with RAG capabilities
 // Cast only the needed properties to satisfy TypeScript
-const standardizedAdapter = new StandardizedMeetingAnalysisAdapter({
-  //  TODO Fix this hack
-  // Type compatibility issue: we're using the MeetingAnalysisAgent class instead of BaseAgent
-  // but we know it has the required functionality
-  id: ragEnhancedMeetingAnalysisAgent.id,
-  name: ragEnhancedMeetingAnalysisAgent.name,
-  description: ragEnhancedMeetingAnalysisAgent.description,
-  getCapabilities: () => ragEnhancedMeetingAnalysisAgent.getCapabilities(),
-  execute: (request: AgentRequest) => ragEnhancedMeetingAnalysisAgent.execute(request),
-  initialize: () => ragEnhancedMeetingAnalysisAgent.initialize(),
-  getState: () => ragEnhancedMeetingAnalysisAgent.getState(),
-  canHandle: (capability: string) => ragEnhancedMeetingAnalysisAgent.canHandle(capability),
-  getInitializationStatus: () => ragEnhancedMeetingAnalysisAgent.getInitializationStatus(),
-  terminate: () => ragEnhancedMeetingAnalysisAgent.terminate(),
-  getMetrics: () => ragEnhancedMeetingAnalysisAgent.getMetrics(),
-} as any, {
-  tracingEnabled: true,
-  logger,
-  maxChunkSize: 2000,
-  chunkOverlap: 200
-});
+const meetingAnalysisAdapter = new StandardizedMeetingAnalysisAdapter(
+  {
+    //  TODO Fix this hack
+    // Type compatibility issue: we're using the MeetingAnalysisAgent class instead of UnifiedAgent
+    // but we know it has the required functionality
+    id: meetingAnalysisAgent.id,
+    name: meetingAnalysisAgent.name,
+    description: meetingAnalysisAgent.description,
+    getCapabilities: () => meetingAnalysisAgent.getCapabilities(),
+    execute: (request: AgentRequest) => meetingAnalysisAgent.execute(request),
+    initialize: () => meetingAnalysisAgent.initialize(),
+    getState: () => meetingAnalysisAgent.getState(),
+    canHandle: (capability: string) =>
+      meetingAnalysisAgent.canHandle(capability),
+    getInitializationStatus: () =>
+      meetingAnalysisAgent.getInitializationStatus(),
+    terminate: () => meetingAnalysisAgent.terminate(),
+    getMetrics: () => meetingAnalysisAgent.getMetrics(),
+  } as any,
+  {
+    tracingEnabled: true,
+    logger,
+    maxChunkSize: 2000,
+    chunkOverlap: 200,
+  },
+);
 
 // Check if LangSmith is configured
-const isLangSmithConfigured = process.env.LANGSMITH_API_KEY && process.env.LANGSMITH_PROJECT;
+const isLangSmithConfigured =
+  process.env.LANGSMITH_API_KEY && process.env.LANGSMITH_PROJECT;
 
-// TODO move to main or app.ts
-// Initialize the agents using an immediately invoked async function
+// Initialize the agent
 (async () => {
   try {
-    await standardMeetingAnalysisAgent.initialize();
-    await ragEnhancedMeetingAnalysisAgent.initialize();
-    logger.info('Meeting analysis agents initialized successfully');
+    await meetingAnalysisAgent.initialize();
+    logger.info('Meeting analysis agent initialized successfully');
   } catch (error) {
-    logger.error('Failed to initialize meeting analysis agents', { error });
+    logger.error('Failed to initialize meeting analysis agent', { error });
   }
 })();
-
-// Register agents with the singleton orchestrator
-specializedAgentOrchestrator.registerAgent(
-  'meeting-analysis',
-  [
-    'analyze_meeting',
-    'meeting_analysis',
-    'summary_generation',
-    'action_item_detection',
-  ],
-  standardMeetingAnalysisAgent,
-);
 
 export const getSummary = async (
   req: Request,
@@ -131,9 +107,9 @@ export const getSummary = async (
   next: express.NextFunction,
 ) => {
   try {
-    // Check if agents are initialized by checking their state
-    const agentState = standardMeetingAnalysisAgent.getState();
-    if (agentState.status !== 'ready') {
+    // Check if agent is initialized by checking state
+    const agentState = meetingAnalysisAgent.getState();
+    if (agentState.status !== AgentStatus.READY) {
       return res.status(503).json({
         error: 'Service unavailable',
         message:
@@ -144,12 +120,11 @@ export const getSummary = async (
 
     // Generate meetingId
     const meetingId = uuidv4();
-      
+
     let langSmithTraceUrl = null;
     let analysisResult: { output: any } | null = null;
     let transcript = '';
-    let hasTranscript = false;
-    
+
     // Get userId from request
     const userId = req.body.userId || 'anonymous';
 
@@ -163,19 +138,21 @@ export const getSummary = async (
 
       // Optionally, you can remove the file after reading (cleanup)
       await fs.unlink(filePath);
-      
-      hasTranscript = true;
     } else {
       // No transcript file
       logger.warn('No transcript file uploaded');
+      return res.status(400).json({
+        error: 'No transcript provided',
+        message: 'Please upload a transcript file',
+      });
     }
 
-    // Always use the standardized adapter with RAG capabilities
-    logger.info('Using RAG-enhanced meeting analysis with LangGraph', { meetingId });
-    
+    // Process the transcript using the LangGraph adapter
+    logger.info('Using LangGraph for meeting analysis', { meetingId });
+
     try {
       // Process the transcript using the standardized adapter with RAG capabilities
-      const result = await standardizedAdapter.processMeetingTranscript({
+      const result = await meetingAnalysisAdapter.processMeetingTranscript({
         meetingId,
         transcript,
         title: req.body.meetingTitle || 'Untitled Meeting',
@@ -185,127 +162,45 @@ export const getSummary = async (
         includeActionItems: true,
         includeSentiment: req.body.includeSentiment === 'true',
       });
-      
+
       // Get the analysis output
       analysisResult = {
-        output: result.output
+        output: result.output,
       };
-      
+
       // Generate a trace ID for LangSmith
       const traceId = `rag-meeting-analysis-${meetingId}`;
-      
+
       // Get LangSmith trace URL if available
       if (isLangSmithConfigured) {
         langSmithTraceUrl = `https://smith.langchain.com/projects/${process.env.LANGSMITH_PROJECT}/traces/${traceId}`;
         logger.info('Generated LangSmith trace URL', { langSmithTraceUrl });
       }
     } catch (error) {
-      logger.error('Error in RAG-enhanced processing', { error });
-      
-      // Fall back to traditional approach
-      logger.info('Falling back to traditional approach after RAG error');
-      
-      try {
-        // Use the traditional approach as fallback
-        const meetingAnalysisRequest = {
-          input: '',
-          capability: 'analyze_meeting',
-          context: {
-            userId: userId,
-          },
-          parameters: {
-            meetingId,
-            transcript,
-            meetingTitle: req.body.meetingTitle || 'Untitled Meeting',
-            participantIds: req.body.participantIds || [],
-            includeTopics: true,
-            includeActionItems: true,
-            includeSentiment: req.body.includeSentiment === 'true',
-            trackDecisions: true,
-            storeInContext: true, // Enable storing in context
-          },
-        };
+      logger.error('Error in meeting analysis', { error });
 
-        analysisResult = await specializedAgentOrchestrator.routeRequest(
-          meetingAnalysisRequest,
-        );
-      } catch (fallbackError) {
-        logger.error('Error in fallback processing', { error: fallbackError });
-        
-        // If all else fails, provide an error message
-        analysisResult = {
-          output: {
-            error: "Processing failed",
-            details: "There was an error during processing",
-            timestamp: new Date().toISOString()
-          }
-        };
-      }
-    }
-
-    // If we still have no result, provide an error
-    if (!analysisResult) {
-      analysisResult = {
-        output: {
-          error: "No transcript provided or processing failed",
-          details: "Either no transcript was uploaded or there was an error during processing",
-          timestamp: new Date().toISOString()
-        }
-      };
+      // Return error response
+      return res.status(500).json({
+        error: 'Processing failed',
+        details:
+          error instanceof Error
+            ? error.message
+            : 'There was an error during processing',
+        timestamp: new Date().toISOString(),
+      });
     }
 
     // Return the analysis result
     res.json({
       meetingId,
-      analysis: typeof analysisResult?.output === 'string' 
-                ? JSON.parse(analysisResult.output) 
-                : analysisResult?.output,
+      analysis:
+        typeof analysisResult?.output === 'string'
+          ? JSON.parse(analysisResult.output)
+          : analysisResult?.output,
       langSmithUrl: langSmithTraceUrl,
-      ragEnhanced: true // Always true since we're using RAG by default
     });
   } catch (error) {
     logger.error('Error in getSummary', { error });
-    next(error);
-  }
-};
-
-// Add a new endpoint for decision reporting
-export const getDecisionReport = async (
-  req: Request,
-  res: Response,
-  next: express.NextFunction,
-) => {
-  try {
-    // Create agent request for decision reporting
-    const decisionReportRequest = {
-      input: 'Generate decision report',
-      capability: 'generate_report',
-      context: {
-        userId: req.body.userId || 'anonymous',
-      },
-      parameters: {
-        format: req.body.format || 'summary',
-        groupBy: req.body.groupBy,
-        includeRationale: req.body.includeRationale === 'true',
-        includeImpact: req.body.includeImpact === 'true',
-        dateRange: req.body.dateRange,
-        filters: req.body.filters || {},
-      },
-    };
-
-    // Route the request to the decision tracking agent
-    const reportResult = await specializedAgentOrchestrator.routeRequest(
-      decisionReportRequest,
-    );
-
-    // Return the report
-    res.json(
-      typeof reportResult.output === 'string'
-        ? JSON.parse(reportResult.output)
-        : reportResult.output,
-    );
-  } catch (error) {
-    logger.error('Error in getDecisionReport', { error });
     next(error);
   }
 };

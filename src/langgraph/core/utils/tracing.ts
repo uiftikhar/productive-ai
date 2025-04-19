@@ -38,9 +38,10 @@ export function configureTracing(config: Partial<TracingConfig>): void {
       ...tracingConfig.langSmith,
       ...(config.langSmith || {}),
       // Make sure enabled is a boolean
-      enabled: config.langSmith?.enabled !== undefined 
-        ? Boolean(config.langSmith.enabled) 
-        : tracingConfig.langSmith?.enabled || false,
+      enabled:
+        config.langSmith?.enabled !== undefined
+          ? Boolean(config.langSmith.enabled)
+          : tracingConfig.langSmith?.enabled || false,
     },
   };
 }
@@ -52,15 +53,15 @@ export function logStateTransition(
   nodeName: string,
   prevState: Record<string, any>,
   nextState: Record<string, any>,
-  options: { includeFullState?: boolean } = {}
+  options: { includeFullState?: boolean } = {},
 ): void {
   if (!tracingConfig.enabled) return;
-  
+
   const { includeFullState = false } = options;
 
   // Create a simplified diff for logging
   const stateDiff: Record<string, { before: any; after: any }> = {};
-  
+
   // Only include changed fields in the diff
   const allKeys = new Set([
     ...Object.keys(prevState),
@@ -88,7 +89,10 @@ export function logStateTransition(
 
   // Log to console if enabled
   if (tracingConfig.consoleLogging) {
-    console.log(`[${nodeName}] State transition:`, JSON.stringify(stateDiff, null, 2));
+    console.log(
+      `[${nodeName}] State transition:`,
+      JSON.stringify(stateDiff, null, 2),
+    );
   }
 
   // Log to LangSmith if available and enabled
@@ -109,23 +113,23 @@ export function logStateTransition(
 export function startTrace(
   workflowName: string,
   initialState: Record<string, any>,
-  metadata: Record<string, any> = {}
+  metadata: Record<string, any> = {},
 ): string {
   const traceId = crypto.randomUUID();
-  
+
   if (!tracingConfig.enabled) return traceId;
-  
+
   // Log to console if enabled
   if (tracingConfig.consoleLogging) {
     console.log(`[${workflowName}] Starting workflow trace ${traceId}`);
   }
-  
+
   // Log to LangSmith if available and enabled
   if (tracingConfig.langSmith?.enabled && process.env.LANGSMITH_API_KEY) {
     // This would use the LangSmith SDK to start a trace
     console.log(`[LangSmith] Would start trace for workflow ${workflowName}`);
   }
-  
+
   return traceId;
 }
 
@@ -136,18 +140,18 @@ export function endTrace(
   traceId: string,
   workflowName: string,
   finalState: Record<string, any>,
-  metadata: Record<string, any> = {}
+  metadata: Record<string, any> = {},
 ): void {
   if (!tracingConfig.enabled) return;
-  
+
   // Log to console if enabled
   if (tracingConfig.consoleLogging) {
     console.log(`[${workflowName}] Ending workflow trace ${traceId}`);
   }
-  
+
   // Log to LangSmith if available and enabled
   if (tracingConfig.langSmith?.enabled && process.env.LANGSMITH_API_KEY) {
     // This would use the LangSmith SDK to end a trace
     console.log(`[LangSmith] Would end trace for workflow ${workflowName}`);
   }
-} 
+}

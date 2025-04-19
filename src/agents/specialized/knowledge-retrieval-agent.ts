@@ -1,6 +1,10 @@
 import { BaseMessage, HumanMessage } from '@langchain/core/messages';
-import { BaseAgent } from '../base/base-agent';
-import { AgentRequest, AgentResponse } from '../interfaces/agent.interface';
+import { UnifiedAgent } from '../base/unified-agent';
+import {
+  AgentRequest,
+  AgentResponse,
+  AgentCapability,
+} from '../interfaces/unified-agent.interface';
 import {
   RagPromptManager,
   RagRetrievalStrategy,
@@ -13,18 +17,21 @@ import { ConversationContextService } from '../../shared/user-context/services/c
 import { MeetingContextService } from '../../shared/user-context/services/meeting-context.service';
 import { RelevanceCalculationService } from '../../shared/user-context/services/relevance-calculation.service';
 import { OpenAIAdapter } from '../../agents/adapters/openai-adapter';
+import { Logger } from '../../shared/logger/logger.interface';
+import { ChatOpenAI } from '@langchain/openai';
 
 /**
  * KnowledgeRetrievalAgent
  * Specialized agent that retrieves relevant information from the user's knowledge base
  */
-export class KnowledgeRetrievalAgent extends BaseAgent {
+export class KnowledgeRetrievalAgent extends UnifiedAgent {
   private documentContextService: DocumentContextService;
   private conversationContextService: ConversationContextService;
   private meetingContextService: MeetingContextService;
   private relevanceCalculationService: RelevanceCalculationService;
   private ragPromptManager: RagPromptManager;
   private embeddingService: EmbeddingService;
+  private openAIAdapter?: OpenAIAdapter;
 
   constructor(
     options: {
@@ -35,13 +42,19 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
       ragPromptManager?: RagPromptManager;
       embeddingService?: EmbeddingService;
       openAIAdapter?: OpenAIAdapter;
-      logger?: any;
+      logger?: Logger;
+      llm?: ChatOpenAI;
+      id?: string;
     } = {},
   ) {
     super(
       'Knowledge Retrieval Agent',
       'Retrieves relevant knowledge from user context',
-      { logger: options.logger },
+      {
+        logger: options.logger,
+        llm: options.llm,
+        id: options.id,
+      },
     );
 
     this.documentContextService =
@@ -53,6 +66,7 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
     this.relevanceCalculationService =
       options.relevanceCalculationService || new RelevanceCalculationService();
     this.ragPromptManager = options.ragPromptManager || new RagPromptManager();
+    this.openAIAdapter = options.openAIAdapter;
 
     // Use provided embedding service or create a new one with proper parameters
     if (options.embeddingService) {
@@ -89,9 +103,6 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
         retrievalOptions: 'Options for context retrieval',
       },
     });
-
-    // Initialize the agent by default
-    this.initialize();
   }
 
   /**

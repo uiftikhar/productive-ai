@@ -73,8 +73,8 @@ export class PineconeIndexService {
           model: config.embeddingModel || 'multilingual-e5-large',
           metric: config.metric || 'cosine',
           fieldMap: {
-            text: 'text'
-          }
+            text: 'text',
+          },
         },
         waitUntilReady: true,
         tags: config.tags || { project: 'transcript-analysis' },

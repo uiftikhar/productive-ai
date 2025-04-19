@@ -1,6 +1,6 @@
 // src/agents/adapters/context-adapter.interface.ts
 
-import { AgentContext } from '../interfaces/agent.interface';
+import { AgentContext } from '../interfaces/unified-agent.interface';
 
 /**
  * Interface for context adapters that provide standardized access

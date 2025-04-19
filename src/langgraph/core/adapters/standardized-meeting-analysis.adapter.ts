@@ -1,11 +1,9 @@
 import { Annotation, StateGraph, START, END } from '@langchain/langgraph';
-import { v4 as uuidv4 } from 'uuid';
 
-import { 
-  BaseLangGraphAdapter, 
+import {
+  BaseLangGraphAdapter,
   BaseLangGraphState,
   WorkflowStatus,
-  WorkflowError
 } from './base-langgraph.adapter';
 import { MeetingAnalysisAgent } from '../../../agents/specialized/meeting-analysis-agent';
 import { splitTranscript } from '../../../shared/utils/split-transcript';
@@ -21,12 +19,12 @@ export interface MeetingAnalysisState extends BaseLangGraphState {
   meetingTitle?: string;
   participantIds: string[];
   userId: string;
-  
+
   // Processing state
   chunks: string[];
   currentChunkIndex: number;
   partialAnalyses: string[];
-  
+
   // Results
   analysisResult?: any;
 }
@@ -60,13 +58,13 @@ export interface ProcessMeetingTranscriptResult {
 
 /**
  * StandardizedMeetingAnalysisAdapter
- * 
+ *
  * A refined implementation of the meeting analysis adapter using
  * the standardized BaseLangGraphAdapter pattern.
  */
 export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
-  MeetingAnalysisState, 
-  ProcessMeetingTranscriptParams, 
+  MeetingAnalysisState,
+  ProcessMeetingTranscriptParams,
   ProcessMeetingTranscriptResult
 > {
   // Default configuration
@@ -83,13 +81,13 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
       maxChunkSize?: number;
       chunkOverlap?: number;
       logger?: any;
-    } = {}
+    } = {},
   ) {
     super({
       tracingEnabled: options.tracingEnabled,
       logger: options.logger,
     });
-    
+
     this.maxChunkSize = options.maxChunkSize || 2000;
     this.chunkOverlap = options.chunkOverlap || 200;
   }
@@ -97,12 +95,14 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
   /**
    * Convenient method to process a meeting transcript
    */
-  async processMeetingTranscript(params: ProcessMeetingTranscriptParams): Promise<ProcessMeetingTranscriptResult> {
+  async processMeetingTranscript(
+    params: ProcessMeetingTranscriptParams,
+  ): Promise<ProcessMeetingTranscriptResult> {
     // Initialize the agent if needed
     if (!this.agent.getInitializationStatus()) {
       await this.agent.initialize();
     }
-    
+
     // Execute the workflow using the base class method
     return this.execute(params);
   }
@@ -121,7 +121,10 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
       errorCount: Annotation<number>(),
       errors: Annotation<any[]>({
         default: () => [],
-        reducer: (curr, update) => [...(curr || []), ...(Array.isArray(update) ? update : [update])],
+        reducer: (curr, update) => [
+          ...(curr || []),
+          ...(Array.isArray(update) ? update : [update]),
+        ],
       }),
       metrics: Annotation<any>({
         default: () => ({}),
@@ -131,31 +134,34 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
         default: () => ({}),
         reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
       }),
-      
+
       // Meeting information
       meetingId: Annotation<string>(),
       transcript: Annotation<string>(),
       meetingTitle: Annotation<string | undefined>(),
       participantIds: Annotation<string[]>({
         default: () => [],
-        value: (curr, update) => update
+        value: (curr, update) => update,
       }),
       userId: Annotation<string>(),
-      
+
       // Processing state
       chunks: Annotation<string[]>({
         default: () => [],
-        value: (curr, update) => update
+        value: (curr, update) => update,
       }),
       currentChunkIndex: Annotation<number>({
         default: () => 0,
-        value: (curr, update) => update
+        value: (curr, update) => update,
       }),
       partialAnalyses: Annotation<string[]>({
         default: () => [],
-        reducer: (curr, update) => [...(curr || []), ...(Array.isArray(update) ? update : [update])],
+        reducer: (curr, update) => [
+          ...(curr || []),
+          ...(Array.isArray(update) ? update : [update]),
+        ],
       }),
-      
+
       // Results
       analysisResult: Annotation<any>(),
     });
@@ -164,84 +170,95 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
   /**
    * Create the state graph for meeting analysis workflow
    */
-  protected createStateGraph(schema: ReturnType<typeof this.createStateSchema>): StateGraph<any> {
+  protected createStateGraph(
+    schema: ReturnType<typeof this.createStateSchema>,
+  ): StateGraph<any> {
     const graph = new StateGraph(schema);
-    
+
     // Add the nodes
     graph
       // Common nodes from base adapter
-      .addNode("initialize", this.createInitializationNode())
-      .addNode("error_handler", this.createErrorHandlerNode())
-      .addNode("complete", this.createCompletionNode())
-      
+      .addNode('initialize', this.createInitializationNode())
+      .addNode('error_handler', this.createErrorHandlerNode())
+      .addNode('complete', this.createCompletionNode())
+
       // Meeting-specific nodes
-      .addNode("process_chunk", this.createProcessChunkNode())
-      .addNode("check_chunks", this.createCheckChunksNode())
-      .addNode("generate_final_analysis", this.createGenerateFinalAnalysisNode())
-      .addNode("store_results", this.createStoreResultsNode());
-    
+      .addNode('process_chunk', this.createProcessChunkNode())
+      .addNode('check_chunks', this.createCheckChunksNode())
+      .addNode(
+        'generate_final_analysis',
+        this.createGenerateFinalAnalysisNode(),
+      )
+      .addNode('store_results', this.createStoreResultsNode());
+
     // Conditional routing function
     const routeAfterChunkProcessing = (state: any) => {
       if (state.status === WorkflowStatus.ERROR) {
-        return "error_handler";
+        return 'error_handler';
       }
-      return "check_chunks";
+      return 'check_chunks';
     };
-    
+
     const routeAfterCheckChunks = (state: any) => {
       if (state.status === WorkflowStatus.ERROR) {
-        return "error_handler";
+        return 'error_handler';
       }
-      
+
       // If there are more chunks to process, go back to process_chunk
       if (state.currentChunkIndex < state.chunks.length) {
-        return "process_chunk";
+        return 'process_chunk';
       }
-      
+
       // Otherwise proceed to final analysis
-      return "generate_final_analysis";
+      return 'generate_final_analysis';
     };
-    
+
     const routeAfterFinalAnalysis = (state: any) => {
       if (state.status === WorkflowStatus.ERROR) {
-        return "error_handler";
+        return 'error_handler';
       }
-      return "store_results";
+      return 'store_results';
     };
-    
+
     const routeAfterStoreResults = (state: any) => {
       if (state.status === WorkflowStatus.ERROR) {
-        return "error_handler";
+        return 'error_handler';
       }
-      return "complete";
+      return 'complete';
     };
-    
+
     // Define the edges
     const typedGraph = graph as any;
-    
+
     typedGraph
-      .addEdge(START, "initialize")
-      .addEdge("initialize", "process_chunk")
-      .addConditionalEdges("process_chunk", routeAfterChunkProcessing)
-      .addConditionalEdges("check_chunks", routeAfterCheckChunks)
-      .addConditionalEdges("generate_final_analysis", routeAfterFinalAnalysis)
-      .addConditionalEdges("store_results", routeAfterStoreResults)
-      .addEdge("complete", END)
-      .addEdge("error_handler", END);
-    
+      .addEdge(START, 'initialize')
+      .addEdge('initialize', 'process_chunk')
+      .addConditionalEdges('process_chunk', routeAfterChunkProcessing)
+      .addConditionalEdges('check_chunks', routeAfterCheckChunks)
+      .addConditionalEdges('generate_final_analysis', routeAfterFinalAnalysis)
+      .addConditionalEdges('store_results', routeAfterStoreResults)
+      .addEdge('complete', END)
+      .addEdge('error_handler', END);
+
     return graph;
   }
 
   /**
    * Create the initial state for meeting analysis
    */
-  protected createInitialState(input: ProcessMeetingTranscriptParams): MeetingAnalysisState {
+  protected createInitialState(
+    input: ProcessMeetingTranscriptParams,
+  ): MeetingAnalysisState {
     // Get the base state
     const baseState = super.createInitialState(input);
-    
+
     // Split the transcript into chunks
-    const chunks = splitTranscript(input.transcript, this.maxChunkSize, this.chunkOverlap);
-    
+    const chunks = splitTranscript(
+      input.transcript,
+      this.maxChunkSize,
+      this.chunkOverlap,
+    );
+
     // Create the meeting-specific state
     return {
       ...baseState,
@@ -258,20 +275,23 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
         includeTopics: input.includeTopics !== false, // Default to true
         includeActionItems: input.includeActionItems !== false, // Default to true
         includeSentiment: input.includeSentiment !== false, // Default to true
-      }
+      },
     };
   }
 
   /**
    * Process the final state to produce the output
    */
-  protected processResult(state: MeetingAnalysisState): ProcessMeetingTranscriptResult {
+  protected processResult(
+    state: MeetingAnalysisState,
+  ): ProcessMeetingTranscriptResult {
     // If error occurred, generate an error response
     if (state.status === WorkflowStatus.ERROR) {
-      const errorMessage = state.errors && state.errors.length > 0
-        ? state.errors[state.errors.length - 1].message
-        : 'Unknown error occurred during meeting analysis';
-        
+      const errorMessage =
+        state.errors && state.errors.length > 0
+          ? state.errors[state.errors.length - 1].message
+          : 'Unknown error occurred during meeting analysis';
+
       return {
         meetingId: state.meetingId,
         output: {
@@ -282,7 +302,7 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
         metrics: this.getMetricsFromState(state),
       };
     }
-    
+
     // Return the successful analysis
     return {
       meetingId: state.meetingId,
@@ -301,7 +321,7 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
         chunks: state.chunks.length,
         meetingTitle: state.meetingTitle,
       });
-      
+
       return {
         ...state,
         status: WorkflowStatus.READY,
@@ -317,12 +337,15 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
       try {
         const chunkIndex = state.currentChunkIndex;
         const chunk = state.chunks[chunkIndex];
-        
-        this.logger.debug(`Processing chunk ${chunkIndex + 1}/${state.chunks.length}`, {
-          chunkLength: chunk.length,
-          meetingId: state.meetingId
-        });
-        
+
+        this.logger.debug(
+          `Processing chunk ${chunkIndex + 1}/${state.chunks.length}`,
+          {
+            chunkLength: chunk.length,
+            meetingId: state.meetingId,
+          },
+        );
+
         // Process the current chunk using the agent with the analyze-transcript-chunk capability
         const result = await this.agent.execute({
           input: chunk,
@@ -340,18 +363,19 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
             conversationId: state.runId, // Using runId as a conversationId for tracking
             storeInContext: true, // Enable storage of analysis in context
             documentIds: [state.meetingId], // Include the meetingId as a document filter
-          }
+          },
         });
-        
+
         // Extract response content
-        const analysis = typeof result.output === 'string' 
-          ? result.output 
-          : result.output.content;
-        
+        const analysis =
+          typeof result.output === 'string'
+            ? result.output
+            : result.output.content;
+
         // Update metrics
         const currentTokens = state.metrics?.tokensUsed || 0;
         const newTokens = result.metrics?.tokensUsed || 0;
-        
+
         return {
           ...state,
           partialAnalyses: [...state.partialAnalyses, analysis],
@@ -365,7 +389,7 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
         return this.addErrorToState(
           state,
           error instanceof Error ? error : String(error),
-          'process_chunk'
+          'process_chunk',
         );
       }
     };
@@ -379,7 +403,7 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
       try {
         // Increment the chunk index
         const nextChunkIndex = state.currentChunkIndex + 1;
-        
+
         return {
           ...state,
           currentChunkIndex: nextChunkIndex,
@@ -389,7 +413,7 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
         return this.addErrorToState(
           state,
           error instanceof Error ? error : String(error),
-          'check_chunks'
+          'check_chunks',
         );
       }
     };
@@ -401,14 +425,17 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
   private createGenerateFinalAnalysisNode() {
     return async (state: MeetingAnalysisState) => {
       try {
-        this.logger.info(`Generating final analysis for meeting ${state.meetingId}`, {
-          chunkCount: state.chunks.length,
-          partialAnalysesCount: state.partialAnalyses.length,
-        });
-        
+        this.logger.info(
+          `Generating final analysis for meeting ${state.meetingId}`,
+          {
+            chunkCount: state.chunks.length,
+            partialAnalysesCount: state.partialAnalyses.length,
+          },
+        );
+
         // Combine the partial analyses and generate a final analysis
         const combinedAnalyses = state.partialAnalyses.join('\n\n');
-        
+
         const result = await this.agent.execute({
           input: combinedAnalyses,
           capability: 'generate-final-analysis',
@@ -425,35 +452,37 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
             storeInContext: true, // Enable storage of analysis in context
             documentIds: [state.meetingId], // Include the meetingId as a document filter
             includeHistorical: true, // Include historical data for final analysis
-          }
+          },
         });
-        
+
         // Parse the response as JSON if possible
         let analysisResult;
         try {
-          const responseText = typeof result.output === 'string' 
-            ? result.output 
-            : result.output.content;
-            
+          const responseText =
+            typeof result.output === 'string'
+              ? result.output
+              : result.output.content;
+
           // Try to parse as JSON
           analysisResult = JSON.parse(
-            typeof responseText === 'string' 
-              ? responseText 
-              : JSON.stringify(responseText)
+            typeof responseText === 'string'
+              ? responseText
+              : JSON.stringify(responseText),
           );
         } catch (parseError) {
           // If parsing fails, use the raw text
           analysisResult = {
-            rawAnalysis: typeof result.output === 'string' 
-              ? result.output 
-              : result.output.content
+            rawAnalysis:
+              typeof result.output === 'string'
+                ? result.output
+                : result.output.content,
           };
         }
-        
+
         // Update metrics
         const currentTokens = state.metrics?.tokensUsed || 0;
         const newTokens = result.metrics?.tokensUsed || 0;
-        
+
         return {
           ...state,
           analysisResult,
@@ -467,7 +496,7 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
         return this.addErrorToState(
           state,
           error instanceof Error ? error : String(error),
-          'generate_final_analysis'
+          'generate_final_analysis',
         );
       }
     };
@@ -480,7 +509,7 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
     return async (state: MeetingAnalysisState) => {
       try {
         this.logger.info(`Storing results for meeting ${state.meetingId}`);
-        
+
         // Prepare a storage request for the meeting analysis
         // This would typically save to a database, but for now we just prepare the request
         const storageRequest = {
@@ -494,13 +523,16 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
             transcriptLength: state.transcript.length,
             chunkCount: state.chunks.length,
             analysisTimestamp: new Date().toISOString(),
-          }
+          },
         };
-        
+
         // Store the results - this would be implemented with actual storage in a production system
         // For now, we just log the request
-        this.logger.debug('Would store meeting analysis with request:', storageRequest);
-        
+        this.logger.debug(
+          'Would store meeting analysis with request:',
+          storageRequest,
+        );
+
         return {
           ...state,
           status: WorkflowStatus.COMPLETED,
@@ -510,9 +542,9 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
         return this.addErrorToState(
           state,
           error instanceof Error ? error : String(error),
-          'store_results'
+          'store_results',
         );
       }
     };
   }
-} 
+}

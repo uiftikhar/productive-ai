@@ -38,29 +38,32 @@ app.get('/visualizations/:filename', (req, res, next) => {
   if (!filename.endsWith('.html')) {
     return next(); // Not an HTML file, let express.static handle it
   }
-  
+
   const filePath = path.join(visualizationsPath, filename);
   console.log('Directly serving visualization HTML file:', filePath);
-  
+
   // Check if file exists
   if (!fs.existsSync(filePath)) {
     console.error('Visualization file not found:', filePath);
     return res.status(404).send('Visualization not found');
   }
-  
+
   res.sendFile(filePath);
 });
 
 // Then set up static serving as a fallback
-app.use('/visualizations', express.static(visualizationsPath, { 
-  index: false,
-  extensions: ['html'],
-  setHeaders: (res, path) => {
-    if (path.endsWith('.html')) {
-      res.setHeader('Content-Type', 'text/html');
-    }
-  }
-}));
+app.use(
+  '/visualizations',
+  express.static(visualizationsPath, {
+    index: false,
+    extensions: ['html'],
+    setHeaders: (res, path) => {
+      if (path.endsWith('.html')) {
+        res.setHeader('Content-Type', 'text/html');
+      }
+    },
+  }),
+);
 
 app.use('/auth', authRoutes);
 app.use('/api/generate-summary', summaryRoutes);

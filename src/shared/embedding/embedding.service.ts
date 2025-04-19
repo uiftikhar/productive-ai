@@ -1,14 +1,14 @@
 // src/shared/embedding/embedding.service.ts
 /**
  * Official Embedding Service for the Productive AI Application
- * 
+ *
  * This service provides embedding generation functionality using OpenAI's embedding models.
  * It handles large inputs through chunking and provides utility functions for working with embeddings.
- * 
+ *
  * IMPORTANT: This is the canonical embedding service implementation that should be used throughout the codebase.
- * Other implementations (in /services/embedding.service.ts or /shared/embeddings/embedding.service.ts) 
+ * Other implementations (in /services/embedding.service.ts or /shared/embeddings/embedding.service.ts)
  * are deprecated and should be migrated to use this service.
- * 
+ *
  * Features:
  * - Automatic chunking for large texts
  * - Combining embeddings from multiple chunks
@@ -60,7 +60,9 @@ export class EmbeddingService {
 
       // If text is very short, generate directly
       if (text.length < 5000) {
-        const response = await this.openAIAdapter.generateEmbedding(text.trim());
+        const response = await this.openAIAdapter.generateEmbedding(
+          text.trim(),
+        );
         this.logger.debug(`Successfully generated embedding directly`);
         return response;
       }
@@ -80,20 +82,20 @@ export class EmbeddingService {
    */
   private async generateEmbeddingWithChunking(text: string): Promise<number[]> {
     this.logger.debug(`Using chunking strategy for large text`);
-    
+
     // Split text into chunks of roughly 4000 characters (~1000 tokens)
     const chunkSize = 4000;
     const chunks: string[] = [];
-    
+
     for (let i = 0; i < text.length; i += chunkSize) {
       // Use overlap of 500 characters to maintain context across chunks
       const start = Math.max(0, i - 500);
       const end = Math.min(text.length, i + chunkSize);
       chunks.push(text.substring(start, end).trim());
     }
-    
+
     this.logger.debug(`Split text into ${chunks.length} chunks`);
-    
+
     // Generate embeddings for each chunk
     const chunkEmbeddings: number[][] = [];
     for (const chunk of chunks) {
@@ -105,11 +107,11 @@ export class EmbeddingService {
         // Continue with other chunks even if one fails
       }
     }
-    
+
     if (chunkEmbeddings.length === 0) {
       throw new Error('Failed to generate any chunk embeddings');
     }
-    
+
     // Combine the embeddings
     return this.combineEmbeddings(chunkEmbeddings);
   }

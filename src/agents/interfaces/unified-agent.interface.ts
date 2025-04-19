@@ -115,24 +115,24 @@ export interface UnifiedAgentInterface {
    * Execute the agent with the given request
    */
   execute(request: AgentRequest): Promise<AgentResponse>;
-  
+
   /**
    * Get the current agent state
    */
   getState(): AgentState;
-  
+
   /**
    * Get initialization status
    */
   getInitializationStatus(): boolean;
-  
+
   /**
    * Clean up any resources used by the agent
    */
   terminate(): Promise<void>;
-  
+
   /**
    * Get agent metrics
    */
   getMetrics(): AgentMetrics;
-} 
+}

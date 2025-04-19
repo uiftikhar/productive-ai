@@ -1,20 +1,28 @@
 // src/agents/specialized/retrieval-agent.ts
 
-import { BaseAgent } from '../base/base-agent';
-import { AgentRequest, AgentResponse } from '../interfaces/agent.interface';
+import { UnifiedAgent } from '../base/unified-agent';
+import {
+  AgentRequest,
+  AgentResponse,
+  AgentStatus,
+  AgentCapability,
+} from '../interfaces/unified-agent.interface';
 import { OpenAIAdapter } from '../adapters/openai-adapter';
 import { PineconeAdapter } from '../adapters/pinecone-adapter';
 import { Logger } from '../../shared/logger/logger.interface';
+import { ChatOpenAI } from '@langchain/openai';
 
 /**
  * Abstract retrieval agent that provides common retrieval functionality
  * Specialized retrieval agents should extend this class
  */
-export abstract class RetrievalAgent extends BaseAgent {
+export abstract class RetrievalAgent extends UnifiedAgent {
   protected indexName: string;
   protected namespace: string;
   protected similarityThreshold: number;
   protected maxResults: number;
+  protected openaiAdapter?: OpenAIAdapter;
+  protected pineconeAdapter?: PineconeAdapter;
 
   constructor(
     name: string,
@@ -22,6 +30,7 @@ export abstract class RetrievalAgent extends BaseAgent {
     options: {
       id?: string;
       logger?: Logger;
+      llm?: ChatOpenAI;
       openaiAdapter?: OpenAIAdapter;
       pineconeAdapter?: PineconeAdapter;
       indexName?: string;
@@ -33,10 +42,11 @@ export abstract class RetrievalAgent extends BaseAgent {
     super(name, description, {
       id: options.id,
       logger: options.logger,
-      openaiAdapter: options.openaiAdapter,
-      pineconeAdapter: options.pineconeAdapter,
+      llm: options.llm,
     });
 
+    this.openaiAdapter = options.openaiAdapter;
+    this.pineconeAdapter = options.pineconeAdapter;
     this.indexName = options.indexName || 'default-index';
     this.namespace = options.namespace || 'default-namespace';
     this.similarityThreshold = options.similarityThreshold || 0.7;
@@ -217,6 +227,7 @@ export class DocumentRetrievalAgent extends RetrievalAgent {
       description?: string;
       id?: string;
       logger?: Logger;
+      llm?: ChatOpenAI;
       openaiAdapter?: OpenAIAdapter;
       pineconeAdapter?: PineconeAdapter;
       indexName?: string;
@@ -249,8 +260,7 @@ export class DocumentRetrievalAgent extends RetrievalAgent {
       parameters: {
         title: 'Document title',
         content: 'Document content',
-        category: 'Document category (optional)',
-        tags: 'Document tags (comma-separated)',
+        metadata: 'Additional metadata (JSON format)',
       },
     });
   }
@@ -262,42 +272,60 @@ export class DocumentRetrievalAgent extends RetrievalAgent {
     request: AgentRequest,
   ): Promise<AgentResponse> {
     const startTime = Date.now();
-    let tokenUsage = 0;
 
-    // Extract input
+    // Get the capability to use (default to retrieve)
+    const capability = request.capability || 'retrieve';
+
+    if (!this.canHandle(capability)) {
+      throw new Error(`Capability not supported: ${capability}`);
+    }
+
+    // Get the input (either direct input or from parameters)
     const input =
       typeof request.input === 'string'
         ? request.input
-        : request.input.map((msg) => msg.content).join('\n');
+        : request.parameters?.query || request.parameters?.content || '';
+
+    if (!input) {
+      throw new Error('No input provided');
+    }
 
     try {
-      // Handle based on capability
-      switch (request.capability) {
+      let response: AgentResponse;
+
+      switch (capability) {
         case 'retrieve':
         case 'searchDocuments':
-          return await this.handleSearch(request, input);
+          response = await this.handleSearch(request, input);
+          break;
 
         case 'store':
         case 'storeDocument':
-          return await this.handleStore(request, input);
+          response = await this.handleStore(request, input);
+          break;
 
         default:
-          // Default to search behavior
-          return await this.handleSearch(request, input);
+          throw new Error(`Unsupported capability: ${capability}`);
       }
-    } catch (error) {
-      this.logger.error('Error executing document retrieval agent', {
-        error: error instanceof Error ? error.message : String(error),
-        capability: request.capability,
-      });
 
       return {
-        output: `Error executing document retrieval: ${error instanceof Error ? error.message : String(error)}`,
+        ...response,
         metrics: {
+          ...(response.metrics || {}),
           executionTimeMs: Date.now() - startTime,
-          tokensUsed: tokenUsage,
         },
       };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      this.logger.error(`Error in DocumentRetrievalAgent: ${errorMessage}`, {
+        capability,
+        input: input.substring(0, 100) + (input.length > 100 ? '...' : ''),
+      });
+
+      // Re-throw to let UnifiedAgent's error handling manage it
+      throw error;
     }
   }
 

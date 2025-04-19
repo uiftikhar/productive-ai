@@ -16,11 +16,7 @@
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:agents": "jest src/agents --testPathIgnorePatterns=node_modules",
-    "dev": "nodemon --watch src --ext ts,json --exec \"ts-node\" src/index.ts",
-    "setup:pinecone": "ts-node src/scripts/setup-pinecone.ts",
-    "reset:pinecone": "ts-node src/scripts/reset-pinecone-indexes.ts",
-    "force-reset:pinecone": "ts-node -e \"require('./src/scripts/reset-pinecone-indexes.js').resetPineconeIndexes(true)\"",
-    "check:pinecone": "ts-node src/scripts/check-pinecone-indexes.ts"
+    "dev": "nodemon --watch src --ext ts,json --exec \"ts-node\" src/index.ts"
   },
   "dependencies": {
     "@langchain/core": "^0.3.45",

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 
-import { getSummary, getDecisionReport } from './summary-generator.controller';
+import { getSummary } from './summary-generator.controller';
 
 const upload = multer({ dest: 'uploads/' });
 const router = Router();
@@ -19,12 +19,6 @@ const router = Router();
  * @file {file} transcript - Transcript file (required)
  * @returns {Object} meetingId, analysis, visualizationUrl, langSmithUrl, ragEnhanced
  */
-router.post(
-  '/summary',
-  upload.single('transcript'),
-  getSummary
-);
-
-router.post('/decisions/report', getDecisionReport);
+router.post('/summary', upload.single('transcript'), getSummary);
 
 export { router as summaryRoutes };

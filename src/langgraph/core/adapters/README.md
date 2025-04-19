@@ -1,88 +1,33 @@
-# Standardized LangGraph Adapters
+# LangGraph Adapters
 
-This directory contains adapters that bridge agent functionality with LangGraph workflow management. The adapters provide a structured approach to building complex agent workflows with proper state management and error handling.
+This directory contains standardized adapters that bridge our agent framework with LangGraph state-based workflows.
 
 ## Architecture
 
-The architecture is based on a hierarchy of adapters:
+The adapters follow a hierarchical pattern:
 
-```
-BaseLangGraphAdapter (abstract)
-├── UnifiedAgentAdapter
-└── Specialized Adapters
-    ├── StandardizedMeetingAnalysisAdapter
-    └── StandardizedTaskExecutionAdapter
-    └── ... (other specialized adapters)
-```
+1. `base-langgraph.adapter.ts` - Core base adapter with common workflow patterns
+2. `unified-agent.adapter.ts` - Standardized adapter for UnifiedAgent implementation
+3. Specialized adapters:
+   - `standardized-meeting-analysis.adapter.ts` - For meeting analysis workflow
+   - `conversation.adapter.ts` - For conversational workflows
 
-## Base Adapter
+## Usage Guidelines
 
-`BaseLangGraphAdapter` provides the foundation with standardized:
+When implementing a new workflow:
 
-- Workflow state management
-- Error handling
-- Metrics tracking
-- Execution patterns
+1. Use the `BaseLangGraphAdapter` as your foundation
+2. For agent-based workflows, extend `UnifiedAgentAdapter`
+3. For specialized workflows, create a new adapter class following the patterns established in existing adapters
 
-It defines abstract methods that all adapters must implement:
-- `createStateSchema()`: Define the state structure
-- `createStateGraph()`: Create the workflow graph
-- `processResult()`: Process the final state into a result
+## Best Practices
 
-## Unified Agent Adapter
+1. Follow the established node naming conventions
+2. Use conditional routing for error handling
+3. Maintain clear state typing
+4. Include proper error handling and logging
+5. Create well-defined state schemas using the Annotation pattern
 
-`UnifiedAgentAdapter` extends the base adapter to provide a generic interface for all agent types. It:
+## Examples
 
-- Connects any `UnifiedAgent` instance with LangGraph
-- Provides standard nodes for agent lifecycle (initialize, execute, etc.)
-- Handles agent-specific state management
-
-## Specialized Adapters
-
-Specialized adapters provide domain-specific workflows:
-
-- `StandardizedMeetingAnalysisAdapter`: Processes meeting transcripts through a chunking workflow
-- `StandardizedTaskExecutionAdapter`: Manages task execution with planning and validation steps
-- More can be added for other specialized workflows
-
-## Error Handling
-
-The adapters provide comprehensive error handling:
-
-- Error collection in state
-- Error routing in graph workflows
-- Standardized error representation
-- Error tracing and logging
-
-## Usage Example
-
-```typescript
-// Create an agent
-const meetingAnalysisAgent = new MeetingAnalysisAgent();
-
-// Create the adapter with the agent
-const adapter = new StandardizedMeetingAnalysisAdapter(meetingAnalysisAgent);
-
-// Execute a workflow
-const result = await adapter.processMeetingTranscript({
-  meetingId: 'meeting-123',
-  transcript: meetingTranscript,
-  title: 'Team Planning Meeting',
-  userId: 'user-456'
-});
-
-// Access the result
-console.log(`Success: ${result.success}`);
-console.log(`Output: ${JSON.stringify(result.output)}`);
-console.log(`Metrics: ${JSON.stringify(result.metrics)}`);
-```
-
-## Benefits
-
-This standardized approach offers several benefits:
-
-1. **Consistency**: All adapters follow the same patterns and error handling
-2. **Maintainability**: Common code is centralized in base classes
-3. **Extensibility**: New specialized adapters can be created easily
-4. **Observability**: Standard metrics and logging across all adapters
-5. **Error Handling**: Robust error management and recovery strategies 
+See `standardized-meeting-analysis.adapter.ts` for a complete example of implementing a complex workflow. 

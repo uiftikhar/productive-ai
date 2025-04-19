@@ -16,7 +16,7 @@ export interface MeetingAnalysisState extends BaseAgentState {
     role?: string;
   }>;
   previousMeetingIds?: string[];
-  
+
   // Transcript data
   transcript?: string;
   transcriptSegments?: Array<{
@@ -26,12 +26,12 @@ export interface MeetingAnalysisState extends BaseAgentState {
     endTime?: number;
   }>;
   transcriptEmbeddings?: number[];
-  
+
   // Processing state
   chunks?: string[];
   currentChunkIndex?: number;
   partialAnalyses?: string[];
-  
+
   // Analysis results
   analysisResult?: {
     summary: string;
@@ -55,7 +55,7 @@ export interface MeetingAnalysisState extends BaseAgentState {
     keyInsights?: string[];
     nextSteps?: string;
   };
-  
+
   // Extraction results
   extractedActionItems?: Array<{
     id: string;
@@ -85,13 +85,15 @@ export interface MeetingAnalysisState extends BaseAgentState {
 /**
  * Create a new meeting analysis state
  */
-export function createMeetingAnalysisState(overrides: Partial<MeetingAnalysisState> = {}): MeetingAnalysisState {
+export function createMeetingAnalysisState(
+  overrides: Partial<MeetingAnalysisState> = {},
+): MeetingAnalysisState {
   // First create a base state
   const baseState = createBaseAgentState({
     agentId: overrides.agentId || 'meeting-analysis-agent',
     ...overrides,
   });
-  
+
   // Add the meeting-specific defaults
   const meetingState: MeetingAnalysisState = {
     ...baseState,
@@ -112,7 +114,7 @@ export function createMeetingAnalysisState(overrides: Partial<MeetingAnalysisSta
     extractedQuestions: overrides.extractedQuestions || [],
     extractedTopics: overrides.extractedTopics || [],
   };
-  
+
   return meetingState;
 }
 
@@ -122,24 +124,26 @@ export function createMeetingAnalysisState(overrides: Partial<MeetingAnalysisSta
 export function addPartialAnalysis(
   state: MeetingAnalysisState,
   analysisText: string,
-  chunkIndex?: number
+  chunkIndex?: number,
 ): MeetingAnalysisState {
   const updatedAnalyses = [...(state.partialAnalyses || []), analysisText];
-  
+
   return {
     ...state,
     partialAnalyses: updatedAnalyses,
-    currentChunkIndex: chunkIndex !== undefined 
-      ? chunkIndex 
-      : state.currentChunkIndex !== undefined 
-        ? state.currentChunkIndex + 1 
-        : 0,
+    currentChunkIndex:
+      chunkIndex !== undefined
+        ? chunkIndex
+        : state.currentChunkIndex !== undefined
+          ? state.currentChunkIndex + 1
+          : 0,
     metadata: {
       ...state.metadata,
-      lastChunkProcessed: chunkIndex !== undefined ? chunkIndex : state.currentChunkIndex,
+      lastChunkProcessed:
+        chunkIndex !== undefined ? chunkIndex : state.currentChunkIndex,
       partialAnalysisCount: updatedAnalyses.length,
       lastPartialAnalysisTimestamp: Date.now(),
-    }
+    },
   };
 }
 
@@ -148,7 +152,7 @@ export function addPartialAnalysis(
  */
 export function setAnalysisResult(
   state: MeetingAnalysisState,
-  result: MeetingAnalysisState['analysisResult']
+  result: MeetingAnalysisState['analysisResult'],
 ): MeetingAnalysisState {
   return {
     ...state,
@@ -156,7 +160,7 @@ export function setAnalysisResult(
     metadata: {
       ...state.metadata,
       analysisCompletedTimestamp: Date.now(),
-    }
+    },
   };
 }
 
@@ -170,11 +174,11 @@ export function addExtractedEntities(
     decisions?: MeetingAnalysisState['extractedDecisions'];
     questions?: MeetingAnalysisState['extractedQuestions'];
     topics?: MeetingAnalysisState['extractedTopics'];
-  }
+  },
 ): MeetingAnalysisState {
   return {
     ...state,
-    extractedActionItems: entities.actionItems 
+    extractedActionItems: entities.actionItems
       ? [...(state.extractedActionItems || []), ...entities.actionItems]
       : state.extractedActionItems,
     extractedDecisions: entities.decisions
@@ -189,6 +193,6 @@ export function addExtractedEntities(
     metadata: {
       ...state.metadata,
       lastEntityExtractionTimestamp: Date.now(),
-    }
+    },
   };
-} 
+}
