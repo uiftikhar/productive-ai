@@ -242,6 +242,13 @@ export abstract class BaseAgent implements AgentInterface {
   }
 
   /**
+   * Check if the agent is initialized
+   */
+  getInitializationStatus(): boolean {
+    return this.isInitialized;
+  }
+
+  /**
    * Update agent state
    */
   setState(update: Partial<AgentState>): void {

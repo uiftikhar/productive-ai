@@ -1,10 +1,21 @@
-import { v4 as uuidv4 } from 'uuid';
 import { StateGraph, Annotation } from '@langchain/langgraph';
+import { END, START, MessageGraph } from '@langchain/langgraph';
 
 import { BaseAgent } from '../../../agents/base/base-agent';
 import { AgentRequest, AgentResponse } from '../../../agents/interfaces/agent.interface';
 import { AgentStatus, BaseAgentState, createBaseAgentState } from '../state/base-agent-state';
 import { logStateTransition, startTrace, endTrace } from '../utils/tracing';
+import { routeOnError } from '../utils/edge-conditions';
+
+// Define node names as a type to ensure consistency
+type NodeNames =
+  | "__start__"
+  | "__end__"
+  | "initialize"
+  | "pre_execute"
+  | "execute"
+  | "post_execute"
+  | "handle_error";
 
 /**
  * BaseAgentAdapter
@@ -20,7 +31,7 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
       tracingEnabled?: boolean;
       includeStateInLogs?: boolean;
     } = {}
-  ) {}
+  ) { }
 
   /**
    * Create a LangGraph StateGraph for the agent
@@ -33,8 +44,9 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
       // Core identifiers
       agentId: Annotation<string>(),
       runId: Annotation<string>(),
-      
-      channels: Annotation<Record<string, any>>(),
+
+      // Channel is not required as seen in the example - remove it
+
       // Status tracking
       status: Annotation<string>(),
       lastExecutionTime: Annotation<number | undefined>(),
@@ -46,7 +58,7 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
         default: () => 0,
         reducer: (curr, update) => (curr || 0) + (update || 0),
       }),
-      
+
       // Messages and interactions
       messages: Annotation<any[]>({
         default: () => [],
@@ -56,16 +68,16 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
         default: () => [],
         reducer: (curr, update) => [...(curr || []), ...(Array.isArray(update) ? update : [update])],
       }),
-      
+
       // Request data
       input: Annotation<string>(),
       capability: Annotation<string>(),
       parameters: Annotation<any>(),
-      
+
       // Response data
       output: Annotation<string>(),
       artifacts: Annotation<any>(),
-      
+
       // Metrics and metadata
       metrics: Annotation<any>({
         default: () => ({}),
@@ -78,197 +90,62 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
     });
 
     // Create a state graph with the defined schema
-    const graph = new StateGraph(AgentStateSchema);
-    
-    // 1. Initialization node - initializes the agent if needed
-    graph.addNode("initialize", async (state) => {
-      try {
-        if (!(this.agent as any).isInitialized) {
-          await this.agent.initialize();
-        }
-        
-        return {
-          status: AgentStatus.READY,
-          metadata: {
-            ...state.metadata,
-            initTimestamp: Date.now()
-          }
-        };
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        
-        return {
-          status: AgentStatus.ERROR,
-          errorCount: 1,
-          errors: [
-            {
-              type: 'initialization_error',
-              message: errorMessage,
-              node: 'initialize',
-              timestamp: new Date().toISOString(),
-              details: error
-            }
-          ],
-          metadata: {
-            ...state.metadata,
-            initError: errorMessage
-          }
-        };
-      }
-    });
+    // Following the example pattern from data-enrichment-js
+    const workflow = new StateGraph(AgentStateSchema);
 
-    // 2. Pre-execution node - handles pre-execution tasks
-    graph.addNode("pre_execute", async (state) => {
-      try {
-        return {
-          status: AgentStatus.EXECUTING,
-          executionCount: 1,
-          metadata: {
-            ...state.metadata,
-            preExecuteTimestamp: Date.now()
-          }
-        };
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        
-        return {
-          status: AgentStatus.ERROR,
-          errorCount: 1,
-          errors: [
-            {
-              type: 'pre_execution_error',
-              message: errorMessage,
-              node: 'pre_execute',
-              timestamp: new Date().toISOString(),
-              details: error
-            }
-          ],
-          metadata: {
-            ...state.metadata,
-            preExecuteError: errorMessage
-          }
-        };
-      }
-    });
+    type StateType = typeof AgentStateSchema.State;
 
-    // 3. Execute node - runs the agent's execution logic
-    graph.addNode("execute", async (state) => {
-      const startTime = Date.now();
-      
-      try {
-        // Prepare request from state
-        const request: AgentRequest = {
-          input: state.input || '',
-          capability: state.capability || '',
-          parameters: state.parameters,
-          context: state.metadata?.context
-        };
-        
-        // Execute the agent
-        const response = await this.agent.execute(request);
-        
-        // Return updated state
-        return {
-          output: typeof response.output === 'string' 
-            ? response.output 
-            : JSON.stringify(response.output),
-          artifacts: response.artifacts,
-          metrics: {
-            lastExecutionTimeMs: Date.now() - startTime,
-            ...(response.metrics || {})
-          },
-          metadata: {
-            ...state.metadata,
-            executionTimestamp: Date.now(),
-            executionDuration: Date.now() - startTime
-          }
-        };
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        
-        return {
-          status: AgentStatus.ERROR,
-          errorCount: 1,
-          errors: [
-            {
-              type: 'execution_error',
-              message: errorMessage,
-              node: 'execute',
-              timestamp: new Date().toISOString(),
-              details: error
-            }
-          ],
-          metadata: {
-            ...state.metadata,
-            executionTimestamp: Date.now(),
-            executionError: errorMessage
-          }
-        };
-      }
-    });
+    workflow
+      // 1. Initialization node - initializes the agent if needed
+      .addNode("initialize", this._init.bind(this))
+      // 2. Pre-execution node - handles pre-execution tasks
+      .addNode("pre_execute", this._preExecute.bind(this))
+      // 3. Execute node - runs the agent's execution logic
+      .addNode("execute", this._execute.bind(this))
+      // 4. Post-execution node - handles post-execution tasks
+      .addNode("post_execute", this._postExecute.bind(this))
+      // 5. Error handling node
+      .addNode("handle_error", this._handleError.bind(this))
 
-    // 4. Post-execution node - handles post-execution tasks
-    graph.addNode("post_execute", async (state) => {
-      try {
-        return {
-          status: AgentStatus.READY,
-          lastExecutionTime: Date.now(),
-          metadata: {
-            ...state.metadata,
-            postExecuteTimestamp: Date.now()
-          }
-        };
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        
-        return {
-          status: AgentStatus.ERROR,
-          errorCount: 1,
-          errors: [
-            {
-              type: 'post_execution_error',
-              message: errorMessage,
-              node: 'post_execute',
-              timestamp: new Date().toISOString(),
-              details: error
-            }
-          ],
-          metadata: {
-            ...state.metadata,
-            postExecuteError: errorMessage
-          }
-        };
-      }
-    });
 
-    // 5. Error handling node
-    graph.addNode("handle_error", async (state) => {
-      try {
-        // Format error output
-        const errorOutput = {
-          error: `Error in agent ${this.agent.name}`,
-          details: state.errors && Array.isArray(state.errors) && state.errors.length > 0 
-            ? state.errors[0].message 
-            : "Unknown error",
-          timestamp: new Date().toISOString()
-        };
-        
-        return {
-          output: JSON.stringify(errorOutput),
-          status: AgentStatus.ERROR,
-          metadata: {
-            ...state.metadata,
-            errorHandlingTimestamp: Date.now()
-          }
-        };
-      } catch (error) {
-        // Meta error handling (error during error handling)
-        console.error("Error in error handling:", error);
-        return {};
+    // Function to determine routing after each step based on state
+    const routeAfterExecution = (state: StateType) => {
+      if (state.status === AgentStatus.ERROR) {
+        return "handle_error";
       }
-    });
+      return "post_execute";
+    };
 
-    return graph;
+    // Function to determine routing after initialization
+    const routeAfterInitialization = (state: StateType) => {
+      if (state.status === AgentStatus.ERROR) {
+        return "handle_error";
+      }
+      return "pre_execute";
+    };
+
+    // Function to determine routing after pre-execution
+    const routeAfterPreExecution = (state: StateType) => {
+      if (state.status === AgentStatus.ERROR) {
+        return "handle_error";
+      }
+      return "execute";
+    };
+
+    // Cast to any to fix TypeScript errors - this is the approach used in the example
+    const typedWorkflow = workflow as any;
+
+    // Define the main flow - using the example pattern
+    typedWorkflow
+      .addEdge(START, "initialize")
+      .addConditionalEdges("initialize", routeAfterInitialization)
+      .addConditionalEdges("pre_execute", routeAfterPreExecution)
+      .addConditionalEdges("execute", routeAfterExecution)
+      .addEdge("post_execute", END)
+      .addEdge("handle_error", END);
+
+    // Compile the graph for use
+    return typedWorkflow.compile();
   }
 
   /**
@@ -277,8 +154,8 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
   createInitialState(request: AgentRequest): BaseAgentState {
     return createBaseAgentState({
       agentId: this.agent.id,
-      input: typeof request.input === 'string' 
-        ? request.input 
+      input: typeof request.input === 'string'
+        ? request.input
         : JSON.stringify(request.input),
       capability: request.capability,
       parameters: request.parameters,
@@ -295,50 +172,33 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
   async execute(request: AgentRequest): Promise<AgentResponse> {
     // Create initial state from the request
     let state = this.createInitialState(request);
-    
+
     // Start tracing
     const traceId = startTrace(`agent_${this.agent.id}`, state, {
       agentName: this.agent.name,
       capability: request.capability
     });
-    
+
     const startTime = Date.now();
-    
+
     try {
-      // 1. Initialization step
-      state = await this.initialize(state);
-      if (state.status === AgentStatus.ERROR) {
-        state = await this.handleError(state);
-        return this.createResponseFromState(state, startTime);
-      }
-      
-      // 2. Pre-execution step
-      state = await this.preExecute(state);
-      if (state.status === AgentStatus.ERROR) {
-        state = await this.handleError(state);
-        return this.createResponseFromState(state, startTime);
-      }
-      
-      // 3. Execution step
-      state = await this.executeAgent(state);
-      if (state.status === AgentStatus.ERROR) {
-        state = await this.handleError(state);
-        return this.createResponseFromState(state, startTime);
-      }
-      
-      // 4. Post-execution step
-      state = await this.postExecute(state);
-      
+      // Create and compile the graph on demand to ensure fresh state
+      const compiledGraph = this.createGraph();
+
+      // Execute the state graph with the initial state
+      // Using 'as any' because the return type from LangGraph may not match our BaseAgentState exactly
+      const finalState = await compiledGraph.invoke(state) as any;
+
       // End tracing
-      endTrace(traceId, `agent_${this.agent.id}`, state, {
+      endTrace(traceId, `agent_${this.agent.id}`, finalState, {
         executionTimeMs: Date.now() - startTime
       });
-      
+
       // Return response
-      return this.createResponseFromState(state, startTime);
+      return this.createResponseFromState(finalState, startTime);
     } catch (error) {
       console.error("Error in agent execution:", error);
-      
+
       // Update state with error
       state = {
         ...state,
@@ -347,7 +207,7 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
         errors: [
           ...(state.errors || []),
           {
-            type: 'adapter_execution_error',
+            type: 'graph_execution_error',
             message: error instanceof Error ? error.message : String(error),
             node: 'execute',
             timestamp: new Date().toISOString(),
@@ -355,31 +215,26 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
           }
         ]
       };
-      
+
+      // Try to handle the error through the error handling node
+      try {
+        state = await this.handleError(state);
+      } catch (secondaryError) {
+        console.error("Error in error handling:", secondaryError);
+        // Don't throw this secondary error, continue with the original state
+      }
+
       // End tracing with error
       endTrace(traceId, `agent_${this.agent.id}`, state, {
         executionTimeMs: Date.now() - startTime,
         error: true
       });
-      
+
       // Return error response
-      return {
-        output: `Error in agent ${this.agent.name}: ${error instanceof Error ? error.message : String(error)}`,
-        artifacts: {
-          error: {
-            message: error instanceof Error ? error.message : String(error),
-            timestamp: new Date().toISOString()
-          }
-        },
-        metrics: {
-          executionTimeMs: Date.now() - startTime,
-          tokensUsed: 0,
-          stepCount: 0
-        }
-      };
+      return this.createResponseFromState(state, startTime);
     }
   }
-  
+
   /**
    * Create a response object from the current state
    */
@@ -394,16 +249,16 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
       }
     };
   }
-  
+
   /**
    * Initialize the agent
    */
   private async initialize(state: BaseAgentState): Promise<BaseAgentState> {
     try {
-      if (!(this.agent as any).isInitialized) {
+      if (!this.agent.getInitializationStatus()) {
         await this.agent.initialize();
       }
-      
+
       const newState = {
         ...state,
         status: AgentStatus.READY,
@@ -412,15 +267,15 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
           initTimestamp: Date.now()
         }
       };
-      
-      logStateTransition("initialize", state, newState, { 
-        includeFullState: this.options.includeStateInLogs 
+
+      logStateTransition("initialize", state, newState, {
+        includeFullState: this.options.includeStateInLogs
       });
-      
+
       return newState;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       const errorState = {
         ...state,
         status: AgentStatus.ERROR,
@@ -440,15 +295,15 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
           initError: errorMessage
         }
       };
-      
-      logStateTransition("initialize_error", state, errorState, { 
-        includeFullState: this.options.includeStateInLogs 
+
+      logStateTransition("initialize_error", state, errorState, {
+        includeFullState: this.options.includeStateInLogs
       });
-      
+
       return errorState;
     }
   }
-  
+
   /**
    * Pre-execution step
    */
@@ -463,15 +318,15 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
           preExecuteTimestamp: Date.now()
         }
       };
-      
-      logStateTransition("pre_execute", state, newState, { 
-        includeFullState: this.options.includeStateInLogs 
+
+      logStateTransition("pre_execute", state, newState, {
+        includeFullState: this.options.includeStateInLogs
       });
-      
+
       return newState;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       const errorState = {
         ...state,
         status: AgentStatus.ERROR,
@@ -491,21 +346,21 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
           preExecuteError: errorMessage
         }
       };
-      
-      logStateTransition("pre_execute_error", state, errorState, { 
-        includeFullState: this.options.includeStateInLogs 
+
+      logStateTransition("pre_execute_error", state, errorState, {
+        includeFullState: this.options.includeStateInLogs
       });
-      
+
       return errorState;
     }
   }
-  
+
   /**
    * Execute the agent
    */
   private async executeAgent(state: BaseAgentState): Promise<BaseAgentState> {
     const startTime = Date.now();
-    
+
     try {
       // Prepare request from state
       const request: AgentRequest = {
@@ -514,15 +369,15 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
         parameters: state.parameters,
         context: state.metadata?.context
       };
-      
+
       // Execute the agent
       const response = await this.agent.execute(request);
-      
+
       // Update state with response
       const newState = {
         ...state,
-        output: typeof response.output === 'string' 
-          ? response.output 
+        output: typeof response.output === 'string'
+          ? response.output
           : JSON.stringify(response.output),
         artifacts: response.artifacts,
         metrics: {
@@ -542,16 +397,16 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
           executionDuration: Date.now() - startTime
         }
       };
-      
-      logStateTransition("execute", state, newState, { 
-        includeFullState: this.options.includeStateInLogs 
+
+      logStateTransition("execute", state, newState, {
+        includeFullState: this.options.includeStateInLogs
       });
-      
+
       return newState;
     } catch (error) {
       // Handle execution error
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       const errorState = {
         ...state,
         status: AgentStatus.ERROR,
@@ -572,15 +427,15 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
           executionError: errorMessage
         }
       };
-      
-      logStateTransition("execute_error", state, errorState, { 
-        includeFullState: this.options.includeStateInLogs 
+
+      logStateTransition("execute_error", state, errorState, {
+        includeFullState: this.options.includeStateInLogs
       });
-      
+
       return errorState;
     }
   }
-  
+
   /**
    * Post-execution step
    */
@@ -595,15 +450,15 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
           postExecuteTimestamp: Date.now()
         }
       };
-      
-      logStateTransition("post_execute", state, newState, { 
-        includeFullState: this.options.includeStateInLogs 
+
+      logStateTransition("post_execute", state, newState, {
+        includeFullState: this.options.includeStateInLogs
       });
-      
+
       return newState;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       const errorState = {
         ...state,
         status: AgentStatus.ERROR,
@@ -623,15 +478,15 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
           postExecuteError: errorMessage
         }
       };
-      
-      logStateTransition("post_execute_error", state, errorState, { 
-        includeFullState: this.options.includeStateInLogs 
+
+      logStateTransition("post_execute_error", state, errorState, {
+        includeFullState: this.options.includeStateInLogs
       });
-      
+
       return errorState;
     }
   }
-  
+
   /**
    * Handle errors
    */
@@ -640,12 +495,12 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
       // Format error output
       const errorOutput = {
         error: `Error in agent ${this.agent.name}`,
-        details: state.errors && Array.isArray(state.errors) && state.errors.length > 0 
-          ? state.errors[0].message 
+        details: state.errors && Array.isArray(state.errors) && state.errors.length > 0
+          ? state.errors[0].message
           : "Unknown error",
         timestamp: new Date().toISOString()
       };
-      
+
       const newState = {
         ...state,
         output: JSON.stringify(errorOutput),
@@ -655,16 +510,199 @@ export class BaseAgentAdapter<T extends BaseAgent = BaseAgent> {
           errorHandlingTimestamp: Date.now()
         }
       };
-      
-      logStateTransition("handle_error", state, newState, { 
-        includeFullState: this.options.includeStateInLogs 
+
+      logStateTransition("handle_error", state, newState, {
+        includeFullState: this.options.includeStateInLogs
       });
-      
+
       return newState;
     } catch (error) {
       // Meta error handling (error during error handling)
       console.error("Error in error handling:", error);
       return state;
+    }
+  }
+
+  private async _init(state: BaseAgentState) {
+    try {
+      if (!this.agent.getInitializationStatus()) {
+        await this.agent.initialize();
+      }
+
+      return {
+        status: AgentStatus.READY,
+        metadata: {
+          ...state.metadata,
+          initTimestamp: Date.now()
+        }
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      return {
+        status: AgentStatus.ERROR,
+        errorCount: 1,
+        errors: [
+          {
+            type: 'initialization_error',
+            message: errorMessage,
+            node: 'initialize',
+            timestamp: new Date().toISOString(),
+            details: error
+          }
+        ],
+        metadata: {
+          ...state.metadata,
+          initError: errorMessage
+        }
+      };
+    }
+  }
+
+  private async _preExecute(state: BaseAgentState) {
+    try {
+      return {
+        status: AgentStatus.EXECUTING,
+        executionCount: 1,
+        metadata: {
+          ...state.metadata,
+          preExecuteTimestamp: Date.now()
+        }
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      return {
+        status: AgentStatus.ERROR,
+        errorCount: 1,
+        errors: [
+          {
+            type: 'pre_execution_error',
+            message: errorMessage,
+            node: 'pre_execute',
+            timestamp: new Date().toISOString(),
+            details: error
+          }
+        ],
+        metadata: {
+          ...state.metadata,
+          preExecuteError: errorMessage
+        }
+      };
+    }
+  }
+
+  private async _execute(state: BaseAgentState) {
+    const startTime = Date.now();
+
+    try {
+      // Prepare request from state
+      const request: AgentRequest = {
+        input: state.input || '',
+        capability: state.capability || '',
+        parameters: state.parameters,
+        context: state.metadata?.context
+      };
+
+      // Execute the agent
+      const response = await this.agent.execute(request);
+
+      // Return updated state
+      return {
+        output: typeof response.output === 'string'
+          ? response.output
+          : JSON.stringify(response.output),
+        artifacts: response.artifacts,
+        metrics: {
+          lastExecutionTimeMs: Date.now() - startTime,
+          ...(response.metrics || {})
+        },
+        metadata: {
+          ...state.metadata,
+          executionTimestamp: Date.now(),
+          executionDuration: Date.now() - startTime
+        }
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      return {
+        status: AgentStatus.ERROR,
+        errorCount: 1,
+        errors: [
+          {
+            type: 'execution_error',
+            message: errorMessage,
+            node: 'execute',
+            timestamp: new Date().toISOString(),
+            details: error
+          }
+        ],
+        metadata: {
+          ...state.metadata,
+          executionTimestamp: Date.now(),
+          executionError: errorMessage
+        }
+      };
+    }
+  }
+
+  private async _postExecute(state: BaseAgentState) {
+    try {
+      return {
+        status: AgentStatus.READY,
+        lastExecutionTime: Date.now(),
+        metadata: {
+          ...state.metadata,
+          postExecuteTimestamp: Date.now()
+        }
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      return {
+        status: AgentStatus.ERROR,
+        errorCount: 1,
+        errors: [
+          {
+            type: 'post_execution_error',
+            message: errorMessage,
+            node: 'post_execute',
+            timestamp: new Date().toISOString(),
+            details: error
+          }
+        ],
+        metadata: {
+          ...state.metadata,
+          postExecuteError: errorMessage
+        }
+      };
+    }
+  }
+
+  private async _handleError(state: BaseAgentState) {
+    try {
+      // Format error output
+      const errorOutput = {
+        error: `Error in agent ${this.agent.name}`,
+        details: state.errors && Array.isArray(state.errors) && state.errors.length > 0
+          ? state.errors[0].message
+          : "Unknown error",
+        timestamp: new Date().toISOString()
+      };
+
+      return {
+        output: JSON.stringify(errorOutput),
+        status: AgentStatus.ERROR,
+        metadata: {
+          ...state.metadata,
+          errorHandlingTimestamp: Date.now()
+        }
+      };
+    } catch (error) {
+      // Meta error handling (error during error handling)
+      console.error("Error in error handling:", error);
+      return {};
     }
   }
 } 

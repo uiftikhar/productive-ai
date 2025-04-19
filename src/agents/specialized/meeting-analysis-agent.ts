@@ -118,6 +118,37 @@ export class MeetingAnalysisAgent extends BaseAgent {
       },
     });
 
+    // Add capabilities required by LangGraph adapter
+    this.registerCapability({
+      name: 'chunk-analysis',
+      description: 'Analyzes a chunk of meeting transcript',
+      parameters: {
+        meetingId: 'Unique identifier for the meeting',
+        chunkIndex: 'Index of the current chunk',
+        totalChunks: 'Total number of chunks'
+      },
+    });
+
+    this.registerCapability({
+      name: 'final-analysis',
+      description: 'Generates final analysis from partial chunk analyses',
+      parameters: {
+        meetingId: 'Unique identifier for the meeting',
+        partialAnalyses: 'Array of partial analyses from each chunk',
+        meetingTitle: 'Title of the meeting',
+        participants: 'Meeting participants'
+      },
+    });
+
+    this.registerCapability({
+      name: 'store-analysis',
+      description: 'Stores meeting analysis results',
+      parameters: {
+        meetingId: 'Unique identifier for the meeting',
+        result: 'Analysis result to store'
+      },
+    });
+
     this.registerCapability({
       name: 'extract_action_items',
       description: 'Extracts action items from a meeting transcript',
@@ -210,50 +241,97 @@ export class MeetingAnalysisAgent extends BaseAgent {
   protected async executeInternal(
     request: AgentRequest,
   ): Promise<AgentResponse> {
-    const startTime = Date.now();
-    const capability = request.capability || 'analyze_meeting';
-
-    if (!this.canHandle(capability)) {
-      throw new Error(`Capability not supported: ${capability}`);
-    }
-
-    const userId = request.context?.userId;
-    if (!userId) {
-      throw new Error('User ID is required');
-    }
-
+    const userId = request.context?.userId || 'anonymous';
+    
     try {
+      // Extract parameters from the request to determine what capability to run
+      const capability = request.capability;
+      const parameters = request.parameters || {};
+
       switch (capability) {
         case 'analyze_meeting':
-          return await this.analyzeMeeting(userId, request.parameters || {});
-
+          return await this.analyzeMeeting(userId, parameters);
         case 'extract_action_items':
-          return await this.extractActionItems(
-            userId,
-            request.parameters || {},
-          );
-
+          return await this.extractActionItems(userId, parameters);
         case 'extract_decisions':
-          return await this.extractDecisions(userId, request.parameters || {});
-
+          return await this.extractDecisions(userId, parameters);
         case 'extract_questions':
-          return await this.extractQuestions(userId, request.parameters || {});
-
+          return await this.extractQuestions(userId, parameters);
         case 'summarize_meeting':
-          return await this.summarizeMeeting(userId, request.parameters || {});
+          return await this.summarizeMeeting(userId, parameters);
+        
+        // Map LangGraph-specific capabilities to standard ones
+        case 'chunk-analysis':
+          // Treat chunk analysis as a specialization of extracting action items and decisions
+          return await this.extractActionItems(userId, {
+            ...parameters,
+            transcript: request.input,
+            isChunkAnalysis: true,
+            chunkIndex: parameters.chunkIndex,
+            totalChunks: parameters.totalChunks
+          });
+        
+        case 'final-analysis':
+          // Treat final analysis as a specialization of meeting analysis
+          const inputData = typeof request.input === 'string' 
+            ? JSON.parse(request.input) 
+            : request.input;
+          
+          return await this.analyzeMeeting(userId, {
+            ...parameters,
+            transcript: inputData.transcript || '',
+            meetingTitle: inputData.meetingTitle || 'Untitled Meeting',
+            partialAnalyses: inputData.partialAnalyses,
+            isFinalAnalysis: true
+          });
+        
+        case 'store-analysis':
+          // Process the storage request directly here
+          try {
+            // Parse the input data
+            const inputData = typeof request.input === 'string' 
+              ? JSON.parse(request.input) 
+              : request.input;
+            const { result, meetingId } = inputData;
+            
+            this.logger.info('Storing meeting analysis results', {
+              userId,
+              meetingId,
+            });
 
+            // Use the existing method to store the results
+            await this.storeExtractedMeetingData(userId, meetingId, result);
+
+            return {
+              output: "Analysis stored successfully for meeting: " + meetingId
+            };
+          } catch (error) {
+            this.logger.error('Error storing analysis results', {
+              userId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            
+            return {
+              output: `Failed to store meeting analysis: ${error instanceof Error ? error.message : String(error)}`
+            };
+          }
+        
         default:
           throw new Error(`Unsupported capability: ${capability}`);
       }
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-
-      this.logger.error(`Error in MeetingAnalysisAgent: ${errorMessage}`, {
-        userId,
-        capability,
+    } catch (error) {
+      this.logger.error('Error in agent execution', {
+        agentId: this.id,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        capability: request.capability,
       });
-      throw error;
+
+      return {
+        output: `Error in meeting analysis agent ${this.name}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      };
     }
   }
 
@@ -266,7 +344,6 @@ export class MeetingAnalysisAgent extends BaseAgent {
 
   /**
    * Analyze a meeting transcript and extract all key information
-   * Updated to use RAG prompt manager instead of hardcoded prompts
    */
   private async analyzeMeeting(
     userId: string,
@@ -274,26 +351,120 @@ export class MeetingAnalysisAgent extends BaseAgent {
   ): Promise<AgentResponse> {
     const startTime = Date.now();
 
-    if (!parameters?.transcript) {
-      throw new Error('Meeting transcript is required');
-    }
-
     if (!parameters?.meetingId) {
       throw new Error('Meeting ID is required');
     }
 
+    // Extract all parameters
     const meetingId = parameters.meetingId;
-    const transcript = parameters.transcript;
+    const transcript = parameters.transcript || '';
     const meetingTitle = parameters.meetingTitle || `Meeting ${meetingId}`;
     const participantIds = parameters.participantIds || [];
     const meetingStartTime = parameters.meetingStartTime || Date.now();
     const meetingEndTime = parameters.meetingEndTime || Date.now();
     const previousMeetingIds = parameters.previousMeetingIds || [];
+    
+    // Check for LangGraph specific parameters
+    const isFinalAnalysis = parameters.isFinalAnalysis || false;
+    const langGraphPartialAnalyses = parameters.partialAnalyses || [];
+    
+    // Check that we have the required data
+    if (!transcript && !isFinalAnalysis) {
+      throw new Error('Meeting transcript is required');
+    }
 
     try {
-      // Generate embedding for the transcript - the embedding service now handles large texts
-      const transcriptEmbeddings =
-        await this.embeddingService.generateEmbedding(transcript);
+      // Check if this is a final analysis request from LangGraph
+      if (isFinalAnalysis && langGraphPartialAnalyses.length > 0) {
+        this.logger.info('Processing final analysis from LangGraph', {
+          userId,
+          meetingId,
+          partialAnalysesCount: langGraphPartialAnalyses.length
+        });
+
+        // Generate embedding for the transcript (or use a dummy one if not available)
+        const transcriptEmbeddings = transcript 
+          ? await this.embeddingService.generateEmbedding(transcript)
+          : await this.embeddingService.generateEmbedding(meetingTitle);
+
+        // Combine the partial analyses into a final prompt
+        const combinedAnalysis = Array.isArray(langGraphPartialAnalyses) 
+          ? langGraphPartialAnalyses.join('\n\n---\n\n')
+          : langGraphPartialAnalyses.toString();
+
+        // Create final analysis context options
+        const finalContextOptions = {
+          userId,
+          queryText: `Final meeting analysis for ${meetingTitle}`,
+          queryEmbedding: transcriptEmbeddings,
+          strategy: RagRetrievalStrategy.HYBRID,
+          maxItems: 5,
+          documentIds: previousMeetingIds,
+          contentTypes: [
+            ContextType.MEETING,
+            ContextType.DECISION,
+            ContextType.ACTION_ITEM,
+          ],
+        };
+
+        // Generate final prompt with RAG context
+        const finalRagPrompt = await this.ragPromptManager.createRagPrompt(
+          SystemRoleEnum.MEETING_ANALYST,
+          InstructionTemplateNameEnum.FINAL_MEETING_SUMMARY,
+          combinedAnalysis,
+          finalContextOptions,
+        );
+
+        // Generate final analysis
+        const finalMessages: MessageConfig[] = finalRagPrompt.messages.map((m) => {
+          const messageConfig: MessageConfig = {
+            role: m.role as 'system' | 'user' | 'assistant',
+            content: m.content,
+          };
+          
+          // Ensure JSON response format
+          if (m.role === 'user') {
+            messageConfig.responseFormat = { type: 'json_object' };
+          }
+          
+          return messageConfig;
+        });
+
+        const llmResponse = await this.openaiAdapter!.generateChatCompletion(finalMessages);
+
+        if (!llmResponse) {
+          throw new Error('Failed to analyze meeting transcript');
+        }
+
+        let analysisResult: MeetingAnalysisResult;
+        try {
+          // Parse the JSON response directly
+          analysisResult = JSON.parse(llmResponse);
+        } catch (e) {
+          this.logger.error('Failed to parse meeting analysis result', {
+            error: e instanceof Error ? e.message : String(e),
+            content: llmResponse,
+          });
+          throw new Error('Failed to parse meeting analysis result');
+        }
+
+        // Don't store in database for LangGraph workflow - that will be done by the store-analysis step
+        return {
+          output: JSON.stringify(analysisResult),
+          artifacts: {
+            result: analysisResult,
+            meetingId,
+            meetingTitle,
+            analysisTimestamp: Date.now(),
+          },
+          metrics: this.processMetrics(startTime, undefined, 1),
+        };
+      }
+
+      // Standard full analysis pathway (non-LangGraph workflow)
+      
+      // Generate embedding for the transcript
+      const transcriptEmbeddings = await this.embeddingService.generateEmbedding(transcript);
 
       // Store the meeting content in the database
       await this.meetingContextService.storeMeetingContent(
@@ -320,9 +491,8 @@ export class MeetingAnalysisAgent extends BaseAgent {
         const contextOptions = {
           userId,
           queryText: chunk,
-          // Use the transcript embeddings for all chunks to maintain consistency
-          queryEmbedding: transcriptEmbeddings,
-          strategy: RagRetrievalStrategy.HYBRID,
+          queryEmbedding: await this.generateEmbedding(chunk),
+          strategy: parameters.ragStrategy || 'hybrid',
           maxItems: 3,
           documentIds: previousMeetingIds,
           contentTypes: [
@@ -587,7 +757,82 @@ export class MeetingAnalysisAgent extends BaseAgent {
 
     const meetingId = parameters.meetingId;
     const transcript = parameters.transcript;
+    const isChunkAnalysis = parameters.isChunkAnalysis || false;
+    const chunkIndex = parameters.chunkIndex;
+    const totalChunks = parameters.totalChunks;
 
+    // If this is a chunk analysis request from LangGraph
+    if (isChunkAnalysis) {
+      this.logger.info('Processing chunk analysis via extractActionItems', {
+        userId,
+        meetingId,
+        chunkIndex,
+        totalChunks
+      });
+
+      try {
+        // Create RAG context options with previous meetings as context
+        const contextOptions = {
+          userId,
+          queryText: transcript,
+          queryEmbedding: await this.generateEmbedding(transcript),
+          strategy: parameters.ragStrategy || 'hybrid',
+          maxItems: 3,
+          documentIds: parameters.previousMeetingIds || [],
+          contentTypes: [
+            ContextType.MEETING,
+            ContextType.DECISION,
+            ContextType.ACTION_ITEM,
+          ],
+        };
+
+        // Use the RAG prompt manager to create a prompt with context
+        const ragPrompt = await this.ragPromptManager.createRagPrompt(
+          SystemRoleEnum.MEETING_ANALYST,
+          InstructionTemplateNameEnum.MEETING_ANALYSIS_CHUNK,
+          transcript,
+          contextOptions,
+        );
+
+        if (!this.openaiAdapter) {
+          throw new Error('OpenAI adapter is required for chunk analysis');
+        }
+
+        // Generate analysis for this chunk
+        const messages: MessageConfig[] = ragPrompt.messages.map((m) => {
+          // Create the basic message config
+          const messageConfig: MessageConfig = {
+            role: m.role as 'system' | 'user' | 'assistant',
+            content: m.content,
+          };
+          
+          return messageConfig;
+        });
+
+        const chunkAnalysis = await this.openaiAdapter.generateChatCompletion(messages);
+
+        return {
+          output: chunkAnalysis,
+          artifacts: {
+            chunkIndex,
+            totalChunks,
+            meetingId,
+            analysisLength: chunkAnalysis.length,
+          },
+          metrics: this.processMetrics(startTime, undefined, 1),
+        };
+      } catch (error) {
+        this.logger.error('Error analyzing chunk', {
+          userId,
+          meetingId,
+          chunkIndex,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
+    }
+
+    // Standard action item extraction
     const prompt = `
     Extract all action items from the following meeting transcript.
     For each action item, identify:
@@ -846,7 +1091,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
   }
 
   /**
-   * Generate a summary of a meeting
+   * Summarize a meeting
    */
   private async summarizeMeeting(
     userId: string,

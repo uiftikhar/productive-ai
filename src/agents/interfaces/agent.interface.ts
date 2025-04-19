@@ -14,6 +14,7 @@ export interface AgentCapability {
  */
 export interface AgentContext {
   userId?: string;
+  runId?: string;
   conversationId?: string;
   sessionId?: string;
   metadata?: Record<string, any>;
