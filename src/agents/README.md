@@ -1,148 +1,106 @@
-# Agent Framework
+# Unified Agent Architecture
 
-This directory contains the agent framework for the Productive AI system. The framework provides a foundation for building AI agents that can perform specialized tasks.
+This directory contains the consolidated agent framework for Productive AI. The system has been standardized around LangGraph for workflow orchestration and state management.
 
 ## Directory Structure
 
 ```
 src/agents/
-├── adapters/            # Adapters for integrating with external services
-│   ├── agent-context.adapter.ts    # Adapter for context services
-│   ├── openai-adapter.ts           # Adapter for OpenAI API
-│   ├── pinecone-adapter.ts         # Adapter for Pinecone vector database
-│   └── tests/                      # Tests for adapters
-├── base/                # Base agent implementation
-│   ├── base-agent.ts                # Abstract base agent class
-│   └── tests/                       # Tests for base agent
-├── examples/            # Example agent implementations
-│   └── echo-agent.ts                # Simple echo agent example
-├── interfaces/          # Core interfaces for the agent framework
-│   └── agent.interface.ts           # Agent interface definitions
-└── specialized/         # Specialized agent implementations
-    ├── retrieval-agent.ts           # Agent for retrieval operations
-    └── reasoning-agent.ts           # Agent for reasoning operations
+├── base/                   # Base agent classes and foundations
+│   ├── unified-agent.ts    # Core base agent implementation
+│   └── tests/              # Unit tests for base agents
+├── interfaces/             # Agent interfaces
+│   └── unified-agent.interface.ts # Standardized agent interfaces
+├── specialized/            # Domain-specific agent implementations
+├── messaging/              # Agent messaging infrastructure
+│   └── standard-message.ts # Unified messaging system
+├── registry.ts             # Central agent registration (coming soon)
+└── adapters/               # Agent adapters for integrations
 ```
 
-## Key Components
+## Core Components
 
-### BaseAgent
+### UnifiedAgentInterface
 
-The `BaseAgent` class provides a foundation for all agents in the system. It handles:
+The `UnifiedAgentInterface` is the foundation of the agent system. It defines:
 
-- Lifecycle management (initialization, execution, termination)
-- Context retrieval and storage
-- Capability registration and validation
-- Metrics collection and monitoring
-- Error handling and reporting
+- Core identity (id, name, description)
+- Capability-based execution model
+- Lifecycle methods (initialize, execute, terminate)
+- State and metrics tracking
 
-### Adapters
+### UnifiedAgent
 
-Adapters provide a standardized interface for agents to interact with external services:
+The `UnifiedAgent` abstract class implements the common functionality:
 
-- **AgentContextAdapter**: Provides access to user context (conversations, documents, memories)
-- **PineconeAdapter**: Simplifies vector database operations
-- **OpenAIAdapter**: Provides a clean interface for LLM and embedding operations
+- Standardized initialization pattern
+- Error handling
+- Metrics collection
+- Execution lifecycle management
 
-### Agent Interfaces
+### UnifiedAgentAdapter
 
-The `agent.interface.ts` file defines the core interfaces that all agents implement:
+The `UnifiedAgentAdapter` bridges agents with LangGraph:
 
-- **AgentInterface**: The primary interface all agents must implement
-- **AgentCapability**: Describes capabilities an agent provides
-- **AgentRequest**: Structure for requests sent to agents
-- **AgentResponse**: Structure for responses returned by agents
-- **AgentContext**: Context information available to agents
+- Creates standardized workflow graphs
+- Manages state transitions
+- Implements structured error handling
+- Provides workflow definition
 
-## Usage Examples
+### Messaging System
 
-### Creating a Simple Agent
+The standardized messaging system enables consistent agent communication:
+
+- Type-safe message interfaces
+- Multiple message types for different communication needs
+- Helper functions for message creation
+
+## Usage
+
+### Creating a New Agent
 
 ```typescript
-import { BaseAgent } from '../base/base-agent.ts';
-import { AgentRequest, AgentResponse } from '../interfaces/agent.interface.ts';
+import { UnifiedAgent } from '../base/unified-agent';
+import { AgentRequest, AgentResponse } from '../interfaces/unified-agent.interface';
 
-export class SimpleAgent extends BaseAgent {
+export class MySpecializedAgent extends UnifiedAgent {
   constructor() {
     super(
-      'Simple Agent',
-      'A simple agent that responds to requests'
+      'My Specialized Agent',
+      'An agent that performs specialized tasks'
     );
     
     // Register capabilities
     this.registerCapability({
-      name: 'greet',
-      description: 'Greet the user',
-      parameters: {
-        name: 'The name to greet'
-      }
+      name: 'analyze-data',
+      description: 'Analyzes data and provides insights'
     });
   }
   
-  // Implement the abstract executeInternal method
   protected async executeInternal(request: AgentRequest): Promise<AgentResponse> {
-    // Extract input
-    const input = typeof request.input === 'string'
-      ? request.input
-      : request.input.map(msg => msg.content).join('\n');
-    
-    // Process based on capability
-    if (request.capability === 'greet') {
-      const name = request.parameters?.name || 'User';
-      return {
-        output: `Hello, ${name}! How can I help you today?`
-      };
-    }
-    
-    // Default response
+    // Implementation of the agent's core logic
     return {
-      output: `Received: ${input}`
+      output: 'Analysis complete'
     };
   }
 }
 ```
 
-### Using an Agent
+### Using LangGraph Adapter
 
 ```typescript
-import { SimpleAgent } from './simple-agent.ts';
+import { UnifiedAgentAdapter } from '../../langgraph/core/adapters/unified-agent.adapter';
+import { MySpecializedAgent } from '../specialized/my-specialized-agent';
 
-async function main() {
-  // Create and initialize the agent
-  const agent = new SimpleAgent();
-  await agent.initialize();
-  
-  // Execute a request
-  const response = await agent.execute({
-    input: 'Hello there!',
-    capability: 'greet',
-    parameters: {
-      name: 'John'
-    },
-    context: {
-      userId: 'user123',
-      conversationId: 'conv456'
-    }
-  });
-  
-  console.log(response.output); // Hello, John! How can I help you today?
-  
-  // Clean up
-  await agent.terminate();
-}
+// Create agent
+const agent = new MySpecializedAgent();
 
-main().catch(console.error);
-```
+// Create adapter
+const adapter = new UnifiedAgentAdapter(agent);
 
-## Testing
-
-Run the agent tests with:
-
-```bash
-npm run test:agents
-```
-
-Or run all tests with:
-
-```bash
-npm test
+// Execute with LangGraph workflow
+const result = await adapter.execute({
+  input: 'Analyze this data...',
+  capability: 'analyze-data'
+});
 ``` 
