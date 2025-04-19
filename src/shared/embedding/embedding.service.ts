@@ -1,4 +1,20 @@
 // src/shared/embedding/embedding.service.ts
+/**
+ * Official Embedding Service for the Productive AI Application
+ * 
+ * This service provides embedding generation functionality using OpenAI's embedding models.
+ * It handles large inputs through chunking and provides utility functions for working with embeddings.
+ * 
+ * IMPORTANT: This is the canonical embedding service implementation that should be used throughout the codebase.
+ * Other implementations (in /services/embedding.service.ts or /shared/embeddings/embedding.service.ts) 
+ * are deprecated and should be migrated to use this service.
+ * 
+ * Features:
+ * - Automatic chunking for large texts
+ * - Combining embeddings from multiple chunks
+ * - Cosine similarity calculation
+ * - Finding similar embeddings
+ */
 
 import { OpenAIAdapter } from '../../agents/adapters/openai-adapter';
 import { ConsoleLogger } from '../logger/console-logger';

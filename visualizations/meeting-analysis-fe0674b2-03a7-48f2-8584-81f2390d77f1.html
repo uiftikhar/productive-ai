@@ -1,0 +1,444 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Meeting Analysis - Untitled Meeting</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@langchain/langgraph-vizjs@0.0.1-alpha.2/dist/index.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      background-color: #f8f9fa;
+    }
+    #header {
+      width: 100%;
+      background-color: #fff;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      padding: 20px 0;
+      text-align: center;
+    }
+    h1 {
+      margin: 0;
+      color: #333;
+    }
+    .container {
+      width: 90%;
+      max-width: 1400px;
+      margin: 20px auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    #graph {
+      width: 100%;
+      height: 600px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background-color: #fff;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .info-box {
+      background-color: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 15px;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin-right: 15px;
+    }
+    .legend-color {
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      margin-right: 5px;
+    }
+    .node-info {
+      margin-top: 20px;
+    }
+    .node-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    .node-table th, .node-table td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+    }
+    .node-table th {
+      background-color: #f2f2f2;
+    }
+    .help-text {
+      font-style: italic;
+      color: #666;
+      margin-top: 10px;
+    }
+    .selected-node {
+      background-color: #e3f2fd;
+    }
+    button {
+      padding: 8px 12px;
+      background: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0b7dda;
+    }
+    .edge-list {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <h1>Meeting Analysis - Untitled Meeting</h1>
+  </div>
+  
+  <div class="container">
+    <div class="info-box">
+      <div class="controls">
+        <h2>Workflow Visualization</h2>
+        <div>
+          <button id="resetView">Reset View</button>
+          <button id="downloadSvg">Download SVG</button>
+        </div>
+      </div>
+      <p>This visualization shows the workflow as a directed graph. Each node represents a processing step, and edges show the flow between steps.</p>
+      
+      <div class="legend">
+        <h3>Legend:</h3>
+        <div class="legend-item">
+          <div class="legend-color" style="background-color: #4CAF50;"></div>
+          <span>Start</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background-color: #F44336;"></div>
+          <span>End</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background-color: #2196F3;"></div>
+          <span>Process Node</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color" style="background-color: #FF9800;"></div>
+          <span>Conditional Node</span>
+        </div>
+      </div>
+      
+      <div class="help-text">
+        <p>Tip: You can zoom in/out using the mouse wheel and pan by clicking and dragging. Click on nodes to see more details.</p>
+      </div>
+    </div>
+    
+    <div id="graph"></div>
+    
+    <div class="info-box node-info">
+      <h2>Process Nodes</h2>
+      <p>Click on a node in the graph to see more details.</p>
+      <div id="selectedNodeInfo"></div>
+      
+      <table class="node-table">
+        <thead>
+          <tr>
+            <th>Node</th>
+            <th>Type</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          
+            <tr data-node-id="__start__" class="node-row">
+              <td>__start__</td>
+              <td>start</td>
+              <td>Start of workflow</td>
+            </tr>
+          
+            <tr data-node-id="process" class="node-row">
+              <td>process</td>
+              <td>process</td>
+              <td>Process node</td>
+            </tr>
+          
+            <tr data-node-id="__end__" class="node-row">
+              <td>__end__</td>
+              <td>end</td>
+              <td>End of workflow</td>
+            </tr>
+          
+        </tbody>
+      </table>
+
+      <div class="edge-list">
+        <h2>Connections</h2>
+        <table class="node-table">
+          <thead>
+            <tr>
+              <th>From</th>
+              <th>To</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+              <tr>
+                <td>__start__</td>
+                <td>initialize</td>
+                <td>Direct</td>
+              </tr>
+            
+              <tr>
+                <td>handle_error</td>
+                <td>__end__</td>
+                <td>Direct</td>
+              </tr>
+            
+              <tr>
+                <td>initialize</td>
+                <td>process_chunk</td>
+                <td>Direct</td>
+              </tr>
+            
+              <tr>
+                <td>process_chunk</td>
+                <td>initialize</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>process_chunk</td>
+                <td>check_chunks</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>process_chunk</td>
+                <td>generate_final_analysis</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>process_chunk</td>
+                <td>store_results</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>process_chunk</td>
+                <td>handle_error</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>process_chunk</td>
+                <td>__end__</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>check_chunks</td>
+                <td>initialize</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>check_chunks</td>
+                <td>process_chunk</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>check_chunks</td>
+                <td>generate_final_analysis</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>check_chunks</td>
+                <td>store_results</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>check_chunks</td>
+                <td>handle_error</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>check_chunks</td>
+                <td>__end__</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>generate_final_analysis</td>
+                <td>initialize</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>generate_final_analysis</td>
+                <td>process_chunk</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>generate_final_analysis</td>
+                <td>check_chunks</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>generate_final_analysis</td>
+                <td>store_results</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>generate_final_analysis</td>
+                <td>handle_error</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>generate_final_analysis</td>
+                <td>__end__</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>store_results</td>
+                <td>initialize</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>store_results</td>
+                <td>process_chunk</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>store_results</td>
+                <td>check_chunks</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>store_results</td>
+                <td>generate_final_analysis</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>store_results</td>
+                <td>handle_error</td>
+                <td>Conditional</td>
+              </tr>
+            
+              <tr>
+                <td>store_results</td>
+                <td>__end__</td>
+                <td>Conditional</td>
+              </tr>
+            
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    const vizData = {"nodes":[{"id":"__start__","type":"schema","data":{"$schema":"http://json-schema.org/draft-07/schema#"}},{"id":"initialize","type":"runnable","data":{"id":["langchain_core","runnables","RunnableMap"],"name":"RunnableMap"}},{"id":"process_chunk","type":"runnable","data":{"id":["langchain_core","runnables","RunnableMap"],"name":"RunnableMap"}},{"id":"check_chunks","type":"runnable","data":{"id":["langchain_core","runnables","RunnableMap"],"name":"RunnableMap"}},{"id":"generate_final_analysis","type":"runnable","data":{"id":["langchain_core","runnables","RunnableMap"],"name":"RunnableMap"}},{"id":"store_results","type":"runnable","data":{"id":["langchain_core","runnables","RunnableMap"],"name":"RunnableMap"}},{"id":"handle_error","type":"runnable","data":{"id":["langchain_core","runnables","RunnableMap"],"name":"RunnableMap"}},{"id":"__end__","type":"schema","data":{"$schema":"http://json-schema.org/draft-07/schema#"}}],"edges":[{"source":"__start__","target":"initialize","conditional":false},{"source":"handle_error","target":"__end__","conditional":false},{"source":"initialize","target":"process_chunk","conditional":false},{"source":"process_chunk","target":"initialize","conditional":true},{"source":"process_chunk","target":"check_chunks","conditional":true},{"source":"process_chunk","target":"generate_final_analysis","conditional":true},{"source":"process_chunk","target":"store_results","conditional":true},{"source":"process_chunk","target":"handle_error","conditional":true},{"source":"process_chunk","target":"__end__","conditional":true},{"source":"check_chunks","target":"initialize","conditional":true},{"source":"check_chunks","target":"process_chunk","conditional":true},{"source":"check_chunks","target":"generate_final_analysis","conditional":true},{"source":"check_chunks","target":"store_results","conditional":true},{"source":"check_chunks","target":"handle_error","conditional":true},{"source":"check_chunks","target":"__end__","conditional":true},{"source":"generate_final_analysis","target":"initialize","conditional":true},{"source":"generate_final_analysis","target":"process_chunk","conditional":true},{"source":"generate_final_analysis","target":"check_chunks","conditional":true},{"source":"generate_final_analysis","target":"store_results","conditional":true},{"source":"generate_final_analysis","target":"handle_error","conditional":true},{"source":"generate_final_analysis","target":"__end__","conditional":true},{"source":"store_results","target":"initialize","conditional":true},{"source":"store_results","target":"process_chunk","conditional":true},{"source":"store_results","target":"check_chunks","conditional":true},{"source":"store_results","target":"generate_final_analysis","conditional":true},{"source":"store_results","target":"handle_error","conditional":true},{"source":"store_results","target":"__end__","conditional":true}]};
+    let viz;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+      viz = new LangGraphViz(document.getElementById('graph'));
+      viz.drawGraph(vizData);
+      
+      // Add interactivity to the node table
+      const nodeRows = document.querySelectorAll('.node-row');
+      nodeRows.forEach(row => {
+        row.addEventListener('click', () => {
+          // Remove selected class from all rows
+          nodeRows.forEach(r => r.classList.remove('selected-node'));
+          
+          // Add selected class to clicked row
+          row.classList.add('selected-node');
+          
+          // Get node ID
+          const nodeId = row.dataset.nodeId;
+          
+          // Highlight node in graph
+          viz.highlightNode(nodeId);
+          
+          // Update selected node info
+          const nodeInfo = nodesData.find(n => n.id === nodeId);
+          if (nodeInfo) {
+            updateSelectedNodeInfo(nodeInfo);
+          }
+        });
+      });
+      
+      // Reset view button
+      document.getElementById('resetView').addEventListener('click', () => {
+        viz.resetView();
+      });
+      
+      // Download SVG button
+      document.getElementById('downloadSvg').addEventListener('click', () => {
+        viz.downloadSVG('meeting_analysis___untitled_meeting_graph');
+      });
+    });
+    
+    // Store the nodes and edges data as global variables
+    const nodesData = [{"id":"__start__","type":"start","description":"Start of workflow"},{"id":"process","type":"process","description":"Process node"},{"id":"__end__","type":"end","description":"End of workflow"}];
+    const edgesData = [{"source":"__start__","target":"initialize"},{"source":"handle_error","target":"__end__"},{"source":"initialize","target":"process_chunk"},{"source":"process_chunk","target":"initialize","condition":"Conditional"},{"source":"process_chunk","target":"check_chunks","condition":"Conditional"},{"source":"process_chunk","target":"generate_final_analysis","condition":"Conditional"},{"source":"process_chunk","target":"store_results","condition":"Conditional"},{"source":"process_chunk","target":"handle_error","condition":"Conditional"},{"source":"process_chunk","target":"__end__","condition":"Conditional"},{"source":"check_chunks","target":"initialize","condition":"Conditional"},{"source":"check_chunks","target":"process_chunk","condition":"Conditional"},{"source":"check_chunks","target":"generate_final_analysis","condition":"Conditional"},{"source":"check_chunks","target":"store_results","condition":"Conditional"},{"source":"check_chunks","target":"handle_error","condition":"Conditional"},{"source":"check_chunks","target":"__end__","condition":"Conditional"},{"source":"generate_final_analysis","target":"initialize","condition":"Conditional"},{"source":"generate_final_analysis","target":"process_chunk","condition":"Conditional"},{"source":"generate_final_analysis","target":"check_chunks","condition":"Conditional"},{"source":"generate_final_analysis","target":"store_results","condition":"Conditional"},{"source":"generate_final_analysis","target":"handle_error","condition":"Conditional"},{"source":"generate_final_analysis","target":"__end__","condition":"Conditional"},{"source":"store_results","target":"initialize","condition":"Conditional"},{"source":"store_results","target":"process_chunk","condition":"Conditional"},{"source":"store_results","target":"check_chunks","condition":"Conditional"},{"source":"store_results","target":"generate_final_analysis","condition":"Conditional"},{"source":"store_results","target":"handle_error","condition":"Conditional"},{"source":"store_results","target":"__end__","condition":"Conditional"}];
+    
+    function updateSelectedNodeInfo(node) {
+      const infoDiv = document.getElementById('selectedNodeInfo');
+      
+      // Find incoming and outgoing edges
+      const incomingEdges = edgesData.filter(e => e.target === node.id);
+      const outgoingEdges = edgesData.filter(e => e.source === node.id);
+      
+      let html = `
+        <div style="padding: 15px; background: #f5f5f5; border-radius: 4px; margin: 15px 0;">
+          <h3>${node.id}</h3>
+          <p><strong>Type:</strong> ${node.type}</p>
+          <p><strong>Description:</strong> ${node.description || 'No description available'}</p>
+          <p><strong>Incoming connections:</strong> ${incomingEdges.length > 0 ? incomingEdges.map(e => e.source).join(', ') : 'None'}</p>
+          <p><strong>Outgoing connections:</strong> ${outgoingEdges.length > 0 ? outgoingEdges.map(e => e.target).join(', ') : 'None'}</p>
+        </div>
+      `;
+      
+      infoDiv.innerHTML = html;
+    }
+  </script>
+</body>
+</html>
+  

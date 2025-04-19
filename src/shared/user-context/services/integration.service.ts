@@ -2,6 +2,17 @@
  * Integration Service
  * Handles integration with external systems such as task management,
  * issue tracking, and project management platforms.
+ * 
+ * @status EXPERIMENTAL
+ * This service is currently in experimental state and only used through UserContextFacade.
+ * It provides integration capabilities with external systems for action items.
+ * 
+ * Future plans:
+ * - Implement real API integrations with JIRA, Trello, etc.
+ * - Add authentication and token management for external systems
+ * - Add webhook support for bi-directional updates
+ * 
+ * Usage: Access this service through UserContextFacade rather than directly.
  */
 
 import { RecordMetadata } from '@pinecone-database/pinecone';

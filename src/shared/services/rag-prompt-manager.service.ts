@@ -1,4 +1,43 @@
 // TODOO Remove User context service
+/**
+ * RAG Prompt Manager Service
+ * 
+ * Comprehensive service for managing Retrieval-Augmented Generation (RAG) prompts.
+ * This service handles context retrieval, prompt construction, and optimization based
+ * on the query and available context.
+ * 
+ * @status STABLE
+ * This is a core service used for generating optimized prompts with relevant context
+ * from the user's data. It supports various retrieval strategies and context types.
+ * 
+ * Key features:
+ * - Multiple retrieval strategies (semantic, hybrid, recency)
+ * - Context-aware prompt optimization
+ * - Template-based prompt generation
+ * - Proper source citation and tracking
+ * 
+ * Usage example:
+ * ```typescript
+ * const ragPromptManager = new RagPromptManager();
+ * const result = await ragPromptManager.createRagPrompt(
+ *   SystemRoleEnum.ANALYST,
+ *   InstructionTemplateNameEnum.CONCISE_ANALYSIS,
+ *   "What insights can you provide about last week's meeting?",
+ *   { 
+ *     userId: "user123", 
+ *     queryText: "meeting insights",
+ *     queryEmbedding: [...],
+ *     strategy: RagRetrievalStrategy.HYBRID
+ *   }
+ * );
+ * ```
+ * 
+ * TODO: This service will be refactored into smaller, more focused services:
+ * 1. RagContextRetriever - For context retrieval strategies
+ * 2. RagTemplateManager - For template management
+ * 3. RagPromptBuilder - For constructing prompts from templates and context
+ */
+
 import { PromptManager } from './prompt-manager.service';
 import { SystemRoleEnum, type SystemRole } from '../prompts/prompt-types';
 import {

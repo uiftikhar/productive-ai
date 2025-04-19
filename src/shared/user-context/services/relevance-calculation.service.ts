@@ -7,8 +7,8 @@
 import { BaseContextService } from './base-context.service';
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
-import { UserContextMetadata, UserRole } from '../user-context.service';
 import { ContextType } from '../context-types';
+import { UserRole, BaseContextMetadata } from '../types/context.types';
 
 // Constants for relevance calculation
 const DECAY_FACTOR = 0.01; // How much relevance decays per day
@@ -36,7 +36,7 @@ export class RelevanceCalculationService extends BaseContextService {
    */
   calculateRelevanceScore(
     userRole: UserRole,
-    metadata: UserContextMetadata,
+    metadata: BaseContextMetadata,
     currentTime: number = Date.now(),
   ): number {
     // Start with base relevance (either existing or default)
@@ -77,7 +77,7 @@ export class RelevanceCalculationService extends BaseContextService {
   private applyRoleRelevance(
     baseRelevance: number,
     userRole: UserRole,
-    metadata: UserContextMetadata,
+    metadata: BaseContextMetadata,
   ): number {
     let relevance = baseRelevance;
 
@@ -113,7 +113,7 @@ export class RelevanceCalculationService extends BaseContextService {
    */
   private applyRecencyFactor(
     baseRelevance: number,
-    metadata: UserContextMetadata,
+    metadata: BaseContextMetadata,
     currentTime: number,
   ): number {
     const timestamp = metadata.timestamp || 0;
@@ -140,7 +140,7 @@ export class RelevanceCalculationService extends BaseContextService {
    */
   private applyContentTypeImportance(
     baseRelevance: number,
-    metadata: UserContextMetadata,
+    metadata: BaseContextMetadata,
   ): number {
     // Weights for different content types
     const typeWeights: Partial<Record<ContextType, number>> = {
@@ -169,7 +169,7 @@ export class RelevanceCalculationService extends BaseContextService {
    */
   private applyUsageStatistics(
     baseRelevance: number,
-    metadata: UserContextMetadata,
+    metadata: BaseContextMetadata,
   ): number {
     let relevance = baseRelevance;
 
@@ -202,7 +202,7 @@ export class RelevanceCalculationService extends BaseContextService {
    */
   calculateThematicRelevance(
     queryThemes: string[],
-    contentMetadata: UserContextMetadata,
+    contentMetadata: BaseContextMetadata,
   ): number {
     const contentThemes = contentMetadata.themeIds || [];
     if (!queryThemes.length || !contentThemes.length) {

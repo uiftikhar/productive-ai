@@ -8,12 +8,10 @@ import { RecordMetadata } from '@pinecone-database/pinecone';
 import { BaseContextService } from './base-context.service';
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
-import {
-  USER_CONTEXT_INDEX,
-  UserContextMetadata,
-} from '../user-context.service';
-import { ContextType, KnowledgeGapType } from '../types/context.types';
-import { EmbeddingService } from '../../../services/embedding.service';
+
+import { ContextType, KnowledgeGapType, USER_CONTEXT_INDEX } from '../types/context.types';
+import { EmbeddingService } from '../../embedding/embedding.service';
+import { OpenAIAdapter } from '../../../agents/adapters/openai-adapter';
 
 /**
  * Structure representing a knowledge gap
@@ -56,7 +54,7 @@ export class KnowledgeGapService extends BaseContextService {
   constructor(options: any = {}) {
     super(options);
     this.logger = options.logger || new ConsoleLogger();
-    this.embeddingService = options.embeddingService || new EmbeddingService();
+    this.embeddingService = options.embeddingService || new EmbeddingService(new OpenAIAdapter());
   }
 
   /**
@@ -447,20 +445,14 @@ export class KnowledgeGapService extends BaseContextService {
 
     // Create embedding for the gap (from title and description)
     const embeddingText = `${gap.title}\n${gap.description}`;
-    const embeddingResult = await this.executeWithRetry(
-      () => this.embeddingService.createEmbeddings([embeddingText]),
+    const embedding = await this.executeWithRetry(
+      () => this.embeddingService.generateEmbedding(embeddingText),
       `createGapEmbedding:${userId}:${gapId}`,
     );
 
-    if (
-      !embeddingResult ||
-      !Array.isArray(embeddingResult.embeddings) ||
-      embeddingResult.embeddings.length === 0
-    ) {
+    if (!embedding) {
       throw new Error('Failed to create embedding for knowledge gap');
     }
-
-    const embedding = embeddingResult.embeddings[0];
 
     // Store the gap
     await this.executeWithRetry(
