@@ -12,7 +12,7 @@ import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { LangChainConfig } from '../../langchain/config';
 
 import {
-  UnifiedAgentInterface,
+  BaseAgentInterface,
   AgentCapability,
   AgentResponse,
   AgentRequest,
@@ -20,13 +20,13 @@ import {
   AgentState,
   AgentStatus,
   AgentMetrics,
-} from '../interfaces/unified-agent.interface';
+} from '../interfaces/base-agent.interface';
 
 /**
- * Abstract unified agent class that provides common functionality for all agents
+ * Abstract base agent class that provides common functionality for all agents
  * with built-in LangGraph compatibility
  */
-export abstract class UnifiedAgent implements UnifiedAgentInterface {
+export abstract class BaseAgent implements BaseAgentInterface {
   readonly id: string;
 
   protected logger: Logger;
@@ -200,32 +200,28 @@ export abstract class UnifiedAgent implements UnifiedAgentInterface {
   }
 
   /**
-   * Prepare chat messages from system prompt and user input
+   * Prepare messages for the LLM
    */
   protected prepareMessages(
     systemPrompt: string,
     userInput: string | BaseMessage[],
   ): BaseMessage[] {
-    const messages: BaseMessage[] = [new SystemMessage(systemPrompt)];
-
-    if (typeof userInput === 'string') {
-      messages.push(new HumanMessage(userInput));
-    } else if (Array.isArray(userInput)) {
-      messages.push(...userInput);
+    if (Array.isArray(userInput)) {
+      return [new SystemMessage(systemPrompt), ...userInput];
     }
-
-    return messages;
+    return [new SystemMessage(systemPrompt), new HumanMessage(userInput)];
   }
 
   /**
-   * Pre-execution hook - can be overridden by child classes
+   * Pre-execution hook that runs before executing the agent
    */
   protected async preExecute(request: AgentRequest): Promise<void> {
     // Default implementation does nothing
+    // Child classes can override this to add custom logic
   }
 
   /**
-   * Post-execution hook - can be overridden by child classes
+   * Post-execution hook that runs after executing the agent
    */
   protected async postExecute(
     request: AgentRequest,
@@ -233,68 +229,84 @@ export abstract class UnifiedAgent implements UnifiedAgentInterface {
     executionTimeMs: number,
   ): Promise<void> {
     // Default implementation does nothing
+    // Child classes can override this to add custom logic
   }
 
   /**
-   * Handle errors during execution
+   * Handle errors that occur during execution
    */
   protected async handleError(
     error: Error,
     request: AgentRequest,
   ): Promise<AgentResponse> {
-    const errorMessage = `Error executing agent: ${error.message}`;
-    this.logger.error(errorMessage, { error, request });
-
-    this.setState({
-      status: AgentStatus.ERROR,
-      errorCount: this.state.errorCount + 1,
+    this.logger.error(`Error executing agent: ${error.message}`, {
+      stack: error.stack,
+      request,
     });
 
+    // Update error count in state
+    this.state.errorCount += 1;
+
+    // Return error response
     return {
-      output: `I encountered an error: ${error.message}. Please try again or contact support if the problem persists.`,
+      output: `Error: ${error.message}`,
       metrics: {
         executionTimeMs: 0,
-        tokensUsed: 0,
       },
     };
   }
 
   /**
-   * Execute the agent
+   * Execute the agent with the given request
    */
   async execute(request: AgentRequest): Promise<AgentResponse> {
-    // Initialize if needed
-    if (!this.isInitialized) {
-      await this.initialize();
-    }
-
     const startTime = Date.now();
-    this.setState({
-      status: AgentStatus.EXECUTING,
-      executionCount: this.state.executionCount + 1,
-    });
 
     try {
-      // Pre-execute hook
+      // Initialize the agent if needed
+      if (!this.isInitialized) {
+        await this.initialize();
+      }
+
+      // Update agent state
+      this.setState({ status: AgentStatus.EXECUTING });
+
+      // Pre-execution hook
       await this.preExecute(request);
 
-      // Execute the agent
+      // Execute agent-specific logic
       const response = await this.executeInternal(request);
 
-      // Post-execute hook
-      await this.postExecute(request, response, Date.now() - startTime);
+      // Update state back to ready
+      this.setState({ status: AgentStatus.READY });
 
-      // Update metrics and state
-      response.metrics = this.processMetrics(
+      // Process metrics
+      const metrics = this.processMetrics(
         startTime,
         response.metrics?.tokensUsed,
         response.metrics?.stepCount,
       );
 
-      this.setState({ status: AgentStatus.READY });
+      // Merge metrics with response
+      const finalResponse: AgentResponse = {
+        ...response,
+        metrics: {
+          ...response.metrics,
+          ...metrics,
+        },
+      };
 
-      return response;
+      // Calculate execution time for post-execute hook
+      const executionTimeMs =
+        metrics?.executionTimeMs || Date.now() - startTime;
+
+      // Post-execution hook
+      await this.postExecute(request, finalResponse, executionTimeMs);
+
+      return finalResponse;
     } catch (error) {
+      // Handle errors
+      this.setState({ status: AgentStatus.ERROR });
       return this.handleError(
         error instanceof Error ? error : new Error(String(error)),
         request,
@@ -303,7 +315,8 @@ export abstract class UnifiedAgent implements UnifiedAgentInterface {
   }
 
   /**
-   * Internal execution method - to be implemented by child classes
+   * Internal execution logic for the agent
+   * Child classes must implement this method
    */
   protected abstract executeInternal(
     request: AgentRequest,

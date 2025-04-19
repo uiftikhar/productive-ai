@@ -1,7 +1,7 @@
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { Logger } from '../../shared/logger/logger.interface';
 import { AgentRegistryService } from './agent-registry.service';
-import { UnifiedAgentInterface } from '../interfaces/unified-agent.interface';
+import { BaseAgentInterface } from '../interfaces/base-agent.interface';
 
 /**
  * Agent discovery metrics
@@ -147,7 +147,7 @@ export class AgentDiscoveryService {
    * Score an agent based on capability matching and performance metrics
    */
   private scoreAgent(
-    agent: UnifiedAgentInterface,
+    agent: BaseAgentInterface,
     options: AgentDiscoveryOptions,
   ): AgentDiscoveryMetrics {
     // Default weights if not provided

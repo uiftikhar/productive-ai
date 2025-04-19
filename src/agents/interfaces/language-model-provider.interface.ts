@@ -2,6 +2,11 @@ import { BaseMessage } from '@langchain/core/messages';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 
 /**
+ * This interface is the successor to LanguageModelAdapter. It provides a more structured approach
+ * to working with language models. Services should gradually migrate to use this interface.
+ */
+
+/**
  * Message configuration for language model requests
  */
 export interface MessageConfig {
@@ -35,12 +40,12 @@ export interface ModelResponse {
 }
 
 /**
- * Interface for language model adapters
+ * Interface for language model providers
  * Provides standardized access to various language model providers
  */
-export interface LanguageModelAdapter {
+export interface LanguageModelProvider {
   /**
-   * Initialize the language model adapter
+   * Initialize the language model provider
    */
   initialize(): Promise<void>;
 

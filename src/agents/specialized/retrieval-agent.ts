@@ -1,14 +1,14 @@
 // src/agents/specialized/retrieval-agent.ts
 
-import { UnifiedAgent } from '../base/unified-agent';
+import { BaseAgent } from '../base/base-agent';
 import {
   AgentRequest,
   AgentResponse,
   AgentStatus,
   AgentCapability,
-} from '../interfaces/unified-agent.interface';
-import { OpenAIAdapter } from '../adapters/openai-adapter';
-import { PineconeAdapter } from '../adapters/pinecone-adapter';
+} from '../interfaces/base-agent.interface';
+import { OpenAIConnector } from '../integrations/openai-connector';
+import { PineconeConnector } from '../integrations/pinecone-connector';
 import { Logger } from '../../shared/logger/logger.interface';
 import { ChatOpenAI } from '@langchain/openai';
 
@@ -16,13 +16,13 @@ import { ChatOpenAI } from '@langchain/openai';
  * Abstract retrieval agent that provides common retrieval functionality
  * Specialized retrieval agents should extend this class
  */
-export abstract class RetrievalAgent extends UnifiedAgent {
+export abstract class RetrievalAgent extends BaseAgent {
   protected indexName: string;
   protected namespace: string;
   protected similarityThreshold: number;
   protected maxResults: number;
-  protected openaiAdapter?: OpenAIAdapter;
-  protected pineconeAdapter?: PineconeAdapter;
+  protected openAIConnector?: OpenAIConnector;
+  protected pineconeConnector?: PineconeConnector;
 
   constructor(
     name: string,
@@ -31,8 +31,8 @@ export abstract class RetrievalAgent extends UnifiedAgent {
       id?: string;
       logger?: Logger;
       llm?: ChatOpenAI;
-      openaiAdapter?: OpenAIAdapter;
-      pineconeAdapter?: PineconeAdapter;
+      openAIConnector?: OpenAIConnector;
+      pineconeConnector?: PineconeConnector;
       indexName?: string;
       namespace?: string;
       similarityThreshold?: number;
@@ -45,8 +45,8 @@ export abstract class RetrievalAgent extends UnifiedAgent {
       llm: options.llm,
     });
 
-    this.openaiAdapter = options.openaiAdapter;
-    this.pineconeAdapter = options.pineconeAdapter;
+    this.openAIConnector = options.openAIConnector;
+    this.pineconeConnector = options.pineconeConnector;
     this.indexName = options.indexName || 'default-index';
     this.namespace = options.namespace || 'default-namespace';
     this.similarityThreshold = options.similarityThreshold || 0.7;
@@ -73,15 +73,15 @@ export abstract class RetrievalAgent extends UnifiedAgent {
   }
 
   /**
-   * Generate embeddings for text using the OpenAI adapter
+   * Generate embeddings for text using the OpenAI connector
    */
   protected async generateEmbeddings(text: string): Promise<number[]> {
-    if (!this.openaiAdapter) {
-      throw new Error('OpenAI adapter is required for embedding generation');
+    if (!this.openAIConnector) {
+      throw new Error('OpenAI connector is required for embedding generation');
     }
 
     try {
-      return await this.openaiAdapter.generateEmbeddings(text);
+      return await this.openAIConnector.generateEmbedding(text);
     } catch (error) {
       this.logger.error('Error generating embeddings', {
         error: error instanceof Error ? error.message : String(error),
@@ -113,8 +113,10 @@ export abstract class RetrievalAgent extends UnifiedAgent {
       values?: number[];
     }>
   > {
-    if (!this.pineconeAdapter) {
-      throw new Error('Pinecone adapter is required for retrieval operations');
+    if (!this.pineconeConnector) {
+      throw new Error(
+        'Pinecone connector is required for retrieval operations',
+      );
     }
 
     try {
@@ -131,7 +133,7 @@ export abstract class RetrievalAgent extends UnifiedAgent {
 
       // Perform the query
       const namespace = options.namespace || this.namespace;
-      const results = await this.pineconeAdapter.querySimilar<T>(
+      const results = await this.pineconeConnector.querySimilar<T>(
         this.indexName,
         queryVector,
         queryOptions,
@@ -160,8 +162,8 @@ export abstract class RetrievalAgent extends UnifiedAgent {
     metadata: T,
     namespace?: string,
   ): Promise<void> {
-    if (!this.pineconeAdapter) {
-      throw new Error('Pinecone adapter is required for storage operations');
+    if (!this.pineconeConnector) {
+      throw new Error('Pinecone connector is required for storage operations');
     }
 
     try {
@@ -169,7 +171,7 @@ export abstract class RetrievalAgent extends UnifiedAgent {
       const vector = await this.generateEmbeddings(content);
 
       // Store the document
-      await this.pineconeAdapter.storeVector(
+      await this.pineconeConnector.storeVector(
         this.indexName,
         id,
         vector,
@@ -197,12 +199,12 @@ export abstract class RetrievalAgent extends UnifiedAgent {
     ids: string[],
     namespace?: string,
   ): Promise<void> {
-    if (!this.pineconeAdapter) {
-      throw new Error('Pinecone adapter is required for deletion operations');
+    if (!this.pineconeConnector) {
+      throw new Error('Pinecone connector is required for deletion operations');
     }
 
     try {
-      await this.pineconeAdapter.deleteVectors(
+      await this.pineconeConnector.deleteVectors(
         this.indexName,
         ids,
         namespace || this.namespace,
@@ -228,8 +230,8 @@ export class DocumentRetrievalAgent extends RetrievalAgent {
       id?: string;
       logger?: Logger;
       llm?: ChatOpenAI;
-      openaiAdapter?: OpenAIAdapter;
-      pineconeAdapter?: PineconeAdapter;
+      openAIConnector?: OpenAIConnector;
+      pineconeConnector?: PineconeConnector;
       indexName?: string;
       namespace?: string;
     } = {},

@@ -1,19 +1,23 @@
+/**
+ * Pinecone Vector Database Connector
+ *
+ * This connector provides simplified access to the Pinecone vector database for storing
+ * and retrieving vector embeddings. It follows the modern connector pattern rather than
+ * the legacy adapter pattern.
+ */
+
 import { RecordMetadata } from '@pinecone-database/pinecone';
 import { Logger } from '../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { PineconeConnectionService } from '../../pinecone/pinecone-connection.service';
 import { VectorIndexes } from '../../pinecone/pinecone-index.service';
-import {
-  VectorRecord,
-  QueryOptions,
-  QueryResponse,
-} from '../../pinecone/pinecone.type';
+import { VectorRecord, QueryOptions } from '../../pinecone/pinecone.type';
 
 /**
- * Adapter for PineconeConnectionService that provides a simplified interface
+ * Connector for PineconeConnectionService that provides a simplified interface
  * for use within the agent framework
  */
-export class PineconeAdapter {
+export class PineconeConnector {
   private pineconeService: PineconeConnectionService;
   private logger: Logger;
   private defaultNamespace: string;
@@ -37,7 +41,7 @@ export class PineconeAdapter {
    * since that's now handled centrally in index.ts
    */
   async initialize(): Promise<void> {
-    this.logger.info('Initializing PineconeAdapter connection');
+    this.logger.info('Initializing PineconeConnector connection');
     // We don't call pineconeService.initialize() here anymore since
     // initialization is now handled in index.ts
 
@@ -64,19 +68,19 @@ export class PineconeAdapter {
    * @param metadata Associated metadata
    * @param namespace Optional namespace
    */
-  async storeVector(
+  async storeVector<T extends RecordMetadata = RecordMetadata>(
     indexName: string,
     id: string,
     vector: number[],
-    metadata: Record<string, any> = {},
+    metadata: T = {} as T,
     namespace?: string,
   ): Promise<void> {
     const ns = namespace || this.defaultNamespace;
 
-    const record: VectorRecord<RecordMetadata> = {
+    const record: VectorRecord<T> = {
       id,
       values: vector,
-      metadata: metadata as RecordMetadata,
+      metadata,
     };
 
     this.logger.debug('Storing vector', { indexName, id, namespace: ns });
@@ -90,24 +94,22 @@ export class PineconeAdapter {
    * @param records Vector records
    * @param namespace Optional namespace
    */
-  async storeVectors(
+  async storeVectors<T extends RecordMetadata = RecordMetadata>(
     indexName: string,
     records: Array<{
       id: string;
       vector: number[];
-      metadata?: Record<string, any>;
+      metadata?: T;
     }>,
     namespace?: string,
   ): Promise<void> {
     const ns = namespace || this.defaultNamespace;
 
-    const vectorRecords: VectorRecord<RecordMetadata>[] = records.map(
-      (record) => ({
-        id: record.id,
-        values: record.vector,
-        metadata: (record.metadata || {}) as RecordMetadata,
-      }),
-    );
+    const vectorRecords: VectorRecord<T>[] = records.map((record) => ({
+      id: record.id,
+      values: record.vector,
+      metadata: record.metadata || ({} as T),
+    }));
 
     this.logger.debug('Storing multiple vectors', {
       indexName,
@@ -125,7 +127,7 @@ export class PineconeAdapter {
    * @param options Query options
    * @param namespace Optional namespace
    */
-  async querySimilar<T extends Record<string, any> = Record<string, any>>(
+  async querySimilar<T extends RecordMetadata = RecordMetadata>(
     indexName: string,
     queryVector: number[],
     options: {
@@ -158,7 +160,7 @@ export class PineconeAdapter {
       includeMetadata: true,
     };
 
-    const response = await this.pineconeService.queryVectors<RecordMetadata>(
+    const response = await this.pineconeService.queryVectors<T>(
       indexName,
       queryVector,
       queryOptions,
@@ -178,7 +180,7 @@ export class PineconeAdapter {
     return matches.map((match) => ({
       id: match.id,
       score: match.score || 0,
-      metadata: match.metadata as unknown as T,
+      metadata: match.metadata as T,
       values: match.values,
     }));
   }
@@ -233,7 +235,7 @@ export class PineconeAdapter {
    * @param ids Vector IDs to fetch
    * @param namespace Optional namespace
    */
-  async fetchVectors<T extends Record<string, any> = Record<string, any>>(
+  async fetchVectors<T extends RecordMetadata = RecordMetadata>(
     indexName: string,
     ids: string[],
     namespace?: string,
@@ -255,7 +257,7 @@ export class PineconeAdapter {
       namespace: ns,
     });
 
-    const response = await this.pineconeService.fetchVectors(
+    const response = await this.pineconeService.fetchVectors<T>(
       indexName,
       ids,
       ns,
@@ -276,7 +278,7 @@ export class PineconeAdapter {
         result[id] = {
           id,
           values: record.values || [],
-          metadata: record.metadata as unknown as T,
+          metadata: record.metadata as T,
         };
       }
     }

@@ -16,7 +16,7 @@
  * - Finding similar embeddings
  */
 
-import { OpenAIAdapter } from '../../agents/adapters/openai-adapter';
+import { OpenAIConnector } from '../../agents/integrations/openai-connector';
 import { ConsoleLogger } from '../logger/console-logger';
 import { Logger } from '../logger/logger.interface';
 
@@ -31,13 +31,21 @@ export interface EmbeddingResult {
   };
 }
 
+/**
+ * Embedding provider interface
+ */
+export interface EmbeddingProvider {
+  generateEmbedding(text: string): Promise<number[]>;
+  generateBatchEmbeddings?(texts: string[]): Promise<number[][]>;
+}
+
 export class EmbeddingService {
   private logger: Logger;
-  private openAIAdapter: OpenAIAdapter;
+  private connector: OpenAIConnector;
   private readonly embeddingModelName = 'text-embedding-3-large';
 
-  constructor(openAIAdapter: OpenAIAdapter, logger?: Logger) {
-    this.openAIAdapter = openAIAdapter;
+  constructor(connector: OpenAIConnector, logger?: Logger) {
+    this.connector = connector;
     this.logger = logger || new ConsoleLogger();
   }
 
@@ -60,9 +68,7 @@ export class EmbeddingService {
 
       // If text is very short, generate directly
       if (text.length < 5000) {
-        const response = await this.openAIAdapter.generateEmbedding(
-          text.trim(),
-        );
+        const response = await this.connector.generateEmbedding(text.trim());
         this.logger.debug(`Successfully generated embedding directly`);
         return response;
       }
@@ -100,7 +106,7 @@ export class EmbeddingService {
     const chunkEmbeddings: number[][] = [];
     for (const chunk of chunks) {
       try {
-        const embedding = await this.openAIAdapter.generateEmbedding(chunk);
+        const embedding = await this.connector.generateEmbedding(chunk);
         chunkEmbeddings.push(embedding);
       } catch (error) {
         this.logger.warn(`Error embedding chunk, skipping: ${error}`);

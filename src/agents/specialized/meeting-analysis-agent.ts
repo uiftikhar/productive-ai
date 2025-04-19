@@ -1,8 +1,8 @@
-import { UnifiedAgent } from '../base/unified-agent';
+import { BaseAgent } from '../base/base-agent';
 import {
   AgentRequest,
   AgentResponse,
-} from '../interfaces/unified-agent.interface';
+} from '../interfaces/base-agent.interface';
 import { Logger } from '../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { ChatOpenAI } from '@langchain/openai';
@@ -26,19 +26,19 @@ import {
 } from '../../shared/prompts/instruction-templates';
 import { ContextType } from '../../shared/user-context/types/context.types';
 
-// Import embedding and adapter services
+// Import embedding and connector services
 import { EmbeddingService } from '../../shared/embedding/embedding.service';
-import { OpenAIAdapter } from '../adapters/openai-adapter';
+import { OpenAIConnector } from '../integrations/openai-connector';
 import { BaseContextService } from '../../shared/user-context/services/base-context.service';
 
 /**
  * Agent for analyzing meeting transcripts
  * @status STABLE
  */
-export class MeetingAnalysisAgent extends UnifiedAgent {
+export class MeetingAnalysisAgent extends BaseAgent {
   private ragPromptManager: RagPromptManager;
   private embeddingService: EmbeddingService;
-  private openAIAdapter: OpenAIAdapter;
+  private openAIConnector: OpenAIConnector;
   private baseContextService: BaseContextService;
 
   /**
@@ -52,17 +52,17 @@ export class MeetingAnalysisAgent extends UnifiedAgent {
     super(name, description, options);
     this.logger = options.logger || new ConsoleLogger();
 
-    // Initialize the OpenAI adapter
-    this.openAIAdapter =
-      options.openAIAdapter ||
-      new OpenAIAdapter({
+    // Initialize the OpenAI connector
+    this.openAIConnector =
+      options.openAIConnector ||
+      new OpenAIConnector({
         logger: this.logger,
       });
 
     // Initialize the embedding service
     this.embeddingService =
       options.embeddingService ||
-      new EmbeddingService(this.openAIAdapter, this.logger);
+      new EmbeddingService(this.openAIConnector, this.logger);
 
     // Initialize the base context service for vector retrieval
     this.baseContextService =

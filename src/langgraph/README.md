@@ -1,6 +1,48 @@
-# LangGraph Integration
+# LangGraph Implementation
 
-This directory contains the LangGraph integration for the Productive AI agent system. LangGraph is a framework for building stateful, multi-step applications with LLMs.
+## Status: STABLE (Core), EXPERIMENTAL (Some Components)
+
+This directory contains the implementation of LangGraph patterns and workflows used throughout the application. LangGraph is the preferred framework for agent orchestration and will be the foundation for the unified agent architecture.
+
+## Directory Structure
+
+- `core/` - Core LangGraph components
+  - `adapters/` - Adapters for different agent types and use cases
+  - `nodes/` - Reusable node implementations
+  - `state/` - State definitions and management
+  - `workflows/` - Predefined graph workflows
+- `examples/` - Example implementations using LangGraph
+- `utils/` - Utility functions specific to LangGraph
+
+## Consolidation Plan
+
+This directory will become the central location for all agent workflow orchestration. As part of the consolidation effort:
+
+1. Agent implementations from `src/agents/` and `src/langchain/` will be migrated to use the LangGraph patterns
+2. Redundant code will be removed
+3. A standard set of workflows will be established
+4. Common patterns will be extracted into reusable components
+
+## Best Practices
+
+When implementing new agents or workflows:
+
+1. Use `BaseAgentAdapter` for new agent implementations
+2. Leverage the `AgentWorkflow` class for standard agent execution flows
+3. Define clear state interfaces that extend `BaseAgentState`
+4. Use the repository pattern for external service interactions
+5. Implement proper error handling using the provided patterns
+
+## Migration Guide
+
+When migrating existing agents:
+
+1. Implement the `AgentInterface`
+2. Use the `createAgentWorkflow` factory function to set up the workflow
+3. Update the agent registration to use the new workflow
+4. Test thoroughly with existing use cases
+
+See the examples directory for reference implementations of migrated agents.
 
 ## Architecture
 

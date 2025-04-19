@@ -1,22 +1,22 @@
 import { StateGraph, Annotation } from '@langchain/langgraph';
 import { END, START } from '@langchain/langgraph';
-
-import { UnifiedAgent } from '../../../agents/base/unified-agent';
+import { BaseAgent } from '../../../agents/base/base-agent';
 import {
   AgentRequest,
   AgentResponse,
   AgentStatus,
-} from '../../../agents/interfaces/unified-agent.interface';
+} from '../../../agents/interfaces/base-agent.interface';
 import {
-  BaseLangGraphAdapter,
-  BaseLangGraphState,
+  BaseWorkflow,
+  BaseWorkflowState,
   WorkflowStatus,
-} from './base-langgraph.adapter';
+} from './base-workflow';
+import { Logger } from '../../../shared/logger/logger.interface';
 
 /**
- * Agent workflow state interface
+ * Agent execution state interface
  */
-export interface AgentWorkflowState extends BaseLangGraphState {
+export interface AgentExecutionState extends BaseWorkflowState {
   // Agent specific fields
   agentId: string;
 
@@ -32,20 +32,16 @@ export interface AgentWorkflowState extends BaseLangGraphState {
 }
 
 /**
- * UnifiedAgentAdapter
+ * AgentWorkflow
  *
- * This adapter bridges the UnifiedAgent class with LangGraph's structured workflow.
+ * This workflow orchestrates agent execution with LangGraph's structured workflow.
  * It implements a state machine pattern for standardized agent execution flows.
  */
-export class UnifiedAgentAdapter<
-  T extends UnifiedAgent = UnifiedAgent,
-> extends BaseLangGraphAdapter<
-  AgentWorkflowState,
-  AgentRequest,
-  AgentResponse
-> {
+export class AgentWorkflow<
+  T extends BaseAgent = BaseAgent,
+> extends BaseWorkflow<AgentExecutionState, AgentRequest, AgentResponse> {
   /**
-   * Creates a new instance of the UnifiedAgentAdapter
+   * Creates a new instance of the AgentWorkflow
    */
   constructor(
     protected readonly agent: T,
@@ -125,15 +121,15 @@ export class UnifiedAgentAdapter<
     type StateType = typeof schema.State;
 
     workflow
-      // Common nodes from base adapter
-      .addNode('initialize', this.createInitNode())
-      .addNode('error_handler', this.createErrorHandlerNode())
-      .addNode('complete', this.createCompletionNode())
+      // Common nodes from base workflow
+      .addNode('initialize', this.createInitNode.bind(this))
+      .addNode('error_handler', this.createErrorHandlerNode.bind(this))
+      .addNode('complete', this.createCompletionNode.bind(this))
 
       // Agent-specific nodes
-      .addNode('pre_execute', this.createPreExecuteNode())
-      .addNode('execute', this.createExecuteNode())
-      .addNode('post_execute', this.createPostExecuteNode());
+      .addNode('pre_execute', this.createPreExecuteNode.bind(this))
+      .addNode('execute', this.createExecuteNode.bind(this))
+      .addNode('post_execute', this.createPostExecuteNode.bind(this));
 
     // Function to determine routing after each step based on state
     const routeAfterExecution = (state: StateType) => {
@@ -186,7 +182,7 @@ export class UnifiedAgentAdapter<
   /**
    * Create the initial state for the agent workflow
    */
-  protected createInitialState(request: AgentRequest): AgentWorkflowState {
+  protected createInitialState(request: AgentRequest): AgentExecutionState {
     const baseState = super.createInitialState(request);
 
     return {
@@ -209,7 +205,7 @@ export class UnifiedAgentAdapter<
   /**
    * Process the final state to create an agent response
    */
-  protected processResult(state: AgentWorkflowState): AgentResponse {
+  protected processResult(state: AgentExecutionState): AgentResponse {
     // If error occurred, generate an error response
     if (state.status === WorkflowStatus.ERROR) {
       const errorMessage =
@@ -245,20 +241,17 @@ export class UnifiedAgentAdapter<
   }
 
   /**
-   * Create the pre-execute node
+   * Create the pre-execute node - this performs any setup before execution
    */
   private createPreExecuteNode() {
-    return async (state: AgentWorkflowState) => {
+    return async (state: AgentExecutionState) => {
       try {
-        // Build request from state
-        const request: AgentRequest = {
-          input: state.input,
-          capability: state.capability,
-          parameters: state.parameters,
-          context: state.metadata?.context,
-        };
+        // Initialize the agent if not already initialized
+        if (!this.agent.getInitializationStatus()) {
+          await this.agent.initialize();
+        }
 
-        // Update state
+        // Return updated state
         return {
           ...state,
           status: WorkflowStatus.EXECUTING,
@@ -277,7 +270,7 @@ export class UnifiedAgentAdapter<
    * Create the execute node - this performs the actual agent execution
    */
   private createExecuteNode() {
-    return async (state: AgentWorkflowState) => {
+    return async (state: AgentExecutionState) => {
       try {
         // Check if agent is initialized
         if (!this.agent.getInitializationStatus()) {
@@ -323,15 +316,17 @@ export class UnifiedAgentAdapter<
   }
 
   /**
-   * Create the post-execute node
+   * Create the post-execute node - this performs any cleanup after execution
    */
   private createPostExecuteNode() {
-    return async (state: AgentWorkflowState) => {
+    return async (state: AgentExecutionState) => {
       try {
-        // Record results in state
+        // We could add post-execution hooks here
+        // such as storing results, updating metrics, etc.
+
         return {
           ...state,
-          status: WorkflowStatus.COMPLETED,
+          status: WorkflowStatus.READY,
         };
       } catch (error) {
         return this.addErrorToState(

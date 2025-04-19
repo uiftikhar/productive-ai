@@ -15,7 +15,7 @@ import {
   USER_CONTEXT_INDEX,
 } from '../types/context.types';
 import { EmbeddingService } from '../../embedding/embedding.service';
-import { OpenAIAdapter } from '../../../agents/adapters/openai-adapter';
+import { OpenAIConnector } from '../../../agents/integrations/openai-connector';
 
 /**
  * Structure representing a knowledge gap
@@ -59,7 +59,7 @@ export class KnowledgeGapService extends BaseContextService {
     super(options);
     this.logger = options.logger || new ConsoleLogger();
     this.embeddingService =
-      options.embeddingService || new EmbeddingService(new OpenAIAdapter());
+      options.embeddingService || new EmbeddingService(new OpenAIConnector());
   }
 
   /**

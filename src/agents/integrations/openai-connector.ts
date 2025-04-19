@@ -1,8 +1,4 @@
-import {
-  ChatOpenAI,
-  ChatOpenAICallOptions,
-  ChatOpenAIFields,
-} from '@langchain/openai';
+import { ChatOpenAI, ChatOpenAICallOptions } from '@langchain/openai';
 import { OpenAIEmbeddings } from '@langchain/openai';
 import {
   BaseMessage,
@@ -19,11 +15,11 @@ import { LangChainConfig } from '../../langchain/config';
 import { Logger } from '../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import {
-  LanguageModelAdapter,
+  LanguageModelProvider,
   MessageConfig,
   StreamHandler,
   ModelResponse,
-} from './language-model-adapter.interface';
+} from '../interfaces/language-model-provider.interface';
 
 /**
  * Model configuration for OpenAI API calls
@@ -46,10 +42,10 @@ export interface EmbeddingConfig {
 }
 
 /**
- * OpenAI adapter for the agent framework
+ * OpenAI connector for the agent framework
  * Provides a simplified interface for OpenAI API interactions
  */
-export class OpenAIAdapter implements LanguageModelAdapter {
+export class OpenAIConnector implements LanguageModelProvider {
   private chatModel: ChatOpenAI;
   private embeddings: OpenAIEmbeddings;
   private logger: Logger;
@@ -95,7 +91,7 @@ export class OpenAIAdapter implements LanguageModelAdapter {
    * Initialize the OpenAI adapter
    */
   async initialize(): Promise<void> {
-    this.logger.info('Initializing OpenAIAdapter');
+    this.logger.info('Initializing OpenAIConnector');
     // No initialization needed for OpenAI models
   }
 

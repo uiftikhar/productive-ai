@@ -9,16 +9,16 @@ import { configureTracing } from '../langgraph/core/utils/tracing';
 
 import { EmbeddingService } from '../shared/embedding/embedding.service';
 import { ConsoleLogger } from '../shared/logger/console-logger';
-import { OpenAIAdapter } from '../agents/adapters';
+import { OpenAIConnector } from '../agents/integrations/openai-connector';
 import { BaseContextService } from '../shared/user-context/services/base-context.service';
 
 // Type imports to help with type casting
-import { AgentRequest } from '../agents/interfaces/unified-agent.interface';
-import { AgentStatus } from '../agents/interfaces/unified-agent.interface';
+import { AgentRequest } from '../agents/interfaces/base-agent.interface';
+import { AgentStatus } from '../agents/interfaces/base-agent.interface';
 
 // Initialize services
 const logger = new ConsoleLogger();
-const openaiAdapter = new OpenAIAdapter({
+const openaiAdapter = new OpenAIConnector({
   logger,
 });
 const embeddingService = new EmbeddingService(openaiAdapter, logger);

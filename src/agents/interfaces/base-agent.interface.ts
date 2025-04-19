@@ -80,7 +80,7 @@ export interface AgentMetrics {
 /**
  * Core agent interface - all agents must implement this
  */
-export interface UnifiedAgentInterface {
+export interface BaseAgentInterface {
   /**
    * Unique identifier for this agent
    */
@@ -136,3 +136,9 @@ export interface UnifiedAgentInterface {
    */
   getMetrics(): AgentMetrics;
 }
+
+/**
+ * Legacy interface name for backward compatibility
+ * @deprecated Use BaseAgentInterface instead
+ */
+export type AgentInterface = BaseAgentInterface;

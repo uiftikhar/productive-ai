@@ -1,22 +1,25 @@
 import { BaseMessage, HumanMessage } from '@langchain/core/messages';
-import { UnifiedAgent } from '../base/unified-agent';
+import { BaseAgent } from '../base/base-agent';
 import {
   AgentRequest,
   AgentResponse,
   AgentCapability,
-} from '../interfaces/unified-agent.interface';
+} from '../interfaces/base-agent.interface';
 import {
   RagPromptManager,
   RagRetrievalStrategy,
 } from '../../shared/services/rag-prompt-manager.service';
 import { ContextType } from '../../shared/user-context/context-types';
 import { UserRole } from '../../shared/user-context/types/context.types';
-import { EmbeddingService } from '../../shared/embedding/embedding.service';
+import {
+  EmbeddingService,
+  EmbeddingProvider,
+} from '../../shared/embedding/embedding.service';
 import { DocumentContextService } from '../../shared/user-context/services/document-context.service';
 import { ConversationContextService } from '../../shared/user-context/services/conversation-context.service';
 import { MeetingContextService } from '../../shared/user-context/services/meeting-context.service';
 import { RelevanceCalculationService } from '../../shared/user-context/services/relevance-calculation.service';
-import { OpenAIAdapter } from '../../agents/adapters/openai-adapter';
+import { OpenAIConnector } from '../integrations/openai-connector';
 import { Logger } from '../../shared/logger/logger.interface';
 import { ChatOpenAI } from '@langchain/openai';
 
@@ -24,14 +27,14 @@ import { ChatOpenAI } from '@langchain/openai';
  * KnowledgeRetrievalAgent
  * Specialized agent that retrieves relevant information from the user's knowledge base
  */
-export class KnowledgeRetrievalAgent extends UnifiedAgent {
+export class KnowledgeRetrievalAgent extends BaseAgent {
   private documentContextService: DocumentContextService;
   private conversationContextService: ConversationContextService;
   private meetingContextService: MeetingContextService;
   private relevanceCalculationService: RelevanceCalculationService;
   private ragPromptManager: RagPromptManager;
   private embeddingService: EmbeddingService;
-  private openAIAdapter?: OpenAIAdapter;
+  private openAIConnector?: OpenAIConnector;
 
   constructor(
     options: {
@@ -41,7 +44,7 @@ export class KnowledgeRetrievalAgent extends UnifiedAgent {
       relevanceCalculationService?: RelevanceCalculationService;
       ragPromptManager?: RagPromptManager;
       embeddingService?: EmbeddingService;
-      openAIAdapter?: OpenAIAdapter;
+      openAIConnector?: OpenAIConnector;
       logger?: Logger;
       llm?: ChatOpenAI;
       id?: string;
@@ -53,7 +56,7 @@ export class KnowledgeRetrievalAgent extends UnifiedAgent {
       {
         logger: options.logger,
         llm: options.llm,
-        id: options.id,
+        id: options.id || 'knowledge-retrieval-agent',
       },
     );
 
@@ -66,19 +69,19 @@ export class KnowledgeRetrievalAgent extends UnifiedAgent {
     this.relevanceCalculationService =
       options.relevanceCalculationService || new RelevanceCalculationService();
     this.ragPromptManager = options.ragPromptManager || new RagPromptManager();
-    this.openAIAdapter = options.openAIAdapter;
+    this.openAIConnector = options.openAIConnector;
 
     // Use provided embedding service or create a new one with proper parameters
     if (options.embeddingService) {
       this.embeddingService = options.embeddingService;
-    } else if (options.openAIAdapter) {
+    } else if (options.openAIConnector) {
       this.embeddingService = new EmbeddingService(
-        options.openAIAdapter,
+        options.openAIConnector,
         this.logger,
       );
     } else {
       throw new Error(
-        'Either embeddingService or openAIAdapter must be provided',
+        'Either embeddingService or openAIConnector must be provided',
       );
     }
 

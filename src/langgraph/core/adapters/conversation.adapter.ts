@@ -9,11 +9,11 @@ import {
   Annotation,
   AnnotationRoot,
 } from '@langchain/langgraph';
-import { UnifiedAgent } from '../../../agents/base/unified-agent';
+import { BaseAgent } from '../../../agents/base/base-agent';
 import {
   AgentRequest,
   AgentResponse,
-} from '../../../agents/interfaces/unified-agent.interface';
+} from '../../../agents/interfaces/base-agent.interface';
 import {
   BaseLangGraphAdapter,
   BaseLangGraphState,
@@ -91,10 +91,10 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
   SendMessageParams,
   SendMessageResult
 > {
-  protected readonly agent: UnifiedAgent;
+  protected readonly agent: BaseAgent;
 
   constructor(
-    agent: UnifiedAgent,
+    agent: BaseAgent,
     options: {
       tracingEnabled?: boolean;
       includeStateInLogs?: boolean;

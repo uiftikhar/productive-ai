@@ -1,12 +1,10 @@
-// src/agents/adapters/context-adapter.interface.ts
-
-import { AgentContext } from '../interfaces/unified-agent.interface';
+import { AgentContext } from './base-agent.interface';
 
 /**
- * Interface for context adapters that provide standardized access
+ * Interface for context providers that provide standardized access
  * to various context services within the agent framework
  */
-export interface ContextAdapter {
+export interface ContextProvider {
   /**
    * Get context data for an agent request
    * @param userId User identifier
@@ -53,9 +51,9 @@ export interface ContextAdapter {
 }
 
 /**
- * Base context adapter types for specific context services
+ * Base context provider types for specific context services
  */
-export interface ConversationContextAdapter extends ContextAdapter {
+export interface ConversationContextProvider extends ContextProvider {
   /**
    * Get conversation history
    * @param userId User identifier
@@ -83,7 +81,7 @@ export interface ConversationContextAdapter extends ContextAdapter {
   ): Promise<string>;
 }
 
-export interface DocumentContextAdapter extends ContextAdapter {
+export interface DocumentContextProvider extends ContextProvider {
   /**
    * Get relevant documents based on a query
    * @param userId User identifier
@@ -109,7 +107,7 @@ export interface DocumentContextAdapter extends ContextAdapter {
   ): Promise<string>;
 }
 
-export interface MemoryContextAdapter extends ContextAdapter {
+export interface MemoryContextProvider extends ContextProvider {
   /**
    * Get memories related to a query
    * @param userId User identifier

@@ -1,7 +1,8 @@
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { Logger } from '../../shared/logger/logger.interface';
-import { UnifiedAgentInterface } from '../interfaces/unified-agent.interface';
+import { BaseAgentInterface } from '../interfaces/base-agent.interface';
 import { KnowledgeRetrievalAgent } from '../specialized/knowledge-retrieval-agent';
+import { OpenAIConnector } from '../integrations/openai-connector';
 
 /**
  * Agent Registry Service
@@ -9,7 +10,7 @@ import { KnowledgeRetrievalAgent } from '../specialized/knowledge-retrieval-agen
  */
 export class AgentRegistryService {
   private static instance: AgentRegistryService;
-  private agents: Map<string, UnifiedAgentInterface> = new Map();
+  private agents: Map<string, BaseAgentInterface> = new Map();
   private logger: Logger;
 
   private constructor(logger?: Logger) {
@@ -29,7 +30,7 @@ export class AgentRegistryService {
   /**
    * Register an agent with the registry
    */
-  registerAgent(agent: UnifiedAgentInterface): void {
+  registerAgent(agent: BaseAgentInterface): void {
     if (this.agents.has(agent.id)) {
       this.logger.warn(
         `Agent with ID ${agent.id} already registered, replacing it`,
@@ -44,25 +45,32 @@ export class AgentRegistryService {
    * Register the Knowledge Retrieval Agent
    */
   registerKnowledgeRetrievalAgent(options?: any): KnowledgeRetrievalAgent {
+    // Make sure to provide the necessary dependencies
+    if (!options.openAIConnector) {
+      options.openAIConnector = new OpenAIConnector();
+    }
+
     const agent = new KnowledgeRetrievalAgent({
       logger: this.logger,
       ...options,
     });
-    this.registerAgent(agent);
+
+    // Verify agent implements the interface before registering
+    this.registerAgent(agent as unknown as BaseAgentInterface);
     return agent;
   }
 
   /**
    * Get an agent by ID
    */
-  getAgent(id: string): UnifiedAgentInterface | undefined {
+  getAgent(id: string): BaseAgentInterface | undefined {
     return this.agents.get(id);
   }
 
   /**
    * Find agents that can handle a specific capability
    */
-  findAgentsWithCapability(capability: string): UnifiedAgentInterface[] {
+  findAgentsWithCapability(capability: string): BaseAgentInterface[] {
     return Array.from(this.agents.values()).filter((agent) =>
       agent.canHandle(capability),
     );
@@ -71,7 +79,7 @@ export class AgentRegistryService {
   /**
    * List all registered agents
    */
-  listAgents(): UnifiedAgentInterface[] {
+  listAgents(): BaseAgentInterface[] {
     return Array.from(this.agents.values());
   }
 
