@@ -22,6 +22,7 @@ The codebase is currently undergoing a migration from a mixed-implementation arc
 - [x] Migrated `RetrievalAgent` to extend `BaseAgent`
 - [x] Migrated `MeetingAnalysisAgent` to extend `BaseAgent`
 - [x] Created migration helper script
+- [x] Created standardized AgentFactory for simpler agent instantiation
 
 ## Current Progress
 
@@ -31,10 +32,10 @@ We've made significant progress on the migration:
 - All primary agents are using the `BaseAgent` abstract class
 - The `AgentRegistryService` is fully updated to use the standard interface
 - The migration helper script (`src/scripts/migrate-agent.ts`) is in place to assist with future migrations
+- The standardized `AgentFactory` simplifies agent creation with proper dependency injection
 
 ## In Progress
 
-- [ ] Creating a standardized agent factory
 - [ ] Converting runtime execution to use LangGraph workflows
 - [ ] Implementing the `DecisionTrackingAgent` using the new patterns
 - [ ] Updating documentation for new implementation patterns
@@ -42,8 +43,7 @@ We've made significant progress on the migration:
 ## Next Steps
 
 1. **Implement the DecisionTrackingAgent** following BaseAgent patterns
-2. **Create a standardized AgentFactory** for simpler agent instantiation
-3. **Remove unused code** including the memory-client directory
+2. **Remove unused code** including the memory-client directory
 4. **Update integration tests** to verify functionality
 
 ## Future Steps

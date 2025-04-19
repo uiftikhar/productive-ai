@@ -40,8 +40,18 @@ The agent uses the `RagPromptManager` service and standardized instruction templ
 ### Usage Example
 
 ```typescript
-// Create and initialize the agent
-const meetingAnalysisAgent = new MeetingAnalysisAgent();
+import { getDefaultAgentFactory } from '../factories/agent-factory';
+
+// Create the agent using the factory (recommended)
+const factory = getDefaultAgentFactory();
+const meetingAnalysisAgent = factory.createMeetingAnalysisAgent({
+  id: 'meeting-analysis-agent-1',
+  // Optional customization
+  name: 'Meeting Analysis Agent',
+  description: 'Analyzes meeting transcripts with RAG capabilities'
+});
+
+// Initialize the agent
 await meetingAnalysisAgent.initialize();
 
 // Process a transcript chunk with RAG

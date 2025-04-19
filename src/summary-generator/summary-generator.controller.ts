@@ -11,6 +11,7 @@ import { EmbeddingService } from '../shared/embedding/embedding.service';
 import { ConsoleLogger } from '../shared/logger/console-logger';
 import { OpenAIConnector } from '../agents/integrations/openai-connector';
 import { BaseContextService } from '../shared/user-context/services/base-context.service';
+import { AgentFactory } from '../agents/factories/agent-factory';
 
 // Type imports to help with type casting
 import { AgentRequest } from '../agents/interfaces/base-agent.interface';
@@ -18,10 +19,10 @@ import { AgentStatus } from '../agents/interfaces/base-agent.interface';
 
 // Initialize services
 const logger = new ConsoleLogger();
-const openaiAdapter = new OpenAIConnector({
+const openaiConnector = new OpenAIConnector({
   logger,
 });
-const embeddingService = new EmbeddingService(openaiAdapter, logger);
+const embeddingService = new EmbeddingService(openaiConnector, logger);
 const baseContextService = new BaseContextService({ logger });
 
 // Initialize the base context service
@@ -35,18 +36,20 @@ const baseContextService = new BaseContextService({ logger });
   }
 })();
 
-// Initialize RAG-enhanced agent for the standardized adapter
-const meetingAnalysisAgent = new MeetingAnalysisAgent(
-  'RAG Meeting Analysis Agent',
-  'Analyzes meeting transcripts with RAG capabilities',
-  {
-    id: 'rag-meeting-analysis-agent',
-    logger,
-    openAIAdapter: openaiAdapter,
-    embeddingService: embeddingService,
-    baseContextService: baseContextService,
-  },
-);
+// Create an agent factory with our dependencies
+const agentFactory = new AgentFactory({
+  logger,
+  openAIConnector: openaiConnector,
+  embeddingService: embeddingService,
+});
+
+// Create the meeting analysis agent using the factory
+const meetingAnalysisAgent = agentFactory.createMeetingAnalysisAgent({
+  id: 'rag-meeting-analysis-agent',
+  name: 'RAG Meeting Analysis Agent',
+  description: 'Analyzes meeting transcripts with RAG capabilities',
+  baseContextService: baseContextService,
+});
 
 // Configure LangGraph tracing
 configureTracing({
