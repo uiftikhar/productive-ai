@@ -35,7 +35,7 @@ export class ConsoleLogger implements Logger {
     const logLevels: LogLevel[] = ['debug', 'info', 'warn', 'error', 'none'];
     const currentLevelIndex = logLevels.indexOf(this.logLevel);
     const messageLevelIndex = logLevels.indexOf(level);
-    
+
     return messageLevelIndex >= currentLevelIndex;
   }
 }

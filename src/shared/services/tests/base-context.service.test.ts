@@ -1,11 +1,15 @@
-import { BaseContextService } from '../base-context.service';
-import { PineconeConnectionService } from '../../../../pinecone/pinecone-connection.service';
-import { MockLogger } from '../../../../agents/tests/mocks/mock-logger';
-import { UserContextValidationError, UserContextNotFoundError, UserContextError } from '../../types/context.types';
-import { ContextType } from '../../context-types';
+import { PineconeConnectionService } from '../../../pinecone/pinecone-connection.service';
+import { MockLogger } from '../../../agents/tests/mocks/mock-logger';
+import {
+  UserContextValidationError,
+  UserContextNotFoundError,
+  UserContextError,
+} from '../user-context/types/context.types';
+import { ContextType } from '../user-context/context-types';
+import { BaseContextService } from '../user-context/base-context.service';
 
 // Create mock for PineconeConnectionService
-jest.mock('../../../../pinecone/pinecone-connection.service');
+jest.mock('../../../pinecone/pinecone-connection.service');
 
 describe('BaseContextService', () => {
   let service: BaseContextService;
@@ -17,7 +21,8 @@ describe('BaseContextService', () => {
     jest.clearAllMocks();
 
     // Create fresh mock instances
-    mockPineconeService = new PineconeConnectionService() as jest.Mocked<PineconeConnectionService>;
+    mockPineconeService =
+      new PineconeConnectionService() as jest.Mocked<PineconeConnectionService>;
     mockLogger = new MockLogger();
 
     // Create service with mocks
@@ -48,7 +53,9 @@ describe('BaseContextService', () => {
     it('should log warning if index does not exist', async () => {
       // Setup
       mockPineconeService.initialize = jest.fn().mockResolvedValue(undefined);
-      mockPineconeService.getIndex = jest.fn().mockRejectedValue(new Error('Index not found'));
+      mockPineconeService.getIndex = jest
+        .fn()
+        .mockRejectedValue(new Error('Index not found'));
 
       // Execute
       await service.initialize();
@@ -61,10 +68,10 @@ describe('BaseContextService', () => {
     it('should check if index exists', async () => {
       // Setup
       mockPineconeService.getIndex = jest.fn().mockResolvedValue({});
-      
+
       // Execute
       const result = await (service as any).indexExists();
-      
+
       // Verify
       expect(result).toBe(true);
       expect(mockPineconeService.getIndex).toHaveBeenCalled();
@@ -72,11 +79,13 @@ describe('BaseContextService', () => {
 
     it('should return false when index does not exist', async () => {
       // Setup
-      mockPineconeService.getIndex = jest.fn().mockRejectedValue(new Error('Not found'));
-      
+      mockPineconeService.getIndex = jest
+        .fn()
+        .mockRejectedValue(new Error('Not found'));
+
       // Execute
       const result = await (service as any).indexExists();
-      
+
       // Verify
       expect(result).toBe(false);
     });
@@ -86,10 +95,13 @@ describe('BaseContextService', () => {
     it('should execute operation successfully on first try', async () => {
       // Setup
       const operation = jest.fn().mockResolvedValue('success');
-      
+
       // Execute
-      const result = await (service as any).executeWithRetry(operation, 'testOperation');
-      
+      const result = await (service as any).executeWithRetry(
+        operation,
+        'testOperation',
+      );
+
       // Verify
       expect(result).toBe('success');
       expect(operation).toHaveBeenCalledTimes(1);
@@ -97,24 +109,32 @@ describe('BaseContextService', () => {
 
     it('should retry operation on failure and succeed', async () => {
       // Setup
-      const operation = jest.fn()
+      const operation = jest
+        .fn()
         .mockRejectedValueOnce(new Error('Failure 1'))
         .mockRejectedValueOnce(new Error('Failure 2'))
         .mockResolvedValueOnce('finally succeeded');
-      
-      const setTimeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation((cb: any) => {
-        cb();
-        return 1 as any;
-      });
-      
+
+      const setTimeoutSpy = jest
+        .spyOn(global, 'setTimeout')
+        .mockImplementation((cb: any) => {
+          cb();
+          return 1 as any;
+        });
+
       // Execute
-      const result = await (service as any).executeWithRetry(operation, 'testOperation');
-      
+      const result = await (service as any).executeWithRetry(
+        operation,
+        'testOperation',
+      );
+
       // Verify
       expect(result).toBe('finally succeeded');
       expect(operation).toHaveBeenCalledTimes(3);
-      expect(mockLogger.hasMessage('Retrying UserContextService operation', 'warn')).toBe(true);
-      
+      expect(
+        mockLogger.hasMessage('Retrying UserContextService operation', 'warn'),
+      ).toBe(true);
+
       // Cleanup
       setTimeoutSpy.mockRestore();
     });
@@ -123,17 +143,21 @@ describe('BaseContextService', () => {
       // Setup
       const error = new Error('Persistent failure');
       const operation = jest.fn().mockRejectedValue(error);
-      
-      const setTimeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation((cb: any) => {
-        cb();
-        return 1 as any;
-      });
-      
+
+      const setTimeoutSpy = jest
+        .spyOn(global, 'setTimeout')
+        .mockImplementation((cb: any) => {
+          cb();
+          return 1 as any;
+        });
+
       // Execute & Verify
-      await expect((service as any).executeWithRetry(operation, 'testOperation')).rejects.toThrow(error);
+      await expect(
+        (service as any).executeWithRetry(operation, 'testOperation'),
+      ).rejects.toThrow(error);
       expect(operation).toHaveBeenCalledTimes((service as any).maxRetries + 1);
       expect(mockLogger.hasMessage('Max retries reached', 'error')).toBe(true);
-      
+
       // Cleanup
       setTimeoutSpy.mockRestore();
     });
@@ -147,14 +171,16 @@ describe('BaseContextService', () => {
       const embeddings = [0.1, 0.2, 0.3];
       const metadata = { contextType: ContextType.CONVERSATION };
 
-      mockPineconeService.upsertVectors = jest.fn().mockResolvedValue(undefined);
+      mockPineconeService.upsertVectors = jest
+        .fn()
+        .mockResolvedValue(undefined);
 
       // Execute
       const result = await service.storeUserContext(
         userId,
         contextData,
         embeddings,
-        metadata
+        metadata,
       );
 
       // Verify
@@ -171,31 +197,21 @@ describe('BaseContextService', () => {
             }),
           }),
         ]),
-        userId
+        userId,
       );
     });
 
     it('should throw validation error if userId is empty', async () => {
       // Execute & Verify
       await expect(
-        service.storeUserContext(
-          '',
-          'context',
-          [0.1, 0.2, 0.3],
-          {}
-        )
+        service.storeUserContext('', 'context', [0.1, 0.2, 0.3], {}),
       ).rejects.toThrow(UserContextValidationError);
     });
 
     it('should throw validation error if embeddings array is empty', async () => {
       // Execute & Verify
       await expect(
-        service.storeUserContext(
-          'test-user',
-          'context',
-          [],
-          {}
-        )
+        service.storeUserContext('test-user', 'context', [], {}),
       ).rejects.toThrow(UserContextValidationError);
     });
 
@@ -211,22 +227,26 @@ describe('BaseContextService', () => {
         .mockRejectedValueOnce(new Error('Temporary failure'))
         .mockResolvedValueOnce(undefined);
 
-      const setTimeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation((cb: any) => {
-        cb();
-        return 1 as any;
-      });
+      const setTimeoutSpy = jest
+        .spyOn(global, 'setTimeout')
+        .mockImplementation((cb: any) => {
+          cb();
+          return 1 as any;
+        });
 
       // Execute
       const result = await service.storeUserContext(
         userId,
         contextData,
-        embeddings
+        embeddings,
       );
 
       // Verify
       expect(result).toBeDefined();
       expect(mockPineconeService.upsertVectors).toHaveBeenCalledTimes(2);
-      expect(mockLogger.hasMessage('Retrying UserContextService operation', 'warn')).toBe(true);
+      expect(
+        mockLogger.hasMessage('Retrying UserContextService operation', 'warn'),
+      ).toBe(true);
 
       // Cleanup
       setTimeoutSpy.mockRestore();
@@ -239,19 +259,25 @@ describe('BaseContextService', () => {
       const embeddings = [0.1, 0.2, 0.3];
 
       // Mock max retries exhausted
-      mockPineconeService.upsertVectors = jest.fn().mockRejectedValue(new Error('Fatal error'));
-      
-      const setTimeoutSpy = jest.spyOn(global, 'setTimeout').mockImplementation((cb: any) => {
-        cb();
-        return 1 as any;
-      });
+      mockPineconeService.upsertVectors = jest
+        .fn()
+        .mockRejectedValue(new Error('Fatal error'));
+
+      const setTimeoutSpy = jest
+        .spyOn(global, 'setTimeout')
+        .mockImplementation((cb: any) => {
+          cb();
+          return 1 as any;
+        });
 
       // Execute & Verify
       await expect(
-        service.storeUserContext(userId, contextData, embeddings)
+        service.storeUserContext(userId, contextData, embeddings),
       ).rejects.toThrow(UserContextError);
-      
-      expect(mockLogger.hasMessage('Failed to store user context', 'error')).toBe(true);
+
+      expect(
+        mockLogger.hasMessage('Failed to store user context', 'error'),
+      ).toBe(true);
 
       // Cleanup
       setTimeoutSpy.mockRestore();
@@ -264,14 +290,16 @@ describe('BaseContextService', () => {
       const userId = 'test-user';
       const entries = [
         { contextData: 'data1', embeddings: [0.1, 0.2, 0.3] },
-        { 
-          contextData: 'data2', 
-          embeddings: [0.4, 0.5, 0.6], 
-          metadata: { contextType: ContextType.DOCUMENT } 
-        }
+        {
+          contextData: 'data2',
+          embeddings: [0.4, 0.5, 0.6],
+          metadata: { contextType: ContextType.DOCUMENT },
+        },
       ];
 
-      mockPineconeService.upsertVectors = jest.fn().mockResolvedValue(undefined);
+      mockPineconeService.upsertVectors = jest
+        .fn()
+        .mockResolvedValue(undefined);
 
       // Execute
       const result = await service.batchStoreUserContext(userId, entries);
@@ -295,24 +323,26 @@ describe('BaseContextService', () => {
             }),
           }),
         ]),
-        userId
+        userId,
       );
     });
 
     it('should handle empty entries array', async () => {
       // Setup
       const userId = 'test-user';
-      mockPineconeService.upsertVectors = jest.fn().mockResolvedValue(undefined);
-      
+      mockPineconeService.upsertVectors = jest
+        .fn()
+        .mockResolvedValue(undefined);
+
       // Execute
       const result = await service.batchStoreUserContext(userId, []);
-      
+
       // Verify
       expect(result).toEqual([]);
       expect(mockPineconeService.upsertVectors).toHaveBeenCalledWith(
         expect.any(String),
         expect.arrayContaining([]),
-        userId
+        userId,
       );
     });
   });
@@ -323,12 +353,20 @@ describe('BaseContextService', () => {
       const userId = 'test-user';
       const queryEmbedding = [0.1, 0.2, 0.3];
       const mockMatches = [
-        { id: 'id1', score: 0.9, metadata: { contextType: ContextType.CONVERSATION } },
-        { id: 'id2', score: 0.8, metadata: { contextType: ContextType.DOCUMENT } }
+        {
+          id: 'id1',
+          score: 0.9,
+          metadata: { contextType: ContextType.CONVERSATION },
+        },
+        {
+          id: 'id2',
+          score: 0.8,
+          metadata: { contextType: ContextType.DOCUMENT },
+        },
       ];
 
       mockPineconeService.queryVectors = jest.fn().mockResolvedValue({
-        matches: mockMatches
+        matches: mockMatches,
       });
 
       // Execute
@@ -344,7 +382,7 @@ describe('BaseContextService', () => {
           includeValues: false,
           includeMetadata: true,
         }),
-        userId
+        userId,
       );
     });
 
@@ -355,14 +393,14 @@ describe('BaseContextService', () => {
       const filter = { contextType: ContextType.DOCUMENT };
 
       mockPineconeService.queryVectors = jest.fn().mockResolvedValue({
-        matches: []
+        matches: [],
       });
 
       // Execute
       await service.retrieveUserContext(userId, queryEmbedding, {
         filter,
         topK: 10,
-        includeEmbeddings: true
+        includeEmbeddings: true,
       });
 
       // Verify
@@ -375,7 +413,7 @@ describe('BaseContextService', () => {
           includeValues: true,
           includeMetadata: true,
         }),
-        userId
+        userId,
       );
     });
 
@@ -383,12 +421,12 @@ describe('BaseContextService', () => {
       // Setup
       const userId = 'test-user';
       const queryEmbedding = [0.1, 0.2, 0.3];
-      
+
       mockPineconeService.queryVectors = jest.fn().mockResolvedValue({});
-      
+
       // Execute
       const result = await service.retrieveUserContext(userId, queryEmbedding);
-      
+
       // Verify
       expect(result).toEqual([]);
     });
@@ -402,8 +440,14 @@ describe('BaseContextService', () => {
       const vec3 = [1, 1, 0];
 
       // Use type assertion to access protected method
-      const similarity1to2 = (service as any).calculateCosineSimilarity(vec1, vec2);
-      const similarity1to3 = (service as any).calculateCosineSimilarity(vec1, vec3);
+      const similarity1to2 = (service as any).calculateCosineSimilarity(
+        vec1,
+        vec2,
+      );
+      const similarity1to3 = (service as any).calculateCosineSimilarity(
+        vec1,
+        vec3,
+      );
 
       expect(similarity1to2).toBeCloseTo(0); // Orthogonal vectors
       expect(similarity1to3).toBeCloseTo(0.7071, 4); // 45 degree angle, cos(45) ≈ 0.7071
@@ -422,7 +466,7 @@ describe('BaseContextService', () => {
       const metadata = {
         userId: 'test-user',
         contextType: ContextType.DOCUMENT,
-        complexObject: { key: 'value', nested: { key2: 'value2' } }
+        complexObject: { key: 'value', nested: { key2: 'value2' } },
       };
 
       const result = (service as any).prepareMetadataForStorage(metadata);
@@ -430,16 +474,18 @@ describe('BaseContextService', () => {
       expect(result.userId).toBe('test-user');
       expect(result.contextType).toBe(ContextType.DOCUMENT);
       expect(typeof result.complexObject).toBe('string');
-      expect(JSON.parse(result.complexObject as string)).toEqual(metadata.complexObject);
+      expect(JSON.parse(result.complexObject as string)).toEqual(
+        metadata.complexObject,
+      );
     });
 
     it('should generate unique context IDs with prefix', () => {
       const userId = 'test-user';
       const prefix = 'test-';
-      
+
       const id1 = (service as any).generateContextId(userId, prefix);
       const id2 = (service as any).generateContextId(userId, prefix);
-      
+
       expect(id1).toContain(prefix);
       expect(id1).toContain(userId);
       expect(id1).not.toEqual(id2); // Should be unique
@@ -461,11 +507,11 @@ describe('BaseContextService', () => {
         { id: '1', value: 'a' },
         { id: '2', value: 'b' },
         { id: '1', value: 'c' }, // Duplicate id
-        { id: '3', value: 'd' }
+        { id: '3', value: 'd' },
       ];
-      
+
       const result = (service as any).removeDuplicatesByProperty(input, 'id');
-      
+
       expect(result).toHaveLength(3);
       expect(result.map((item: any) => item.id)).toEqual(['1', '2', '3']);
       expect(result[0].value).toBe('a'); // Keep first occurrence
@@ -476,16 +522,17 @@ describe('BaseContextService', () => {
     it('should delete all context for a user', async () => {
       // Setup
       const userId = 'test-user';
-      mockPineconeService.deleteAllVectorsInNamespace = jest.fn().mockResolvedValue(undefined);
+      mockPineconeService.deleteAllVectorsInNamespace = jest
+        .fn()
+        .mockResolvedValue(undefined);
 
       // Execute
       await service.clearUserContext(userId);
 
       // Verify
-      expect(mockPineconeService.deleteAllVectorsInNamespace).toHaveBeenCalledWith(
-        expect.any(String),
-        userId
-      );
+      expect(
+        mockPineconeService.deleteAllVectorsInNamespace,
+      ).toHaveBeenCalledWith(expect.any(String), userId);
     });
   });
 
@@ -495,13 +542,15 @@ describe('BaseContextService', () => {
       const userId = 'test-user';
       const mockExpiredMatches = [
         { id: 'id1', metadata: { expiresAt: Date.now() - 1000 } },
-        { id: 'id2', metadata: { expiresAt: Date.now() - 2000 } }
+        { id: 'id2', metadata: { expiresAt: Date.now() - 2000 } },
       ];
 
       mockPineconeService.queryVectors = jest.fn().mockResolvedValue({
-        matches: mockExpiredMatches
+        matches: mockExpiredMatches,
       });
-      mockPineconeService.deleteVectors = jest.fn().mockResolvedValue(undefined);
+      mockPineconeService.deleteVectors = jest
+        .fn()
+        .mockResolvedValue(undefined);
 
       // Execute
       const result = await service.deleteExpiredContext(userId);
@@ -511,7 +560,7 @@ describe('BaseContextService', () => {
       expect(mockPineconeService.deleteVectors).toHaveBeenCalledWith(
         expect.any(String),
         ['id1', 'id2'],
-        userId
+        userId,
       );
     });
 
@@ -519,7 +568,7 @@ describe('BaseContextService', () => {
       // Setup
       const userId = 'test-user';
       mockPineconeService.queryVectors = jest.fn().mockResolvedValue({
-        matches: []
+        matches: [],
       });
 
       // Execute
@@ -537,66 +586,66 @@ describe('BaseContextService', () => {
       const userId = 'test-user';
       const now = Date.now();
       const oneHourAgo = now - 3600000;
-      
+
       // Mock index stats
       mockPineconeService.describeIndexStats = jest.fn().mockResolvedValue({
         dimensions: 3072,
-        count: 100
+        count: 100,
       });
-      
+
       // Mock query results
       mockPineconeService.queryVectors = jest.fn().mockResolvedValue({
         matches: [
-          { 
-            id: 'id1', 
-            metadata: { 
+          {
+            id: 'id1',
+            metadata: {
               category: 'meeting',
               contextType: ContextType.CONVERSATION,
               documentId: 'doc1',
               conversationId: 'conv1',
-              timestamp: now
-            } 
+              timestamp: now,
+            },
           },
-          { 
-            id: 'id2', 
-            metadata: { 
+          {
+            id: 'id2',
+            metadata: {
               category: 'personal',
               contextType: ContextType.DOCUMENT,
               documentId: 'doc1',
-              timestamp: oneHourAgo
-            } 
+              timestamp: oneHourAgo,
+            },
           },
-          { 
-            id: 'id3', 
-            metadata: { 
+          {
+            id: 'id3',
+            metadata: {
               category: 'meeting',
               contextType: ContextType.CONVERSATION,
               conversationId: 'conv2',
-              timestamp: now - 1000
-            } 
-          }
-        ]
+              timestamp: now - 1000,
+            },
+          },
+        ],
       });
-      
+
       // Execute
       const stats = await service.getUserContextStats(userId);
-      
+
       // Verify
       expect(stats.totalContextEntries).toBe(3);
       expect(stats.categoryCounts).toEqual({
         meeting: 2,
-        personal: 1
+        personal: 1,
       });
       expect(stats.contextTypeCounts).toEqual({
         [ContextType.CONVERSATION]: 2,
-        [ContextType.DOCUMENT]: 1
+        [ContextType.DOCUMENT]: 1,
       });
       expect(stats.documentCounts).toEqual({
-        doc1: 2
+        doc1: 2,
       });
       expect(stats.conversationCounts).toEqual({
         conv1: 1,
-        conv2: 1
+        conv2: 1,
       });
       expect(stats.oldestEntry).toBe(oneHourAgo);
       expect(stats.newestEntry).toBe(now);
@@ -605,15 +654,15 @@ describe('BaseContextService', () => {
     it('should handle empty results correctly', async () => {
       // Setup
       const userId = 'test-user';
-      
+
       mockPineconeService.describeIndexStats = jest.fn().mockResolvedValue({});
       mockPineconeService.queryVectors = jest.fn().mockResolvedValue({
-        matches: []
+        matches: [],
       });
-      
+
       // Execute
       const stats = await service.getUserContextStats(userId);
-      
+
       // Verify
       expect(stats.totalContextEntries).toBe(0);
       expect(stats.categoryCounts).toEqual({});
@@ -637,25 +686,29 @@ describe('BaseContextService', () => {
             values: [0.1, 0.2, 0.3],
             metadata: {
               viewCount: 5,
-              lastAccessedAt: Date.now() - 10000
-            }
-          }
-        }
+              lastAccessedAt: Date.now() - 10000,
+            },
+          },
+        },
       };
-      
-      mockPineconeService.fetchVectors = jest.fn().mockResolvedValue(existingRecord);
-      mockPineconeService.upsertVectors = jest.fn().mockResolvedValue(undefined);
-      
+
+      mockPineconeService.fetchVectors = jest
+        .fn()
+        .mockResolvedValue(existingRecord);
+      mockPineconeService.upsertVectors = jest
+        .fn()
+        .mockResolvedValue(undefined);
+
       // Execute
       await service.recordContextAccess(userId, contextId);
-      
+
       // Verify
       expect(mockPineconeService.fetchVectors).toHaveBeenCalledWith(
         expect.any(String),
         [contextId],
-        userId
+        userId,
       );
-      
+
       expect(mockPineconeService.upsertVectors).toHaveBeenCalledWith(
         expect.any(String),
         expect.arrayContaining([
@@ -667,26 +720,30 @@ describe('BaseContextService', () => {
             }),
           }),
         ]),
-        userId
+        userId,
       );
-      
-      expect(mockLogger.hasMessage('Recorded context access', 'debug')).toBe(true);
+
+      expect(mockLogger.hasMessage('Recorded context access', 'debug')).toBe(
+        true,
+      );
     });
 
     it('should handle not found context items', async () => {
       // Setup
       const userId = 'test-user';
       const contextId = 'nonexistent-id';
-      
+
       mockPineconeService.fetchVectors = jest.fn().mockResolvedValue({
-        records: {}
+        records: {},
       });
-      
+
       // Execute
       await service.recordContextAccess(userId, contextId);
-      
+
       // Verify the error was logged via our mockLogger
-      expect(mockLogger.hasMessage('Failed to record context access', 'error')).toBe(true);
+      expect(
+        mockLogger.hasMessage('Failed to record context access', 'error'),
+      ).toBe(true);
     });
 
     it('should log errors but not throw for non-critical operations', async () => {
@@ -694,14 +751,16 @@ describe('BaseContextService', () => {
       const userId = 'test-user';
       const contextId = 'test-context-id';
       const error = new Error('Network error');
-      
+
       mockPineconeService.fetchVectors = jest.fn().mockRejectedValue(error);
-      
+
       // Execute
       await service.recordContextAccess(userId, contextId);
-      
+
       // Verify error was logged but not thrown
-      expect(mockLogger.hasMessage('Failed to record context access', 'error')).toBe(true);
+      expect(
+        mockLogger.hasMessage('Failed to record context access', 'error'),
+      ).toBe(true);
     });
   });
 
@@ -717,25 +776,33 @@ describe('BaseContextService', () => {
             id: contextId,
             values: [0.1, 0.2, 0.3],
             metadata: {
-              relevanceFeedback: 0.5
-            }
-          }
-        }
+              relevanceFeedback: 0.5,
+            },
+          },
+        },
       };
-      
-      mockPineconeService.fetchVectors = jest.fn().mockResolvedValue(existingRecord);
-      mockPineconeService.upsertVectors = jest.fn().mockResolvedValue(undefined);
-      
+
+      mockPineconeService.fetchVectors = jest
+        .fn()
+        .mockResolvedValue(existingRecord);
+      mockPineconeService.upsertVectors = jest
+        .fn()
+        .mockResolvedValue(undefined);
+
       // Execute
-      await service.provideRelevanceFeedback(userId, contextId, relevanceFeedback);
-      
+      await service.provideRelevanceFeedback(
+        userId,
+        contextId,
+        relevanceFeedback,
+      );
+
       // Verify
       expect(mockPineconeService.fetchVectors).toHaveBeenCalledWith(
         expect.any(String),
         [contextId],
-        userId
+        userId,
       );
-      
+
       expect(mockPineconeService.upsertVectors).toHaveBeenCalledWith(
         expect.any(String),
         expect.arrayContaining([
@@ -747,10 +814,12 @@ describe('BaseContextService', () => {
             }),
           }),
         ]),
-        userId
+        userId,
       );
-      
-      expect(mockLogger.hasMessage('Recorded relevance feedback', 'debug')).toBe(true);
+
+      expect(
+        mockLogger.hasMessage('Recorded relevance feedback', 'debug'),
+      ).toBe(true);
     });
 
     it('should throw validation error if feedback value is out of range', async () => {
@@ -758,15 +827,15 @@ describe('BaseContextService', () => {
       const userId = 'test-user';
       const contextId = 'test-context-id';
       const invalidFeedback = 2.0; // Greater than 1
-      
+
       // Execute & Verify
       await expect(
-        service.provideRelevanceFeedback(userId, contextId, invalidFeedback)
+        service.provideRelevanceFeedback(userId, contextId, invalidFeedback),
       ).rejects.toThrow(UserContextValidationError);
-      
+
       // Also test for negative values
       await expect(
-        service.provideRelevanceFeedback(userId, contextId, -0.5)
+        service.provideRelevanceFeedback(userId, contextId, -0.5),
       ).rejects.toThrow(UserContextValidationError);
     });
 
@@ -775,19 +844,19 @@ describe('BaseContextService', () => {
       const userId = 'test-user';
       const contextId = 'nonexistent-id';
       const relevanceFeedback = 0.5;
-      
+
       mockPineconeService.fetchVectors = jest.fn().mockResolvedValue({
-        records: {}
+        records: {},
       });
-      
+
       // Execute & Verify
       await expect(
-        service.provideRelevanceFeedback(userId, contextId, relevanceFeedback)
+        service.provideRelevanceFeedback(userId, contextId, relevanceFeedback),
       ).rejects.toThrow(UserContextError);
-      
+
       // Also verify the error message contains the expected text
       await expect(
-        service.provideRelevanceFeedback(userId, contextId, relevanceFeedback)
+        service.provideRelevanceFeedback(userId, contextId, relevanceFeedback),
       ).rejects.toThrow(/not found/i);
     });
 
@@ -797,15 +866,17 @@ describe('BaseContextService', () => {
       const contextId = 'test-context-id';
       const relevanceFeedback = 0.5;
       const error = new Error('Database error');
-      
+
       mockPineconeService.fetchVectors = jest.fn().mockRejectedValue(error);
-      
+
       // Execute & Verify
       await expect(
-        service.provideRelevanceFeedback(userId, contextId, relevanceFeedback)
+        service.provideRelevanceFeedback(userId, contextId, relevanceFeedback),
       ).rejects.toThrow(UserContextError);
-      
-      expect(mockLogger.hasMessage('Failed to record relevance feedback', 'error')).toBe(true);
+
+      expect(
+        mockLogger.hasMessage('Failed to record relevance feedback', 'error'),
+      ).toBe(true);
     });
   });
-}); 
+});

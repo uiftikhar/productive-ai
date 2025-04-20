@@ -1,9 +1,9 @@
-import { 
-  BaseError, 
-  NotFoundError, 
-  ValidationError, 
-  ConfigurationError, 
-  ServiceError 
+import {
+  BaseError,
+  NotFoundError,
+  ValidationError,
+  ConfigurationError,
+  ServiceError,
 } from '../base-error';
 
 describe('BaseError', () => {
@@ -85,4 +85,4 @@ describe('ServiceError', () => {
     const error = new ServiceError('Test error');
     expect(error.statusCode).toBe(500);
   });
-}); 
+});

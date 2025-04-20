@@ -1,37 +1,45 @@
-import { KnowledgeGapService } from '../knowledge-gap.service';
-import { BaseContextService } from '../base-context.service';
-import { ContextType, KnowledgeGapType } from '../../types/context.types';
-import { ConsoleLogger } from '../../../../shared/logger/console-logger';
-import { IEmbeddingService } from '../../../services/embedding.interface';
+import { BaseContextService } from '../user-context/base-context.service';
+import {
+  ContextType,
+  KnowledgeGapType,
+} from '../user-context/types/context.types';
+import { ConsoleLogger } from '../../logger/console-logger';
+import { IEmbeddingService } from '../embedding.interface';
+import { KnowledgeGapService } from '../user-context/knowledge-gap.service';
 
 // Mock dependencies
-jest.mock('../base-context.service');
-jest.mock('../../../services/embedding.interface');
-jest.mock('../../../../shared/logger/console-logger');
+jest.mock('../user-context/base-context.service');
+jest.mock('../embedding.interface');
+jest.mock('../../logger/console-logger');
 
 describe('KnowledgeGapService', () => {
   let service: KnowledgeGapService;
   let mockPineconeService: any;
   let mockEmbeddingService: jest.Mocked<IEmbeddingService>;
   let mockRetryCounter = 0;
-  
+
   beforeEach(() => {
     mockRetryCounter = 0;
-    
+
     // Mock the parent class behavior
-    (BaseContextService.prototype as any).executeWithRetry = jest.fn().mockImplementation((fn, opName) => {
-      mockRetryCounter++;
-      return fn();
-    });
-    
-    (BaseContextService.prototype as any).generateContextId = jest.fn().mockImplementation(
-      (userId, prefix) => `${prefix}test-id-${Math.floor(Math.random() * 1000)}`
-    );
-    
-    (BaseContextService.prototype as any).prepareMetadataForStorage = jest.fn().mockImplementation(
-      metadata => metadata
-    );
-    
+    (BaseContextService.prototype as any).executeWithRetry = jest
+      .fn()
+      .mockImplementation((fn, opName) => {
+        mockRetryCounter++;
+        return fn();
+      });
+
+    (BaseContextService.prototype as any).generateContextId = jest
+      .fn()
+      .mockImplementation(
+        (userId, prefix) =>
+          `${prefix}test-id-${Math.floor(Math.random() * 1000)}`,
+      );
+
+    (BaseContextService.prototype as any).prepareMetadataForStorage = jest
+      .fn()
+      .mockImplementation((metadata) => metadata);
+
     // Create embedding service mock
     mockEmbeddingService = {
       generateEmbedding: jest.fn().mockResolvedValue([0.1, 0.2, 0.3]),
@@ -43,35 +51,41 @@ describe('KnowledgeGapService', () => {
       embedBatch: jest.fn(),
       getModelName: jest.fn(),
       getDimensions: jest.fn(),
-      getCost: jest.fn()
+      getCost: jest.fn(),
     };
-    
+
     // Create service instance with mocked dependencies
     service = new KnowledgeGapService({
       logger: new ConsoleLogger(),
-      embeddingService: mockEmbeddingService
+      embeddingService: mockEmbeddingService,
     });
-    
+
     // Mock calculateCosineSimilarity from the BaseContextService
-    (service as any).calculateCosineSimilarity = jest.fn().mockImplementation((vec1, vec2) => 0.75);
-    
+    (service as any).calculateCosineSimilarity = jest
+      .fn()
+      .mockImplementation((vec1, vec2) => 0.75);
+
     // Mock ensureNumberArray
-    (service as any).ensureNumberArray = jest.fn().mockImplementation(arr => Array.isArray(arr) ? arr : [0.1, 0.2, 0.3]);
-    
+    (service as any).ensureNumberArray = jest
+      .fn()
+      .mockImplementation((arr) =>
+        Array.isArray(arr) ? arr : [0.1, 0.2, 0.3],
+      );
+
     // Set up pinecone service mock
     mockPineconeService = {
       queryVectors: jest.fn(),
       upsertVectors: jest.fn().mockResolvedValue({ success: true }),
       deleteVectors: jest.fn().mockResolvedValue({ success: true }),
-      fetchVectors: jest.fn()
+      fetchVectors: jest.fn(),
     };
     (service as any).pineconeService = mockPineconeService;
   });
-  
+
   afterEach(() => {
     jest.clearAllMocks();
   });
-  
+
   describe('detectUnansweredQuestionGaps', () => {
     test('should detect unanswered questions as knowledge gaps', async () => {
       // Arrange
@@ -82,33 +96,33 @@ describe('KnowledgeGapService', () => {
           metadata: {
             timestamp: Date.now() - 10 * 24 * 60 * 60 * 1000, // 10 days old
             content: 'What is the status of Project X?',
-            participantIds: ['user-1', 'user-2', 'user-3', 'user-4']
-          }
+            participantIds: ['user-1', 'user-2', 'user-3', 'user-4'],
+          },
         },
         {
           id: 'question-2',
           metadata: {
             timestamp: Date.now() - 15 * 24 * 60 * 60 * 1000, // 15 days old
             content: 'When will feature Y be released?',
-            topicIds: ['topic-1', 'topic-2']
-          }
-        }
+            topicIds: ['topic-1', 'topic-2'],
+          },
+        },
       ];
-      
+
       mockPineconeService.queryVectors.mockResolvedValue({
-        matches: mockMatches
+        matches: mockMatches,
       });
-      
+
       // Act
       const result = await service.detectUnansweredQuestionGaps(userId);
-      
+
       // Assert
       expect(result.length).toBe(2);
       expect(result[0].gapType).toBe(KnowledgeGapType.UNANSWERED_QUESTION);
       expect(result[0].relatedContextIds).toContain('question-1');
       expect(result[0].title).toContain('What is the status of Project X?');
       expect(result[0].confidence).toBeGreaterThan(0.7); // Base confidence + age boost
-      
+
       // Check that query was made with correct filter
       expect(mockPineconeService.queryVectors).toHaveBeenCalledWith(
         'user-context',
@@ -118,27 +132,27 @@ describe('KnowledgeGapService', () => {
             contextType: ContextType.QUESTION,
             isQuestion: true,
             isAnswered: false,
-            timestamp: { $lt: expect.any(Number) }
-          }
+            timestamp: { $lt: expect.any(Number) },
+          },
         }),
-        userId
+        userId,
       );
     });
-    
+
     test('should return empty array when no unanswered questions found', async () => {
       // Arrange
       const userId = 'user-123';
       mockPineconeService.queryVectors.mockResolvedValue({
-        matches: []
+        matches: [],
       });
-      
+
       // Act
       const result = await service.detectUnansweredQuestionGaps(userId);
-      
+
       // Assert
       expect(result).toEqual([]);
     });
-    
+
     test('should respect minConfidence option', async () => {
       // Arrange
       const userId = 'user-123';
@@ -148,56 +162,60 @@ describe('KnowledgeGapService', () => {
           id: 'question-1',
           metadata: {
             timestamp: Date.now() - 7 * 24 * 60 * 60 * 1000, // 7 days old (minimum age)
-            content: 'Low confidence question?'
-          }
-        }
+            content: 'Low confidence question?',
+          },
+        },
       ];
-      
+
       mockPineconeService.queryVectors.mockResolvedValue({
-        matches: mockMatches
+        matches: mockMatches,
       });
-      
+
       // Force low confidence by mocking age
-      (service as any).calculateCosineSimilarity = jest.fn().mockReturnValue(0.5);
-      
+      (service as any).calculateCosineSimilarity = jest
+        .fn()
+        .mockReturnValue(0.5);
+
       // Act
-      const result = await service.detectUnansweredQuestionGaps(userId, { minConfidence: 0.8 });
-      
+      const result = await service.detectUnansweredQuestionGaps(userId, {
+        minConfidence: 0.8,
+      });
+
       // Assert
       expect(result).toEqual([]);
     });
   });
-  
+
   describe('detectTeamMisalignments', () => {
     test('should detect misalignment between teams', async () => {
       // Arrange
       const userId = 'user-123';
       const teamIds = ['team-1', 'team-2'];
-      
+
       // Mock topics for team 1
       const team1Topics = [
         {
           id: 'topic-1-team-1',
           metadata: {
             topicId: 'topic-1',
-            topicName: 'Feature X'
+            topicName: 'Feature X',
           },
-          values: [0.1, 0.2, 0.3]
-        }
+          values: [0.1, 0.2, 0.3],
+        },
       ];
-      
+
       // Mock topics for team 2 with different understanding
       const team2Topics = [
         {
           id: 'topic-1-team-2',
           metadata: {
             topicId: 'topic-1',
-            topicName: 'Feature X'
+            topicName: 'Feature X',
           },
-          values: [0.5, 0.6, 0.7] // Different embedding = different understanding
-        }
+          values: [0.5, 0.6, 0.7], // Different embedding = different understanding
+        },
       ];
-      
+
       // Return different topics for each team query
       mockPineconeService.queryVectors.mockImplementation(
         (index: string, vector: number[], options: any, uid: string) => {
@@ -206,15 +224,17 @@ describe('KnowledgeGapService', () => {
           } else {
             return Promise.resolve({ matches: team2Topics });
           }
-        }
+        },
       );
-      
+
       // Set up to detect low similarity (more misalignment)
-      (service as any).calculateCosineSimilarity = jest.fn().mockReturnValue(0.4);
-      
+      (service as any).calculateCosineSimilarity = jest
+        .fn()
+        .mockReturnValue(0.4);
+
       // Act
       const result = await service.detectTeamMisalignments(userId, teamIds);
-      
+
       // Assert
       expect(result.length).toBe(1);
       expect(result[0].gapType).toBe(KnowledgeGapType.MISALIGNMENT);
@@ -222,49 +242,54 @@ describe('KnowledgeGapService', () => {
       expect(result[0].teamIds).toEqual(['team-1', 'team-2']);
       expect(result[0].confidence).toBeCloseTo(0.6); // 1 - 0.4 similarity
     });
-    
+
     test('should throw error if less than two team IDs provided', async () => {
       // Arrange
       const userId = 'user-123';
       const teamIds = ['team-1']; // Only one team
-      
+
       // Act & Assert
-      await expect(service.detectTeamMisalignments(userId, teamIds))
-        .rejects.toThrow('At least two team IDs are needed');
+      await expect(
+        service.detectTeamMisalignments(userId, teamIds),
+      ).rejects.toThrow('At least two team IDs are needed');
     });
-    
+
     test('should return empty array when no misalignments detected', async () => {
       // Arrange
       const userId = 'user-123';
       const teamIds = ['team-1', 'team-2'];
-      
+
       // Mock similar understanding (high similarity)
-      (service as any).calculateCosineSimilarity = jest.fn().mockReturnValue(0.9);
-      
+      (service as any).calculateCosineSimilarity = jest
+        .fn()
+        .mockReturnValue(0.9);
+
       // Same topics for both teams
       const teamTopics = [
         {
           id: 'topic-1',
           metadata: {
             topicId: 'topic-1',
-            topicName: 'Feature X'
+            topicName: 'Feature X',
           },
-          values: [0.1, 0.2, 0.3]
-        }
+          values: [0.1, 0.2, 0.3],
+        },
       ];
-      
+
       mockPineconeService.queryVectors.mockResolvedValue({
-        matches: teamTopics
+        matches: teamTopics,
       });
-      
+
       // Act
-      const result = await service.detectTeamMisalignments(userId, teamIds, { threshold: 0.7 });
-      
+      const result = await service.detectTeamMisalignments(userId, teamIds, {
+        threshold: 0.7,
+      });
+
       // Assert
       expect(result).toEqual([]);
     });
   });
-  
+
   describe('detectMissingInformation', () => {
     test('should detect topics with incomplete information', async () => {
       // Arrange
@@ -275,8 +300,8 @@ describe('KnowledgeGapService', () => {
           metadata: {
             contextType: ContextType.TOPIC,
             topicName: 'Incomplete Topic',
-            completeness: 0.3 // Very incomplete
-          }
+            completeness: 0.3, // Very incomplete
+          },
         },
         {
           id: 'question-1',
@@ -286,42 +311,44 @@ describe('KnowledgeGapService', () => {
             isAnswered: true,
             isPartialAnswer: true,
             content: 'Question with partial answer',
-            partialAnswer: 'Partial information...'
-          }
-        }
+            partialAnswer: 'Partial information...',
+          },
+        },
       ];
-      
+
       mockPineconeService.queryVectors.mockResolvedValue({
-        matches: mockMatches
+        matches: mockMatches,
       });
-      
+
       // Act
       const result = await service.detectMissingInformation(userId);
-      
+
       // Assert
       expect(result.length).toBe(2);
       expect(result[0].gapType).toBe(KnowledgeGapType.MISSING_INFORMATION);
       expect(result[0].title).toContain('Incomplete Topic');
       expect(result[0].confidence).toBeCloseTo(0.7); // 1 - 0.3 completeness
-      
+
       expect(result[1].title).toContain('Incomplete Answer');
-      expect(result[1].description).toContain('Question: Question with partial answer');
+      expect(result[1].description).toContain(
+        'Question: Question with partial answer',
+      );
     });
-    
+
     test('should return empty array when no missing information found', async () => {
       // Arrange
       const userId = 'user-123';
       mockPineconeService.queryVectors.mockResolvedValue({
-        matches: []
+        matches: [],
       });
-      
+
       // Act
       const result = await service.detectMissingInformation(userId);
-      
+
       // Assert
       expect(result).toEqual([]);
     });
-    
+
     test('should filter results by minConfidence', async () => {
       // Arrange
       const userId = 'user-123';
@@ -331,23 +358,25 @@ describe('KnowledgeGapService', () => {
           metadata: {
             contextType: ContextType.TOPIC,
             topicName: 'Almost Complete Topic',
-            completeness: 0.65 // Confidence will be 0.35
-          }
-        }
+            completeness: 0.65, // Confidence will be 0.35
+          },
+        },
       ];
-      
+
       mockPineconeService.queryVectors.mockResolvedValue({
-        matches: mockMatches
+        matches: mockMatches,
       });
-      
+
       // Act
-      const result = await service.detectMissingInformation(userId, { minConfidence: 0.5 });
-      
+      const result = await service.detectMissingInformation(userId, {
+        minConfidence: 0.5,
+      });
+
       // Assert
       expect(result).toEqual([]);
     });
   });
-  
+
   describe('storeKnowledgeGap', () => {
     test('should store a knowledge gap with embeddings', async () => {
       // Arrange
@@ -364,23 +393,23 @@ describe('KnowledgeGapService', () => {
         suggestedActions: ['Action 1', 'Action 2'],
         status: 'open' as const,
         priority: 'high' as const,
-        topicIds: ['topic-1']
+        topicIds: ['topic-1'],
       };
-      
+
       // Mock embedding generation
       mockEmbeddingService.generateEmbedding.mockResolvedValue([0.1, 0.2, 0.3]);
-      
+
       // Act
       const result = await service.storeKnowledgeGap(userId, gap);
-      
+
       // Assert
       expect(result).toBe('kg-test-123');
-      
+
       // Check embedding was generated from title and description
       expect(mockEmbeddingService.generateEmbedding).toHaveBeenCalledWith(
-        `${gap.title}\n${gap.description}`
+        `${gap.title}\n${gap.description}`,
       );
-      
+
       // Check vector was stored
       expect(mockPineconeService.upsertVectors).toHaveBeenCalledWith(
         'user-context',
@@ -393,14 +422,14 @@ describe('KnowledgeGapService', () => {
               contextType: ContextType.KNOWLEDGE_GAP,
               gapType: KnowledgeGapType.UNANSWERED_QUESTION,
               title: gap.title,
-              confidence: 0.85
-            })
-          }
+              confidence: 0.85,
+            }),
+          },
         ],
-        userId
+        userId,
       );
     });
-    
+
     test('should generate an ID if not provided', async () => {
       // Arrange
       const userId = 'user-123';
@@ -413,20 +442,24 @@ describe('KnowledgeGapService', () => {
         description: 'Testing gap without ID',
         relatedContextIds: [],
         status: 'open' as const,
-        priority: 'medium' as const
+        priority: 'medium' as const,
       };
-      
+
       // Mock ID generation
-      (BaseContextService.prototype as any).generateContextId.mockReturnValue('kg-generated-id');
-      
+      (BaseContextService.prototype as any).generateContextId.mockReturnValue(
+        'kg-generated-id',
+      );
+
       // Act
       const result = await service.storeKnowledgeGap(userId, gap);
-      
+
       // Assert
       expect(result).toBe('kg-generated-id');
-      expect((BaseContextService.prototype as any).generateContextId).toHaveBeenCalledWith(userId, 'kg-');
+      expect(
+        (BaseContextService.prototype as any).generateContextId,
+      ).toHaveBeenCalledWith(userId, 'kg-');
     });
-    
+
     test('should throw error if embedding generation fails', async () => {
       // Arrange
       const userId = 'user-123';
@@ -440,29 +473,33 @@ describe('KnowledgeGapService', () => {
         description: 'Test description',
         relatedContextIds: [],
         status: 'open' as const,
-        priority: 'medium' as const
+        priority: 'medium' as const,
       };
-      
+
       // Create a spy that will throw when storeKnowledgeGap is called
       const errorSpy = jest.spyOn(service as any, 'executeWithRetry');
       errorSpy.mockImplementation((...args: any[]) => {
         const [fn, opName] = args;
-        if (typeof opName === 'string' && opName.includes('createGapEmbedding')) {
-          return null;  // This will trigger the error in storeKnowledgeGap
+        if (
+          typeof opName === 'string' &&
+          opName.includes('createGapEmbedding')
+        ) {
+          return null; // This will trigger the error in storeKnowledgeGap
         }
         // For all other calls, execute the function normally
         return typeof fn === 'function' ? fn() : undefined;
       });
-      
+
       // Act & Assert
-      await expect(service.storeKnowledgeGap(userId, gap))
-        .rejects.toThrow('Failed to create embedding for knowledge gap');
-        
+      await expect(service.storeKnowledgeGap(userId, gap)).rejects.toThrow(
+        'Failed to create embedding for knowledge gap',
+      );
+
       // Reset the spy to avoid affecting other tests
       errorSpy.mockRestore();
     });
   });
-  
+
   describe('updateKnowledgeGapStatus', () => {
     test('should update status and notes of a knowledge gap', async () => {
       // Arrange
@@ -470,7 +507,7 @@ describe('KnowledgeGapService', () => {
       const gapId = 'kg-test-123';
       const newStatus = 'closed' as const;
       const notes = 'This gap has been resolved';
-      
+
       // Mock fetching the gap
       mockPineconeService.fetchVectors.mockResolvedValue({
         records: {
@@ -478,18 +515,23 @@ describe('KnowledgeGapService', () => {
             values: [0.1, 0.2, 0.3],
             metadata: {
               title: 'Original Gap',
-              gapStatus: 'open'
-            }
-          }
-        }
+              gapStatus: 'open',
+            },
+          },
+        },
       });
-      
+
       // Act
-      const result = await service.updateKnowledgeGapStatus(userId, gapId, newStatus, notes);
-      
+      const result = await service.updateKnowledgeGapStatus(
+        userId,
+        gapId,
+        newStatus,
+        notes,
+      );
+
       // Assert
       expect(result).toBe(true);
-      
+
       // Check vector was updated with new status and notes
       expect(mockPineconeService.upsertVectors).toHaveBeenCalledWith(
         'user-context',
@@ -501,30 +543,31 @@ describe('KnowledgeGapService', () => {
               title: 'Original Gap',
               gapStatus: 'closed',
               resolutionNotes: notes,
-              lastUpdatedAt: expect.any(Number)
-            })
-          }
+              lastUpdatedAt: expect.any(Number),
+            }),
+          },
         ],
-        userId
+        userId,
       );
     });
-    
+
     test('should throw error if gap not found', async () => {
       // Arrange
       const userId = 'user-123';
       const gapId = 'kg-nonexistent';
-      
+
       // Mock empty result (gap not found)
       mockPineconeService.fetchVectors.mockResolvedValue({
-        records: {}
+        records: {},
       });
-      
+
       // Act & Assert
-      await expect(service.updateKnowledgeGapStatus(userId, gapId, 'addressed'))
-        .rejects.toThrow(`Knowledge gap ${gapId} not found`);
+      await expect(
+        service.updateKnowledgeGapStatus(userId, gapId, 'addressed'),
+      ).rejects.toThrow(`Knowledge gap ${gapId} not found`);
     });
   });
-  
+
   describe('getKnowledgeGaps', () => {
     test('should retrieve knowledge gaps with filtering', async () => {
       // Arrange
@@ -543,8 +586,8 @@ describe('KnowledgeGapService', () => {
             suggestedActions: ['Action 1'],
             topicIds: ['topic-1'],
             teamIds: ['team-1'],
-            confidence: 0.8
-          }
+            confidence: 0.8,
+          },
         },
         {
           id: 'kg-2',
@@ -558,24 +601,24 @@ describe('KnowledgeGapService', () => {
             relatedContextIds: ['ctx-2'],
             assignedTo: 'user-456',
             resolutionNotes: 'Resolved',
-            confidence: 0.7
-          }
-        }
+            confidence: 0.7,
+          },
+        },
       ];
-      
+
       mockPineconeService.queryVectors.mockResolvedValue({
-        matches: mockMatches
+        matches: mockMatches,
       });
-      
+
       // Act
       const result = await service.getKnowledgeGaps(userId, {
         status: 'open',
-        priority: 'high'
+        priority: 'high',
       });
-      
+
       // Assert
       expect(result.length).toBe(2);
-      
+
       // Check the gaps are properly converted to KnowledgeGap objects
       expect(result[0]).toEqual({
         id: 'kg-1',
@@ -593,9 +636,9 @@ describe('KnowledgeGapService', () => {
         teamIds: ['team-1'],
         assignedTo: undefined,
         resolutionNotes: undefined,
-        meetingIds: []
+        meetingIds: [],
       });
-      
+
       // Check filter was correctly applied
       expect(mockPineconeService.queryVectors).toHaveBeenCalledWith(
         'user-context',
@@ -604,40 +647,40 @@ describe('KnowledgeGapService', () => {
           filter: {
             contextType: ContextType.KNOWLEDGE_GAP,
             gapStatus: 'open',
-            priority: 'high'
-          }
+            priority: 'high',
+          },
         }),
-        userId
+        userId,
       );
     });
-    
+
     test('should return empty array when no gaps found', async () => {
       // Arrange
       const userId = 'user-123';
       mockPineconeService.queryVectors.mockResolvedValue({
-        matches: []
+        matches: [],
       });
-      
+
       // Act
       const result = await service.getKnowledgeGaps(userId);
-      
+
       // Assert
       expect(result).toEqual([]);
     });
-    
+
     test('should handle filtering by topic and team IDs', async () => {
       // Arrange
       const userId = 'user-123';
       mockPineconeService.queryVectors.mockResolvedValue({
-        matches: []
+        matches: [],
       });
-      
+
       // Act
       await service.getKnowledgeGaps(userId, {
         topicId: 'topic-123',
-        teamId: 'team-456'
+        teamId: 'team-456',
       });
-      
+
       // Assert
       expect(mockPineconeService.queryVectors).toHaveBeenCalledWith(
         'user-context',
@@ -646,11 +689,11 @@ describe('KnowledgeGapService', () => {
           filter: {
             contextType: ContextType.KNOWLEDGE_GAP,
             topicIds: 'topic-123',
-            teamIds: 'team-456'
-          }
+            teamIds: 'team-456',
+          },
         }),
-        userId
+        userId,
       );
     });
   });
-}); 
+});

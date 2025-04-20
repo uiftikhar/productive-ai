@@ -24,13 +24,13 @@ import {
   InstructionTemplateNameEnum,
   InstructionTemplateName,
 } from '../../shared/prompts/instruction-templates';
-import { ContextType } from '../../shared/user-context/types/context.types';
+import { ContextType } from '../../shared/services/user-context/types/context.types';
 
 // Import embedding services and interfaces
 import { IEmbeddingService } from '../../shared/services/embedding.interface';
 import { EmbeddingServiceFactory } from '../../shared/services/embedding.factory';
 import { OpenAIConnector } from '../integrations/openai-connector';
-import { BaseContextService } from '../../shared/user-context/services/base-context.service';
+import { BaseContextService } from '../../shared/services/user-context/base-context.service';
 
 /**
  * Agent for analyzing meeting transcripts
@@ -55,28 +55,34 @@ export class MeetingAnalysisAgent extends BaseAgent {
       baseContextService?: BaseContextService;
       llm?: ChatOpenAI;
       id?: string;
-    } = {}
+    } = {},
   ) {
     super(name, description, {
       logger: options.logger,
       llm: options.llm,
-      id: options.id
+      id: options.id,
     });
 
     // Initialize required services
-    this.openAIConnector = options.openAIConnector || new OpenAIConnector({
-      logger: this.logger
-    });
-    
-    // Initialize embedding service if not provided
-    this.embeddingService = options.embeddingService || EmbeddingServiceFactory.getService({
-      connector: this.openAIConnector,
-      logger: this.logger,
-    });
+    this.openAIConnector =
+      options.openAIConnector ||
+      new OpenAIConnector({
+        logger: this.logger,
+      });
 
-    this.baseContextService = options.baseContextService || new BaseContextService({
-      logger: this.logger,
-    });
+    // Initialize embedding service if not provided
+    this.embeddingService =
+      options.embeddingService ||
+      EmbeddingServiceFactory.getService({
+        connector: this.openAIConnector,
+        logger: this.logger,
+      });
+
+    this.baseContextService =
+      options.baseContextService ||
+      new BaseContextService({
+        logger: this.logger,
+      });
 
     this.ragPromptManager = new RagPromptManager();
 
@@ -266,33 +272,36 @@ export class MeetingAnalysisAgent extends BaseAgent {
       switch (capability) {
         case 'analyze-transcript-chunk':
           return await this.analyzeMeeting(request);
-        
+
         case 'generate-final-analysis':
           return await this.generateMeetingSummary(request);
-        
+
         case 'extract-action-items':
           return await this.extractActionItems(request);
-        
+
         case 'generate-follow-up-questions':
           return await this.generateFollowUpQuestions(request);
-        
+
         case 'extract-topics':
         case 'extract-decisions':
           // Extract specific information based on capability
-          const infoType = capability === 'extract-topics' ? 'topics' : 'decisions';
+          const infoType =
+            capability === 'extract-topics' ? 'topics' : 'decisions';
           const result = await this.extractSpecificInformation(
-            typeof request.input === 'string' ? request.input : JSON.stringify(request.input),
+            typeof request.input === 'string'
+              ? request.input
+              : JSON.stringify(request.input),
             infoType as 'action-items' | 'topics' | 'decisions',
-            request.parameters
+            request.parameters,
           );
-          
+
           return {
             output: result,
             metrics: {
-              executionTimeMs: Date.now() - startTime
-            }
+              executionTimeMs: Date.now() - startTime,
+            },
           };
-        
+
         default:
           throw new Error(`Unsupported capability: ${capability}`);
       }
@@ -397,22 +406,30 @@ export class MeetingAnalysisAgent extends BaseAgent {
    */
   private async analyzeMeeting(request: AgentRequest): Promise<AgentResponse> {
     const startTime = Date.now();
-    const inputText = typeof request.input === 'string'
-      ? request.input
-      : Array.isArray(request.input)
+    const inputText =
+      typeof request.input === 'string'
         ? request.input
-            .map((m) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
-            .join('\n')
-        : '';
+        : Array.isArray(request.input)
+          ? request.input
+              .map((m) =>
+                typeof m.content === 'string'
+                  ? m.content
+                  : JSON.stringify(m.content),
+              )
+              .join('\n')
+          : '';
 
-    const { template, role } = this.getTemplateAndRoleForCapability('analyze-transcript-chunk');
-    
-    // Prepare RAG context options
-    const { ragOptions, embeddingGenerated } = await this.prepareRagContextOptions(
+    const { template, role } = this.getTemplateAndRoleForCapability(
       'analyze-transcript-chunk',
-      inputText,
-      request.parameters,
     );
+
+    // Prepare RAG context options
+    const { ragOptions, embeddingGenerated } =
+      await this.prepareRagContextOptions(
+        'analyze-transcript-chunk',
+        inputText,
+        request.parameters,
+      );
 
     const ragResult = await this.ragPromptManager.createRagPrompt(
       role,
@@ -428,18 +445,24 @@ export class MeetingAnalysisAgent extends BaseAgent {
       embeddingGenerated,
     });
 
-    const messages = this.convertRagMessagesToLangchainMessages(ragResult.messages);
+    const messages = this.convertRagMessagesToLangchainMessages(
+      ragResult.messages,
+    );
 
     // Call the language model
     const response = await this.llm.invoke(messages);
 
     const inputTokens = this.estimateTokenCount(
       messages
-        .map((m) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
+        .map((m) =>
+          typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+        )
         .join('\n'),
     );
     const outputTokens = this.estimateTokenCount(
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content),
+      typeof response.content === 'string'
+        ? response.content
+        : JSON.stringify(response.content),
     );
 
     // Store analysis results in context if needed
@@ -475,24 +498,34 @@ export class MeetingAnalysisAgent extends BaseAgent {
   /**
    * Generate a summary from meeting analysis
    */
-  private async generateMeetingSummary(request: AgentRequest): Promise<AgentResponse> {
+  private async generateMeetingSummary(
+    request: AgentRequest,
+  ): Promise<AgentResponse> {
     const startTime = Date.now();
-    const inputText = typeof request.input === 'string'
-      ? request.input
-      : Array.isArray(request.input)
+    const inputText =
+      typeof request.input === 'string'
         ? request.input
-            .map((m) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
-            .join('\n')
-        : '';
+        : Array.isArray(request.input)
+          ? request.input
+              .map((m) =>
+                typeof m.content === 'string'
+                  ? m.content
+                  : JSON.stringify(m.content),
+              )
+              .join('\n')
+          : '';
 
-    const { template, role } = this.getTemplateAndRoleForCapability('generate-final-analysis');
-    
-    // Prepare RAG context options
-    const { ragOptions, embeddingGenerated } = await this.prepareRagContextOptions(
+    const { template, role } = this.getTemplateAndRoleForCapability(
       'generate-final-analysis',
-      inputText,
-      request.parameters,
     );
+
+    // Prepare RAG context options
+    const { ragOptions, embeddingGenerated } =
+      await this.prepareRagContextOptions(
+        'generate-final-analysis',
+        inputText,
+        request.parameters,
+      );
 
     const ragResult = await this.ragPromptManager.createRagPrompt(
       role,
@@ -501,18 +534,24 @@ export class MeetingAnalysisAgent extends BaseAgent {
       ragOptions,
     );
 
-    const messages = this.convertRagMessagesToLangchainMessages(ragResult.messages);
+    const messages = this.convertRagMessagesToLangchainMessages(
+      ragResult.messages,
+    );
 
     // Call the language model
     const response = await this.llm.invoke(messages);
 
     const inputTokens = this.estimateTokenCount(
       messages
-        .map((m) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
+        .map((m) =>
+          typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+        )
         .join('\n'),
     );
     const outputTokens = this.estimateTokenCount(
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content),
+      typeof response.content === 'string'
+        ? response.content
+        : JSON.stringify(response.content),
     );
 
     // Store analysis results in context if needed
@@ -548,18 +587,27 @@ export class MeetingAnalysisAgent extends BaseAgent {
   /**
    * Extract action items from a meeting transcript
    */
-  private async extractActionItems(request: AgentRequest): Promise<AgentResponse> {
+  private async extractActionItems(
+    request: AgentRequest,
+  ): Promise<AgentResponse> {
     const startTime = Date.now();
-    const inputText = typeof request.input === 'string'
-      ? request.input
-      : Array.isArray(request.input)
+    const inputText =
+      typeof request.input === 'string'
         ? request.input
-            .map((m) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
-            .join('\n')
-        : '';
+        : Array.isArray(request.input)
+          ? request.input
+              .map((m) =>
+                typeof m.content === 'string'
+                  ? m.content
+                  : JSON.stringify(m.content),
+              )
+              .join('\n')
+          : '';
 
-    const { template, role } = this.getTemplateAndRoleForCapability('extract-action-items');
-    
+    const { template, role } = this.getTemplateAndRoleForCapability(
+      'extract-action-items',
+    );
+
     // Create custom instruction for action items
     const customInstruction = `
       Focus specifically on identifying action items from the transcript.
@@ -573,11 +621,12 @@ export class MeetingAnalysisAgent extends BaseAgent {
     `;
 
     // Prepare RAG context options
-    const { ragOptions, embeddingGenerated } = await this.prepareRagContextOptions(
-      'extract-action-items',
-      inputText,
-      request.parameters,
-    );
+    const { ragOptions, embeddingGenerated } =
+      await this.prepareRagContextOptions(
+        'extract-action-items',
+        inputText,
+        request.parameters,
+      );
 
     const ragResult = await this.ragPromptManager.createRagPrompt(
       role,
@@ -586,18 +635,24 @@ export class MeetingAnalysisAgent extends BaseAgent {
       ragOptions,
     );
 
-    const messages = this.convertRagMessagesToLangchainMessages(ragResult.messages);
+    const messages = this.convertRagMessagesToLangchainMessages(
+      ragResult.messages,
+    );
 
     // Call the language model
     const response = await this.llm.invoke(messages);
 
     const inputTokens = this.estimateTokenCount(
       messages
-        .map((m) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
+        .map((m) =>
+          typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+        )
         .join('\n'),
     );
     const outputTokens = this.estimateTokenCount(
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content),
+      typeof response.content === 'string'
+        ? response.content
+        : JSON.stringify(response.content),
     );
 
     // Store analysis results in context if needed
@@ -633,18 +688,27 @@ export class MeetingAnalysisAgent extends BaseAgent {
   /**
    * Generate follow-up questions based on meeting transcript
    */
-  private async generateFollowUpQuestions(request: AgentRequest): Promise<AgentResponse> {
+  private async generateFollowUpQuestions(
+    request: AgentRequest,
+  ): Promise<AgentResponse> {
     const startTime = Date.now();
-    const inputText = typeof request.input === 'string'
-      ? request.input
-      : Array.isArray(request.input)
+    const inputText =
+      typeof request.input === 'string'
         ? request.input
-            .map((m) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
-            .join('\n')
-        : '';
+        : Array.isArray(request.input)
+          ? request.input
+              .map((m) =>
+                typeof m.content === 'string'
+                  ? m.content
+                  : JSON.stringify(m.content),
+              )
+              .join('\n')
+          : '';
 
-    const { template, role } = this.getTemplateAndRoleForCapability('analyze-transcript-chunk');
-    
+    const { template, role } = this.getTemplateAndRoleForCapability(
+      'analyze-transcript-chunk',
+    );
+
     // Create custom instruction for follow-up questions
     const customInstruction = `
       Based on the meeting transcript, generate a list of thoughtful follow-up questions that would be valuable to ask.
@@ -658,11 +722,12 @@ export class MeetingAnalysisAgent extends BaseAgent {
     `;
 
     // Prepare RAG context options
-    const { ragOptions, embeddingGenerated } = await this.prepareRagContextOptions(
-      'analyze-transcript-chunk',
-      inputText,
-      { ...request.parameters, focusOn: 'follow-up-questions' },
-    );
+    const { ragOptions, embeddingGenerated } =
+      await this.prepareRagContextOptions(
+        'analyze-transcript-chunk',
+        inputText,
+        { ...request.parameters, focusOn: 'follow-up-questions' },
+      );
 
     const ragResult = await this.ragPromptManager.createRagPrompt(
       role,
@@ -671,18 +736,24 @@ export class MeetingAnalysisAgent extends BaseAgent {
       ragOptions,
     );
 
-    const messages = this.convertRagMessagesToLangchainMessages(ragResult.messages);
+    const messages = this.convertRagMessagesToLangchainMessages(
+      ragResult.messages,
+    );
 
     // Call the language model
     const response = await this.llm.invoke(messages);
 
     const inputTokens = this.estimateTokenCount(
       messages
-        .map((m) => typeof m.content === 'string' ? m.content : JSON.stringify(m.content))
+        .map((m) =>
+          typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+        )
         .join('\n'),
     );
     const outputTokens = this.estimateTokenCount(
-      typeof response.content === 'string' ? response.content : JSON.stringify(response.content),
+      typeof response.content === 'string'
+        ? response.content
+        : JSON.stringify(response.content),
     );
 
     // Format the response
@@ -709,7 +780,9 @@ export class MeetingAnalysisAgent extends BaseAgent {
   /**
    * Helper method to convert RAG messages to LangChain messages
    */
-  private convertRagMessagesToLangchainMessages(messages: {role: string, content: string}[]): BaseMessage[] {
+  private convertRagMessagesToLangchainMessages(
+    messages: { role: string; content: string }[],
+  ): BaseMessage[] {
     return messages.map((msg) => {
       if (msg.role === 'system') {
         return new SystemMessage(msg.content);

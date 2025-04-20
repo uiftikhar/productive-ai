@@ -1,12 +1,12 @@
-import { PineconeConnectionService } from '../../../../pinecone/pinecone-connection.service';
-import { Logger } from '../../../logger/logger.interface';
-import { IntegrationService } from '../integration.service';
+import { PineconeConnectionService } from '../../../pinecone/pinecone-connection.service';
+import { Logger } from '../../logger/logger.interface';
+import { IntegrationService } from '../user-context/integration.service';
 import {
   ActionItemStatus,
   ContextType,
   UserContextNotFoundError,
   UserContextValidationError,
-} from '../../types/context.types';
+} from '../user-context/types/context.types';
 
 // Mock Logger
 class MockLogger implements Logger {

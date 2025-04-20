@@ -1,7 +1,7 @@
-import { 
-  EmbeddingConnectorError, 
-  EmbeddingGenerationError, 
-  EmbeddingValidationError 
+import {
+  EmbeddingConnectorError,
+  EmbeddingGenerationError,
+  EmbeddingValidationError,
 } from '../embedding/embedding-error';
 import { BaseError } from '../../utils/base-error';
 
@@ -59,4 +59,4 @@ describe('Embedding Error Classes', () => {
       expect(error.cause).toBe(cause);
     });
   });
-}); 
+});

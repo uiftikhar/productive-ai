@@ -11,7 +11,7 @@ import {
   ContextType,
   USER_CONTEXT_INDEX,
   UserContextValidationError,
-} from '../types/context.types';
+} from './types/context.types';
 
 /**
  * Service for managing document-related context operations

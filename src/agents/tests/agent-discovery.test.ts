@@ -1,13 +1,13 @@
 import { AgentDiscoveryService } from '../services/agent-discovery.service';
 import { AgentRegistryService } from '../services/agent-registry.service';
-import { 
+import {
   AgentCapability,
   AgentState,
   AgentStatus,
   AgentMetrics,
   AgentRequest,
   AgentResponse,
-  BaseAgentInterface
+  BaseAgentInterface,
 } from '../interfaces/base-agent.interface';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { Logger, LogLevel } from '../../shared/logger/logger.interface';
@@ -31,9 +31,9 @@ class MockAgent implements BaseAgentInterface {
   }
 
   getCapabilities(): AgentCapability[] {
-    return this._capabilities.map(capability => ({
+    return this._capabilities.map((capability) => ({
       name: capability,
-      description: `Mock capability: ${capability}`
+      description: `Mock capability: ${capability}`,
     }));
   }
 
@@ -47,7 +47,7 @@ class MockAgent implements BaseAgentInterface {
 
   async execute(request: AgentRequest): Promise<AgentResponse> {
     return {
-      output: `Mock response for request: ${typeof request.input === 'string' ? request.input : 'complex input'}`
+      output: `Mock response for request: ${typeof request.input === 'string' ? request.input : 'complex input'}`,
     };
   }
 
@@ -56,7 +56,7 @@ class MockAgent implements BaseAgentInterface {
       status: AgentStatus.READY,
       errorCount: 0,
       executionCount: 0,
-      metadata: {}
+      metadata: {},
     };
   }
 
@@ -70,7 +70,7 @@ class MockAgent implements BaseAgentInterface {
       totalExecutionTimeMs: 0,
       averageExecutionTimeMs: 0,
       tokensUsed: 0,
-      errorRate: 0
+      errorRate: 0,
     };
   }
 }
@@ -86,23 +86,23 @@ describe('AgentDiscoveryService', () => {
     // Save original instances
     originalRegistryInstance = (AgentRegistryService as any).instance;
     originalDiscoveryInstance = (AgentDiscoveryService as any).instance;
-    
+
     // Reset singleton instances
     (AgentRegistryService as any).instance = undefined;
     (AgentDiscoveryService as any).instance = undefined;
-    
+
     // Create test dependencies
     mockLogger = new MockLogger();
-    
+
     // Create registry service first (discovery depends on it)
     registryService = AgentRegistryService.getInstance(mockLogger);
-    
+
     // Create discovery service with our mock logger and real registry
     discoveryService = AgentDiscoveryService.getInstance({
       logger: mockLogger,
-      registry: registryService
+      registry: registryService,
     });
-    
+
     // Reset metrics for clean state
     discoveryService.resetMetrics();
   });
@@ -111,7 +111,7 @@ describe('AgentDiscoveryService', () => {
     // Restore original instances
     (AgentRegistryService as any).instance = originalRegistryInstance;
     (AgentDiscoveryService as any).instance = originalDiscoveryInstance;
-    
+
     mockLogger.clear();
     jest.restoreAllMocks();
   });
@@ -125,12 +125,14 @@ describe('AgentDiscoveryService', () => {
 
     it('should use the provided logger if supplied', () => {
       const service = AgentDiscoveryService.getInstance({
-        logger: mockLogger
+        logger: mockLogger,
       });
-      
+
       service.discoverAgent({ capability: 'text-generation' });
-      
-      expect(mockLogger.hasMessage('Discovering agent for capability', 'info')).toBe(true);
+
+      expect(
+        mockLogger.hasMessage('Discovering agent for capability', 'info'),
+      ).toBe(true);
     });
   });
 
@@ -138,24 +140,26 @@ describe('AgentDiscoveryService', () => {
     it('should return null if no agents have the capability', () => {
       // Act
       const result = discoveryService.discoverAgent({
-        capability: 'unknown-capability'
+        capability: 'unknown-capability',
       });
-      
+
       // Assert
       expect(result).toBeNull();
-      expect(mockLogger.hasMessage('No agents found with capability', 'warn')).toBe(true);
+      expect(
+        mockLogger.hasMessage('No agents found with capability', 'warn'),
+      ).toBe(true);
     });
 
     it('should return the best agent for a capability', () => {
       // Arrange
       const mockAgent = new MockAgent('test-agent-1');
       registryService.registerAgent(mockAgent);
-      
+
       // Act
       const result = discoveryService.discoverAgent({
-        capability: 'text-generation'
+        capability: 'text-generation',
       });
-      
+
       // Assert
       expect(result).not.toBeNull();
       expect(result!.agentId).toBe('test-agent-1');
@@ -168,13 +172,13 @@ describe('AgentDiscoveryService', () => {
       const mockAgent2 = new MockAgent('test-agent-2');
       registryService.registerAgent(mockAgent1);
       registryService.registerAgent(mockAgent2);
-      
+
       // Act
       const result = discoveryService.discoverAgent({
         capability: 'text-generation',
-        excludedAgentIds: ['test-agent-1']
+        excludedAgentIds: ['test-agent-1'],
       });
-      
+
       // Assert
       expect(result).not.toBeNull();
       expect(result!.agentId).toBe('test-agent-2');
@@ -184,16 +188,21 @@ describe('AgentDiscoveryService', () => {
       // Arrange
       const mockAgent = new MockAgent('test-agent-1');
       registryService.registerAgent(mockAgent);
-      
+
       // Act
       const result = discoveryService.discoverAgent({
         capability: 'text-generation',
-        excludedAgentIds: ['test-agent-1']
+        excludedAgentIds: ['test-agent-1'],
       });
-      
+
       // Assert
       expect(result).toBeNull();
-      expect(mockLogger.hasMessage('All agents with capability were excluded', 'warn')).toBe(true);
+      expect(
+        mockLogger.hasMessage(
+          'All agents with capability were excluded',
+          'warn',
+        ),
+      ).toBe(true);
     });
   });
 
@@ -202,22 +211,25 @@ describe('AgentDiscoveryService', () => {
       // Arrange
       const agentId = 'test-agent-1';
       const capability = 'text-generation';
-      
+
       // Act
       discoveryService.updateAgentMetrics(agentId, capability, {
         executionTime: 200,
-        success: true
+        success: true,
       });
-      
+
       // Get all metrics to verify
       const allMetrics = discoveryService.getAllAgentMetrics();
-      
+
       // Assert
       expect(allMetrics[agentId]).toBeDefined();
       expect(allMetrics[agentId][capability]).toBeDefined();
       // The service initializes with a default value of 500ms and then applies weighted averaging
       // (0.7 * default + 0.3 * new value) = (0.7 * 500 + 0.3 * 200) = 350 + 60 = 410ms
-      expect(allMetrics[agentId][capability].averageResponseTime).toBeCloseTo(410, 0);
+      expect(allMetrics[agentId][capability].averageResponseTime).toBeCloseTo(
+        410,
+        0,
+      );
       expect(allMetrics[agentId][capability].successRate).toBe(0.955);
     });
 
@@ -225,23 +237,23 @@ describe('AgentDiscoveryService', () => {
       // Arrange
       const agentId = 'test-agent-1';
       const capability = 'text-generation';
-      
+
       // Initial state
       discoveryService.updateAgentMetrics(agentId, capability, {
         executionTime: 1000,
-        success: false
+        success: false,
       });
-      
+
       // Act - update with new values
       discoveryService.updateAgentMetrics(agentId, capability, {
         executionTime: 500,
-        success: true
+        success: true,
       });
-      
+
       // Get all metrics to verify
       const allMetrics = discoveryService.getAllAgentMetrics();
       const metrics = allMetrics[agentId][capability];
-      
+
       // Assert
       expect(metrics.averageResponseTime).toBeLessThan(1000); // Should be a weighted average
       expect(metrics.averageResponseTime).toBeGreaterThan(500);
@@ -255,17 +267,17 @@ describe('AgentDiscoveryService', () => {
       // Arrange - create metrics for two agents
       discoveryService.updateAgentMetrics('agent1', 'text-generation', {
         executionTime: 200,
-        success: true
+        success: true,
       });
-      
+
       discoveryService.updateAgentMetrics('agent2', 'code-generation', {
         executionTime: 300,
-        success: true
+        success: true,
       });
-      
+
       // Act
       const allMetrics = discoveryService.getAllAgentMetrics();
-      
+
       // Assert
       expect(Object.keys(allMetrics)).toHaveLength(2);
       expect(allMetrics.agent1).toBeDefined();
@@ -277,7 +289,7 @@ describe('AgentDiscoveryService', () => {
     it('should return an empty object when no metrics exist', () => {
       // Act
       const allMetrics = discoveryService.getAllAgentMetrics();
-      
+
       // Assert - we reset metrics in beforeEach
       expect(Object.keys(allMetrics)).toHaveLength(0);
     });
@@ -288,15 +300,15 @@ describe('AgentDiscoveryService', () => {
       // Arrange - create some metrics
       discoveryService.updateAgentMetrics('agent1', 'text-generation', {
         executionTime: 200,
-        success: true
+        success: true,
       });
-      
+
       // Act
       discoveryService.resetMetrics();
       const allMetrics = discoveryService.getAllAgentMetrics();
-      
+
       // Assert
       expect(Object.keys(allMetrics)).toHaveLength(0);
     });
   });
-}); 
+});

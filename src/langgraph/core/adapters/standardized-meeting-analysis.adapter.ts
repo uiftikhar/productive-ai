@@ -7,7 +7,7 @@ import {
 } from './base-langgraph.adapter';
 import { MeetingAnalysisAgent } from '../../../agents/specialized/meeting-analysis-agent';
 import { splitTranscript } from '../../../shared/utils/split-transcript';
-import { ContextType } from '../../../shared/user-context/types/context.types';
+import { ContextType } from '../../../shared/services/user-context/types/context.types';
 import { AgentWorkflow } from '../workflows/agent-workflow';
 
 /**

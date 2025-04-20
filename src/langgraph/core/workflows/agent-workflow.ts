@@ -281,22 +281,31 @@ export class AgentWorkflow<
   private createExecuteNode() {
     return async (state: AgentExecutionState) => {
       const agentId = state.agentId || 'unknown';
-      
+
       try {
         // Ensure agent exists
         if (!this.agent) {
-          this.logger?.error(`Agent is undefined for workflow execution`, { agentId });
-          throw new Error(`Agent is undefined. Cannot execute workflow for agentId: ${agentId}`);
+          this.logger?.error(`Agent is undefined for workflow execution`, {
+            agentId,
+          });
+          throw new Error(
+            `Agent is undefined. Cannot execute workflow for agentId: ${agentId}`,
+          );
         }
 
         // Check if agent is initialized
         if (!this.agent.getInitializationStatus()) {
-          this.logger?.debug(`Agent not initialized, initializing: ${this.agent.id}`);
+          this.logger?.debug(
+            `Agent not initialized, initializing: ${this.agent.id}`,
+          );
           try {
             await this.agent.initialize();
           } catch (initError) {
-            this.logger?.error(`Failed to initialize agent: ${this.agent.id}`, { 
-              error: initError instanceof Error ? initError.message : String(initError)
+            this.logger?.error(`Failed to initialize agent: ${this.agent.id}`, {
+              error:
+                initError instanceof Error
+                  ? initError.message
+                  : String(initError),
             });
             throw initError;
           }
@@ -335,7 +344,11 @@ export class AgentWorkflow<
         const executionTimeMs = Math.max(1, Date.now() - startTime);
 
         // Update agent metrics (safely)
-        this.safelyUpdateAgentMetrics(this.agent, executionTimeMs, response.metrics?.tokensUsed);
+        this.safelyUpdateAgentMetrics(
+          this.agent,
+          executionTimeMs,
+          response.metrics?.tokensUsed,
+        );
 
         // Parse the response, handling both string and object content
         const output =
@@ -356,22 +369,23 @@ export class AgentWorkflow<
         };
       } catch (error) {
         // Comprehensive error handling
-        const errorObject = error instanceof Error ? error : new Error(String(error));
-        
+        const errorObject =
+          error instanceof Error ? error : new Error(String(error));
+
         // Log the error with structured metadata
         this.logger?.error(`Error executing agent workflow`, {
           agentId,
           errorMessage: errorObject.message,
           stack: errorObject.stack,
-          capability: state.capability
+          capability: state.capability,
         });
 
         // Safely increment error count
         this.safelyIncrementCounter(this.agent, 'errorCount');
-        
+
         // Safely update agent status
         this.safelyUpdateAgentStatus(this.agent, AgentStatus.ERROR);
-        
+
         // Update error metrics
         this.safelyUpdateErrorRate(this.agent);
 
@@ -386,20 +400,22 @@ export class AgentWorkflow<
    */
   private ensureAgentStateExists(agent: BaseAgentInterface): void {
     if (!agent) return;
-    
+
     try {
       if (!(agent as any).state) {
-        this.logger?.warn(`Agent state is undefined, initializing state for: ${agent.id}`);
+        this.logger?.warn(
+          `Agent state is undefined, initializing state for: ${agent.id}`,
+        );
         (agent as any).state = {
           status: AgentStatus.READY,
           errorCount: 0,
           executionCount: 0,
-          metadata: {}
+          metadata: {},
         };
       }
     } catch (error) {
       this.logger?.error(`Failed to initialize agent state: ${agent.id}`, {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -409,21 +425,31 @@ export class AgentWorkflow<
    * @param agent The agent to update
    * @param counterName The name of the counter to increment
    */
-  private safelyIncrementCounter(agent: BaseAgentInterface, counterName: 'errorCount' | 'executionCount'): void {
+  private safelyIncrementCounter(
+    agent: BaseAgentInterface,
+    counterName: 'errorCount' | 'executionCount',
+  ): void {
     if (!agent) return;
-    
+
     try {
       if ((agent as any).state) {
-        (agent as any).state[counterName] = ((agent as any).state[counterName] || 0) + 1;
+        (agent as any).state[counterName] =
+          ((agent as any).state[counterName] || 0) + 1;
       } else {
-        this.logger?.warn(`Cannot increment ${counterName}: agent state is undefined`, {
-          agentId: agent.id
-        });
+        this.logger?.warn(
+          `Cannot increment ${counterName}: agent state is undefined`,
+          {
+            agentId: agent.id,
+          },
+        );
       }
     } catch (error) {
-      this.logger?.error(`Failed to increment ${counterName} for agent: ${agent.id}`, {
-        error: error instanceof Error ? error.message : String(error)
-      });
+      this.logger?.error(
+        `Failed to increment ${counterName} for agent: ${agent.id}`,
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
     }
   }
 
@@ -432,22 +458,25 @@ export class AgentWorkflow<
    * @param agent The agent to update
    * @param status The new status
    */
-  private safelyUpdateAgentStatus(agent: BaseAgentInterface, status: AgentStatus): void {
+  private safelyUpdateAgentStatus(
+    agent: BaseAgentInterface,
+    status: AgentStatus,
+  ): void {
     if (!agent) return;
-    
+
     try {
       if ((agent as any).state) {
         (agent as any).state.status = status;
       } else {
         this.logger?.warn(`Cannot update status: agent state is undefined`, {
           agentId: agent.id,
-          status
+          status,
         });
       }
     } catch (error) {
       this.logger?.error(`Failed to update status for agent: ${agent.id}`, {
         error: error instanceof Error ? error.message : String(error),
-        status
+        status,
       });
     }
   }
@@ -458,19 +487,20 @@ export class AgentWorkflow<
    */
   private safelyUpdateErrorRate(agent: BaseAgentInterface): void {
     if (!agent) return;
-    
+
     try {
       const errorCount = (agent as any).state?.errorCount || 0;
       const metrics = agent.getMetrics();
-      const totalExecutions = metrics.totalExecutions > 0 ? metrics.totalExecutions : 1;
-      
+      const totalExecutions =
+        metrics.totalExecutions > 0 ? metrics.totalExecutions : 1;
+
       // Use type assertion to handle the updateMetrics method
       (agent as any).updateMetrics?.({
         errorRate: errorCount / totalExecutions,
       });
     } catch (error) {
       this.logger?.error(`Failed to update error rate for agent: ${agent.id}`, {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -481,13 +511,18 @@ export class AgentWorkflow<
    * @param executionTimeMs Execution time in ms
    * @param tokensUsed Number of tokens used
    */
-  private safelyUpdateAgentMetrics(agent: BaseAgentInterface, executionTimeMs: number, tokensUsed?: number): void {
+  private safelyUpdateAgentMetrics(
+    agent: BaseAgentInterface,
+    executionTimeMs: number,
+    tokensUsed?: number,
+  ): void {
     if (!agent) return;
-    
+
     try {
       const currentMetrics = agent.getMetrics();
       const newTotalExecutions = currentMetrics.totalExecutions + 1;
-      const newTotalTime = currentMetrics.totalExecutionTimeMs + executionTimeMs;
+      const newTotalTime =
+        currentMetrics.totalExecutionTimeMs + executionTimeMs;
 
       // Use type assertion to handle the updateMetrics method
       (agent as any).updateMetrics?.({
@@ -499,7 +534,7 @@ export class AgentWorkflow<
       });
     } catch (error) {
       this.logger?.error(`Failed to update metrics for agent: ${agent.id}`, {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }

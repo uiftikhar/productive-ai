@@ -1,19 +1,19 @@
 import { AgentRegistryService } from '../agent-registry.service';
-import { 
-  BaseAgentInterface, 
+import {
+  BaseAgentInterface,
   AgentCapability as IAgentCapability,
   AgentState,
   AgentStatus,
   AgentMetrics,
   AgentRequest,
-  AgentResponse
+  AgentResponse,
 } from '../../interfaces/base-agent.interface';
 
 class MockAgent implements BaseAgentInterface {
   readonly id: string;
   readonly name: string;
   readonly description: string;
-  
+
   constructor(id: string) {
     this.id = id;
     this.name = `Mock Agent ${id}`;
@@ -21,10 +21,12 @@ class MockAgent implements BaseAgentInterface {
   }
 
   getCapabilities(): IAgentCapability[] {
-    return [{
-      name: 'text-generation',
-      description: 'Generates text'
-    }];
+    return [
+      {
+        name: 'text-generation',
+        description: 'Generates text',
+      },
+    ];
   }
 
   canHandle(capability: string): boolean {
@@ -40,17 +42,17 @@ class MockAgent implements BaseAgentInterface {
   }
 
   async execute(request: AgentRequest): Promise<AgentResponse> {
-    return { 
-      output: 'mock result'
+    return {
+      output: 'mock result',
     };
   }
 
   getState(): AgentState {
-    return { 
+    return {
       status: AgentStatus.READY,
       errorCount: 0,
       executionCount: 0,
-      metadata: {}
+      metadata: {},
     };
   }
 
@@ -59,12 +61,12 @@ class MockAgent implements BaseAgentInterface {
   }
 
   getMetrics(): AgentMetrics {
-    return { 
+    return {
       totalExecutions: 0,
       totalExecutionTimeMs: 0,
       averageExecutionTimeMs: 0,
       tokensUsed: 0,
-      errorRate: 0
+      errorRate: 0,
     };
   }
 }
@@ -82,7 +84,7 @@ describe('AgentRegistryService', () => {
     it('should register an agent successfully', () => {
       // Act
       registryService.registerAgent(mockAgent);
-      
+
       // Assert
       expect(registryService.getAgent('test-agent-1')).toBe(mockAgent);
     });
@@ -91,10 +93,10 @@ describe('AgentRegistryService', () => {
       // Arrange
       registryService.registerAgent(mockAgent);
       const duplicateAgent = new MockAgent('test-agent-1');
-      
+
       // Act
       registryService.registerAgent(duplicateAgent);
-      
+
       // Assert
       expect(registryService.getAgent('test-agent-1')).toBe(duplicateAgent);
     });
@@ -104,10 +106,10 @@ describe('AgentRegistryService', () => {
     it('should return the agent when it exists', () => {
       // Arrange
       registryService.registerAgent(mockAgent);
-      
+
       // Act
       const result = registryService.getAgent('test-agent-1');
-      
+
       // Assert
       expect(result).toBe(mockAgent);
     });
@@ -115,7 +117,7 @@ describe('AgentRegistryService', () => {
     it('should return undefined when agent does not exist', () => {
       // Act
       const result = registryService.getAgent('non-existent-agent');
-      
+
       // Assert
       expect(result).toBeUndefined();
     });
@@ -127,10 +129,10 @@ describe('AgentRegistryService', () => {
       const mockAgent2 = new MockAgent('test-agent-2');
       registryService.registerAgent(mockAgent);
       registryService.registerAgent(mockAgent2);
-      
+
       // Act
       const result = registryService.listAgents();
-      
+
       // Assert
       expect(result).toHaveLength(2);
       expect(result).toContain(mockAgent);
@@ -140,7 +142,7 @@ describe('AgentRegistryService', () => {
     it('should return an empty array when no agents are registered', () => {
       // Act
       const result = registryService.listAgents();
-      
+
       // Assert
       expect(result).toHaveLength(0);
     });
@@ -150,10 +152,11 @@ describe('AgentRegistryService', () => {
     it('should return agents with the specified capability', () => {
       // Arrange
       registryService.registerAgent(mockAgent);
-      
+
       // Act
-      const result = registryService.findAgentsWithCapability('text-generation');
-      
+      const result =
+        registryService.findAgentsWithCapability('text-generation');
+
       // Assert
       expect(result).toHaveLength(1);
       expect(result[0]).toBe(mockAgent);
@@ -162,12 +165,13 @@ describe('AgentRegistryService', () => {
     it('should return an empty array when no agents have the specified capability', () => {
       // Arrange
       registryService.registerAgent(mockAgent);
-      
+
       // Act
-      const result = registryService.findAgentsWithCapability('code-generation');
-      
+      const result =
+        registryService.findAgentsWithCapability('code-generation');
+
       // Assert
       expect(result).toHaveLength(0);
     });
   });
-}); 
+});

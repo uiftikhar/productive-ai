@@ -12,12 +12,12 @@ interface LogMessage {
 export class MockLogger implements Logger {
   public messages: LogMessage[] = [];
   private logLevel: LogLevel = 'info';
-  
+
   // Added for backward compatibility with existing tests
   public get currentLogLevel(): LogLevel {
     return this.logLevel;
   }
-  
+
   public set currentLogLevel(level: LogLevel) {
     this.logLevel = level;
   }
@@ -41,7 +41,7 @@ export class MockLogger implements Logger {
    * Get logs of a specific level
    */
   getLogsByLevel(level: LogLevel): LogMessage[] {
-    return this.messages.filter(msg => msg.level === level);
+    return this.messages.filter((msg) => msg.level === level);
   }
 
   /**

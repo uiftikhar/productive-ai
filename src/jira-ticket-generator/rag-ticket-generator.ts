@@ -6,7 +6,7 @@ import {
   RagRetrievalStrategy,
   RagPromptManager,
 } from '../shared/services/rag-prompt-manager.service';
-import { ContextType } from '../shared/user-context/context-types';
+import { ContextType } from '../shared/services/user-context/context-types';
 import { InstructionTemplateNameEnum } from '../shared/prompts/instruction-templates';
 import { SystemRoleEnum } from '../shared/prompts/prompt-types';
 

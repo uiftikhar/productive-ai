@@ -26,7 +26,7 @@ import {
   UserContextError,
   UserContextNotFoundError,
   UserContextValidationError,
-} from '../types/context.types';
+} from './types/context.types';
 import { VectorRecord } from '../../../pinecone/pinecone.type';
 
 /**

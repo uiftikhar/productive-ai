@@ -20,10 +20,10 @@ import { OpenAIConnector } from '../../agents/integrations/openai-connector';
 import { ConsoleLogger } from '../logger/console-logger';
 import { Logger } from '../logger/logger.interface';
 import { IEmbeddingService } from './embedding.interface';
-import { 
-  EmbeddingConnectorError, 
-  EmbeddingGenerationError, 
-  EmbeddingValidationError 
+import {
+  EmbeddingConnectorError,
+  EmbeddingGenerationError,
+  EmbeddingValidationError,
 } from './embedding/embedding-error';
 
 /**
@@ -54,14 +54,18 @@ export class EmbeddingService implements IEmbeddingService {
    * @deprecated Direct instantiation of EmbeddingService is discouraged.
    * Use EmbeddingServiceFactory.getService() instead for better maintainability.
    */
-  constructor(connector: OpenAIConnector, logger?: Logger, isInternal: boolean = false) {
+  constructor(
+    connector: OpenAIConnector,
+    logger?: Logger,
+    isInternal: boolean = false,
+  ) {
     this.connector = connector;
     this.logger = logger || new ConsoleLogger();
-    
+
     if (!isInternal) {
       this.logger.warn(
         'DEPRECATED: Direct instantiation of EmbeddingService is discouraged. ' +
-        'Use EmbeddingServiceFactory.getService() instead for better maintainability.'
+          'Use EmbeddingServiceFactory.getService() instead for better maintainability.',
       );
     }
   }
@@ -95,7 +99,9 @@ export class EmbeddingService implements IEmbeddingService {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       this.logger.error(`Error generating embedding: ${errorMessage}`);
-      throw new EmbeddingGenerationError(errorMessage, { cause: error instanceof Error ? error : undefined });
+      throw new EmbeddingGenerationError(errorMessage, {
+        cause: error instanceof Error ? error : undefined,
+      });
     }
   }
 
@@ -131,7 +137,9 @@ export class EmbeddingService implements IEmbeddingService {
     }
 
     if (chunkEmbeddings.length === 0) {
-      throw new EmbeddingGenerationError('Failed to generate any chunk embeddings');
+      throw new EmbeddingGenerationError(
+        'Failed to generate any chunk embeddings',
+      );
     }
 
     // Combine the embeddings
@@ -146,7 +154,9 @@ export class EmbeddingService implements IEmbeddingService {
     embedding2: number[],
   ): number {
     if (embedding1.length !== embedding2.length) {
-      throw new EmbeddingValidationError('Embeddings must have the same dimensions');
+      throw new EmbeddingValidationError(
+        'Embeddings must have the same dimensions',
+      );
     }
 
     let dotProduct = 0;
@@ -203,7 +213,9 @@ export class EmbeddingService implements IEmbeddingService {
 
     for (const embedding of embeddings) {
       if (embedding.length !== dimension) {
-        throw new EmbeddingValidationError('All embeddings must have the same dimensions');
+        throw new EmbeddingValidationError(
+          'All embeddings must have the same dimensions',
+        );
       }
 
       for (let i = 0; i < dimension; i++) {
@@ -222,7 +234,7 @@ export class EmbeddingService implements IEmbeddingService {
 
     return result.map((val) => val / magnitude);
   }
-  
+
   /**
    * Alternative interface methods for compatibility
    */

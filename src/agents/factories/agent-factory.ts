@@ -74,10 +74,11 @@ export class AgentFactory {
 
     this.pineconeConnector = options.pineconeConnector;
 
-    this.embeddingService = options.embeddingService || 
+    this.embeddingService =
+      options.embeddingService ||
       EmbeddingServiceFactory.getService({
         connector: this.openAIConnector,
-        logger: this.logger
+        logger: this.logger,
       });
   }
 

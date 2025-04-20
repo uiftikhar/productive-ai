@@ -47,13 +47,19 @@ describe('EmbeddingServiceFactory', () => {
   test('should create new instance when connector provided', () => {
     // Arrange
     const mockConnector = new OpenAIConnector();
-    
+
     // Act
-    const service = EmbeddingServiceFactory.getService({ connector: mockConnector });
+    const service = EmbeddingServiceFactory.getService({
+      connector: mockConnector,
+    });
 
     // Assert
     expect(service).toBeDefined();
-    expect(EmbeddingService).toHaveBeenCalledWith(mockConnector, expect.any(ConsoleLogger), true);
+    expect(EmbeddingService).toHaveBeenCalledWith(
+      mockConnector,
+      expect.any(ConsoleLogger),
+      true,
+    );
     expect(EmbeddingAdapter).not.toHaveBeenCalled();
   });
 
@@ -71,21 +77,27 @@ describe('EmbeddingServiceFactory', () => {
   test('should use provided logger', () => {
     // Arrange
     const mockLogger = new ConsoleLogger();
-    
+
     // Act
     const service = EmbeddingServiceFactory.getService({ logger: mockLogger });
 
     // Assert
     expect(service).toBeDefined();
-    expect(EmbeddingService).toHaveBeenCalledWith(expect.any(OpenAIConnector), mockLogger, true);
+    expect(EmbeddingService).toHaveBeenCalledWith(
+      expect.any(OpenAIConnector),
+      mockLogger,
+      true,
+    );
   });
 
   test('should use provided embedding service', () => {
     // Arrange
     const mockEmbeddingService = {} as IEmbeddingService;
-    
+
     // Act
-    const service = EmbeddingServiceFactory.getService({ embeddingService: mockEmbeddingService });
+    const service = EmbeddingServiceFactory.getService({
+      embeddingService: mockEmbeddingService,
+    });
 
     // Assert
     expect(service).toBe(mockEmbeddingService);
@@ -96,25 +108,27 @@ describe('EmbeddingServiceFactory', () => {
   test('should wrap provided embedding service with adapter when useAdapter is true', () => {
     // Arrange
     const mockEmbeddingService = {} as IEmbeddingService;
-    
+
     // Act
-    const service = EmbeddingServiceFactory.getService({ 
+    const service = EmbeddingServiceFactory.getService({
       embeddingService: mockEmbeddingService,
-      useAdapter: true 
+      useAdapter: true,
     });
 
     // Assert
     expect(service).toBeDefined();
     expect(service).not.toBe(mockEmbeddingService); // Should be wrapped
-    expect(EmbeddingAdapter).toHaveBeenCalledWith(expect.objectContaining({
-      embeddingService: mockEmbeddingService,
-    }));
+    expect(EmbeddingAdapter).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeddingService: mockEmbeddingService,
+      }),
+    );
   });
 
   test('should reset default instance', () => {
     // Arrange
     const service1 = EmbeddingServiceFactory.getService();
-    
+
     // Act
     EmbeddingServiceFactory.reset();
     const service2 = EmbeddingServiceFactory.getService();
@@ -124,4 +138,4 @@ describe('EmbeddingServiceFactory', () => {
     expect(OpenAIConnector).toHaveBeenCalledTimes(2);
     expect(EmbeddingService).toHaveBeenCalledTimes(2);
   });
-}); 
+});

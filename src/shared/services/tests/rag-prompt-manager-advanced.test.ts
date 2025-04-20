@@ -2,27 +2,25 @@ import {
   RagPromptManager,
   PromptTemplateLibrary,
   ContextAwarePromptOptions,
-  RagRetrievalStrategy
+  RagRetrievalStrategy,
 } from '../rag-prompt-manager.service';
 import { PromptLibrary } from '../../prompts/prompt-library';
-import { BaseContextService } from '../../user-context/services/base-context.service';
-import { DocumentContextService } from '../../user-context/services/document-context.service';
-import { ConversationContextService } from '../../user-context/services/conversation-context.service';
-import { RelevanceCalculationService } from '../../user-context/services/relevance-calculation.service';
-import { ContextType } from '../../user-context/context-types';
-import { SystemRoleEnum } from '../../prompts/prompt-types';
-import { InstructionTemplateNameEnum } from '../../prompts/instruction-templates';
+import { BaseContextService } from '../user-context/base-context.service';
+import { ContextType } from '../user-context/context-types';
+import { ConversationContextService } from '../user-context/conversation-context.service';
+import { DocumentContextService } from '../user-context/document-context.service';
+import { RelevanceCalculationService } from '../user-context/relevance-calculation.service';
 
 // Mock the services
-jest.mock('../../user-context/services/base-context.service.ts');
-jest.mock('../../user-context/services/document-context.service.ts');
-jest.mock('../../user-context/services/conversation-context.service.ts');
-jest.mock('../../user-context/services/relevance-calculation.service.ts');
+jest.mock('../user-context/base-context.service');
+jest.mock('../user-context/document-context.service');
+jest.mock('../user-context/conversation-context.service');
+jest.mock('../user-context/relevance-calculation.service');
 
 describe('RagPromptManager Advanced Features', () => {
   let ragPromptManager: RagPromptManager;
   let baseContextServiceMock: jest.Mocked<BaseContextService>;
-  
+
   // Sample context items for testing
   const sampleContextItems = [
     {
@@ -68,7 +66,8 @@ describe('RagPromptManager Advanced Features', () => {
       calculateRelevanceScore: jest.fn().mockReturnValue(0.9),
     }));
 
-    baseContextServiceMock = new BaseContextService() as jest.Mocked<BaseContextService>;
+    baseContextServiceMock =
+      new BaseContextService() as jest.Mocked<BaseContextService>;
 
     // Initialize PromptLibrary and PromptTemplateLibrary
     (PromptLibrary as any).promptComponents = new Map();
@@ -76,61 +75,70 @@ describe('RagPromptManager Advanced Features', () => {
     PromptLibrary.initialize();
 
     // Mock PromptLibrary methods
-    jest.spyOn(PromptLibrary, 'getComponent')
+    jest
+      .spyOn(PromptLibrary, 'getComponent')
       .mockReturnValue({ content: 'Mock component content' } as any);
-    jest.spyOn(PromptLibrary, 'createVersionedCompositePrompt')
+    jest
+      .spyOn(PromptLibrary, 'createVersionedCompositePrompt')
       .mockReturnValue({
         prompt: 'Composite system prompt',
         components: [{ id: 'test', version: '1.0' }],
         createdAt: Date.now(),
       } as any);
-    jest.spyOn(PromptLibrary, 'createCompositePrompt')
+    jest
+      .spyOn(PromptLibrary, 'createCompositePrompt')
       .mockReturnValue('Composite instruction prompt' as any);
 
     // Create RagPromptManager instance
     ragPromptManager = new RagPromptManager();
 
     // Mock getTemplateRecommendations to return templates with specific tags for testing
-    ragPromptManager.getTemplateRecommendations = jest.fn().mockImplementation((query: string, options: any = {}) => {
-      // Return different templates based on query content
-      if (query.toLowerCase().includes('summarize') || 
-          query.toLowerCase().includes('summary') || 
+    ragPromptManager.getTemplateRecommendations = jest
+      .fn()
+      .mockImplementation((query: string, options: any = {}) => {
+        // Return different templates based on query content
+        if (
+          query.toLowerCase().includes('summarize') ||
+          query.toLowerCase().includes('summary') ||
           query.toLowerCase().includes('overview') ||
-          query.toLowerCase().includes('tldr') || 
-          query.toLowerCase().includes('key takeaways')) {
-        return [
-          {
-            id: 'summarization',
-            version: '1.0',
-            description: 'Summarization template',
-            components: ['system.summarizer'],
-            metadata: { tags: ['summarization'] }
-          }
-        ];
-      } else if (query.toLowerCase().includes('code') || 
-                query.toLowerCase().includes('function') || 
-                query.toLowerCase().includes('algorithm')) {
-        return [
-          {
-            id: 'code-generation',
-            version: '1.0',
-            description: 'Code generation template',
-            components: ['system.developer'],
-            metadata: { tags: ['code'] }
-          }
-        ];
-      } else {
-        return [
-          {
-            id: 'general',
-            version: '1.0',
-            description: 'General template',
-            components: ['system.assistant'],
-            metadata: { tags: ['general'] }
-          }
-        ];
-      }
-    });
+          query.toLowerCase().includes('tldr') ||
+          query.toLowerCase().includes('key takeaways')
+        ) {
+          return [
+            {
+              id: 'summarization',
+              version: '1.0',
+              description: 'Summarization template',
+              components: ['system.summarizer'],
+              metadata: { tags: ['summarization'] },
+            },
+          ];
+        } else if (
+          query.toLowerCase().includes('code') ||
+          query.toLowerCase().includes('function') ||
+          query.toLowerCase().includes('algorithm')
+        ) {
+          return [
+            {
+              id: 'code-generation',
+              version: '1.0',
+              description: 'Code generation template',
+              components: ['system.developer'],
+              metadata: { tags: ['code'] },
+            },
+          ];
+        } else {
+          return [
+            {
+              id: 'general',
+              version: '1.0',
+              description: 'General template',
+              components: ['system.assistant'],
+              metadata: { tags: ['general'] },
+            },
+          ];
+        }
+      });
 
     // Replace services with mocks
     Object.assign(ragPromptManager, {
@@ -144,10 +152,13 @@ describe('RagPromptManager Advanced Features', () => {
   describe('Template Recommendations', () => {
     test('should recommend templates based on task type when explicitly provided', () => {
       // Call getTemplateRecommendations with explicit task type
-      const recommendations = ragPromptManager.getTemplateRecommendations('What is the best way to implement this?', {
-        taskType: 'code',
-        count: 2
-      });
+      const recommendations = ragPromptManager.getTemplateRecommendations(
+        'What is the best way to implement this?',
+        {
+          taskType: 'code',
+          count: 2,
+        },
+      );
 
       // Verify the recommendations
       expect(recommendations).toBeDefined();
@@ -158,19 +169,20 @@ describe('RagPromptManager Advanced Features', () => {
     test('should detect code-related queries and recommend code templates', () => {
       const codeQueries = [
         'How do I implement a sorting algorithm in JavaScript?',
-        'What\'s the best way to debug this function?',
+        "What's the best way to debug this function?",
         'Can you explain this code syntax?',
         'Help me optimize this algorithm',
       ];
 
       for (const query of codeQueries) {
-        const recommendations = ragPromptManager.getTemplateRecommendations(query);
-        
+        const recommendations =
+          ragPromptManager.getTemplateRecommendations(query);
+
         // For code queries, we expect at least one template with 'code' tag
-        const hasCodeTemplate = recommendations.some(template => 
-          template.metadata?.tags?.includes('code')
+        const hasCodeTemplate = recommendations.some((template) =>
+          template.metadata?.tags?.includes('code'),
         );
-        
+
         expect(hasCodeTemplate).toBe(true);
       }
     });
@@ -180,30 +192,31 @@ describe('RagPromptManager Advanced Features', () => {
         'Can you summarize this article?',
         'Give me a brief overview of these points',
         'What are the key takeaways from this document?',
-        'TLDR of this meeting transcript'
+        'TLDR of this meeting transcript',
       ];
 
       for (const query of summaryQueries) {
-        const recommendations = ragPromptManager.getTemplateRecommendations(query);
-        
+        const recommendations =
+          ragPromptManager.getTemplateRecommendations(query);
+
         // For summary queries, we expect at least one template with 'summarization' tag
-        const hasSummaryTemplate = recommendations.some(template => 
-          template.metadata?.tags?.includes('summarization')
+        const hasSummaryTemplate = recommendations.some((template) =>
+          template.metadata?.tags?.includes('summarization'),
         );
-        
+
         expect(hasSummaryTemplate).toBe(true);
       }
     });
 
     test('should respect the count parameter', () => {
       const counts = [1, 3, 5];
-      
+
       for (const count of counts) {
         const recommendations = ragPromptManager.getTemplateRecommendations(
-          'Help me understand this concept', 
-          { count }
+          'Help me understand this concept',
+          { count },
         );
-        
+
         expect(recommendations.length).toBeLessThanOrEqual(count);
       }
     });
@@ -212,7 +225,7 @@ describe('RagPromptManager Advanced Features', () => {
   describe('Output Format Features', () => {
     // Mock for testing getOutputFormatForTemplate
     let originalRequire: NodeRequire;
-    
+
     beforeEach(() => {
       originalRequire = require;
       (global as any).require = jest.fn().mockImplementation((module) => {
@@ -222,24 +235,24 @@ describe('RagPromptManager Advanced Features', () => {
               // Using actual enum values from the project
               TICKET_GENERATION: {
                 format: {
-                  outputFormat: 'json_object'
-                }
+                  outputFormat: 'json_object',
+                },
               },
               FINAL_MEETING_SUMMARY: {
                 format: {
-                  outputFormat: 'json_array'
-                }
+                  outputFormat: 'json_array',
+                },
               },
               MEETING_CHUNK_SUMMARY: {
                 // No output format
-              }
-            }
+              },
+            },
           };
         }
         return originalRequire(module);
       });
     });
-    
+
     afterEach(() => {
       (global as any).require = originalRequire;
     });
@@ -247,9 +260,9 @@ describe('RagPromptManager Advanced Features', () => {
     test('should return json_object output format for templates with that format', () => {
       // Use the actual template name from the enum
       const outputFormat = ragPromptManager.getOutputFormatForTemplate(
-        'FINAL_MEETING_SUMMARY' as any
+        'FINAL_MEETING_SUMMARY' as any,
       );
-      
+
       expect(outputFormat).toBeDefined();
       expect(outputFormat?.type).toBe('json_object');
     });
@@ -257,9 +270,9 @@ describe('RagPromptManager Advanced Features', () => {
     test('should return json_array output format for templates with that format', () => {
       // Use the actual template name from the enum
       const outputFormat = ragPromptManager.getOutputFormatForTemplate(
-        'TICKET_GENERATION' as any
+        'TICKET_GENERATION' as any,
       );
-      
+
       expect(outputFormat).toBeDefined();
       expect(outputFormat?.type).toBe('json_array');
     });
@@ -267,18 +280,18 @@ describe('RagPromptManager Advanced Features', () => {
     test('should handle templates with json_object format', () => {
       // Use the actual template name from the enum
       const outputFormat = ragPromptManager.getOutputFormatForTemplate(
-        'MEETING_CHUNK_SUMMARY' as any
+        'MEETING_CHUNK_SUMMARY' as any,
       );
-      
+
       expect(outputFormat).toBeDefined();
       expect(outputFormat?.type).toBe('json_object');
     });
 
     test('should return undefined for non-existent templates', () => {
       const outputFormat = ragPromptManager.getOutputFormatForTemplate(
-        'NON_EXISTENT_TEMPLATE' as any
+        'NON_EXISTENT_TEMPLATE' as any,
       );
-      
+
       expect(outputFormat).toBeUndefined();
     });
   });
@@ -286,18 +299,22 @@ describe('RagPromptManager Advanced Features', () => {
   describe('Template-based Prompts', () => {
     beforeEach(() => {
       // Mock PromptTemplateLibrary methods
-      jest.spyOn(PromptTemplateLibrary, 'getTemplate')
+      jest
+        .spyOn(PromptTemplateLibrary, 'getTemplate')
         .mockImplementation((id) => {
           if (id === 'concise-qa') {
             return {
               id: 'concise-qa',
               version: '1.0',
               description: 'Concise question answering template',
-              components: ['system.qa-specialist', 'instruction.concise-answers'],
+              components: [
+                'system.qa-specialist',
+                'instruction.concise-answers',
+              ],
               defaultReplacements: { MODEL: 'GPT-4' },
               metadata: {
                 tags: ['qa', 'concise'],
-              }
+              },
             };
           }
           return undefined;
@@ -312,22 +329,24 @@ describe('RagPromptManager Advanced Features', () => {
         userId: 'user123',
         queryText: content,
         queryEmbedding: Array(1536).fill(0.1),
-        strategy: RagRetrievalStrategy.SEMANTIC
+        strategy: RagRetrievalStrategy.SEMANTIC,
       };
 
       // Mock the retrieveUserContext method
-      (ragPromptManager as any).retrieveUserContext = jest.fn().mockResolvedValue({
-        items: sampleContextItems,
-        formattedContext: 'Formatted context',
-        sources: ['document1', 'document2']
-      });
+      (ragPromptManager as any).retrieveUserContext = jest
+        .fn()
+        .mockResolvedValue({
+          items: sampleContextItems,
+          formattedContext: 'Formatted context',
+          sources: ['document1', 'document2'],
+        });
 
       // Call the method
       const result = await ragPromptManager.createPromptFromTemplate(
         templateId,
         content,
         ragOptions,
-        { CUSTOM_VAR: 'custom value' }
+        { CUSTOM_VAR: 'custom value' },
       );
 
       // Verify the result
@@ -347,11 +366,13 @@ describe('RagPromptManager Advanced Features', () => {
         queryEmbedding: Array(1536).fill(0.1),
       };
 
-      await expect(ragPromptManager.createPromptFromTemplate(
-        templateId,
-        content,
-        ragOptions
-      )).rejects.toThrow(`Template '${templateId}' not found`);
+      await expect(
+        ragPromptManager.createPromptFromTemplate(
+          templateId,
+          content,
+          ragOptions,
+        ),
+      ).rejects.toThrow(`Template '${templateId}' not found`);
     });
 
     test('should combine template default replacements with provided replacements', async () => {
@@ -363,23 +384,28 @@ describe('RagPromptManager Advanced Features', () => {
         queryText: content,
         queryEmbedding: Array(1536).fill(0.1),
       };
-      
+
       // Mock the retrieveUserContext method
-      (ragPromptManager as any).retrieveUserContext = jest.fn().mockResolvedValue({
-        items: sampleContextItems,
-        formattedContext: 'Formatted context',
-        sources: ['document1', 'document2']
-      });
-      
+      (ragPromptManager as any).retrieveUserContext = jest
+        .fn()
+        .mockResolvedValue({
+          items: sampleContextItems,
+          formattedContext: 'Formatted context',
+          sources: ['document1', 'document2'],
+        });
+
       // Spy on PromptLibrary.createVersionedCompositePrompt to check replacements
-      const createCompositeSpy = jest.spyOn(PromptLibrary, 'createVersionedCompositePrompt');
+      const createCompositeSpy = jest.spyOn(
+        PromptLibrary,
+        'createVersionedCompositePrompt',
+      );
 
       // Call the method
       await ragPromptManager.createPromptFromTemplate(
         templateId,
         content,
         ragOptions,
-        { CUSTOM_VAR: 'custom value' }
+        { CUSTOM_VAR: 'custom value' },
       );
 
       // Verify the replacements were combined correctly
@@ -400,18 +426,19 @@ describe('RagPromptManager Advanced Features', () => {
       const userId = 'user123';
       const query = 'What is machine learning?';
       const queryEmbedding = Array(1536).fill(0.1);
-      const response = 'Machine learning is a subset of artificial intelligence...';
+      const response =
+        'Machine learning is a subset of artificial intelligence...';
       const responseEmbedding = Array(1536).fill(0.2);
       const conversationId = 'conv123';
       const retrievedContext = {
         items: sampleContextItems,
         formattedContext: 'Formatted context',
-        sources: ['document1', 'document2']
+        sources: ['document1', 'document2'],
       };
 
       const conversationServiceStoreTurnSpy = jest.spyOn(
         ragPromptManager['conversationContextService'],
-        'storeConversationTurn'
+        'storeConversationTurn',
       );
 
       // Call the method
@@ -422,7 +449,7 @@ describe('RagPromptManager Advanced Features', () => {
         response,
         responseEmbedding,
         retrievedContext,
-        conversationId
+        conversationId,
       );
 
       // Verify the interaction was stored correctly
@@ -432,7 +459,7 @@ describe('RagPromptManager Advanced Features', () => {
         conversationId,
         query,
         queryEmbedding,
-        'user'
+        'user',
       );
       expect(conversationServiceStoreTurnSpy).toHaveBeenCalledWith(
         userId,
@@ -444,8 +471,8 @@ describe('RagPromptManager Advanced Features', () => {
         expect.objectContaining({
           contextCount: retrievedContext.items.length,
           contextSources: retrievedContext.sources,
-          ragEnabled: true
-        })
+          ragEnabled: true,
+        }),
       );
     });
 
@@ -454,17 +481,18 @@ describe('RagPromptManager Advanced Features', () => {
       const userId = 'user123';
       const query = 'What is machine learning?';
       const queryEmbedding = Array(1536).fill(0.1);
-      const response = 'Machine learning is a subset of artificial intelligence...';
+      const response =
+        'Machine learning is a subset of artificial intelligence...';
       const responseEmbedding = Array(1536).fill(0.2);
       const retrievedContext = {
         items: sampleContextItems,
         formattedContext: 'Formatted context',
-        sources: ['document1', 'document2']
+        sources: ['document1', 'document2'],
       };
 
       const baseContextServiceStoreSpy = jest.spyOn(
         ragPromptManager['baseContextService'],
-        'storeUserContext'
+        'storeUserContext',
       );
 
       // Call the method
@@ -474,7 +502,7 @@ describe('RagPromptManager Advanced Features', () => {
         queryEmbedding,
         response,
         responseEmbedding,
-        retrievedContext
+        retrievedContext,
       );
 
       // Verify the interaction was stored correctly
@@ -489,9 +517,9 @@ describe('RagPromptManager Advanced Features', () => {
           response,
           contextCount: retrievedContext.items.length,
           contextSources: retrievedContext.sources,
-          ragEnabled: true
-        })
+          ragEnabled: true,
+        }),
       );
     });
   });
-}); 
+});

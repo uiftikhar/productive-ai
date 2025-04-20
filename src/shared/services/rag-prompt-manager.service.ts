@@ -1,4 +1,3 @@
-// TODOO Remove User context service
 /**
  * RAG Prompt Manager Service
  *
@@ -44,17 +43,15 @@ import {
   InstructionTemplateNameEnum,
   type InstructionTemplateName,
 } from '../prompts/instruction-templates';
-import { ContextType } from '../user-context/context-types';
+import { ContextType } from './user-context/context-types';
 import {
   PromptLibrary,
   PromptCompositionOptions,
 } from '../prompts/prompt-library';
-
-// Import specialized context services instead of the deprecated UserContextService
-import { BaseContextService } from '../user-context/services/base-context.service';
-import { DocumentContextService } from '../user-context/services/document-context.service';
-import { ConversationContextService } from '../user-context/services/conversation-context.service';
-import { RelevanceCalculationService } from '../user-context/services/relevance-calculation.service';
+import { BaseContextService } from './user-context/base-context.service';
+import { ConversationContextService } from './user-context/conversation-context.service';
+import { DocumentContextService } from './user-context/document-context.service';
+import { RelevanceCalculationService } from './user-context/relevance-calculation.service';
 
 /**
  * Different strategies for retrieving context for RAG
