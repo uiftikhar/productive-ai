@@ -25,9 +25,15 @@ package "Retrieval-Augmented Generation (RAG) System" {
   }
   
   package "Orchestration Layer" {
-    [Knowledge Request Manager] as KRM
-    [Context Selection Engine] as CSE
+    [Master Orchestrator] as MO
+    [Agent Registry Service] as ARS
     [Response Assembly] as RA
+  }
+
+  package "Agent Framework" {
+    interface "BaseAgentInterface" as BAI
+    [BaseAgent] as BA
+    [Agent Factory] as AF
   }
 
   package "RAG Core Services" {
@@ -42,7 +48,7 @@ package "Retrieval-Augmented Generation (RAG) System" {
     [Search Strategy Selector] as SSS
   }
 
-  package "Retrieval Layer" {
+  package "Specialized Agents" {
     [Knowledge Retrieval Agent] as KRA
     [Vector Query Service] as VQS
     [Hybrid Search Service] as HSS
@@ -57,7 +63,7 @@ package "Retrieval-Augmented Generation (RAG) System" {
     component "Vector Store" as VS {
       [Pinecone Vector DB] as PVD
     }
-    database "Knowledge Base" as KB {
+    database "Document Store" as DS {
       [Structured Knowledge] as SK
       [Unstructured Knowledge] as UK
     }
@@ -71,14 +77,21 @@ package "Retrieval-Augmented Generation (RAG) System" {
 }
 
 ' Define connections
-UIP -down-> KRM : "user query"
-KRM -down-> QA : "analyze query"
+UIP -down-> MO : "user query"
+MO -down-> QA : "analyze query"
+MO -down-> ARS : "get agents"
+ARS -right-> AF : "create if needed"
+AF -down-> KRA : "instantiate"
+
+BAI <|-- BA : "implements"
+BA <|-- KRA : "extends"
+
 QA -right-> QO : "optimized query"
 QO -right-> SSS : "search strategy"
 SSS -down-> KRA : "search parameters"
 
-KRM -right-> CSE : "retrieval parameters"
-CSE -down-> RSS : "relevance criteria"
+MO -right-> RA : "assembly instructions"
+RA -up-> RD : "assembled response"
 
 KRA -down-> VQS : "vector queries"
 KRA -down-> HSS : "hybrid search queries"
@@ -89,12 +102,10 @@ PCS -down-> PVD : "vector DB operations"
 KRA -right-> RPM : "format retrieved data"
 RPM -right-> CFS : "format context"
 
-CSE -down-> RSS : "score relevance"
+KRA -down-> RSS : "score relevance"
 RSS -down-> CFS : "filtered contexts"
 
 CFS -right-> RA : "formatted context"
-KRM -right-> RA : "assembly instructions" 
-RA -up-> RD : "assembled response"
 
 ' Embedding connections
 ES -up-> VQS : "query embeddings"
@@ -109,6 +120,7 @@ LPF -up-> RA : "LLM response"
 ' History tracking
 RPM -down-> IH : "store interactions"
 KRA -down-> IH : "store retrievals"
+KRA -right-> DS : "store/retrieve documents"
 
 note bottom of PVD
   Stores vector embeddings of 
@@ -122,9 +134,14 @@ note bottom of RPM
 end note
 
 note bottom of KRA
-  Coordinates knowledge retrieval
+  Specialized agent for knowledge retrieval
   using semantic search, metadata
   filtering, and hybrid strategies
+end note
+
+note bottom of AF
+  Creates and configures
+  specialized agent instances
 end note
 
 legend right
@@ -132,9 +149,10 @@ legend right
   |= Type |= Description |
   | User Interface | User-facing components |
   | Orchestration | Workflow coordination |
+  | Agent Framework | Core agent infrastructure |
   | RAG Core | Central RAG functionality |
   | Query Processing | Query enhancement |
-  | Retrieval | Knowledge access |
+  | Specialized Agents | Domain-specific agents |
   | Storage | Data persistence |
   | Integration | External connections |
   | LLM | Language model services |

@@ -56,10 +56,10 @@ package "API Layer" #F0F0FF {
 package "Orchestration Layer" #E0E4FF {
   [Master Orchestrator] as Orchestrator
   [Task Planner] as TaskPlanner
-  [Agent Directory] as AgentDir
+  [Agent Registry Service] as AgentRegistry
   
   Orchestrator -[hidden]right- TaskPlanner
-  TaskPlanner -[hidden]right- AgentDir
+  TaskPlanner -[hidden]right- AgentRegistry
   
   note left of Orchestrator
     Central coordination hub
@@ -74,33 +74,40 @@ package "Communication" #E0F3FF {
 
 ' Agent Framework
 package "Agent Framework" #D7E7FF {
-  interface "Agent Interface" as AgentIF
-  [Agent Base Class] as AgentBase
+  interface "BaseAgentInterface" as BaseAgentIF
+  [BaseAgent Class] as BaseAgent
+  [Agent Factory] as AgentFactory
   
-  AgentIF -[hidden]right- AgentBase
+  BaseAgentIF -[hidden]right- BaseAgent
+  BaseAgent -[hidden]right- AgentFactory
+  
+  note bottom of AgentFactory
+    Creates and configures
+    specialized agent instances
+  end note
 }
 
 ' Domain-Specific Agents
 package "Domain-Specific Agents" {
-  package "Intelligence Agents" #DDFBDD {
-    [Meeting Analysis] as MeetingAgent
-    [Decision Tracking] as DecisionAgent
+  package "Analysis Agents" #DDFBDD {
+    [Meeting Analysis Agent] as MeetingAgent
+    [Document Analysis Agent] as DocumentAgent
     
-    MeetingAgent -[hidden]right- DecisionAgent
+    MeetingAgent -[hidden]right- DocumentAgent
   }
   
   package "Knowledge Agents" #EFEFFF {
-    [Knowledge Gap] as GapAgent
-    [Theme Management] as ThemeAgent
+    [Knowledge Retrieval Agent] as KnowledgeAgent
+    [Knowledge Gap Agent] as GapAgent
     
-    GapAgent -[hidden]right- ThemeAgent
+    KnowledgeAgent -[hidden]right- GapAgent
   }
   
-  package "Expertise Agents" #FFE1E1 {
-    [Expertise Detection] as ExpertiseAgent
-    [Memory Management] as MemoryAgent
+  package "Integration Agents" #FFE1E1 {
+    [External Integration Agent] as IntegrationAgent
+    [Data Sync Agent] as SyncAgent
     
-    ExpertiseAgent -[hidden]right- MemoryAgent
+    IntegrationAgent -[hidden]right- SyncAgent
   }
 }
 
@@ -145,65 +152,73 @@ APIEndpoints -down-> Orchestrator : <color:#3050B5>Process</color>
 
 ' Orchestration Flow
 Orchestrator -down-> TaskPlanner : <color:#3050B5>Plan</color>
-Orchestrator -down-> AgentDir : <color:#3050B5>Select</color>
+Orchestrator -down-> AgentRegistry : <color:#3050B5>Select</color>
 Orchestrator -down-> CommBus : <color:#3050B5>Dispatch</color>
 
+' Agent Factory Flow
+AgentRegistry -left-> AgentFactory : <color:#3050B5>Create</color>
+
 ' Agent Framework
-AgentIF <|-- AgentBase : <color:#9370DB></color>
-AgentBase <|-- MeetingAgent : <color:#9370DB></color>
-AgentBase <|-- DecisionAgent : <color:#9370DB></color>
-AgentBase <|-- GapAgent : <color:#9370DB></color>
-AgentBase <|-- ThemeAgent : <color:#9370DB></color>
-AgentBase <|-- ExpertiseAgent : <color:#9370DB></color>
-AgentBase <|-- MemoryAgent : <color:#9370DB></color>
+BaseAgentIF <|-- BaseAgent : <color:#9370DB></color>
+BaseAgent <|-- MeetingAgent : <color:#9370DB></color>
+BaseAgent <|-- DocumentAgent : <color:#9370DB></color>
+BaseAgent <|-- KnowledgeAgent : <color:#9370DB></color>
+BaseAgent <|-- GapAgent : <color:#9370DB></color>
+BaseAgent <|-- IntegrationAgent : <color:#9370DB></color>
+BaseAgent <|-- SyncAgent : <color:#9370DB></color>
+
+' Agent Factory creates agents
+AgentFactory ..> MeetingAgent : <color:#3050B5>creates</color>
+AgentFactory ..> KnowledgeAgent : <color:#3050B5>creates</color>
+AgentFactory ..> DocumentAgent : <color:#3050B5>creates</color>
 
 ' Agent Communication
 CommBus -down-> MeetingAgent : <color:#3050B5>Tasks</color>
-CommBus -down-> DecisionAgent : <color:#3050B5>Tasks</color>
+CommBus -down-> DocumentAgent : <color:#3050B5>Tasks</color>
+CommBus -down-> KnowledgeAgent : <color:#3050B5>Tasks</color>
 CommBus -down-> GapAgent : <color:#3050B5>Tasks</color>
-CommBus -down-> ThemeAgent : <color:#3050B5>Tasks</color>
-CommBus -down-> ExpertiseAgent : <color:#3050B5>Tasks</color>
-CommBus -down-> MemoryAgent : <color:#3050B5>Tasks</color>
+CommBus -down-> IntegrationAgent : <color:#3050B5>Tasks</color>
+CommBus -down-> SyncAgent : <color:#3050B5>Tasks</color>
 
 ' Model Integration
 MeetingAgent -down-> ModelRouter : <color:#3050B5>Request</color>
-DecisionAgent -down-> ModelRouter : <color:#3050B5>Request</color>
+DocumentAgent -down-> ModelRouter : <color:#3050B5>Request</color>
+KnowledgeAgent -down-> ModelRouter : <color:#3050B5>Request</color>
 GapAgent -down-> ModelRouter : <color:#3050B5>Request</color>
-ThemeAgent -down-> ModelRouter : <color:#3050B5>Request</color>
-ExpertiseAgent -down-> ModelRouter : <color:#3050B5>Request</color>
-MemoryAgent -down-> ModelRouter : <color:#3050B5>Request</color>
+IntegrationAgent -down-> ModelRouter : <color:#3050B5>Request</color>
+SyncAgent -down-> ModelRouter : <color:#3050B5>Request</color>
 
 ModelRouter -down-> PromptMgmt : <color:#3050B5>Get Prompt</color>
 ModelRouter -down-> AIModels : <color:#3050B5>Query</color>
 
 ' Data Layer
 MeetingAgent -right-> VectorDB : <color:#2E8B57>Query</color>
-ThemeAgent -right-> VectorDB : <color:#2E8B57>Store</color>
-DecisionAgent -right-> DocStore : <color:#2E8B57>Store</color>
+KnowledgeAgent -right-> VectorDB : <color:#2E8B57>Store</color>
+DocumentAgent -right-> DocStore : <color:#2E8B57>Store</color>
 GapAgent -right-> DocStore : <color:#2E8B57>Query</color>
 
 ' RAG Operations
-Orchestrator -right-> VectorDB : <color:#2E8B57>RAG</color>
+KnowledgeAgent -right-> VectorDB : <color:#2E8B57>RAG</color>
 
 ' External Integration
-DecisionAgent -right-> ExtConnectors : <color:#2E8B57>Sync</color>
-ThemeAgent -right-> ExtConnectors : <color:#2E8B57>Sync</color>
+IntegrationAgent -right-> ExtConnectors : <color:#2E8B57>Sync</color>
+SyncAgent -right-> ExtConnectors : <color:#2E8B57>Sync</color>
 
 ' Response Flow - going back up
 AIModels -up-> ModelRouter : <color:#3050B5>Response</color>
 ModelRouter -up-> MeetingAgent : <color:#3050B5>Results</color>
-ModelRouter -up-> DecisionAgent : <color:#3050B5>Results</color>
+ModelRouter -up-> DocumentAgent : <color:#3050B5>Results</color>
+ModelRouter -up-> KnowledgeAgent : <color:#3050B5>Results</color>
 ModelRouter -up-> GapAgent : <color:#3050B5>Results</color>
-ModelRouter -up-> ThemeAgent : <color:#3050B5>Results</color>
-ModelRouter -up-> ExpertiseAgent : <color:#3050B5>Results</color>
-ModelRouter -up-> MemoryAgent : <color:#3050B5>Results</color>
+ModelRouter -up-> IntegrationAgent : <color:#3050B5>Results</color>
+ModelRouter -up-> SyncAgent : <color:#3050B5>Results</color>
 
 MeetingAgent -up-> CommBus : <color:#3050B5>Results</color>
-DecisionAgent -up-> CommBus : <color:#3050B5>Results</color>
+DocumentAgent -up-> CommBus : <color:#3050B5>Results</color>
+KnowledgeAgent -up-> CommBus : <color:#3050B5>Results</color>
 GapAgent -up-> CommBus : <color:#3050B5>Results</color>
-ThemeAgent -up-> CommBus : <color:#3050B5>Results</color>
-ExpertiseAgent -up-> CommBus : <color:#3050B5>Results</color>
-MemoryAgent -up-> CommBus : <color:#3050B5>Results</color>
+IntegrationAgent -up-> CommBus : <color:#3050B5>Results</color>
+SyncAgent -up-> CommBus : <color:#3050B5>Results</color>
 
 CommBus -up-> Orchestrator : <color:#3050B5>Aggregate</color>
 Orchestrator -up-> APIEndpoints : <color:#3050B5>Response</color>

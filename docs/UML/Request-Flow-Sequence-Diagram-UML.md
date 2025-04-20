@@ -1,4 +1,3 @@
-
 @startuml Request Flow Sequence
 
 skinparam backgroundColor white
@@ -20,12 +19,14 @@ participant "Web Application" as WebApp
 participant "API Endpoints" as API
 participant "Master Orchestrator" as Orchestrator
 participant "Task Planning Engine" as TaskPlanner
-participant "Agent Directory" as AgentDir
+participant "Agent Registry Service" as AgentRegistry
+participant "Agent Factory" as AgentFactory
 participant "Communication Bus" as CommBus
-participant "Domain-Specific Agent" as Agent
+participant "Specialized Agent" as Agent #DDFBDD
+participant "Knowledge Retrieval Agent" as KnowledgeAgent #EFEFFF
 participant "Model Integration Layer" as ModelLayer
 database "Vector Database" as VectorDB
-database "Expertise Graph" as ExpertiseDB
+database "Document Store" as DocStore
 
 ' Request Flow
 User -> WebApp: Submit request
@@ -45,21 +46,24 @@ TaskPlanner --> Orchestrator: Return task plan
 deactivate TaskPlanner
 
 ' Agent Selection Phase
-Orchestrator -> AgentDir: Find appropriate agents
-activate AgentDir
-AgentDir --> Orchestrator: Return agent list
-deactivate AgentDir
+Orchestrator -> AgentRegistry: Find appropriate agents
+activate AgentRegistry
+AgentRegistry -> AgentFactory: Create if not exists
+activate AgentFactory
+AgentFactory --> AgentRegistry: Return agent instance
+deactivate AgentFactory
+AgentRegistry --> Orchestrator: Return agent list
+deactivate AgentRegistry
 
 ' RAG Phase
-Orchestrator -> VectorDB: Query relevant context
+Orchestrator -> KnowledgeAgent: Retrieve context
+activate KnowledgeAgent
+KnowledgeAgent -> VectorDB: Query relevant context
 activate VectorDB
-VectorDB --> Orchestrator: Return context
+VectorDB --> KnowledgeAgent: Return context
 deactivate VectorDB
-
-Orchestrator -> ExpertiseDB: Query expertise
-activate ExpertiseDB
-ExpertiseDB --> Orchestrator: Return expertise
-deactivate ExpertiseDB
+KnowledgeAgent --> Orchestrator: Return enriched context
+deactivate KnowledgeAgent
 
 ' Task Execution Phase
 Orchestrator -> CommBus: Dispatch tasks to agents
@@ -72,10 +76,10 @@ activate ModelLayer
 ModelLayer --> Agent: Return generated content
 deactivate ModelLayer
 
-Agent -> VectorDB: Store results
-activate VectorDB
-VectorDB --> Agent: Confirm storage
-deactivate VectorDB
+Agent -> DocStore: Store results
+activate DocStore
+DocStore --> Agent: Confirm storage
+deactivate DocStore
 
 Agent --> CommBus: Return results
 deactivate Agent

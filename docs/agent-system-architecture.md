@@ -2,24 +2,68 @@
 
 ## Overview
 
-The Agent System is designed as a modular, extensible framework for creating, coordinating, and executing specialized AI agents. It features a layered architecture that separates concerns between orchestration, specialized agent capabilities, and the underlying services that power these agents.
+The Agent System is designed as a modular and extensible framework for building AI-powered conversational and analytical capabilities. The architecture is structured in layers with clear separation of concerns, allowing for easy extension and customization.
 
 ## Key Components
 
 ### 1. Agent Registry Service
 
-The `AgentRegistryService` serves as the central registry for all agents in the system. It:
-- Maintains a registry of all available agents
-- Provides methods to register and retrieve agents
-- Ensures agents are properly initialized before execution
-- Enables capability-based discovery of agents
+A central service that maintains a registry of available agents and their capabilities.
 
 ```typescript
-const registry = AgentRegistryService.getInstance();
-const knowledgeAgent = registry.registerKnowledgeRetrievalAgent();
+import { BaseAgentInterface } from '../interfaces/base-agent.interface';
+
+export class AgentRegistryService {
+  private agents: Map<string, BaseAgentInterface> = new Map();
+  
+  registerAgent(agent: BaseAgentInterface): void {
+    this.agents.set(agent.id, agent);
+  }
+  
+  getAgent(id: string): BaseAgentInterface | undefined {
+    return this.agents.get(id);
+  }
+  
+  findAgentsWithCapability(capability: string): BaseAgentInterface[] {
+    return Array.from(this.agents.values()).filter(agent => 
+      agent.canHandle(capability)
+    );
+  }
+}
 ```
 
-### 2. Master Orchestrator Agent
+### 2. Base Agent Class
+
+An abstract base class implementing the core functionality required by all agents.
+
+```typescript
+export abstract class BaseAgent implements BaseAgentInterface {
+  readonly id: string;
+  
+  constructor(
+    readonly name: string,
+    readonly description: string,
+    options: {
+      id?: string;
+      logger?: Logger;
+      llm?: ChatOpenAI;
+    } = {},
+  ) {
+    this.id = options.id || uuidv4();
+    // Initialize other properties
+  }
+  
+  // Implement BaseAgentInterface methods
+  getCapabilities(): AgentCapability[] { ... }
+  canHandle(capability: string): boolean { ... }
+  async initialize(config?: Record<string, any>): Promise<void> { ... }
+  
+  // Method to be implemented by concrete agent classes
+  public abstract executeInternal(request: AgentRequest): Promise<AgentResponse>;
+}
+```
+
+### 3. Master Orchestrator Agent
 
 The `MasterOrchestratorAgent` coordinates workflow execution across multiple specialized agents. It:
 - Manages workflow definitions using StateGraph from LangGraph
@@ -36,7 +80,11 @@ const response = await orchestrator.execute({
 });
 ```
 
-### 3. Knowledge Retrieval Agent
+### 4. Specialized Agents
+
+Concrete implementations of agents for specific use cases.
+
+#### Knowledge Retrieval Agent
 
 The `KnowledgeRetrievalAgent` specializes in retrieving and synthesizing knowledge from the user's context. It:
 - Retrieves relevant information based on semantic search
@@ -45,154 +93,151 @@ The `KnowledgeRetrievalAgent` specializes in retrieving and synthesizing knowled
 - Integrates with the RAG (Retrieval-Augmented Generation) system
 
 ```typescript
-const agent = registry.registerKnowledgeRetrievalAgent();
-const response = await agent.execute({
-  input: "What are the key components of a RAG system?",
-  capability: "answer_with_context"
+const knowledgeAgent = registry.getAgent('knowledge-retrieval');
+const response = await knowledgeAgent.execute({
+  input: "What was discussed in yesterday's meeting?",
+  capability: "retrieve_and_synthesize",
+  parameters: { 
+    retrievalStrategy: "semantic",
+    limit: 5
+  }
 });
+```
+
+#### MeetingAnalysisAgent
+
+Specialized agent for analyzing meeting transcripts and extracting insights.
+
+```typescript
+export class MeetingAnalysisAgent extends BaseAgent {
+  private ragPromptManager: RagPromptManager;
+  private embeddingService: EmbeddingService;
+  
+  constructor(
+    name: string = 'Meeting Analysis Agent',
+    description: string = 'Analyzes meeting transcripts to extract key information',
+    options: any = {},
+  ) {
+    super(name, description, options);
+    
+    // Register agent capabilities
+    this.registerCapability({
+      name: 'analyze-transcript-chunk',
+      description: 'Analyze a chunk of meeting transcript'
+    });
+    
+    this.registerCapability({
+      name: 'generate-final-analysis',
+      description: 'Generate comprehensive analysis from partial analyses'
+    });
+    
+    this.registerCapability({
+      name: 'extract-action-items',
+      description: 'Extract action items from transcript'
+    });
+    
+    // Initialize services
+    this.embeddingService = options.embeddingService || new EmbeddingService();
+    this.ragPromptManager = new RagPromptManager();
+  }
+  
+  async executeInternal(request: AgentRequest): Promise<AgentResponse> {
+    // Specialized implementation for processing meeting transcripts
+    // using RAG, embeddings, and LLM calls
+  }
+}
 ```
 
 ## Architecture Diagram
 
+The system follows a layered architecture with the following main components:
+
+1. **Core Agent Framework**: Includes the `BaseAgentInterface`, `BaseAgent` abstract class, and the agent registry
+2. **Specialized Agents**: Domain-specific agents like `MeetingAnalysisAgent`, `KnowledgeRetrievalAgent`, etc.
+3. **Orchestration Layer**: Manages agent coordination, workflows, and task distribution
+4. **Communication Layer**: Facilitates message passing between agents
+5. **Integration Layer**: Connects agents to external systems and models
+
+Please refer to the UML diagrams in the `/docs/UML` directory for visual representations of these components and their relationships.
+
 ```
-┌─────────────────────────────────────────────────────┐
-│                 Client Interface                     │
-└────────────────────────┬────────────────────────────┘
-                        │
-┌────────────────────────┴────────────────────────────┐
-│                Agent Registry Service                │
-└────┬───────────────────┬───────────────────────┬────┘
-     │                   │                       │
-┌────▼───────┐    ┌──────▼─────────┐    ┌───────▼───────┐
-│ Orchestrator│    │ Knowledge      │    │ Other         │
-│ Agent      │    │ Retrieval Agent│    │ Agents        │
-└────┬───────┘    └──────┬─────────┘    └───────────────┘
-     │                   │
-┌────▼───────┐    ┌──────▼─────────┐
-│ LangGraph  │    │ UserContext    │
-│ StateGraph │    │ Service        │
-└────────────┘    │                │
-                  │ RAG Prompt     │
-                  │ Manager        │
-                  │                │
-                  │ Embedding      │
-                  │ Service        │
-                  └────────────────┘
++-------------------+      +----------------------+
+|                   |      |                      |
+| Client Application|----->| Master Orchestrator  |
+|                   |      |                      |
++-------------------+      +----------+-----------+
+                                      |
+                                      | coordinates
+                                      v
+                 +--------------------+--------------------+
+                 |                    |                    |
+    +------------v---------+ +--------v---------+ +--------v-----------+
+    |                      | |                  | |                    |
+    | Knowledge Retrieval  | | Meeting Analysis | | Document Processing|
+    |                      | |                  | |                    |
+    +----------------------+ +------------------+ +--------------------+
 ```
 
-## Technical Implementation
+## Key Interfaces
 
-### Base Agent Framework
-
-All agents extend the `BaseAgent` abstract class, which provides:
-- Common agent lifecycle management
-- Capability registration and discovery
-- Standard execution patterns
-- Metrics collection
+### BaseAgentInterface
 
 ```typescript
-export abstract class BaseAgent implements AgentInterface {
+export interface BaseAgentInterface {
   readonly id: string;
   readonly name: string;
   readonly description: string;
   
-  // Core functionality
-  abstract execute(request: AgentRequest): Promise<AgentResponse>;
-  
-  // Common methods
   getCapabilities(): AgentCapability[];
   canHandle(capability: string): boolean;
   initialize(config?: Record<string, any>): Promise<void>;
+  execute(request: AgentRequest): Promise<AgentResponse>;
+  getState(): AgentState;
+  getInitializationStatus(): boolean;
+  terminate(): Promise<void>;
+  getMetrics(): AgentMetrics;
+}
+
+export interface WorkflowCompatibleAgent extends BaseAgentInterface {
+  executeInternal(request: AgentRequest): Promise<AgentResponse>;
 }
 ```
 
-### Workflow Orchestration
+### Agent Factory
 
-The Master Orchestrator Agent uses LangGraph's StateGraph for workflow definitions:
-
-```typescript
-const graph = new StateGraph<OrchestratorState>({
-  channels: {
-    input: { /* ... */ },
-    steps: { /* ... */ },
-    result: { /* ... */ },
-    // other state channels
-  }
-})
-.addNode("processNode", processNodeFunction)
-.addEdge(START, "processNode" as any)
-.addEdge("processNode" as any, END);
-
-// Compile and store the graph
-const compiledGraph = graph.compile();
-```
-
-### Knowledge Retrieval
-
-The Knowledge Retrieval Agent integrates with multiple services:
-
-1. `UserContextService` - For retrieving context from the vector database
-2. `RagPromptManager` - For constructing prompts with retrieved context
-3. `EmbeddingService` - For generating embeddings from text queries
-
-## Usage Examples
-
-### Running the Agent System Demo
+The system uses a factory pattern to create and configure agents:
 
 ```typescript
-import { runAgentSystemDemo } from './examples/agent-system-demo.ts';
-
-// Run the demo
-runAgentSystemDemo()
-  .then(() => console.log('Demo completed'))
-  .catch(error => console.error('Demo failed:', error));
-```
-
-### Creating a Custom Agent
-
-```typescript
-import { BaseAgent } from './agents/base/base-agent.ts';
-
-export class CustomAgent extends BaseAgent {
-  constructor() {
-    super('Custom Agent', 'Description of custom agent');
-    this.registerCapability({
-      name: 'custom_capability',
-      description: 'What this capability does',
-      parameters: { /* parameter definitions */ }
-    });
+export class AgentFactory {
+  createMeetingAnalysisAgent(options?: any): MeetingAnalysisAgent {
+    const agent = new MeetingAnalysisAgent(
+      'Meeting Analysis Agent',
+      'Analyzes meeting transcripts to extract key information',
+      options
+    );
+    return agent;
   }
   
-  async execute(request: AgentRequest): Promise<AgentResponse> {
-    // Implement custom logic
-    return {
-      output: 'Result of execution',
-      artifacts: { /* any produced artifacts */ },
-      metrics: this.processMetrics(startTime)
-    };
-  }
+  // Factory methods for other agent types
 }
 ```
+
+## Implementation Notes
+
+- **Agent Registry**: Acts as a central service locator for all agent instances
+- **Agent State Management**: Each agent maintains its own state, including messages, status, and metrics
+- **LangGraph Integration**: Workflows leverage LangGraph for state management and transitions
+- **LangSmith Tracing**: All agent executions are traced in LangSmith for observability
+- **Extensibility**: New agents can be added by implementing the BaseAgentInterface
+- **Error Handling**: Standardized error handling protocols across all agents
 
 ## Future Enhancements
 
-1. **Additional Specialized Agents**: 
-   - Text Analysis Agent
-   - Data Visualization Agent
-   - Document Summarization Agent
-   - Collaborative Task Agent
-
-2. **Enhanced Orchestration**:
-   - Multi-agent parallel workflows
-   - Conditional branching based on agent outputs
-   - Workflow templates for common tasks
-
-3. **Integration Capabilities**:
-   - Connect with external APIs and services
-   - Support for multi-modal input/output
-   - Long-term memory and persistence
-
-4. **Self-improvement Mechanism**:
-   - Performance analysis of agent outputs
-   - Feedback loops for continuous improvement
-   - Adaptive agent selection based on historical performance 
+1. **Extended Agent Capabilities**: Expand the range of specialized agents
+2. **Advanced Orchestration**: Implement more sophisticated task planning and agent selection 
+3. **Improved Knowledge Management**: Enhance vector storage and retrieval mechanisms
+4. **Human-in-the-Loop**: Add capabilities for human intervention and feedback
+5. **Multi-Modal Support**: Extend agents to work with various content types (images, audio)
+6. **Additional Specialized Agents**: Develop agents for specific domains like code generation, data analysis, etc.
+7. **Cross-agent Learning**: Enable agents to learn from each other's experiences
+8. **Improved Metrics**: Enhance the metrics collection for better observability and analysis 
