@@ -8,7 +8,7 @@ import { StandardizedMeetingAnalysisAdapter } from '../langgraph/core/adapters/s
 import { configureTracing } from '../langgraph/core/utils/tracing';
 import { AgentWorkflow } from '../langgraph/core/workflows/agent-workflow';
 
-import { EmbeddingService } from '../shared/services/embedding.service';
+import { EmbeddingServiceFactory } from '../shared/services/embedding.factory';
 import { ConsoleLogger } from '../shared/logger/console-logger';
 import { OpenAIConnector } from '../agents/integrations/openai-connector';
 import { BaseContextService } from '../shared/user-context/services/base-context.service';
@@ -25,7 +25,10 @@ const logger = new ConsoleLogger();
 const openaiConnector = new OpenAIConnector({
   logger,
 });
-const embeddingService = new EmbeddingService(openaiConnector, logger);
+const embeddingService = EmbeddingServiceFactory.getService({
+  connector: openaiConnector,
+  logger,
+});
 const baseContextService = new BaseContextService({ logger });
 
 // TODO move to main or app.ts

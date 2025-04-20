@@ -14,7 +14,8 @@ import {
   KnowledgeGapType,
   USER_CONTEXT_INDEX,
 } from '../types/context.types';
-import { EmbeddingService } from '../../services/embedding.service';
+import { IEmbeddingService } from '../../services/embedding.interface';
+import { EmbeddingServiceFactory } from '../../services/embedding.factory';
 import { OpenAIConnector } from '../../../agents/integrations/openai-connector';
 
 /**
@@ -53,13 +54,19 @@ interface KnowledgeGap {
  */
 export class KnowledgeGapService extends BaseContextService {
   protected logger: Logger;
-  protected embeddingService: EmbeddingService;
+  protected embeddingService: IEmbeddingService;
 
   constructor(options: any = {}) {
     super(options);
     this.logger = options.logger || new ConsoleLogger();
-    this.embeddingService =
-      options.embeddingService || new EmbeddingService(new OpenAIConnector());
+    
+    // Use the factory to get the embedding service
+    const connector = options.openAIConnector || new OpenAIConnector();
+    this.embeddingService = options.embeddingService || 
+      EmbeddingServiceFactory.getService({
+        connector: connector,
+        logger: this.logger
+      });
   }
 
   /**

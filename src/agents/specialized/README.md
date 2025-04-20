@@ -18,7 +18,7 @@ The `MeetingAnalysisAgent` is a specialized agent for analyzing meeting transcri
 
 The agent uses true RAG functionality to enhance meeting analysis with relevant context:
 
-1. **Embedding Generation**: Uses the `EmbeddingService` to generate embeddings for input text
+1. **Embedding Generation**: Uses the standardized `IEmbeddingService` from `EmbeddingServiceFactory` to generate embeddings for input text
 2. **Context Retrieval**: Retrieves relevant meeting content from vector storage based on semantic similarity
 3. **Context Storage**: Stores analysis results with proper embeddings for future reference
 4. **Contextual Analysis**: Enhances analysis by incorporating related content from previous meetings

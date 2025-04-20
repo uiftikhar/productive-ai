@@ -18,7 +18,8 @@ import { KnowledgeRetrievalAgent } from '../specialized/knowledge-retrieval-agen
 import { DocumentRetrievalAgent } from '../specialized/retrieval-agent';
 import { MeetingAnalysisAgent } from '../specialized/meeting-analysis-agent';
 import { DecisionTrackingAgent } from '../specialized/decision-tracking-agent';
-import { EmbeddingService } from '../../shared/services/embedding.service';
+import { IEmbeddingService } from '../../shared/services/embedding.interface';
+import { EmbeddingServiceFactory } from '../../shared/services/embedding.factory';
 import { OpenAIConnector } from '../integrations/openai-connector';
 import { PineconeConnector } from '../integrations/pinecone-connector';
 import { AgentWorkflow } from '../../langgraph/core/workflows/agent-workflow';
@@ -35,7 +36,7 @@ export interface AgentFactoryOptions {
   registry?: AgentRegistryService;
   openAIConnector?: OpenAIConnector;
   pineconeConnector?: PineconeConnector;
-  embeddingService?: EmbeddingService;
+  embeddingService?: IEmbeddingService;
   indexName?: string;
   namespace?: string;
   wrapWithWorkflow?: boolean;
@@ -51,7 +52,7 @@ export class AgentFactory {
   private logger: Logger;
   private openAIConnector: OpenAIConnector;
   private pineconeConnector?: PineconeConnector;
-  private embeddingService: EmbeddingService;
+  private embeddingService: IEmbeddingService;
 
   constructor(
     options: {
@@ -59,7 +60,7 @@ export class AgentFactory {
       logger?: Logger;
       openAIConnector?: OpenAIConnector;
       pineconeConnector?: PineconeConnector;
-      embeddingService?: EmbeddingService;
+      embeddingService?: IEmbeddingService;
     } = {},
   ) {
     this.registry = options.registry || AgentRegistryService.getInstance();
@@ -73,9 +74,11 @@ export class AgentFactory {
 
     this.pineconeConnector = options.pineconeConnector;
 
-    this.embeddingService =
-      options.embeddingService ||
-      new EmbeddingService(this.openAIConnector, this.logger);
+    this.embeddingService = options.embeddingService || 
+      EmbeddingServiceFactory.getService({
+        connector: this.openAIConnector,
+        logger: this.logger
+      });
   }
 
   /**

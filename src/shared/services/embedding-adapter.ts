@@ -11,11 +11,11 @@
  * maintaining compatibility with code that expects the alternative interface.
  */
 
-import { EmbeddingService } from './embedding.service';
 import { Logger } from '../logger/logger.interface';
 import { ConsoleLogger } from '../logger/console-logger';
 import { OpenAIConnector } from '../../agents/integrations/openai-connector';
 import { IEmbeddingService } from './embedding.interface';
+import { EmbeddingServiceFactory } from './embedding.factory';
 
 /**
  * A unified adapter for embedding services
@@ -34,6 +34,7 @@ export class EmbeddingAdapter implements IEmbeddingService {
     embeddingService?: any;
     connector?: OpenAIConnector;
     logger?: Logger;
+    _internal?: boolean; // For internal use by the factory
   } = {}) {
     this.logger = options.logger || new ConsoleLogger();
     
@@ -43,12 +44,16 @@ export class EmbeddingAdapter implements IEmbeddingService {
     } 
     // Otherwise create a new one if connector is provided
     else if (options.connector) {
-      this.embeddingService = new EmbeddingService(options.connector, this.logger);
+      this.embeddingService = EmbeddingServiceFactory.getService({
+        connector: options.connector,
+        logger: this.logger
+      });
     } 
-    // Last resort - create a new connector and service
+    // Last resort - create a default service via the factory
     else {
-      const connector = new OpenAIConnector();
-      this.embeddingService = new EmbeddingService(connector, this.logger);
+      this.embeddingService = EmbeddingServiceFactory.getService({
+        logger: this.logger
+      });
     }
   }
 

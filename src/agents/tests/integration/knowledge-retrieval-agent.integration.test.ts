@@ -4,7 +4,8 @@ import { ConversationContextService } from '../../../shared/user-context/service
 import { MeetingContextService } from '../../../shared/user-context/services/meeting-context.service';
 import { RelevanceCalculationService } from '../../../shared/user-context/services/relevance-calculation.service';
 import { RagPromptManager, RagRetrievalStrategy } from '../../../shared/services/rag-prompt-manager.service';
-import { EmbeddingService } from '../../../shared/services/embedding.service';
+import { IEmbeddingService } from '../../../shared/services/embedding.interface';
+import { EmbeddingServiceFactory } from '../../../shared/services/embedding.factory';
 import { OpenAIConnector } from '../../integrations/openai-connector';
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ContextType } from '../../../shared/user-context/context-types';
@@ -30,7 +31,7 @@ jest.mock('../../../shared/user-context/services/conversation-context.service');
 jest.mock('../../../shared/user-context/services/meeting-context.service');
 jest.mock('../../../shared/user-context/services/relevance-calculation.service');
 jest.mock('../../../shared/services/rag-prompt-manager.service');
-jest.mock('../../../shared/services/embedding.service');
+jest.mock('../../../shared/services/embedding.factory');
 jest.mock('../../integrations/openai-connector');
 
 describe('KnowledgeRetrievalAgent Integration', () => {
@@ -40,7 +41,7 @@ describe('KnowledgeRetrievalAgent Integration', () => {
   let mockMeetingContextService: jest.Mocked<MeetingContextService>;
   let mockRelevanceCalculationService: jest.Mocked<RelevanceCalculationService>;
   let mockRagPromptManager: jest.Mocked<RagPromptManager>;
-  let mockEmbeddingService: jest.Mocked<EmbeddingService>;
+  let mockEmbeddingService: jest.Mocked<IEmbeddingService>;
   let mockOpenAIConnector: jest.Mocked<OpenAIConnector>;
 
   // Sample context search results
@@ -131,8 +132,14 @@ describe('KnowledgeRetrievalAgent Integration', () => {
     // Create mock embedding service
     mockEmbeddingService = {
       generateEmbedding: jest.fn().mockResolvedValue(new Array(1536).fill(0.1)),
+      calculateCosineSimilarity: jest.fn().mockReturnValue(0.9),
+      findSimilarEmbeddings: jest.fn().mockReturnValue([]),
+      combineEmbeddings: jest.fn().mockReturnValue(new Array(1536).fill(0.1)),
       initialize: jest.fn().mockResolvedValue(undefined)
-    } as unknown as jest.Mocked<EmbeddingService>;
+    } as unknown as jest.Mocked<IEmbeddingService>;
+    
+    // Mock the factory to return our mock service
+    (EmbeddingServiceFactory.getService as jest.Mock).mockReturnValue(mockEmbeddingService);
     
     // Create mock OpenAI connector
     mockOpenAIConnector = {

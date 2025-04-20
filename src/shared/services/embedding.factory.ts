@@ -61,7 +61,7 @@ export class EmbeddingServiceFactory {
     // If there's a connector, create a new service with it
     if (options.connector) {
       const logger = options.logger || new ConsoleLogger();
-      const service = new EmbeddingService(options.connector, logger);
+      const service = new EmbeddingService(options.connector, logger, true);
       return useAdapter ? new EmbeddingAdapter({ embeddingService: service, logger }) : service;
     }
     
@@ -69,7 +69,7 @@ export class EmbeddingServiceFactory {
     if (!EmbeddingServiceFactory.defaultInstance) {
       const logger = options.logger || new ConsoleLogger();
       const connector = new OpenAIConnector();
-      const service = new EmbeddingService(connector, logger);
+      const service = new EmbeddingService(connector, logger, true);
       EmbeddingServiceFactory.defaultInstance = useAdapter 
         ? new EmbeddingAdapter({ embeddingService: service, logger }) 
         : service;

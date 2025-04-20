@@ -23,13 +23,14 @@ Currently, our codebase has multiple embedding implementations with different in
 Replace direct imports of embedding implementations with imports from the factory:
 
 ```typescript
-// BEFORE
+// BEFORE (DEPRECATED)
 import { EmbeddingService } from '../shared/services/embedding.service';
 // or
 import { OpenAIEmbeddings } from '@langchain/openai';
 
-// AFTER
+// AFTER (RECOMMENDED)
 import { EmbeddingServiceFactory } from '../shared/services/embedding.factory';
+import { IEmbeddingService } from '../shared/services/embedding.interface';
 ```
 
 ### Step 2: Use the Factory to Get the Service
@@ -37,12 +38,12 @@ import { EmbeddingServiceFactory } from '../shared/services/embedding.factory';
 Replace direct instantiation with factory calls:
 
 ```typescript
-// BEFORE
+// BEFORE (DEPRECATED)
 const embeddingService = new EmbeddingService(connector, logger);
 // or
 const embeddings = new OpenAIEmbeddings();
 
-// AFTER
+// AFTER (RECOMMENDED)
 const embeddingService = EmbeddingServiceFactory.getService({
   connector,
   logger
@@ -97,12 +98,9 @@ const testEmbeddingService = EmbeddingServiceFactory.getService({
   logger: mockLogger
 });
 
-// For explicit adapter usage in tests
-const testAdapter = new EmbeddingAdapter({
-  embeddingService: mockEmbeddingService,
-  connector: mockOpenAIConnector,
-  logger: mockLogger
-});
+// For mocking in tests
+jest.mock('../../shared/services/embedding.factory');
+(EmbeddingServiceFactory.getService as jest.Mock).mockReturnValue(mockEmbeddingService);
 ```
 
 ## Troubleshooting
@@ -117,7 +115,6 @@ The standard implementation includes automatic chunking for large texts, cosine 
 
 ## Timeline
 
-1. **Immediate**: Begin using the factory in new code
-2. **2 Weeks**: Update existing code to use the factory
-3. **1 Month**: Remove direct usage of alternative implementations
-4. **2 Months**: Finalize migration and remove compatibility methods not needed 
+1. **Completed**: Migration to factory-based approach
+2. **Upcoming**: Performance optimizations and caching
+3. **Future**: Advanced configuration options and vector storage integration 

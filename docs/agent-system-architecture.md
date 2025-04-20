@@ -111,7 +111,7 @@ Specialized agent for analyzing meeting transcripts and extracting insights.
 ```typescript
 export class MeetingAnalysisAgent extends BaseAgent {
   private ragPromptManager: RagPromptManager;
-  private embeddingService: EmbeddingService;
+  private embeddingService: IEmbeddingService;
   
   constructor(
     name: string = 'Meeting Analysis Agent',
@@ -137,7 +137,9 @@ export class MeetingAnalysisAgent extends BaseAgent {
     });
     
     // Initialize services
-    this.embeddingService = options.embeddingService || new EmbeddingService();
+    this.embeddingService = options.embeddingService || EmbeddingServiceFactory.getService({
+      logger: options.logger
+    });
     this.ragPromptManager = new RagPromptManager();
   }
   

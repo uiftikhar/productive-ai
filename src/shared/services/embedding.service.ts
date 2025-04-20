@@ -45,9 +45,20 @@ export class EmbeddingService implements IEmbeddingService {
   private connector: OpenAIConnector;
   private readonly embeddingModelName = 'text-embedding-3-large';
 
-  constructor(connector: OpenAIConnector, logger?: Logger) {
+  /**
+   * @deprecated Direct instantiation of EmbeddingService is discouraged.
+   * Use EmbeddingServiceFactory.getService() instead for better maintainability.
+   */
+  constructor(connector: OpenAIConnector, logger?: Logger, isInternal: boolean = false) {
     this.connector = connector;
     this.logger = logger || new ConsoleLogger();
+    
+    if (!isInternal) {
+      this.logger.warn(
+        'DEPRECATED: Direct instantiation of EmbeddingService is discouraged. ' +
+        'Use EmbeddingServiceFactory.getService() instead for better maintainability.'
+      );
+    }
   }
 
   /**
