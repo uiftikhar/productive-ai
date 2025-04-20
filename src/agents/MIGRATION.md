@@ -18,6 +18,7 @@ The following components have been successfully migrated:
 - [x] KnowledgeRetrievalAgent
 - [x] RetrievalAgent
 - [x] DocumentRetrievalAgent
+- [x] DecisionTrackingAgent
 - [x] ConversationAdapter (now uses UnifiedAgent instead of BaseAgent)
 - [x] BaseAgentAdapter (already using UnifiedAgent)
 - [x] Visualization utilities (visualize-adapters.ts)
@@ -27,7 +28,6 @@ The following components have been successfully migrated:
 The following components still need to be migrated:
 
 - [ ] Test files
-- [ ] DecisionTrackingAgent
 - [ ] Integration test agents
 
 ## Future Work
@@ -40,7 +40,7 @@ After all migrations are complete:
 
 ## Migration Progress
 
-Overall progress: ~ 70% complete 
+Overall progress: ~ 85% complete 
 
 # Migration Guide: Adapters to Integrations
 
@@ -155,47 +155,47 @@ For each migrated component:
    - Removed adapter support and only depend on connectors
    - Simplified the implementation
 
-## Phase 2: Service Updates (In Progress)
+## Phase 2: Service Updates (Completed)
 
 1. Update agent implementations to use new connectors
    - ✅ `KnowledgeRetrievalAgent`
-   - ⏳ `RetrievalAgent` (Partially updated)
-   - ⏳ `MeetingAnalysisAgent` (Partially updated)
-   - `DecisionTrackingAgent`
+   - ✅ `RetrievalAgent` 
+   - ✅ `MeetingAnalysisAgent`
+   - ✅ `DecisionTrackingAgent`
 
 2. Update dependent services
-   - `RagPromptManager`
-   - `BaseContextService`
-   - Any other services with adapter dependencies
+   - ✅ `RagPromptManager`
+   - ✅ `BaseContextService`
+   - ✅ Any other services with adapter dependencies
 
-## Phase 3: LangGraph Workflows (Not Started)
+## Phase 3: LangGraph Workflows (Completed)
 
 1. Implement LangGraph-based workflows
    - ✅ Created `workflows/base-workflow.ts`
    - ✅ Created `workflows/agent-workflow.ts`
-   - Create specialized workflows
+   - ✅ Create specialized workflows
 
 2. Update agent orchestration
-   - Replace `BaseAgentAdapter` with `AgentWorkflow`
-   - Create migration tests for workflow functionality
+   - ✅ Replace `BaseAgentAdapter` with `AgentWorkflow`
+   - ✅ Create migration tests for workflow functionality
 
-## Phase 4: Cleanup and Final Migration (Not Started)
+## Phase 4: Cleanup and Final Migration (In Progress)
 
 1. Test replacements for core functionality
-   - Unit tests for connectors
-   - Integration tests for workflows
+   - ✅ Unit tests for connectors
+   - ⏳ Integration tests for workflows
 
 2. Remove obsolete adapters
-   - `openai-adapter.ts`
-   - `context-adapter.interface.ts`
-   - `language-model-adapter.interface.ts`
-   - `pinecone-adapter.ts`
-   - `adapters/index.ts`
-   - Test files for adapters
+   - ✅ `openai-adapter.ts`
+   - ✅ `context-adapter.interface.ts`
+   - ✅ `language-model-adapter.interface.ts`
+   - ✅ `pinecone-adapter.ts`
+   - ✅ `adapters/index.ts`
+   - ⏳ Test files for adapters
 
 3. Documentation updates
-   - Update READMEs across the codebase
-   - Create usage examples for new integrations and workflows
+   - ✅ Update READMEs across the codebase
+   - ⏳ Create usage examples for new integrations and workflows
 
 ## Expected Timeline
 

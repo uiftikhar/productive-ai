@@ -47,7 +47,8 @@ describe('AgentFactory', () => {
   test('should create a KnowledgeRetrievalAgent', () => {
     const agent = factory.createKnowledgeRetrievalAgent({
       id: 'test-knowledge-agent',
-    });
+      wrapWithWorkflow: false,
+    }) as any;
 
     expect(agent).toBeDefined();
     expect(agent.id).toBe('test-knowledge-agent');
@@ -64,7 +65,8 @@ describe('AgentFactory', () => {
       id: 'test-document-agent',
       indexName: 'test-index',
       namespace: 'test-namespace',
-    });
+      wrapWithWorkflow: false,
+    }) as any;
 
     expect(agent).toBeDefined();
     expect(agent.id).toBe('test-document-agent');
@@ -76,7 +78,8 @@ describe('AgentFactory', () => {
       id: 'test-meeting-agent',
       name: 'Test Meeting Agent',
       description: 'Test description',
-    });
+      wrapWithWorkflow: false,
+    }) as any;
 
     expect(agent).toBeDefined();
     expect(agent.id).toBe('test-meeting-agent');
@@ -89,7 +92,8 @@ describe('AgentFactory', () => {
     const agent = factory.createKnowledgeRetrievalAgent({
       id: 'unregistered-agent',
       autoRegister: false,
-    });
+      wrapWithWorkflow: false,
+    }) as any;
 
     expect(agent).toBeDefined();
     expect(registry.registerAgent).not.toHaveBeenCalledWith(agent);

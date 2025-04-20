@@ -251,7 +251,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
   /**
    * Process transcript through the agent
    */
-  protected async executeInternal(
+  async executeInternal(
     request: AgentRequest,
   ): Promise<AgentResponse> {
     const startTime = Date.now();
@@ -484,7 +484,16 @@ export class MeetingAnalysisAgent extends BaseAgent {
   ): Promise<any> {
     const capability = `extract-${infoType}`;
 
-    const response = await this.execute({
+    // Create an inline workflow for this operation
+    // TODO make this production ready
+    // This is a simplified approach - in a production app, you would likely use a more reusable pattern
+    const { AgentWorkflow } = require('../../langgraph/core/workflows/agent-workflow');
+    const workflow = new AgentWorkflow(this, {
+      tracingEnabled: options.tracingEnabled || false,
+    });
+
+    // Execute using the workflow instead of direct agent execution
+    const response = await workflow.execute({
       input: transcript,
       capability,
       parameters: {

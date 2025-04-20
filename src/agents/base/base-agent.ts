@@ -13,6 +13,7 @@ import { LangChainConfig } from '../../langchain/config';
 
 import {
   BaseAgentInterface,
+  WorkflowCompatibleAgent,
   AgentCapability,
   AgentResponse,
   AgentRequest,
@@ -26,7 +27,7 @@ import {
  * Abstract base agent class that provides common functionality for all agents
  * with built-in LangGraph compatibility
  */
-export abstract class BaseAgent implements BaseAgentInterface {
+export abstract class BaseAgent implements WorkflowCompatibleAgent {
   readonly id: string;
 
   protected logger: Logger;
@@ -318,7 +319,7 @@ export abstract class BaseAgent implements BaseAgentInterface {
    * Internal execution logic for the agent
    * Child classes must implement this method
    */
-  protected abstract executeInternal(
+  public abstract executeInternal(
     request: AgentRequest,
   ): Promise<AgentResponse>;
 }

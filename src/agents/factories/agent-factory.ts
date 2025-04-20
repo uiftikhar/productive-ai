@@ -7,16 +7,19 @@
  */
 
 import { ChatOpenAI } from '@langchain/openai';
-import { BaseAgentInterface } from '../interfaces/base-agent.interface';
+import { BaseAgentInterface, WorkflowCompatibleAgent } from '../interfaces/base-agent.interface';
 import { Logger } from '../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { AgentRegistryService } from '../services/agent-registry.service';
 import { KnowledgeRetrievalAgent } from '../specialized/knowledge-retrieval-agent';
 import { DocumentRetrievalAgent } from '../specialized/retrieval-agent';
 import { MeetingAnalysisAgent } from '../specialized/meeting-analysis-agent';
+import { DecisionTrackingAgent } from '../specialized/decision-tracking-agent';
 import { EmbeddingService } from '../../shared/embedding/embedding.service';
 import { OpenAIConnector } from '../integrations/openai-connector';
 import { PineconeConnector } from '../integrations/pinecone-connector';
+import { AgentWorkflow } from '../../langgraph/core/workflows/agent-workflow';
+import { BaseAgent } from '../base/base-agent';
 
 /**
  * Standard options for agent creation
@@ -32,6 +35,8 @@ export interface AgentFactoryOptions {
   embeddingService?: EmbeddingService;
   indexName?: string;
   namespace?: string;
+  wrapWithWorkflow?: boolean;
+  tracingEnabled?: boolean;
   [key: string]: any; // Allow any additional options
 }
 
@@ -82,11 +87,27 @@ export class AgentFactory {
   }
 
   /**
+   * Create an agent workflow for any agent
+   * @param agent The agent to wrap in a workflow
+   * @param options Workflow options
+   * @returns An AgentWorkflow instance
+   */
+  createAgentWorkflow<T extends BaseAgent>(
+    agent: T,
+    options: {
+      tracingEnabled?: boolean;
+      includeStateInLogs?: boolean;
+    } = {}
+  ): AgentWorkflow<T> {
+    return new AgentWorkflow<T>(agent, options);
+  }
+
+  /**
    * Create a KnowledgeRetrievalAgent
    */
   createKnowledgeRetrievalAgent(
     options: AgentFactoryOptions = {},
-  ): KnowledgeRetrievalAgent {
+  ): KnowledgeRetrievalAgent | AgentWorkflow<KnowledgeRetrievalAgent> {
     const agent = new KnowledgeRetrievalAgent({
       logger: options.logger || this.logger,
       llm: options.llm,
@@ -100,6 +121,13 @@ export class AgentFactory {
       this.registerAgent(agent);
     }
 
+    // Optionally wrap the agent in a workflow
+    if (options.wrapWithWorkflow) {
+      return this.createAgentWorkflow(agent, {
+        tracingEnabled: options.tracingEnabled,
+      });
+    }
+
     return agent;
   }
 
@@ -108,7 +136,7 @@ export class AgentFactory {
    */
   createDocumentRetrievalAgent(
     options: AgentFactoryOptions = {},
-  ): DocumentRetrievalAgent {
+  ): DocumentRetrievalAgent | AgentWorkflow<DocumentRetrievalAgent> {
     const agent = new DocumentRetrievalAgent({
       logger: options.logger || this.logger,
       llm: options.llm,
@@ -124,6 +152,13 @@ export class AgentFactory {
       this.registerAgent(agent);
     }
 
+    // Optionally wrap the agent in a workflow
+    if (options.wrapWithWorkflow) {
+      return this.createAgentWorkflow(agent, {
+        tracingEnabled: options.tracingEnabled,
+      });
+    }
+
     return agent;
   }
 
@@ -132,7 +167,7 @@ export class AgentFactory {
    */
   createMeetingAnalysisAgent(
     options: AgentFactoryOptions = {},
-  ): MeetingAnalysisAgent {
+  ): MeetingAnalysisAgent | AgentWorkflow<MeetingAnalysisAgent> {
     const agent = new MeetingAnalysisAgent(
       options.name || 'Meeting Analysis Agent',
       options.description ||
@@ -151,6 +186,42 @@ export class AgentFactory {
       this.registerAgent(agent);
     }
 
+    // Optionally wrap the agent in a workflow
+    if (options.wrapWithWorkflow) {
+      return this.createAgentWorkflow(agent, {
+        tracingEnabled: options.tracingEnabled,
+      });
+    }
+
+    return agent;
+  }
+
+  /**
+   * Create a DecisionTrackingAgent
+   */
+  createDecisionTrackingAgent(
+    options: AgentFactoryOptions = {},
+  ): DecisionTrackingAgent | AgentWorkflow<DecisionTrackingAgent> {
+    const agent = new DecisionTrackingAgent({
+      id: options.id,
+      name: options.name,
+      description: options.description,
+      logger: options.logger || this.logger,
+      openAIConnector: options.openAIConnector || this.openAIConnector,
+      ...options,
+    });
+
+    if (options.autoRegister !== false) {
+      this.registerAgent(agent);
+    }
+
+    // Optionally wrap the agent in a workflow
+    if (options.wrapWithWorkflow) {
+      return this.createAgentWorkflow(agent, {
+        tracingEnabled: options.tracingEnabled,
+      });
+    }
+
     return agent;
   }
 
@@ -161,11 +232,15 @@ export class AgentFactory {
     options: AgentFactoryOptions = {},
   ): Promise<BaseAgentInterface[]> {
     const agents: BaseAgentInterface[] = [];
+    
+    // Ensure we don't create workflows for agents added to the registry
+    const agentOptions = { ...options, wrapWithWorkflow: false };
 
-    // Create each type of agent
-    agents.push(this.createKnowledgeRetrievalAgent(options));
-    agents.push(this.createDocumentRetrievalAgent(options));
-    agents.push(this.createMeetingAnalysisAgent(options));
+    // Create each type of agent with explicit type assertions
+    // This ensures we always get the concrete agent type, not a workflow
+    agents.push(this.createKnowledgeRetrievalAgent(agentOptions) as KnowledgeRetrievalAgent);
+    agents.push(this.createDocumentRetrievalAgent(agentOptions) as DocumentRetrievalAgent);
+    agents.push(this.createMeetingAnalysisAgent(agentOptions) as MeetingAnalysisAgent);
 
     // Initialize all agents
     await Promise.all(agents.map((agent) => agent.initialize()));

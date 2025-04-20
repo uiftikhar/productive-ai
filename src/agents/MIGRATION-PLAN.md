@@ -23,6 +23,8 @@ The codebase is currently undergoing a migration from a mixed-implementation arc
 - [x] Migrated `MeetingAnalysisAgent` to extend `BaseAgent`
 - [x] Created migration helper script
 - [x] Created standardized AgentFactory for simpler agent instantiation
+- [x] Implemented the `DecisionTrackingAgent` using the new patterns
+- [x] Removed `BaseAgentAdapter` and replaced with `AgentWorkflow`
 
 ## Current Progress
 
@@ -33,18 +35,19 @@ We've made significant progress on the migration:
 - The `AgentRegistryService` is fully updated to use the standard interface
 - The migration helper script (`src/scripts/migrate-agent.ts`) is in place to assist with future migrations
 - The standardized `AgentFactory` simplifies agent creation with proper dependency injection
+- All agents are now integrated with the `AgentWorkflow` for execution
 
 ## In Progress
 
-- [ ] Converting runtime execution to use LangGraph workflows
-- [ ] Implementing the `DecisionTrackingAgent` using the new patterns
+- [ ] Finalizing integration tests for the new workflow pattern
+- [ ] Creating additional examples for new implementations
 - [ ] Updating documentation for new implementation patterns
 
 ## Next Steps
 
-1. **Implement the DecisionTrackingAgent** following BaseAgent patterns
-2. **Remove unused code** including the memory-client directory
-4. **Update integration tests** to verify functionality
+1. **Remove unused code** including legacy adapter code and deprecation bridges
+2. **Complete integration tests** to verify functionality with the new workflow patterns
+3. **Finalize documentation** for the new architecture
 
 ## Future Steps
 
@@ -52,7 +55,6 @@ We've made significant progress on the migration:
 - [ ] Create a centralized workflow registry similar to the agent registry
 - [ ] Standardize state management across all agents
 - [ ] Add telemetry for agent performance monitoring
-- [ ] Remove legacy adapter code once all implementations are migrated
 
 ## Migration Path for Existing Agents
 
@@ -62,7 +64,7 @@ If you have an existing agent implementation, follow these steps to migrate:
 2. Consider extending `BaseAgent` abstract class instead of implementing the interface directly
 3. Register your agent with `AgentRegistryService`
 4. Update execution flow to match the new agent lifecycle (initialize, execute, terminate)
-5. Use the `BaseAgentAdapter` to execute your agent in the context of a LangGraph workflow
+5. Use the `AgentWorkflow` to execute your agent in the context of a LangGraph workflow
 
 ## Migration Path for Existing Workflows
 
@@ -70,7 +72,6 @@ If you have existing agent workflows:
 
 1. Convert them to use `AgentWorkflow` from `src/langgraph/core/workflows/agent-workflow.ts`
 2. Define state using `BaseAgentState` from `src/langgraph/core/state/base-agent-state.ts`
-3. Use the `BaseAgentAdapter` to integrate your agent with the workflow
 
 ## Best Practices
 

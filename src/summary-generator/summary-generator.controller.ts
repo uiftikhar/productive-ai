@@ -6,6 +6,7 @@ import { MeetingAnalysisAgent } from '../agents/specialized/meeting-analysis-age
 import 'reflect-metadata';
 import { StandardizedMeetingAnalysisAdapter } from '../langgraph/core/adapters/standardized-meeting-analysis.adapter';
 import { configureTracing } from '../langgraph/core/utils/tracing';
+import { AgentWorkflow } from '../langgraph/core/workflows/agent-workflow';
 
 import { EmbeddingService } from '../shared/embedding/embedding.service';
 import { ConsoleLogger } from '../shared/logger/console-logger';
@@ -16,6 +17,9 @@ import { AgentFactory } from '../agents/factories/agent-factory';
 // Type imports to help with type casting
 import { AgentRequest } from '../agents/interfaces/base-agent.interface';
 import { AgentStatus } from '../agents/interfaces/base-agent.interface';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 // Initialize services
 const logger = new ConsoleLogger();
@@ -49,6 +53,11 @@ const meetingAnalysisAgent = agentFactory.createMeetingAnalysisAgent({
   name: 'RAG Meeting Analysis Agent',
   description: 'Analyzes meeting transcripts with RAG capabilities',
   baseContextService: baseContextService,
+}) as MeetingAnalysisAgent;
+
+// Create a workflow for the agent using the AgentWorkflow
+const meetingAnalysisWorkflow = new AgentWorkflow(meetingAnalysisAgent, {
+  tracingEnabled: true,
 });
 
 // Configure LangGraph tracing
@@ -62,23 +71,23 @@ configureTracing({
 });
 
 // Create Standardized LangGraph adapter for meeting analysis with RAG capabilities
-// Cast only the needed properties to satisfy TypeScript
 const meetingAnalysisAdapter = new StandardizedMeetingAnalysisAdapter(
   {
-    //  TODO Fix this hack
-    // Type compatibility issue: we're using the MeetingAnalysisAgent class instead of UnifiedAgent
-    // but we know it has the required functionality
     id: meetingAnalysisAgent.id,
     name: meetingAnalysisAgent.name,
     description: meetingAnalysisAgent.description,
     getCapabilities: () => meetingAnalysisAgent.getCapabilities(),
-    execute: (request: AgentRequest) => meetingAnalysisAgent.execute(request),
-    initialize: () => meetingAnalysisAgent.initialize(),
+    // Use the workflow for execution
+    execute: (request: AgentRequest) => meetingAnalysisWorkflow.execute(request),
+    // Use the agent for the rest of the interface methods
+    initialize: async () => {
+      // The agent initialization should be handled by the agent itself
+      await meetingAnalysisAgent.initialize();
+      // No return value (void)
+    },
     getState: () => meetingAnalysisAgent.getState(),
-    canHandle: (capability: string) =>
-      meetingAnalysisAgent.canHandle(capability),
-    getInitializationStatus: () =>
-      meetingAnalysisAgent.getInitializationStatus(),
+    canHandle: (capability: string) => meetingAnalysisAgent.canHandle(capability),
+    getInitializationStatus: () => meetingAnalysisAgent.getInitializationStatus(),
     terminate: () => meetingAnalysisAgent.terminate(),
     getMetrics: () => meetingAnalysisAgent.getMetrics(),
   } as any,
@@ -97,6 +106,7 @@ const isLangSmithConfigured =
 // Initialize the agent
 (async () => {
   try {
+    // The workflow executes the agent, but we need to initialize the agent itself
     await meetingAnalysisAgent.initialize();
     logger.info('Meeting analysis agent initialized successfully');
   } catch (error) {
@@ -104,102 +114,127 @@ const isLangSmithConfigured =
   }
 })();
 
+/**
+ * Extract and validate transcript from request
+ */
+async function extractTranscript(req: Request): Promise<string> {
+  if (!req.file) {
+    logger.warn('No transcript file uploaded');
+    throw new Error('No transcript provided. Please upload a transcript file');
+  }
+  
+  const filePath = req.file.path;
+  const transcript = await fs.readFile(filePath, 'utf8');
+  await fs.unlink(filePath); // Clean up the file after reading
+  return transcript;
+}
+
+/**
+ * Generate LangSmith trace URL if configured
+ */
+function generateLangSmithUrl(meetingId: string): string | null {
+  if (!isLangSmithConfigured) return null;
+  
+  // Use the specific organization ID and project ID format
+  const workspaceId = process.env.LANGSMITH_WORKSPACE_ID;
+  const projectId = process.env.LANGSMITH_PROJECT_ID;
+  
+  // Link to the project page using the proper format
+  const url = `https://smith.langchain.com/o/${workspaceId}/projects/p/${projectId}`;
+  // https://smith.langchain.com/o/5c5d6af3-fe6d-4c1b-b358-bda57e1dd889/projects/p/dec474da-bfe2-4354-a7f5-e36ce1004a45
+  // https://smith.langchain.com/o/60d3228f-f9e8-4197-a9e3-e604af59db95/projects/p/dec474da-bfe2-4354-a7f5-e36ce1004a45
+  logger.info('Generated LangSmith project URL', { url });
+  return url;
+}
+
+/**
+ * Process meeting transcript and generate analysis
+ */
+async function processMeetingTranscript(params: {
+  meetingId: string;
+  transcript: string;
+  userId: string;
+  meetingTitle: string;
+  participantIds: string[];
+  includeSentiment: boolean;
+}): Promise<{ output: any }> {
+  const result = await meetingAnalysisAdapter.processMeetingTranscript({
+    meetingId: params.meetingId,
+    transcript: params.transcript,
+    title: params.meetingTitle || 'Untitled Meeting',
+    participantIds: params.participantIds || [],
+    userId: params.userId,
+    includeTopics: true,
+    includeActionItems: true,
+    includeSentiment: params.includeSentiment,
+  });
+
+  return { output: result.output };
+}
+
+/**
+ * Main handler for summary generation
+ */
 export const getSummary = async (
   req: Request,
   res: Response,
   next: express.NextFunction,
 ) => {
   try {
-    // Check if agent is initialized by checking state
+    // Check if agent is initialized
     const agentState = meetingAnalysisAgent.getState();
     if (agentState.status !== AgentStatus.READY) {
       return res.status(503).json({
         error: 'Service unavailable',
-        message:
-          'Meeting analysis agent is not ready. Current status: ' +
-          agentState.status,
+        message: `Meeting analysis agent is not ready. Current status: ${agentState.status}`,
       });
     }
 
-    // Generate meetingId
+    // Generate meetingId and get userId
     const meetingId = uuidv4();
-
-    let langSmithTraceUrl = null;
-    let analysisResult: { output: any } | null = null;
-    let transcript = '';
-
-    // Get userId from request
     const userId = req.body.userId || 'anonymous';
-
-    // Check for transcript
-    if (req.file) {
-      // Get the uploaded file's path (Multer stores it in req.file.path)
-      const filePath = req.file.path;
-
-      // For simplicity, assume it's a text file. For PDFs, you might use a library like pdf-parse.
-      transcript = await fs.readFile(filePath, 'utf8');
-
-      // Optionally, you can remove the file after reading (cleanup)
-      await fs.unlink(filePath);
-    } else {
-      // No transcript file
-      logger.warn('No transcript file uploaded');
+    
+    // Extract transcript
+    let transcript;
+    try {
+      transcript = await extractTranscript(req);
+    } catch (error) {
       return res.status(400).json({
-        error: 'No transcript provided',
-        message: 'Please upload a transcript file',
+        error: 'Transcript error',
+        message: error instanceof Error ? error.message : 'Invalid transcript',
       });
     }
-
-    // Process the transcript using the LangGraph adapter
-    logger.info('Using LangGraph for meeting analysis', { meetingId });
-
+    
+    // Process transcript
+    let analysisResult;
     try {
-      // Process the transcript using the standardized adapter with RAG capabilities
-      const result = await meetingAnalysisAdapter.processMeetingTranscript({
+      logger.info('Using LangGraph for meeting analysis', { meetingId });
+      analysisResult = await processMeetingTranscript({
         meetingId,
         transcript,
-        title: req.body.meetingTitle || 'Untitled Meeting',
+        userId,
+        meetingTitle: req.body.meetingTitle || 'Untitled Meeting',
         participantIds: req.body.participantIds || [],
-        userId: userId,
-        includeTopics: true,
-        includeActionItems: true,
         includeSentiment: req.body.includeSentiment === 'true',
       });
-
-      // Get the analysis output
-      analysisResult = {
-        output: result.output,
-      };
-
-      // Generate a trace ID for LangSmith
-      const traceId = `rag-meeting-analysis-${meetingId}`;
-
-      // Get LangSmith trace URL if available
-      if (isLangSmithConfigured) {
-        langSmithTraceUrl = `https://smith.langchain.com/projects/${process.env.LANGSMITH_PROJECT}/traces/${traceId}`;
-        logger.info('Generated LangSmith trace URL', { langSmithTraceUrl });
-      }
     } catch (error) {
       logger.error('Error in meeting analysis', { error });
-
-      // Return error response
       return res.status(500).json({
         error: 'Processing failed',
-        details:
-          error instanceof Error
-            ? error.message
-            : 'There was an error during processing',
+        details: error instanceof Error ? error.message : 'There was an error during processing',
         timestamp: new Date().toISOString(),
       });
     }
-
+    
+    // Generate LangSmith URL
+    const langSmithTraceUrl = generateLangSmithUrl(meetingId);
+    
     // Return the analysis result
-    res.json({
+    return res.json({
       meetingId,
-      analysis:
-        typeof analysisResult?.output === 'string'
-          ? JSON.parse(analysisResult.output)
-          : analysisResult?.output,
+      analysis: typeof analysisResult.output === 'string' 
+        ? JSON.parse(analysisResult.output) 
+        : analysisResult.output,
       langSmithUrl: langSmithTraceUrl,
     });
   } catch (error) {

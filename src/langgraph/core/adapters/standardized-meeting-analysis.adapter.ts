@@ -8,6 +8,7 @@ import {
 import { MeetingAnalysisAgent } from '../../../agents/specialized/meeting-analysis-agent';
 import { splitTranscript } from '../../../shared/utils/split-transcript';
 import { ContextType } from '../../../shared/user-context/types/context.types';
+import { AgentWorkflow } from '../workflows/agent-workflow';
 
 /**
  * Meeting analysis state interface
@@ -70,6 +71,7 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
   // Default configuration
   protected maxChunkSize: number;
   protected chunkOverlap: number;
+  protected agentWorkflow: AgentWorkflow<MeetingAnalysisAgent>;
 
   /**
    * Creates a new instance of the StandardizedMeetingAnalysisAdapter
@@ -90,6 +92,11 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
 
     this.maxChunkSize = options.maxChunkSize || 2000;
     this.chunkOverlap = options.chunkOverlap || 200;
+    
+    // Create an agent workflow for the agent
+    this.agentWorkflow = new AgentWorkflow(this.agent, {
+      tracingEnabled: options.tracingEnabled,
+    });
   }
 
   /**
@@ -98,11 +105,6 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
   async processMeetingTranscript(
     params: ProcessMeetingTranscriptParams,
   ): Promise<ProcessMeetingTranscriptResult> {
-    // Initialize the agent if needed
-    if (!this.agent.getInitializationStatus()) {
-      await this.agent.initialize();
-    }
-
     // Execute the workflow using the base class method
     return this.execute(params);
   }
@@ -346,8 +348,8 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
           },
         );
 
-        // Process the current chunk using the agent with the analyze-transcript-chunk capability
-        const result = await this.agent.execute({
+        // Process the current chunk using the workflow instead of direct agent execution
+        const result = await this.agentWorkflow.execute({
           input: chunk,
           capability: 'analyze-transcript-chunk',
           parameters: {
@@ -436,7 +438,8 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
         // Combine the partial analyses and generate a final analysis
         const combinedAnalyses = state.partialAnalyses.join('\n\n');
 
-        const result = await this.agent.execute({
+        // Use the workflow instead of direct agent execution
+        const result = await this.agentWorkflow.execute({
           input: combinedAnalyses,
           capability: 'generate-final-analysis',
           parameters: {

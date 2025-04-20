@@ -27,8 +27,8 @@ This directory will become the central location for all agent workflow orchestra
 
 When implementing new agents or workflows:
 
-1. Use `BaseAgentAdapter` for new agent implementations
-2. Leverage the `AgentWorkflow` class for standard agent execution flows
+1. Use `AgentWorkflow` from `core/workflows/agent-workflow.ts` for agent implementations
+2. Leverage the `BaseWorkflow` class for more customized execution flows
 3. Define clear state interfaces that extend `BaseAgentState`
 4. Use the repository pattern for external service interactions
 5. Implement proper error handling using the provided patterns
@@ -38,7 +38,7 @@ When implementing new agents or workflows:
 When migrating existing agents:
 
 1. Implement the `AgentInterface`
-2. Use the `createAgentWorkflow` factory function to set up the workflow
+2. Use the `AgentWorkflow` class to create a workflow around your agent
 3. Update the agent registration to use the new workflow
 4. Test thoroughly with existing use cases
 
@@ -51,7 +51,8 @@ The implementation follows a modular approach with several key components:
 ### Core Components
 
 - **State Schema**: Defined in `core/state/base-agent-state.ts`, provides a structured state representation with typings and validators.
-- **Adapters**: Bridge between existing agent classes and LangGraph workflows (e.g., `BaseAgentAdapter`, `MeetingAnalysisAdapter`).
+- **Workflows**: Standard workflow implementations for different agent types (e.g., `AgentWorkflow`).
+- **Adapters**: Specialized adapters for specific use cases (e.g., `MeetingAnalysisAdapter`).
 - **Utilities**: Helper functions for tracing, edge conditions, and graph visualization.
 
 ### Workflow Implementation
@@ -68,16 +69,16 @@ The LangGraph implementation provides a structured workflow with the following n
 
 ```typescript
 import { BaseAgent } from '../agents/base/base-agent';
-import { BaseAgentAdapter } from './core/adapters/base-agent.adapter';
+import { AgentWorkflow } from './core/workflows/agent-workflow';
 
 // Create an agent instance
 const agent = new YourAgent(/* configuration */);
 
-// Create the adapter
-const adapter = new BaseAgentAdapter(agent);
+// Create the workflow
+const workflow = new AgentWorkflow(agent);
 
-// Execute the agent through the adapter
-const response = await adapter.execute({
+// Execute the agent through the workflow
+const response = await workflow.execute({
   input: 'Your input here',
   capability: 'your-capability',
   parameters: {},
@@ -194,11 +195,6 @@ As part of the recent cleanup, we've consolidated the codebase to use LangGraph 
 
 ### Recommended Follow-ups
 
-1. Consider removing unused adapters and orchestration code:
-   - `src/agents/orchestration/` (Replaced by LangGraph)
-   - `src/agents/messaging/` (Replaced by LangGraph state management)
-   - `src/agents/registry/` (Not needed with direct agent instantiation)
-   - Redundant context adapters
 
 2. Consider implementing additional LangGraph-native features:
    - Structured trace visualization

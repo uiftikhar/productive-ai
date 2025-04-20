@@ -138,6 +138,19 @@ export interface BaseAgentInterface {
 }
 
 /**
+ * Extended interface for agents that are compatible with workflow execution.
+ * This interface exposes the internal execution method to prevent circular
+ * execution patterns when using workflows.
+ */
+export interface WorkflowCompatibleAgent extends BaseAgentInterface {
+  /**
+   * Internal execution logic for the agent
+   * This method is exposed for direct usage by workflows to prevent circular execution
+   */
+  executeInternal(request: AgentRequest): Promise<AgentResponse>;
+}
+
+/**
  * Legacy interface name for backward compatibility
  * @deprecated Use BaseAgentInterface instead
  */

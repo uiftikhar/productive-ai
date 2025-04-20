@@ -119,7 +119,7 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
   /**
    * Implementation of abstract execute method
    */
-  protected async executeInternal(
+  public async executeInternal(
     request: AgentRequest,
   ): Promise<AgentResponse> {
     const startTime = Date.now();

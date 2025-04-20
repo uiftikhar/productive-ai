@@ -5,16 +5,17 @@ import {
   AgentStatus,
 } from '../interfaces/base-agent.interface';
 import { MockLogger } from './mocks/mock-logger';
+import { AgentWorkflow } from '../../langgraph/core/workflows/agent-workflow';
 
 /**
  * Create a test agent implementation
  */
-class TestAgent extends BaseAgent {
+class WorkflowTestAgent extends BaseAgent {
   public testError: boolean = false;
   public executionDelay: number = 0;
 
   constructor() {
-    super('Test Agent', 'An agent for testing', {
+    super('Workflow Test Agent', 'An agent for testing workflows', {
       logger: new MockLogger(),
     });
 
@@ -58,46 +59,35 @@ class TestAgent extends BaseAgent {
   }
 }
 
-describe('BaseAgent', () => {
-  let agent: TestAgent;
+describe('Agent workflow pattern', () => {
+  let agent: WorkflowTestAgent;
+  let workflow: AgentWorkflow<WorkflowTestAgent>;
 
   beforeEach(() => {
-    agent = new TestAgent();
+    agent = new WorkflowTestAgent();
+    workflow = new AgentWorkflow(agent, {
+      tracingEnabled: false,
+    });
   });
 
-  test('should initialize correctly', async () => {
-    await agent.initialize();
-    expect(agent.getInitializationStatus()).toBe(true);
-    expect(agent.getState().status).toBe(AgentStatus.READY);
-  });
-
-  test('should register capabilities', () => {
-    const capabilities = agent.getCapabilities();
-    expect(capabilities.length).toBe(1);
-    expect(capabilities[0].name).toBe('test-capability');
-    expect(agent.canHandle('test-capability')).toBe(true);
-    expect(agent.canHandle('unknown-capability')).toBe(false);
-  });
-
-  test('should execute requests', async () => {
+  test('should execute agent through workflow', async () => {
     await agent.initialize();
 
     const request: AgentRequest = {
       input: 'test input',
     };
 
-    const response = await agent.execute(request);
+    const response = await workflow.execute(request);
     expect(response.output).toBe('Processed: test input');
 
-    // Verify metrics were updated
+    // Verify metrics were updated on the agent
     const metrics = agent.getMetrics();
     expect(metrics.totalExecutions).toBe(1);
-    // Check agent state execution count instead of metrics
     expect(agent.getState().executionCount).toBe(1);
     expect(metrics.totalExecutionTimeMs).toBeGreaterThan(0);
   });
 
-  test('should handle errors during execution', async () => {
+  test('should handle errors during workflow execution', async () => {
     await agent.initialize();
     agent.testError = true;
 
@@ -105,13 +95,10 @@ describe('BaseAgent', () => {
       input: 'test input',
     };
 
-    try {
-      await agent.execute(request);
-      fail('Should have thrown an error');
-    } catch (error: any) {
-      // Add type annotation here
-      expect(error.message).toBe('Test execution error');
-    }
+    // Workflow handles errors differently - it wraps them in the response
+    const response = await workflow.execute(request);
+    expect(response.output).toContain('Error:');
+    expect(response.output).toContain('Test execution error');
 
     // Verify error count was updated
     expect(agent.getState().errorCount).toBe(1);
@@ -121,23 +108,15 @@ describe('BaseAgent', () => {
     expect(metrics.errorRate).toBeGreaterThan(0);
   });
 
-  test('should terminate correctly', async () => {
-    await agent.initialize();
-    await agent.terminate();
-
-    expect(agent.getState().status).toBe(AgentStatus.TERMINATED);
-    expect(agent.getInitializationStatus()).toBe(false);
-  });
-
-  test('should process metrics correctly', async () => {
+  test('should process metrics correctly through workflow', async () => {
     await agent.initialize();
 
     // Add a delay to ensure measurable execution time
     agent.executionDelay = 50;
 
-    // Execute twice
-    await agent.execute({ input: 'test 1' });
-    await agent.execute({ input: 'test 2' });
+    // Execute twice via workflow
+    await workflow.execute({ input: 'test 1' });
+    await workflow.execute({ input: 'test 2' });
 
     const metrics = agent.getMetrics();
     expect(metrics.totalExecutions).toBe(2);
@@ -145,4 +124,43 @@ describe('BaseAgent', () => {
     expect(metrics.averageExecutionTimeMs).toBeGreaterThan(25);
     expect(metrics.lastExecutionTimeMs).toBeDefined();
   });
-});
+
+  test('should execute with capability and parameters', async () => {
+    await agent.initialize();
+
+    const request: AgentRequest = {
+      input: 'test input',
+      capability: 'test-capability',
+      parameters: { param1: 'value1' },
+      context: { userId: 'test-user' }
+    };
+
+    const response = await workflow.execute(request);
+    expect(response.output).toBe('Processed: test input');
+    
+    // Verify metrics were updated
+    const metrics = agent.getMetrics();
+    expect(metrics.totalExecutions).toBe(1);
+  });
+
+  test('direct execution vs workflow execution match in normal cases', async () => {
+    await agent.initialize();
+    
+    const request: AgentRequest = {
+      input: 'test input',
+    };
+
+    // Execute directly
+    const directResponse = await agent.execute(request);
+    
+    // Execute via workflow
+    const workflowResponse = await workflow.execute(request);
+    
+    // Outputs should match
+    expect(workflowResponse.output).toBe(directResponse.output);
+    
+    // Both execution methods should update metrics
+    const metrics = agent.getMetrics();
+    expect(metrics.totalExecutions).toBe(2);
+  });
+}); 

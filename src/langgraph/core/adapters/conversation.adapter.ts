@@ -21,6 +21,7 @@ import {
 } from './base-langgraph.adapter';
 import { AgentStatus, AgentMessage } from '../state/base-agent-state';
 import { logStateTransition, startTrace, endTrace } from '../utils/tracing';
+import { AgentWorkflow } from '../workflows/agent-workflow';
 
 /**
  * Conversation state definition
@@ -92,6 +93,7 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
   SendMessageResult
 > {
   protected readonly agent: BaseAgent;
+  protected readonly agentWorkflow: AgentWorkflow;
 
   constructor(
     agent: BaseAgent,
@@ -107,6 +109,10 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
     });
 
     this.agent = agent;
+    // Create a workflow for the agent
+    this.agentWorkflow = new AgentWorkflow(this.agent, {
+      tracingEnabled: options.tracingEnabled,
+    });
   }
 
   /**
@@ -362,7 +368,7 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
   }
 
   /**
-   * Create the generate response node
+   * Create the node that generates responses
    */
   private createGenerateResponseNode() {
     return async (state: ConversationState) => {
@@ -379,8 +385,8 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
         };
 
         try {
-          // Execute the agent request
-          const response = await this.agent.execute(request);
+          // Execute the agent request using the workflow instead of direct execution
+          const response = await this.agentWorkflow.execute(request);
 
           // Create the agent message
           const message: AgentMessage = {
