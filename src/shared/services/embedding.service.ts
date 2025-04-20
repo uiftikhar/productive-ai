@@ -1,4 +1,4 @@
-// src/shared/embedding/embedding.service.ts
+// src/shared/services/embedding.service.ts
 /**
  * Official Embedding Service for the Productive AI Application
  *
@@ -19,6 +19,7 @@
 import { OpenAIConnector } from '../../agents/integrations/openai-connector';
 import { ConsoleLogger } from '../logger/console-logger';
 import { Logger } from '../logger/logger.interface';
+import { IEmbeddingService } from './embedding.interface';
 
 /**
  * Interface for embedding service results
@@ -39,7 +40,7 @@ export interface EmbeddingProvider {
   generateBatchEmbeddings?(texts: string[]): Promise<number[][]>;
 }
 
-export class EmbeddingService {
+export class EmbeddingService implements IEmbeddingService {
   private logger: Logger;
   private connector: OpenAIConnector;
   private readonly embeddingModelName = 'text-embedding-3-large';
@@ -204,5 +205,32 @@ export class EmbeddingService {
     }
 
     return result.map((val) => val / magnitude);
+  }
+  
+  /**
+   * Alternative interface methods for compatibility
+   */
+  async embedText(text: string): Promise<number[]> {
+    return this.generateEmbedding(text);
+  }
+
+  async embedBatch(texts: string[]): Promise<number[][]> {
+    const results: number[][] = [];
+    for (const text of texts) {
+      results.push(await this.generateEmbedding(text));
+    }
+    return results;
+  }
+
+  getModelName(): string {
+    return this.embeddingModelName;
+  }
+
+  getDimensions(): number {
+    return 3072; // For text-embedding-3-large
+  }
+
+  getCost(): number {
+    return 0.00013; // Cost for text-embedding-3-large per 1K tokens
   }
 }

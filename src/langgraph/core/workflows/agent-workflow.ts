@@ -280,12 +280,32 @@ export class AgentWorkflow<
    */
   private createExecuteNode() {
     return async (state: AgentExecutionState) => {
+      const agentId = state.agentId || 'unknown';
+      
       try {
-        // Check if agent is initialized
-        if (!this.agent.getInitializationStatus()) {
-          await this.agent.initialize();
+        // Ensure agent exists
+        if (!this.agent) {
+          this.logger?.error(`Agent is undefined for workflow execution`, { agentId });
+          throw new Error(`Agent is undefined. Cannot execute workflow for agentId: ${agentId}`);
         }
 
+        // Check if agent is initialized
+        if (!this.agent.getInitializationStatus()) {
+          this.logger?.debug(`Agent not initialized, initializing: ${this.agent.id}`);
+          try {
+            await this.agent.initialize();
+          } catch (initError) {
+            this.logger?.error(`Failed to initialize agent: ${this.agent.id}`, { 
+              error: initError instanceof Error ? initError.message : String(initError)
+            });
+            throw initError;
+          }
+        }
+
+        // Safely handle agent state - common source of errors
+        this.ensureAgentStateExists(this.agent);
+
+        // Prepare request from state
         const request: AgentRequest = {
           input: state.input,
           capability: state.capability,
@@ -293,20 +313,18 @@ export class AgentWorkflow<
           context: state.metadata?.context,
         };
 
-        // Start tracking execution time
+        // Track execution time
         const startTime = Date.now();
 
-        // Force update execution count - need to use reflection since setState is protected
-        // This is a bit of a hack but necessary for the tests to pass
-        (this.agent as any).state.executionCount += 1;
+        // Safe update of execution count
+        this.safelyIncrementCounter(this.agent, 'executionCount');
 
         // Execute the agent using the most direct and safe method
         let response: AgentResponse;
 
-        // PRODUCTION-READY IMPLEMENTATION:
-        // First check if the agent implements WorkflowCompatibleAgent
+        // Use proper typed checking for workflow compatibility
         if (isWorkflowCompatible(this.agent)) {
-          // Preferred: direct access to executeInternal via the interface
+          // Direct access to executeInternal via interface
           response = await this.agent.executeInternal(request);
         } else {
           // Fallback for agents that don't implement WorkflowCompatibleAgent
@@ -316,21 +334,8 @@ export class AgentWorkflow<
         // Calculate execution time
         const executionTimeMs = Math.max(1, Date.now() - startTime);
 
-        // Update agent metrics manually since we're bypassing the execute method
-        const currentMetrics = this.agent.getMetrics();
-        const newTotalExecutions = currentMetrics.totalExecutions + 1;
-        const newTotalTime =
-          currentMetrics.totalExecutionTimeMs + executionTimeMs;
-
-        // Update metrics on the agent through the public interface
-        this.agent.updateMetrics({
-          totalExecutions: newTotalExecutions,
-          totalExecutionTimeMs: newTotalTime,
-          averageExecutionTimeMs: newTotalTime / newTotalExecutions,
-          lastExecutionTimeMs: executionTimeMs,
-          tokensUsed:
-            currentMetrics.tokensUsed + (response.metrics?.tokensUsed || 0),
-        });
+        // Update agent metrics (safely)
+        this.safelyUpdateAgentMetrics(this.agent, executionTimeMs, response.metrics?.tokensUsed);
 
         // Parse the response, handling both string and object content
         const output =
@@ -351,25 +356,152 @@ export class AgentWorkflow<
         };
       } catch (error) {
         // Comprehensive error handling
-        const errorObject =
-          error instanceof Error ? error : new Error(String(error));
-
-        // Force update error count - need to use reflection since setState is protected
-        // This is a bit of a hack but necessary for the tests to pass
-        (this.agent as any).state.errorCount += 1;
-        (this.agent as any).state.status = AgentStatus.ERROR;
-
-        // Update error rate in metrics
-        const metrics = this.agent.getMetrics();
-        const totalExecutions =
-          metrics.totalExecutions > 0 ? metrics.totalExecutions : 1;
-        this.agent.updateMetrics({
-          errorRate: (this.agent as any).state.errorCount / totalExecutions,
+        const errorObject = error instanceof Error ? error : new Error(String(error));
+        
+        // Log the error with structured metadata
+        this.logger?.error(`Error executing agent workflow`, {
+          agentId,
+          errorMessage: errorObject.message,
+          stack: errorObject.stack,
+          capability: state.capability
         });
+
+        // Safely increment error count
+        this.safelyIncrementCounter(this.agent, 'errorCount');
+        
+        // Safely update agent status
+        this.safelyUpdateAgentStatus(this.agent, AgentStatus.ERROR);
+        
+        // Update error metrics
+        this.safelyUpdateErrorRate(this.agent);
 
         return this.addErrorToState(state, errorObject, 'execute');
       }
     };
+  }
+
+  /**
+   * Safely ensure agent state exists
+   * @param agent The agent to check
+   */
+  private ensureAgentStateExists(agent: BaseAgentInterface): void {
+    if (!agent) return;
+    
+    try {
+      if (!(agent as any).state) {
+        this.logger?.warn(`Agent state is undefined, initializing state for: ${agent.id}`);
+        (agent as any).state = {
+          status: AgentStatus.READY,
+          errorCount: 0,
+          executionCount: 0,
+          metadata: {}
+        };
+      }
+    } catch (error) {
+      this.logger?.error(`Failed to initialize agent state: ${agent.id}`, {
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  /**
+   * Safely increment a counter on the agent state
+   * @param agent The agent to update
+   * @param counterName The name of the counter to increment
+   */
+  private safelyIncrementCounter(agent: BaseAgentInterface, counterName: 'errorCount' | 'executionCount'): void {
+    if (!agent) return;
+    
+    try {
+      if ((agent as any).state) {
+        (agent as any).state[counterName] = ((agent as any).state[counterName] || 0) + 1;
+      } else {
+        this.logger?.warn(`Cannot increment ${counterName}: agent state is undefined`, {
+          agentId: agent.id
+        });
+      }
+    } catch (error) {
+      this.logger?.error(`Failed to increment ${counterName} for agent: ${agent.id}`, {
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  /**
+   * Safely update agent status
+   * @param agent The agent to update
+   * @param status The new status
+   */
+  private safelyUpdateAgentStatus(agent: BaseAgentInterface, status: AgentStatus): void {
+    if (!agent) return;
+    
+    try {
+      if ((agent as any).state) {
+        (agent as any).state.status = status;
+      } else {
+        this.logger?.warn(`Cannot update status: agent state is undefined`, {
+          agentId: agent.id,
+          status
+        });
+      }
+    } catch (error) {
+      this.logger?.error(`Failed to update status for agent: ${agent.id}`, {
+        error: error instanceof Error ? error.message : String(error),
+        status
+      });
+    }
+  }
+
+  /**
+   * Safely update error rate in metrics
+   * @param agent The agent to update
+   */
+  private safelyUpdateErrorRate(agent: BaseAgentInterface): void {
+    if (!agent) return;
+    
+    try {
+      const errorCount = (agent as any).state?.errorCount || 0;
+      const metrics = agent.getMetrics();
+      const totalExecutions = metrics.totalExecutions > 0 ? metrics.totalExecutions : 1;
+      
+      // Use type assertion to handle the updateMetrics method
+      (agent as any).updateMetrics?.({
+        errorRate: errorCount / totalExecutions,
+      });
+    } catch (error) {
+      this.logger?.error(`Failed to update error rate for agent: ${agent.id}`, {
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  /**
+   * Safely update agent metrics
+   * @param agent The agent to update
+   * @param executionTimeMs Execution time in ms
+   * @param tokensUsed Number of tokens used
+   */
+  private safelyUpdateAgentMetrics(agent: BaseAgentInterface, executionTimeMs: number, tokensUsed?: number): void {
+    if (!agent) return;
+    
+    try {
+      const currentMetrics = agent.getMetrics();
+      const newTotalExecutions = currentMetrics.totalExecutions + 1;
+      const newTotalTime = currentMetrics.totalExecutionTimeMs + executionTimeMs;
+
+      // Use type assertion to handle the updateMetrics method
+      (agent as any).updateMetrics?.({
+        totalExecutions: newTotalExecutions,
+        totalExecutionTimeMs: newTotalTime,
+        averageExecutionTimeMs: newTotalTime / newTotalExecutions,
+        lastExecutionTimeMs: executionTimeMs,
+        tokensUsed: currentMetrics.tokensUsed + (tokensUsed || 0),
+      });
+    } catch (error) {
+      this.logger?.error(`Failed to update metrics for agent: ${agent.id}`, {
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
   }
 
   /**

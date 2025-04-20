@@ -1,66 +1,100 @@
 import { Logger } from '../../../shared/logger/logger.interface';
+import { LogLevel } from '../../../shared/logger/console-logger';
+
+interface LogMessage {
+  level: LogLevel;
+  message: string;
+  context?: Record<string, any>;
+}
 
 /**
  * Mock logger for testing
  */
 export class MockLogger implements Logger {
-  public logs: Array<{
-    level: string;
-    message: string;
-    meta?: Record<string, any>;
-  }> = [];
-
-  public currentLogLevel: string = 'info';
-
-  debug(message: string, meta?: Record<string, any>): void {
-    this.logs.push({ level: 'debug', message, meta });
+  public messages: LogMessage[] = [];
+  private logLevel: LogLevel = 'info';
+  
+  // Added for backward compatibility with existing tests
+  public get currentLogLevel(): LogLevel {
+    return this.logLevel;
   }
-
-  info(message: string, meta?: Record<string, any>): void {
-    this.logs.push({ level: 'info', message, meta });
-  }
-
-  warn(message: string, meta?: Record<string, any>): void {
-    this.logs.push({ level: 'warn', message, meta });
-  }
-
-  error(message: string, meta?: Record<string, any>): void {
-    this.logs.push({ level: 'error', message, meta });
+  
+  public set currentLogLevel(level: LogLevel) {
+    this.logLevel = level;
   }
 
   /**
    * Set the log level
    */
-  setLogLevel(level: string): void {
-    this.currentLogLevel = level;
+  setLogLevel(level: LogLevel): void {
+    this.logLevel = level;
+    this.currentLogLevel = level; // Update for backward compatibility
   }
 
   /**
    * Clear all logged messages
    */
   clear(): void {
-    this.logs = [];
+    this.messages = [];
   }
 
   /**
    * Get logs of a specific level
    */
-  getLogsByLevel(level: string): Array<{
-    level: string;
-    message: string;
-    meta?: Record<string, any>;
-  }> {
-    return this.logs.filter((log) => log.level === level);
+  getLogsByLevel(level: LogLevel): LogMessage[] {
+    return this.messages.filter(msg => msg.level === level);
   }
 
   /**
    * Check if a specific message was logged
    */
-  hasMessage(messageSubstring: string, level?: string): boolean {
-    return this.logs.some(
+  hasMessage(messageSubstring: string, level?: LogLevel): boolean {
+    return this.messages.some(
       (log) =>
         log.message.includes(messageSubstring) &&
         (level === undefined || log.level === level),
     );
+  }
+
+  log(level: LogLevel, message: string, context?: any): void {
+    this.messages.push({ level, message, context });
+  }
+
+  setContext?(context: Record<string, any>): void {
+    // No-op for mock
+  }
+
+  clearContext?(): void {
+    // No-op for mock
+  }
+
+  debug(message: string, context?: Record<string, any>): void {
+    this.messages.push({ level: 'debug', message, context });
+  }
+
+  info(message: string, context?: Record<string, any>): void {
+    this.messages.push({ level: 'info', message, context });
+  }
+
+  warn(message: string, context?: Record<string, any>): void {
+    this.messages.push({ level: 'warn', message, context });
+  }
+
+  error(message: string, context?: Record<string, any>): void {
+    this.messages.push({ level: 'error', message, context });
+  }
+
+  /**
+   * Get all messages
+   */
+  getMessages(): LogMessage[] {
+    return this.messages;
+  }
+
+  getLogs(level?: LogLevel): LogMessage[] {
+    if (level) {
+      return this.messages.filter((log) => log.level === level);
+    }
+    return this.messages;
   }
 }

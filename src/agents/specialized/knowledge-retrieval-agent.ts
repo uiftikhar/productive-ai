@@ -13,7 +13,6 @@ import { ContextType } from '../../shared/user-context/context-types';
 import { UserRole } from '../../shared/user-context/types/context.types';
 import {
   EmbeddingService,
-  EmbeddingProvider,
 } from '../../shared/services/embedding.service';
 import { DocumentContextService } from '../../shared/user-context/services/document-context.service';
 import { ConversationContextService } from '../../shared/user-context/services/conversation-context.service';
