@@ -8,7 +8,7 @@ import { StandardizedMeetingAnalysisAdapter } from '../langgraph/core/adapters/s
 import { configureTracing } from '../langgraph/core/utils/tracing';
 import { AgentWorkflow } from '../langgraph/core/workflows/agent-workflow';
 
-import { EmbeddingService } from '../shared/embedding/embedding.service';
+import { EmbeddingService } from '../shared/services/embedding.service';
 import { ConsoleLogger } from '../shared/logger/console-logger';
 import { OpenAIConnector } from '../agents/integrations/openai-connector';
 import { BaseContextService } from '../shared/user-context/services/base-context.service';

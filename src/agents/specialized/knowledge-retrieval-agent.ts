@@ -14,7 +14,7 @@ import { UserRole } from '../../shared/user-context/types/context.types';
 import {
   EmbeddingService,
   EmbeddingProvider,
-} from '../../shared/embedding/embedding.service';
+} from '../../shared/services/embedding.service';
 import { DocumentContextService } from '../../shared/user-context/services/document-context.service';
 import { ConversationContextService } from '../../shared/user-context/services/conversation-context.service';
 import { MeetingContextService } from '../../shared/user-context/services/meeting-context.service';

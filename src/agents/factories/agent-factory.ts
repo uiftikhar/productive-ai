@@ -18,7 +18,7 @@ import { KnowledgeRetrievalAgent } from '../specialized/knowledge-retrieval-agen
 import { DocumentRetrievalAgent } from '../specialized/retrieval-agent';
 import { MeetingAnalysisAgent } from '../specialized/meeting-analysis-agent';
 import { DecisionTrackingAgent } from '../specialized/decision-tracking-agent';
-import { EmbeddingService } from '../../shared/embedding/embedding.service';
+import { EmbeddingService } from '../../shared/services/embedding.service';
 import { OpenAIConnector } from '../integrations/openai-connector';
 import { PineconeConnector } from '../integrations/pinecone-connector';
 import { AgentWorkflow } from '../../langgraph/core/workflows/agent-workflow';

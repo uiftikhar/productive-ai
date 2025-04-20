@@ -27,7 +27,7 @@ import {
 import { ContextType } from '../../shared/user-context/types/context.types';
 
 // Import embedding and connector services
-import { EmbeddingService } from '../../shared/embedding/embedding.service';
+import { EmbeddingService } from '../../shared/services/embedding.service';
 import { OpenAIConnector } from '../integrations/openai-connector';
 import { BaseContextService } from '../../shared/user-context/services/base-context.service';
 

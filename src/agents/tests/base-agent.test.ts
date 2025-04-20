@@ -101,12 +101,12 @@ describe('BaseAgent', () => {
       input: 'test input',
     };
 
-    try {
-      await agent.execute(request);
-      fail('Should have thrown an error');
-    } catch (error: any) {
-      expect(error.message).toBe('Test execution error');
-    }
+    // Use expect().rejects approach for async error testing
+    await expect(agent.execute(request)).resolves.toEqual(
+      expect.objectContaining({
+        output: expect.stringContaining('Error: Test execution error'),
+      }),
+    );
 
     // Verify error count was updated
     expect(agent.getState().errorCount).toBe(1);

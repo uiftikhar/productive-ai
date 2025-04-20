@@ -14,7 +14,7 @@ import {
   KnowledgeGapType,
   USER_CONTEXT_INDEX,
 } from '../types/context.types';
-import { EmbeddingService } from '../../embedding/embedding.service';
+import { EmbeddingService } from '../../services/embedding.service';
 import { OpenAIConnector } from '../../../agents/integrations/openai-connector';
 
 /**

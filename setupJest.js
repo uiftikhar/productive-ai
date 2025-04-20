@@ -33,6 +33,11 @@ global.MockLogger = MockLogger;
 // Mock the logger for global use
 global.mockLogger = new MockLogger();
 
+// Reset the mockLogger before each test
+beforeEach(() => {
+  global.mockLogger = new MockLogger();
+});
+
 // Make jest.spyOn work properly with the mock system
 const originalSpyOn = jest.spyOn;
 jest.spyOn = function (object, methodName) {
@@ -249,7 +254,7 @@ jest.mock('./src/pinecone/pinecone-index.service.ts', () => {
 });
 
 // Mock the EmbeddingService
-jest.mock('./src/services/embedding.service.ts', () => {
+jest.mock('./src/shared/services/embedding.service.ts', () => {
   return {
     EmbeddingService: jest.fn().mockImplementation(() => ({
       embedText: jest.fn().mockImplementation((text) => {

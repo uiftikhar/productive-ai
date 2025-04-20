@@ -35,7 +35,7 @@ export class PineconeConnectionService {
    * since actual index initialization is done centrally in index.ts
    */
   async initialize(): Promise<void> {
-    this.logger.info('Verifying PineconeConnectionService availability');
+    this.logger.info('Initializing PineconeConnectionService');
     // Since initialization is now handled centrally in index.ts,
     // this method only needs to verify the connection is working
     try {

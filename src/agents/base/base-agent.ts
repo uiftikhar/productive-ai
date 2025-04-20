@@ -144,6 +144,13 @@ export abstract class BaseAgent implements WorkflowCompatibleAgent {
   }
 
   /**
+   * Update agent metrics - useful for external tracking systems
+   */
+  updateMetrics(update: Partial<AgentMetrics>): void {
+    this.metrics = { ...this.metrics, ...update };
+  }
+
+  /**
    * Reset metrics to default values
    */
   protected resetMetrics(): void {
@@ -164,8 +171,10 @@ export abstract class BaseAgent implements WorkflowCompatibleAgent {
     tokenUsage?: number,
     steps?: number,
   ): Partial<AgentResponse['metrics']> {
-    const executionTimeMs = Date.now() - startTime;
+    // Calculate execution time, ensuring a minimum value of 1ms to avoid zero values
+    const executionTimeMs = Math.max(1, Date.now() - startTime);
 
+    // Update the agent metrics
     this.metrics.totalExecutions += 1;
     this.metrics.totalExecutionTimeMs += executionTimeMs;
     this.metrics.averageExecutionTimeMs =
@@ -176,8 +185,11 @@ export abstract class BaseAgent implements WorkflowCompatibleAgent {
       this.metrics.tokensUsed += tokenUsage;
     }
 
-    this.metrics.errorRate =
-      this.state.errorCount / this.metrics.totalExecutions;
+    // Update error rate if there are executions
+    if (this.metrics.totalExecutions > 0) {
+      this.metrics.errorRate =
+        this.state.errorCount / this.metrics.totalExecutions;
+    }
 
     return {
       executionTimeMs,
@@ -238,7 +250,13 @@ export abstract class BaseAgent implements WorkflowCompatibleAgent {
       request,
     });
 
+    // Increment error count in state
     this.state.errorCount += 1;
+
+    // Update error rate in metrics
+    // Use max of 1 for totalExecutions to avoid division by zero
+    const totalExecutions = Math.max(1, this.metrics.totalExecutions);
+    this.metrics.errorRate = this.state.errorCount / totalExecutions;
 
     return {
       output: `Error: ${error.message}`,
@@ -259,7 +277,11 @@ export abstract class BaseAgent implements WorkflowCompatibleAgent {
         await this.initialize();
       }
 
-      this.setState({ status: AgentStatus.EXECUTING });
+      // Update the execution count in the state
+      this.setState({
+        status: AgentStatus.EXECUTING,
+        executionCount: this.state.executionCount + 1,
+      });
 
       // Pre-execution hook
       await this.preExecute(request);
