@@ -24,12 +24,13 @@ import {
   InstructionTemplateNameEnum,
   InstructionTemplateName,
 } from '../../shared/prompts/instruction-templates';
-import { ContextType } from '../../shared/user-context/types/context.types';
+import { ContextType } from '../../shared/services/user-context/types/context.types';
 
-// Import embedding and connector services
-import { EmbeddingService } from '../../shared/services/embedding.service';
+// Import embedding services and interfaces
+import { IEmbeddingService } from '../../shared/services/embedding.interface';
+import { EmbeddingServiceFactory } from '../../shared/services/embedding.factory';
 import { OpenAIConnector } from '../integrations/openai-connector';
-import { BaseContextService } from '../../shared/user-context/services/base-context.service';
+import { BaseContextService } from '../../shared/services/user-context/base-context.service';
 
 /**
  * Agent for analyzing meeting transcripts
@@ -37,7 +38,7 @@ import { BaseContextService } from '../../shared/user-context/services/base-cont
  */
 export class MeetingAnalysisAgent extends BaseAgent {
   private ragPromptManager: RagPromptManager;
-  private embeddingService: EmbeddingService;
+  private embeddingService: IEmbeddingService;
   private openAIConnector: OpenAIConnector;
   private baseContextService: BaseContextService;
 
@@ -47,20 +48,35 @@ export class MeetingAnalysisAgent extends BaseAgent {
   constructor(
     name: string = 'Meeting Analysis Agent',
     description: string = 'Analyzes meeting transcripts to extract key information, action items, and insights',
-    options: any = {},
+    options: {
+      openAIConnector?: OpenAIConnector;
+      logger?: Logger;
+      embeddingService?: IEmbeddingService;
+      baseContextService?: BaseContextService;
+      llm?: ChatOpenAI;
+      id?: string;
+    } = {},
   ) {
-    super(name, description, options);
-    this.logger = options.logger || new ConsoleLogger();
+    super(name, description, {
+      logger: options.logger,
+      llm: options.llm,
+      id: options.id,
+    });
 
+    // Initialize required services
     this.openAIConnector =
       options.openAIConnector ||
       new OpenAIConnector({
         logger: this.logger,
       });
 
+    // Initialize embedding service if not provided
     this.embeddingService =
       options.embeddingService ||
-      new EmbeddingService(this.openAIConnector, this.logger);
+      EmbeddingServiceFactory.getService({
+        connector: this.openAIConnector,
+        logger: this.logger,
+      });
 
     this.baseContextService =
       options.baseContextService ||
@@ -70,6 +86,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
 
     this.ragPromptManager = new RagPromptManager();
 
+    // Register capabilities
     this.registerCapability({
       name: 'analyze-transcript-chunk',
       description:
@@ -240,7 +257,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
   }
 
   /**
-   * Process transcript through the agent
+   * Implementation of abstract executeInternal method
    */
   async executeInternal(request: AgentRequest): Promise<AgentResponse> {
     const startTime = Date.now();
@@ -251,149 +268,43 @@ export class MeetingAnalysisAgent extends BaseAgent {
     });
 
     try {
-      const { template, role } =
-        this.getTemplateAndRoleForCapability(capability);
+      // Dispatch to the appropriate handler based on capability
+      switch (capability) {
+        case 'analyze-transcript-chunk':
+          return await this.analyzeMeeting(request);
 
-      const inputText =
-        typeof request.input === 'string'
-          ? request.input
-          : Array.isArray(request.input)
-            ? request.input
-                .map((m) =>
-                  typeof m.content === 'string'
-                    ? m.content
-                    : JSON.stringify(m.content),
-                )
-                .join('\n')
-            : '';
+        case 'generate-final-analysis':
+          return await this.generateMeetingSummary(request);
 
-      // Handle custom instruction cases
-      let customInstruction = '';
-      if (template === InstructionTemplateNameEnum.CUSTOM) {
-        switch (capability) {
-          case 'extract-action-items':
-            customInstruction = `
-              Focus specifically on identifying action items from the transcript.
-              For each action item, extract:
-              - The task description
-              - The person responsible (if mentioned)
-              - The deadline or timeframe (if mentioned)
-              - The context or related topic
-              
-              Format your response as a JSON array of action items.
-            `;
-            break;
-          case 'extract-topics':
-            customInstruction = `
-              Focus specifically on identifying the main topics discussed in the meeting.
-              For each topic:
-              - Provide a clear title
-              - Note when it was discussed (beginning, middle, end)
-              - Identify the main participants discussing this topic
-              - Summarize key points made about this topic
-              
-              Format your response as a JSON array of topics.
-            `;
-            break;
-          case 'extract-decisions':
-            customInstruction = `
-              Focus specifically on identifying decisions made during the meeting.
-              For each decision:
-              - Clearly state what was decided
-              - Note who made or approved the decision
-              - Identify any conditions attached to the decision
-              - Note if there was consensus or disagreement
-              
-              Format your response as a JSON array of decisions.
-            `;
-            break;
-        }
+        case 'extract-action-items':
+          return await this.extractActionItems(request);
+
+        case 'generate-follow-up-questions':
+          return await this.generateFollowUpQuestions(request);
+
+        case 'extract-topics':
+        case 'extract-decisions':
+          // Extract specific information based on capability
+          const infoType =
+            capability === 'extract-topics' ? 'topics' : 'decisions';
+          const result = await this.extractSpecificInformation(
+            typeof request.input === 'string'
+              ? request.input
+              : JSON.stringify(request.input),
+            infoType as 'action-items' | 'topics' | 'decisions',
+            request.parameters,
+          );
+
+          return {
+            output: result,
+            metrics: {
+              executionTimeMs: Date.now() - startTime,
+            },
+          };
+
+        default:
+          throw new Error(`Unsupported capability: ${capability}`);
       }
-
-      // Prepare RAG options with real embeddings
-      const { ragOptions, embeddingGenerated } =
-        await this.prepareRagContextOptions(
-          capability,
-          inputText,
-          request.parameters,
-        );
-
-      const ragResult = await this.ragPromptManager.createRagPrompt(
-        role,
-        template,
-        // For custom templates, combine the input with our custom instruction
-        template === InstructionTemplateNameEnum.CUSTOM
-          ? `${customInstruction}\n\nTranscript to analyze:\n${inputText}`
-          : inputText,
-        ragOptions,
-      );
-
-      // Log information about retrieved context
-      this.logger.debug('Retrieved context for analysis', {
-        contextCount: ragResult.retrievedContext.items.length,
-        sources: ragResult.retrievedContext.sources,
-        embeddingGenerated,
-      });
-
-      const messages = ragResult.messages.map((msg) => {
-        if (msg.role === 'system') {
-          return new SystemMessage(msg.content);
-        } else if (msg.role === 'user') {
-          return new HumanMessage(msg.content);
-        } else if (msg.role === 'assistant') {
-          return new AIMessage(msg.content);
-        } else {
-          // Default to user message for any other role
-          return new HumanMessage(msg.content);
-        }
-      });
-
-      // Call the language model
-      const response = await this.llm.invoke(messages);
-
-      const inputTokens = this.estimateTokenCount(
-        messages
-          .map((m) =>
-            typeof m.content === 'string'
-              ? m.content
-              : JSON.stringify(m.content),
-          )
-          .join('\n'),
-      );
-      const outputTokens = this.estimateTokenCount(
-        typeof response.content === 'string'
-          ? response.content
-          : JSON.stringify(response.content),
-      );
-
-      // Store analysis results in context if needed
-      if (request.parameters?.storeInContext && request.parameters?.userId) {
-        await this.storeAnalysisInContext(
-          response.content.toString(),
-          capability,
-          request.parameters,
-        );
-      }
-
-      // Format the response
-      return {
-        output: response,
-        artifacts: {
-          capability,
-          parameters: request.parameters,
-          templateUsed: template,
-          roleUsed: role,
-          contextRetrieved: {
-            count: ragResult.retrievedContext.items.length,
-            sources: ragResult.retrievedContext.sources,
-          },
-        },
-        metrics: {
-          executionTimeMs: Date.now() - startTime,
-          tokensUsed: inputTokens + outputTokens,
-          stepCount: 1,
-        },
-      };
     } catch (error) {
       this.logger.error(
         `Error in MeetingAnalysisAgent: ${error instanceof Error ? error.message : String(error)}`,
@@ -488,5 +399,401 @@ export class MeetingAnalysisAgent extends BaseAgent {
     });
 
     return response;
+  }
+
+  /**
+   * Analyze a meeting transcript
+   */
+  private async analyzeMeeting(request: AgentRequest): Promise<AgentResponse> {
+    const startTime = Date.now();
+    const inputText =
+      typeof request.input === 'string'
+        ? request.input
+        : Array.isArray(request.input)
+          ? request.input
+              .map((m) =>
+                typeof m.content === 'string'
+                  ? m.content
+                  : JSON.stringify(m.content),
+              )
+              .join('\n')
+          : '';
+
+    const { template, role } = this.getTemplateAndRoleForCapability(
+      'analyze-transcript-chunk',
+    );
+
+    // Prepare RAG context options
+    const { ragOptions, embeddingGenerated } =
+      await this.prepareRagContextOptions(
+        'analyze-transcript-chunk',
+        inputText,
+        request.parameters,
+      );
+
+    const ragResult = await this.ragPromptManager.createRagPrompt(
+      role,
+      template,
+      inputText,
+      ragOptions,
+    );
+
+    // Log information about retrieved context
+    this.logger.debug('Retrieved context for transcript analysis', {
+      contextCount: ragResult.retrievedContext.items.length,
+      sources: ragResult.retrievedContext.sources,
+      embeddingGenerated,
+    });
+
+    const messages = this.convertRagMessagesToLangchainMessages(
+      ragResult.messages,
+    );
+
+    // Call the language model
+    const response = await this.llm.invoke(messages);
+
+    const inputTokens = this.estimateTokenCount(
+      messages
+        .map((m) =>
+          typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+        )
+        .join('\n'),
+    );
+    const outputTokens = this.estimateTokenCount(
+      typeof response.content === 'string'
+        ? response.content
+        : JSON.stringify(response.content),
+    );
+
+    // Store analysis results in context if needed
+    if (request.parameters?.storeInContext && request.parameters?.userId) {
+      await this.storeAnalysisInContext(
+        response.content.toString(),
+        'analyze-transcript-chunk',
+        request.parameters,
+      );
+    }
+
+    // Format the response
+    return {
+      output: response,
+      artifacts: {
+        capability: 'analyze-transcript-chunk',
+        parameters: request.parameters,
+        templateUsed: template,
+        roleUsed: role,
+        contextRetrieved: {
+          count: ragResult.retrievedContext.items.length,
+          sources: ragResult.retrievedContext.sources,
+        },
+      },
+      metrics: {
+        executionTimeMs: Date.now() - startTime,
+        tokensUsed: inputTokens + outputTokens,
+        stepCount: 1,
+      },
+    };
+  }
+
+  /**
+   * Generate a summary from meeting analysis
+   */
+  private async generateMeetingSummary(
+    request: AgentRequest,
+  ): Promise<AgentResponse> {
+    const startTime = Date.now();
+    const inputText =
+      typeof request.input === 'string'
+        ? request.input
+        : Array.isArray(request.input)
+          ? request.input
+              .map((m) =>
+                typeof m.content === 'string'
+                  ? m.content
+                  : JSON.stringify(m.content),
+              )
+              .join('\n')
+          : '';
+
+    const { template, role } = this.getTemplateAndRoleForCapability(
+      'generate-final-analysis',
+    );
+
+    // Prepare RAG context options
+    const { ragOptions, embeddingGenerated } =
+      await this.prepareRagContextOptions(
+        'generate-final-analysis',
+        inputText,
+        request.parameters,
+      );
+
+    const ragResult = await this.ragPromptManager.createRagPrompt(
+      role,
+      template,
+      inputText,
+      ragOptions,
+    );
+
+    const messages = this.convertRagMessagesToLangchainMessages(
+      ragResult.messages,
+    );
+
+    // Call the language model
+    const response = await this.llm.invoke(messages);
+
+    const inputTokens = this.estimateTokenCount(
+      messages
+        .map((m) =>
+          typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+        )
+        .join('\n'),
+    );
+    const outputTokens = this.estimateTokenCount(
+      typeof response.content === 'string'
+        ? response.content
+        : JSON.stringify(response.content),
+    );
+
+    // Store analysis results in context if needed
+    if (request.parameters?.storeInContext && request.parameters?.userId) {
+      await this.storeAnalysisInContext(
+        response.content.toString(),
+        'generate-final-analysis',
+        request.parameters,
+      );
+    }
+
+    // Format the response
+    return {
+      output: response,
+      artifacts: {
+        capability: 'generate-final-analysis',
+        parameters: request.parameters,
+        templateUsed: template,
+        roleUsed: role,
+        contextRetrieved: {
+          count: ragResult.retrievedContext.items.length,
+          sources: ragResult.retrievedContext.sources,
+        },
+      },
+      metrics: {
+        executionTimeMs: Date.now() - startTime,
+        tokensUsed: inputTokens + outputTokens,
+        stepCount: 1,
+      },
+    };
+  }
+
+  /**
+   * Extract action items from a meeting transcript
+   */
+  private async extractActionItems(
+    request: AgentRequest,
+  ): Promise<AgentResponse> {
+    const startTime = Date.now();
+    const inputText =
+      typeof request.input === 'string'
+        ? request.input
+        : Array.isArray(request.input)
+          ? request.input
+              .map((m) =>
+                typeof m.content === 'string'
+                  ? m.content
+                  : JSON.stringify(m.content),
+              )
+              .join('\n')
+          : '';
+
+    const { template, role } = this.getTemplateAndRoleForCapability(
+      'extract-action-items',
+    );
+
+    // Create custom instruction for action items
+    const customInstruction = `
+      Focus specifically on identifying action items from the transcript.
+      For each action item, extract:
+      - The task description
+      - The person responsible (if mentioned)
+      - The deadline or timeframe (if mentioned)
+      - The context or related topic
+      
+      Format your response as a JSON array of action items.
+    `;
+
+    // Prepare RAG context options
+    const { ragOptions, embeddingGenerated } =
+      await this.prepareRagContextOptions(
+        'extract-action-items',
+        inputText,
+        request.parameters,
+      );
+
+    const ragResult = await this.ragPromptManager.createRagPrompt(
+      role,
+      template,
+      `${customInstruction}\n\nTranscript to analyze:\n${inputText}`,
+      ragOptions,
+    );
+
+    const messages = this.convertRagMessagesToLangchainMessages(
+      ragResult.messages,
+    );
+
+    // Call the language model
+    const response = await this.llm.invoke(messages);
+
+    const inputTokens = this.estimateTokenCount(
+      messages
+        .map((m) =>
+          typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+        )
+        .join('\n'),
+    );
+    const outputTokens = this.estimateTokenCount(
+      typeof response.content === 'string'
+        ? response.content
+        : JSON.stringify(response.content),
+    );
+
+    // Store analysis results in context if needed
+    if (request.parameters?.storeInContext && request.parameters?.userId) {
+      await this.storeAnalysisInContext(
+        response.content.toString(),
+        'extract-action-items',
+        request.parameters,
+      );
+    }
+
+    // Format the response
+    return {
+      output: response,
+      artifacts: {
+        capability: 'extract-action-items',
+        parameters: request.parameters,
+        templateUsed: template,
+        roleUsed: role,
+        contextRetrieved: {
+          count: ragResult.retrievedContext.items.length,
+          sources: ragResult.retrievedContext.sources,
+        },
+      },
+      metrics: {
+        executionTimeMs: Date.now() - startTime,
+        tokensUsed: inputTokens + outputTokens,
+        stepCount: 1,
+      },
+    };
+  }
+
+  /**
+   * Generate follow-up questions based on meeting transcript
+   */
+  private async generateFollowUpQuestions(
+    request: AgentRequest,
+  ): Promise<AgentResponse> {
+    const startTime = Date.now();
+    const inputText =
+      typeof request.input === 'string'
+        ? request.input
+        : Array.isArray(request.input)
+          ? request.input
+              .map((m) =>
+                typeof m.content === 'string'
+                  ? m.content
+                  : JSON.stringify(m.content),
+              )
+              .join('\n')
+          : '';
+
+    const { template, role } = this.getTemplateAndRoleForCapability(
+      'analyze-transcript-chunk',
+    );
+
+    // Create custom instruction for follow-up questions
+    const customInstruction = `
+      Based on the meeting transcript, generate a list of thoughtful follow-up questions that would be valuable to ask.
+      Focus on:
+      - Clarifying ambiguous points
+      - Exploring topics that were mentioned but not fully discussed
+      - Addressing potential gaps or risks
+      - Ensuring next steps are clear and actionable
+      
+      Format your response as a JSON array of questions with a brief explanation of why each question is important.
+    `;
+
+    // Prepare RAG context options
+    const { ragOptions, embeddingGenerated } =
+      await this.prepareRagContextOptions(
+        'analyze-transcript-chunk',
+        inputText,
+        { ...request.parameters, focusOn: 'follow-up-questions' },
+      );
+
+    const ragResult = await this.ragPromptManager.createRagPrompt(
+      role,
+      template,
+      `${customInstruction}\n\nMeeting transcript:\n${inputText}`,
+      ragOptions,
+    );
+
+    const messages = this.convertRagMessagesToLangchainMessages(
+      ragResult.messages,
+    );
+
+    // Call the language model
+    const response = await this.llm.invoke(messages);
+
+    const inputTokens = this.estimateTokenCount(
+      messages
+        .map((m) =>
+          typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+        )
+        .join('\n'),
+    );
+    const outputTokens = this.estimateTokenCount(
+      typeof response.content === 'string'
+        ? response.content
+        : JSON.stringify(response.content),
+    );
+
+    // Format the response
+    return {
+      output: response,
+      artifacts: {
+        capability: 'generate-follow-up-questions',
+        parameters: request.parameters,
+        templateUsed: template,
+        roleUsed: role,
+        contextRetrieved: {
+          count: ragResult.retrievedContext.items.length,
+          sources: ragResult.retrievedContext.sources,
+        },
+      },
+      metrics: {
+        executionTimeMs: Date.now() - startTime,
+        tokensUsed: inputTokens + outputTokens,
+        stepCount: 1,
+      },
+    };
+  }
+
+  /**
+   * Helper method to convert RAG messages to LangChain messages
+   */
+  private convertRagMessagesToLangchainMessages(
+    messages: { role: string; content: string }[],
+  ): BaseMessage[] {
+    return messages.map((msg) => {
+      if (msg.role === 'system') {
+        return new SystemMessage(msg.content);
+      } else if (msg.role === 'user') {
+        return new HumanMessage(msg.content);
+      } else if (msg.role === 'assistant') {
+        return new AIMessage(msg.content);
+      } else {
+        // Default to user message for any other role
+        return new HumanMessage(msg.content);
+      }
+    });
   }
 }

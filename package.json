@@ -14,7 +14,6 @@
     "format": "prettier --write .",
     "test": "jest",
     "test:coverage": "jest --coverage",
-    "test:agents": "jest src/agents --testPathIgnorePatterns=node_modules",
     "dev": "nodemon --watch src --ext ts,json --exec \"ts-node\" src/index.ts"
   },
   "dependencies": {

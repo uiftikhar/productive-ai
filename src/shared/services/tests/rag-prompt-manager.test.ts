@@ -4,19 +4,19 @@ import {
   ContextAwarePromptOptions,
 } from '../rag-prompt-manager.service';
 import { PromptLibrary } from '../../prompts/prompt-library';
-import { BaseContextService } from '../../user-context/services/base-context.service';
-import { DocumentContextService } from '../../user-context/services/document-context.service';
-import { ConversationContextService } from '../../user-context/services/conversation-context.service';
-import { RelevanceCalculationService } from '../../user-context/services/relevance-calculation.service';
-import { ContextType } from '../../user-context/context-types';
+import { ContextType } from '../user-context/context-types';
 import { SystemRole } from '../../prompts/prompt-types';
 import { InstructionTemplateName } from '../../prompts/instruction-templates';
+import { BaseContextService } from '../user-context/base-context.service';
+import { ConversationContextService } from '../user-context/conversation-context.service';
+import { DocumentContextService } from '../user-context/document-context.service';
+import { RelevanceCalculationService } from '../user-context/relevance-calculation.service';
 
 // Mock the services
-jest.mock('../../user-context/services/base-context.service.ts');
-jest.mock('../../user-context/services/document-context.service.ts');
-jest.mock('../../user-context/services/conversation-context.service.ts');
-jest.mock('../../user-context/services/relevance-calculation.service.ts');
+jest.mock('../user-context/base-context.service');
+jest.mock('../user-context/document-context.service');
+jest.mock('../user-context/conversation-context.service');
+jest.mock('../user-context/relevance-calculation.service');
 
 describe('RagPromptManager', () => {
   let ragPromptManager: RagPromptManager;

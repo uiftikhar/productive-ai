@@ -31,12 +31,15 @@ module.exports = {
   collectCoverage: true,
   collectCoverageFrom: [
     'src/**/*.{js,ts}',
-    '!src/**/*.d.ts',
+
     '!src/app.ts',
     '!src/**/index.ts',
     '!src/**/*.model.ts',
     '!src/**/*.routes.ts',
     '!src/**/*.controller.ts',
+    '!src/agents/tests/mocks/mock-logger.ts',
+    '!src/agents/services/tests/**/*',
+    '!src/shared/services/tests/mocks/*.ts',
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov'],

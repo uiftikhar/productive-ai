@@ -13,7 +13,7 @@ import {
   ActionItemStatus,
   UserContextNotFoundError,
   UserContextValidationError,
-} from '../types/context.types';
+} from './types/context.types';
 import { ConsoleLogger } from '../../logger/console-logger';
 import { Logger } from '../../logger/logger.interface';
 

@@ -16,43 +16,67 @@ The Embedding Service provides semantic search capabilities by generating and co
 ### Usage
 
 ```typescript
-import { EmbeddingService } from './src/shared/embeddings/embedding.service';
+import { EmbeddingServiceFactory } from './src/shared/services/embedding.factory';
 
-// Initialize the service with your API key
-const embeddingService = new EmbeddingService({
-  openAIApiKey: 'your-api-key', // Optional: defaults to OPENAI_API_KEY env variable
-  model: 'text-embedding-ada-002', // Optional: defaults to text-embedding-ada-002
-  dimensions: 1536, // Optional: defaults to 1536
+// Get the embedding service with default settings
+const embeddingService = EmbeddingServiceFactory.getService();
+
+// Or with custom options
+const customEmbeddingService = EmbeddingServiceFactory.getService({
+  connector: myOpenAIConnector,
+  logger: myCustomLogger
 });
 
 // Generate embedding for a single text
 const embedding = await embeddingService.generateEmbedding('Some text to embed');
 
-// Find similar content from a collection
-const contents = [
-  'Information about apples',
-  'Facts about oranges',
-  'Details about bananas'
+// Find similar content from a collection of embeddings
+const embeddedContents = [
+  { embedding: await embeddingService.generateEmbedding('Information about apples'), metadata: { text: 'Information about apples' } },
+  { embedding: await embeddingService.generateEmbedding('Facts about oranges'), metadata: { text: 'Facts about oranges' } },
+  { embedding: await embeddingService.generateEmbedding('Details about bananas'), metadata: { text: 'Details about bananas' } }
 ];
 
-const results = await embeddingService.findSimilarContent('Tell me about fruits', contents);
+const queryEmbedding = await embeddingService.generateEmbedding('Tell me about fruits');
+const results = embeddingService.findSimilarEmbeddings(queryEmbedding, embeddedContents);
 console.log(results);
-// Outputs array of SearchResult objects sorted by relevance score
+// Outputs array of objects with similarity scores and metadata sorted by relevance
 
-// Search within a long document
-const longText = "Very long document content...";
-const relevantChunks = await embeddingService.searchInLongText('specific topic', longText);
+// Combine multiple embeddings
+const combinedEmbedding = embeddingService.combineEmbeddings([embedding1, embedding2, embedding3]);
 ```
 
 ### Configuration
 
-The embedding service can be configured with the following options:
+The embedding service can be configured using the factory with these options:
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| openAIApiKey | OpenAI API key | OPENAI_API_KEY env variable |
-| model | Embedding model name | text-embedding-ada-002 |
-| dimensions | Embedding dimensions | 1536 |
-| apiBaseUrl | Custom API base URL | OPENAI_API_BASE_URL env variable |
+| Option | Description |
+|--------|-------------|
+| connector | OpenAIConnector instance for interacting with the OpenAI API |
+| logger | Custom logger implementing the Logger interface |
+| useAdapter | Boolean flag to use adapter (useful for legacy code) |
+| embeddingService | Provide a custom embedding service that implements IEmbeddingService |
+
+Example with custom configuration:
+
+```typescript
+import { EmbeddingServiceFactory } from './src/shared/services/embedding.factory';
+import { OpenAIConnector } from './src/agents/integrations/openai-connector';
+import { ConsoleLogger } from './src/shared/logger/console-logger';
+
+// Create a connector with custom settings
+const connector = new OpenAIConnector({
+  modelConfig: {
+    model: 'text-embedding-3-large'
+  },
+  logger: new ConsoleLogger()
+});
+
+// Get an embedding service with the custom connector
+const embeddingService = EmbeddingServiceFactory.getService({
+  connector,
+  logger: new ConsoleLogger()
+});
+```
 
 ## Additional Features 

@@ -9,16 +9,14 @@ import {
   RagPromptManager,
   RagRetrievalStrategy,
 } from '../../shared/services/rag-prompt-manager.service';
-import { ContextType } from '../../shared/user-context/context-types';
-import { UserRole } from '../../shared/user-context/types/context.types';
-import {
-  EmbeddingService,
-  EmbeddingProvider,
-} from '../../shared/services/embedding.service';
-import { DocumentContextService } from '../../shared/user-context/services/document-context.service';
-import { ConversationContextService } from '../../shared/user-context/services/conversation-context.service';
-import { MeetingContextService } from '../../shared/user-context/services/meeting-context.service';
-import { RelevanceCalculationService } from '../../shared/user-context/services/relevance-calculation.service';
+import { ContextType } from '../../shared/services/user-context/context-types';
+import { UserRole } from '../../shared/services/user-context/types/context.types';
+import { IEmbeddingService } from '../../shared/services/embedding.interface';
+import { EmbeddingServiceFactory } from '../../shared/services/embedding.factory';
+import { DocumentContextService } from '../../shared/services/user-context/document-context.service';
+import { ConversationContextService } from '../../shared/services/user-context/conversation-context.service';
+import { MeetingContextService } from '../../shared/services/user-context/meeting-context.service';
+import { RelevanceCalculationService } from '../../shared/services/user-context/relevance-calculation.service';
 import { OpenAIConnector } from '../integrations/openai-connector';
 import { Logger } from '../../shared/logger/logger.interface';
 import { ChatOpenAI } from '@langchain/openai';
@@ -33,7 +31,7 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
   private meetingContextService: MeetingContextService;
   private relevanceCalculationService: RelevanceCalculationService;
   private ragPromptManager: RagPromptManager;
-  private embeddingService: EmbeddingService;
+  private embeddingService: IEmbeddingService;
   private openAIConnector?: OpenAIConnector;
 
   constructor(
@@ -43,7 +41,7 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
       meetingContextService?: MeetingContextService;
       relevanceCalculationService?: RelevanceCalculationService;
       ragPromptManager?: RagPromptManager;
-      embeddingService?: EmbeddingService;
+      embeddingService?: IEmbeddingService;
       openAIConnector?: OpenAIConnector;
       logger?: Logger;
       llm?: ChatOpenAI;
@@ -75,10 +73,11 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
     if (options.embeddingService) {
       this.embeddingService = options.embeddingService;
     } else if (options.openAIConnector) {
-      this.embeddingService = new EmbeddingService(
-        options.openAIConnector,
-        this.logger,
-      );
+      // Use EmbeddingServiceFactory instead of direct instantiation
+      this.embeddingService = EmbeddingServiceFactory.getService({
+        connector: options.openAIConnector,
+        logger: this.logger,
+      });
     } else {
       throw new Error(
         'Either embeddingService or openAIConnector must be provided',

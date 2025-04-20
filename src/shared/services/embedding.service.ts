@@ -1,4 +1,4 @@
-// src/shared/embedding/embedding.service.ts
+// src/shared/services/embedding.service.ts
 /**
  * Official Embedding Service for the Productive AI Application
  *
@@ -19,6 +19,12 @@
 import { OpenAIConnector } from '../../agents/integrations/openai-connector';
 import { ConsoleLogger } from '../logger/console-logger';
 import { Logger } from '../logger/logger.interface';
+import { IEmbeddingService } from './embedding.interface';
+import {
+  EmbeddingConnectorError,
+  EmbeddingGenerationError,
+  EmbeddingValidationError,
+} from './embedding/embedding-error';
 
 /**
  * Interface for embedding service results
@@ -39,14 +45,29 @@ export interface EmbeddingProvider {
   generateBatchEmbeddings?(texts: string[]): Promise<number[][]>;
 }
 
-export class EmbeddingService {
+export class EmbeddingService implements IEmbeddingService {
   private logger: Logger;
   private connector: OpenAIConnector;
   private readonly embeddingModelName = 'text-embedding-3-large';
 
-  constructor(connector: OpenAIConnector, logger?: Logger) {
+  /**
+   * @deprecated Direct instantiation of EmbeddingService is discouraged.
+   * Use EmbeddingServiceFactory.getService() instead for better maintainability.
+   */
+  constructor(
+    connector: OpenAIConnector,
+    logger?: Logger,
+    isInternal: boolean = false,
+  ) {
     this.connector = connector;
     this.logger = logger || new ConsoleLogger();
+
+    if (!isInternal) {
+      this.logger.warn(
+        'DEPRECATED: Direct instantiation of EmbeddingService is discouraged. ' +
+          'Use EmbeddingServiceFactory.getService() instead for better maintainability.',
+      );
+    }
   }
 
   /**
@@ -78,7 +99,9 @@ export class EmbeddingService {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       this.logger.error(`Error generating embedding: ${errorMessage}`);
-      throw new Error(`Failed to generate embedding: ${errorMessage}`);
+      throw new EmbeddingGenerationError(errorMessage, {
+        cause: error instanceof Error ? error : undefined,
+      });
     }
   }
 
@@ -114,7 +137,9 @@ export class EmbeddingService {
     }
 
     if (chunkEmbeddings.length === 0) {
-      throw new Error('Failed to generate any chunk embeddings');
+      throw new EmbeddingGenerationError(
+        'Failed to generate any chunk embeddings',
+      );
     }
 
     // Combine the embeddings
@@ -129,7 +154,9 @@ export class EmbeddingService {
     embedding2: number[],
   ): number {
     if (embedding1.length !== embedding2.length) {
-      throw new Error('Embeddings must have the same dimensions');
+      throw new EmbeddingValidationError(
+        'Embeddings must have the same dimensions',
+      );
     }
 
     let dotProduct = 0;
@@ -178,7 +205,7 @@ export class EmbeddingService {
    */
   combineEmbeddings(embeddings: number[][]): number[] {
     if (embeddings.length === 0) {
-      throw new Error('No embeddings provided to combine');
+      throw new EmbeddingValidationError('No embeddings provided to combine');
     }
 
     const dimension = embeddings[0].length;
@@ -186,7 +213,9 @@ export class EmbeddingService {
 
     for (const embedding of embeddings) {
       if (embedding.length !== dimension) {
-        throw new Error('All embeddings must have the same dimensions');
+        throw new EmbeddingValidationError(
+          'All embeddings must have the same dimensions',
+        );
       }
 
       for (let i = 0; i < dimension; i++) {
@@ -204,5 +233,32 @@ export class EmbeddingService {
     }
 
     return result.map((val) => val / magnitude);
+  }
+
+  /**
+   * Alternative interface methods for compatibility
+   */
+  async embedText(text: string): Promise<number[]> {
+    return this.generateEmbedding(text);
+  }
+
+  async embedBatch(texts: string[]): Promise<number[][]> {
+    const results: number[][] = [];
+    for (const text of texts) {
+      results.push(await this.generateEmbedding(text));
+    }
+    return results;
+  }
+
+  getModelName(): string {
+    return this.embeddingModelName;
+  }
+
+  getDimensions(): number {
+    return 3072; // For text-embedding-3-large
+  }
+
+  getCost(): number {
+    return 0.00013; // Cost for text-embedding-3-large per 1K tokens
   }
 }

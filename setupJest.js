@@ -11,18 +11,52 @@ process.env.NODE_ENV = 'test';
 // Create a global MockLogger class for tests to use
 class MockLogger {
   constructor() {
-    this.logs = [];
-    this.debug = jest.fn((message, context) =>
-      this.logs.push({ level: 'debug', message, context }),
-    );
-    this.info = jest.fn((message, context) =>
-      this.logs.push({ level: 'info', message, context }),
-    );
-    this.warn = jest.fn((message, context) =>
-      this.logs.push({ level: 'warn', message, context }),
-    );
-    this.error = jest.fn((message, context) =>
-      this.logs.push({ level: 'error', message, context }),
+    this.messages = [];
+    this.currentLogLevel = 'info';
+  }
+
+  debug(message, meta) {
+    this.messages.push({ level: 'debug', message, meta });
+  }
+
+  info(message, meta) {
+    this.messages.push({ level: 'info', message, meta });
+  }
+
+  warn(message, meta) {
+    this.messages.push({ level: 'warn', message, meta });
+  }
+
+  error(message, meta) {
+    this.messages.push({ level: 'error', message, meta });
+  }
+
+  log(level, message, meta) {
+    this.messages.push({ level, message, meta });
+  }
+
+  setContext(context) {
+    // No-op for mock
+  }
+
+  clearContext() {
+    // No-op for mock
+  }
+
+  // Testing helper methods
+  clear() {
+    this.messages = [];
+  }
+
+  getLogsByLevel(level) {
+    return this.messages.filter((log) => log.level === level);
+  }
+
+  hasMessage(messageSubstring, level) {
+    return this.messages.some(
+      (log) =>
+        log.message.includes(messageSubstring) &&
+        (level === undefined || log.level === level),
     );
   }
 }

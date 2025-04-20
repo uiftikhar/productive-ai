@@ -5,10 +5,10 @@
  */
 
 import { BaseContextService } from './base-context.service';
-import { Logger } from '../../../shared/logger/logger.interface';
-import { ConsoleLogger } from '../../../shared/logger/console-logger';
-import { ContextType } from '../context-types';
-import { UserRole, BaseContextMetadata } from '../types/context.types';
+import { Logger } from '../../logger/logger.interface';
+import { ConsoleLogger } from '../../logger/console-logger';
+import { ContextType } from './context-types';
+import { UserRole, BaseContextMetadata } from './types/context.types';
 
 // Constants for relevance calculation
 const DECAY_FACTOR = 0.01; // How much relevance decays per day

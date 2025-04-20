@@ -17,7 +17,7 @@ import {
   UserContextNotFoundError,
   UserContextValidationError,
   BaseContextMetadata,
-} from '../types/context.types';
+} from './types/context.types';
 
 /**
  * Base service for managing user context data in vector databases

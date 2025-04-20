@@ -3,14 +3,14 @@
  * Provides a unified interface to all user context services
  */
 
-import { PineconeConnectionService } from '../../pinecone/pinecone-connection.service';
-import { Logger } from '../../shared/logger/logger.interface';
-import { BaseContextService } from './services/base-context.service';
-import { ConversationContextService } from './services/conversation-context.service';
-import { DocumentContextService } from './services/document-context.service';
-import { IntegrationService } from './services/integration.service';
-import { MemoryManagementService } from './services/memory-management.service';
-import { MetadataValidationService } from './services/metadata-validation.service';
+import { PineconeConnectionService } from '../../../pinecone/pinecone-connection.service';
+import { Logger } from '../../logger/logger.interface';
+import { BaseContextService } from './base-context.service';
+import { ConversationContextService } from './conversation-context.service';
+import { DocumentContextService } from './document-context.service';
+import { IntegrationService } from './integration.service';
+import { MemoryManagementService } from './memory-management.service';
+import { MetadataValidationService } from './metadata-validation.service';
 import { BaseContextMetadata, ContextType } from './types/context.types';
 import {
   EpisodicContext,
