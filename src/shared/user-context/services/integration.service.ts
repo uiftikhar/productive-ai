@@ -96,7 +96,6 @@ export class IntegrationService extends BaseContextService {
     const newExternalId =
       externalSystemId || `ext-${externalSystem}-${Date.now()}`;
 
-    // Update the action item with external system information
     const updatedRecord: VectorRecord<RecordMetadata> = {
       id: actionItem.id,
       values: this.ensureNumberArray(actionItem.values),
@@ -290,7 +289,6 @@ export class IntegrationService extends BaseContextService {
       throw new UserContextError(`Action item ${actionItemId} has no metadata`);
     }
 
-    // Create a new metadata object without the external system fields
     const {
       externalSystem: _es,
       externalSystemId: _esi,
@@ -298,7 +296,6 @@ export class IntegrationService extends BaseContextService {
       ...restMetadata
     } = actionItem.metadata;
 
-    // Update the action item to remove external system information
     const updatedRecord: VectorRecord<RecordMetadata> = {
       id: actionItem.id,
       values: this.ensureNumberArray(actionItem.values),

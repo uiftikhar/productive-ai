@@ -52,7 +52,6 @@ export abstract class RetrievalAgent extends BaseAgent {
     this.similarityThreshold = options.similarityThreshold || 0.7;
     this.maxResults = options.maxResults || 5;
 
-    // Register common retrieval capabilities
     this.registerCapability({
       name: 'retrieve',
       description: 'Retrieve relevant information based on a query',
@@ -123,7 +122,6 @@ export abstract class RetrievalAgent extends BaseAgent {
       // Generate embeddings for the query
       const queryVector = await this.generateEmbeddings(queryText);
 
-      // Set up query options
       const queryOptions = {
         topK: options.maxResults || this.maxResults,
         filter: options.filter,
@@ -246,7 +244,6 @@ export class DocumentRetrievalAgent extends RetrievalAgent {
       },
     );
 
-    // Register additional capabilities
     this.registerCapability({
       name: 'searchDocuments',
       description: 'Search for documents based on a query',
@@ -270,19 +267,15 @@ export class DocumentRetrievalAgent extends RetrievalAgent {
   /**
    * Implementation of abstract execute method
    */
-  public async executeInternal(
-    request: AgentRequest,
-  ): Promise<AgentResponse> {
+  public async executeInternal(request: AgentRequest): Promise<AgentResponse> {
     const startTime = Date.now();
 
-    // Get the capability to use (default to retrieve)
     const capability = request.capability || 'retrieve';
 
     if (!this.canHandle(capability)) {
       throw new Error(`Capability not supported: ${capability}`);
     }
 
-    // Get the input (either direct input or from parameters)
     const input =
       typeof request.input === 'string'
         ? request.input
@@ -340,7 +333,6 @@ export class DocumentRetrievalAgent extends RetrievalAgent {
   ): Promise<AgentResponse> {
     const startTime = Date.now();
 
-    // Get query from input or parameters
     const query = request.parameters?.query || input;
 
     // Parse filters if provided
@@ -358,7 +350,6 @@ export class DocumentRetrievalAgent extends RetrievalAgent {
       }
     }
 
-    // Get max results
     const maxResults = request.parameters?.maxResults
       ? Number(request.parameters.maxResults)
       : this.maxResults;
@@ -380,7 +371,6 @@ export class DocumentRetrievalAgent extends RetrievalAgent {
       tags: r.metadata.tags || [],
     }));
 
-    // Create a response summarizing the results
     const response = `Found ${results.length} document(s) matching "${query}":
 ${formattedResults
   .map(
@@ -391,7 +381,6 @@ ${formattedResults
   )
   .join('\n\n')}`;
 
-    // Calculate tokens used (very rough estimate)
     const tokensUsed = Math.round((query.length + response.length) / 4);
 
     return {
@@ -417,12 +406,10 @@ ${formattedResults
   ): Promise<AgentResponse> {
     const startTime = Date.now();
 
-    // Get content from parameters or input
     const content = request.parameters?.content || input;
     const title = request.parameters?.title || 'Untitled Document';
     const category = request.parameters?.category || 'Uncategorized';
 
-    // Process tags
     let tags: string[] = [];
     if (request.parameters?.tags) {
       tags =
@@ -443,7 +430,6 @@ ${formattedResults
       timestamp: Date.now(),
     });
 
-    // Calculate tokens used (very rough estimate)
     const tokensUsed = Math.round(content.length / 4);
 
     return {

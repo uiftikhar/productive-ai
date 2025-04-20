@@ -226,7 +226,6 @@ export class DocumentContextService extends BaseContextService {
       lastUpdated: number;
     }>
   > {
-    // Get all document chunks
     const result = await this.executeWithRetry(
       () =>
         this.pineconeService.queryVectors<RecordMetadata>(
@@ -279,7 +278,6 @@ export class DocumentContextService extends BaseContextService {
       }
     }
 
-    // Convert map to array
     return Array.from(docMap.values());
   }
 }

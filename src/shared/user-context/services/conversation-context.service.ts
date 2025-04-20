@@ -48,7 +48,6 @@ export class ConversationContextService extends BaseContextService {
       throw new UserContextValidationError('Conversation ID is required');
     }
 
-    // Calculate recency - newer messages should have higher recency scores
     const recency = Date.now();
 
     return this.storeUserContext(userId, message, embeddings, {
@@ -171,7 +170,6 @@ export class ConversationContextService extends BaseContextService {
       lastTimestamp: number;
     }>
   > {
-    // Get all conversation turns
     const result = await this.executeWithRetry(
       () =>
         this.pineconeService.queryVectors<RecordMetadata>(
@@ -227,7 +225,6 @@ export class ConversationContextService extends BaseContextService {
       }
     }
 
-    // Convert map to array and sort by most recent
     return Array.from(convMap.values()).sort(
       (a, b) => b.lastTimestamp - a.lastTimestamp,
     );
@@ -264,7 +261,6 @@ export class ConversationContextService extends BaseContextService {
       filter.role = options.role;
     }
 
-    // Add time range filter if specified
     if (options.timeRangeStart || options.timeRangeEnd) {
       filter.timestamp = {};
       if (options.timeRangeStart) {

@@ -17,6 +17,6 @@
     "allowSyntheticDefaultImports": true,
     "types": ["node", "jest"]
   },
-  "include": ["src/**/*.ts", "src/agents/orchestration/demo/-enhanced-workflow-demo"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

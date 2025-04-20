@@ -1,12 +1,4 @@
 /**
- * Meeting Analysis Types
- *
- * Type definitions for transcript processing, topic extraction, and meeting analysis
- */
-
-import { BaseMessage } from '@langchain/core/messages';
-
-/**
  * Transcript segment with speaker information
  */
 export interface TranscriptSegment {

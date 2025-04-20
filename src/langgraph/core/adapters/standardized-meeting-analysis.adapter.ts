@@ -92,8 +92,7 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
 
     this.maxChunkSize = options.maxChunkSize || 2000;
     this.chunkOverlap = options.chunkOverlap || 200;
-    
-    // Create an agent workflow for the agent
+
     this.agentWorkflow = new AgentWorkflow(this.agent, {
       tracingEnabled: options.tracingEnabled,
     });
@@ -177,7 +176,6 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
   ): StateGraph<any> {
     const graph = new StateGraph(schema);
 
-    // Add the nodes
     graph
       // Common nodes from base adapter
       .addNode('initialize', this.createInitializationNode())
@@ -251,7 +249,6 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
   protected createInitialState(
     input: ProcessMeetingTranscriptParams,
   ): MeetingAnalysisState {
-    // Get the base state
     const baseState = super.createInitialState(input);
 
     // Split the transcript into chunks
@@ -261,7 +258,6 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
       this.chunkOverlap,
     );
 
-    // Create the meeting-specific state
     return {
       ...baseState,
       meetingId: input.meetingId,
@@ -305,7 +301,6 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
       };
     }
 
-    // Return the successful analysis
     return {
       meetingId: state.meetingId,
       output: state.analysisResult,
@@ -348,7 +343,6 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
           },
         );
 
-        // Process the current chunk using the workflow instead of direct agent execution
         const result = await this.agentWorkflow.execute({
           input: chunk,
           capability: 'analyze-transcript-chunk',
@@ -374,7 +368,6 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
             ? result.output
             : result.output.content;
 
-        // Update metrics
         const currentTokens = state.metrics?.tokensUsed || 0;
         const newTokens = result.metrics?.tokensUsed || 0;
 
@@ -482,7 +475,6 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
           };
         }
 
-        // Update metrics
         const currentTokens = state.metrics?.tokensUsed || 0;
         const newTokens = result.metrics?.tokensUsed || 0;
 

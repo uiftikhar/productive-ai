@@ -7,7 +7,10 @@
  */
 
 import { ChatOpenAI } from '@langchain/openai';
-import { BaseAgentInterface, WorkflowCompatibleAgent } from '../interfaces/base-agent.interface';
+import {
+  BaseAgentInterface,
+  WorkflowCompatibleAgent,
+} from '../interfaces/base-agent.interface';
 import { Logger } from '../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { AgentRegistryService } from '../services/agent-registry.service';
@@ -62,17 +65,14 @@ export class AgentFactory {
     this.registry = options.registry || AgentRegistryService.getInstance();
     this.logger = options.logger || new ConsoleLogger();
 
-    // Initialize OpenAI connector
     this.openAIConnector =
       options.openAIConnector ||
       new OpenAIConnector({
         logger: this.logger,
       });
 
-    // Initialize Pinecone connector (optional)
     this.pineconeConnector = options.pineconeConnector;
 
-    // Initialize Embedding service
     this.embeddingService =
       options.embeddingService ||
       new EmbeddingService(this.openAIConnector, this.logger);
@@ -97,7 +97,7 @@ export class AgentFactory {
     options: {
       tracingEnabled?: boolean;
       includeStateInLogs?: boolean;
-    } = {}
+    } = {},
   ): AgentWorkflow<T> {
     return new AgentWorkflow<T>(agent, options);
   }
@@ -232,17 +232,23 @@ export class AgentFactory {
     options: AgentFactoryOptions = {},
   ): Promise<BaseAgentInterface[]> {
     const agents: BaseAgentInterface[] = [];
-    
+
     // Ensure we don't create workflows for agents added to the registry
     const agentOptions = { ...options, wrapWithWorkflow: false };
 
-    // Create each type of agent with explicit type assertions
     // This ensures we always get the concrete agent type, not a workflow
-    agents.push(this.createKnowledgeRetrievalAgent(agentOptions) as KnowledgeRetrievalAgent);
-    agents.push(this.createDocumentRetrievalAgent(agentOptions) as DocumentRetrievalAgent);
-    agents.push(this.createMeetingAnalysisAgent(agentOptions) as MeetingAnalysisAgent);
+    agents.push(
+      this.createKnowledgeRetrievalAgent(
+        agentOptions,
+      ) as KnowledgeRetrievalAgent,
+    );
+    agents.push(
+      this.createDocumentRetrievalAgent(agentOptions) as DocumentRetrievalAgent,
+    );
+    agents.push(
+      this.createMeetingAnalysisAgent(agentOptions) as MeetingAnalysisAgent,
+    );
 
-    // Initialize all agents
     await Promise.all(agents.map((agent) => agent.initialize()));
 
     return agents;

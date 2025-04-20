@@ -133,22 +133,18 @@ export abstract class BaseWorkflow<
         workflowId: this.constructor.name,
       });
 
-      // Create the state schema
       const schema = this.createStateSchema();
 
-      // Create the state graph
       const graph = this.createStateGraph(schema);
 
       // Compile the graph
       const compiledGraph = graph.compile();
 
-      // Create the initial state
       const initialState = this.createInitialState(input);
 
       // Execute the graph
       const finalState = (await compiledGraph.invoke(initialState)) as TState;
 
-      // Process the result
       const result = this.processResult(finalState);
 
       // Log execution metrics
@@ -241,7 +237,6 @@ export abstract class BaseWorkflow<
           runId: state.runId,
         });
 
-        // Update the state with terminated status
         return {
           ...state,
           status: WorkflowStatus.ERROR,

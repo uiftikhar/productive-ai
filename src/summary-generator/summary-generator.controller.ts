@@ -21,7 +21,6 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Initialize services
 const logger = new ConsoleLogger();
 const openaiConnector = new OpenAIConnector({
   logger,
@@ -29,7 +28,6 @@ const openaiConnector = new OpenAIConnector({
 const embeddingService = new EmbeddingService(openaiConnector, logger);
 const baseContextService = new BaseContextService({ logger });
 
-// Initialize the base context service
 // TODO move to main or app.ts
 (async () => {
   try {
@@ -40,14 +38,12 @@ const baseContextService = new BaseContextService({ logger });
   }
 })();
 
-// Create an agent factory with our dependencies
 const agentFactory = new AgentFactory({
   logger,
   openAIConnector: openaiConnector,
   embeddingService: embeddingService,
 });
 
-// Create the meeting analysis agent using the factory
 const meetingAnalysisAgent = agentFactory.createMeetingAnalysisAgent({
   id: 'rag-meeting-analysis-agent',
   name: 'RAG Meeting Analysis Agent',
@@ -55,7 +51,6 @@ const meetingAnalysisAgent = agentFactory.createMeetingAnalysisAgent({
   baseContextService: baseContextService,
 }) as MeetingAnalysisAgent;
 
-// Create a workflow for the agent using the AgentWorkflow
 const meetingAnalysisWorkflow = new AgentWorkflow(meetingAnalysisAgent, {
   tracingEnabled: true,
 });
@@ -70,7 +65,6 @@ configureTracing({
   },
 });
 
-// Create Standardized LangGraph adapter for meeting analysis with RAG capabilities
 const meetingAnalysisAdapter = new StandardizedMeetingAnalysisAdapter(
   {
     id: meetingAnalysisAgent.id,
@@ -78,7 +72,8 @@ const meetingAnalysisAdapter = new StandardizedMeetingAnalysisAdapter(
     description: meetingAnalysisAgent.description,
     getCapabilities: () => meetingAnalysisAgent.getCapabilities(),
     // Use the workflow for execution
-    execute: (request: AgentRequest) => meetingAnalysisWorkflow.execute(request),
+    execute: (request: AgentRequest) =>
+      meetingAnalysisWorkflow.execute(request),
     // Use the agent for the rest of the interface methods
     initialize: async () => {
       // The agent initialization should be handled by the agent itself
@@ -86,8 +81,10 @@ const meetingAnalysisAdapter = new StandardizedMeetingAnalysisAdapter(
       // No return value (void)
     },
     getState: () => meetingAnalysisAgent.getState(),
-    canHandle: (capability: string) => meetingAnalysisAgent.canHandle(capability),
-    getInitializationStatus: () => meetingAnalysisAgent.getInitializationStatus(),
+    canHandle: (capability: string) =>
+      meetingAnalysisAgent.canHandle(capability),
+    getInitializationStatus: () =>
+      meetingAnalysisAgent.getInitializationStatus(),
     terminate: () => meetingAnalysisAgent.terminate(),
     getMetrics: () => meetingAnalysisAgent.getMetrics(),
   } as any,
@@ -103,7 +100,6 @@ const meetingAnalysisAdapter = new StandardizedMeetingAnalysisAdapter(
 const isLangSmithConfigured =
   process.env.LANGSMITH_API_KEY && process.env.LANGSMITH_PROJECT;
 
-// Initialize the agent
 (async () => {
   try {
     // The workflow executes the agent, but we need to initialize the agent itself
@@ -122,7 +118,7 @@ async function extractTranscript(req: Request): Promise<string> {
     logger.warn('No transcript file uploaded');
     throw new Error('No transcript provided. Please upload a transcript file');
   }
-  
+
   const filePath = req.file.path;
   const transcript = await fs.readFile(filePath, 'utf8');
   await fs.unlink(filePath); // Clean up the file after reading
@@ -134,11 +130,11 @@ async function extractTranscript(req: Request): Promise<string> {
  */
 function generateLangSmithUrl(meetingId: string): string | null {
   if (!isLangSmithConfigured) return null;
-  
+
   // Use the specific organization ID and project ID format
   const workspaceId = process.env.LANGSMITH_WORKSPACE_ID;
   const projectId = process.env.LANGSMITH_PROJECT_ID;
-  
+
   // Link to the project page using the proper format
   const url = `https://smith.langchain.com/o/${workspaceId}/projects/p/${projectId}`;
   logger.info('Generated LangSmith project URL', { url });
@@ -191,7 +187,7 @@ export const getSummary = async (
     // Generate meetingId and get userId
     const meetingId = uuidv4();
     const userId = req.body.userId || 'anonymous';
-    
+
     // Extract transcript
     let transcript;
     try {
@@ -202,8 +198,7 @@ export const getSummary = async (
         message: error instanceof Error ? error.message : 'Invalid transcript',
       });
     }
-    
-    // Process transcript
+
     let analysisResult;
     try {
       logger.info('Using LangGraph for meeting analysis', { meetingId });
@@ -219,20 +214,23 @@ export const getSummary = async (
       logger.error('Error in meeting analysis', { error });
       return res.status(500).json({
         error: 'Processing failed',
-        details: error instanceof Error ? error.message : 'There was an error during processing',
+        details:
+          error instanceof Error
+            ? error.message
+            : 'There was an error during processing',
         timestamp: new Date().toISOString(),
       });
     }
-    
+
     // Generate LangSmith URL
     const langSmithTraceUrl = generateLangSmithUrl(meetingId);
-    
-    // Return the analysis result
+
     return res.json({
       meetingId,
-      analysis: typeof analysisResult.output === 'string' 
-        ? JSON.parse(analysisResult.output) 
-        : analysisResult.output,
+      analysis:
+        typeof analysisResult.output === 'string'
+          ? JSON.parse(analysisResult.output)
+          : analysisResult.output,
       langSmithUrl: langSmithTraceUrl,
     });
   } catch (error) {

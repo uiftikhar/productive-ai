@@ -51,7 +51,6 @@ export abstract class BaseAgent implements WorkflowCompatibleAgent {
     this.id = options.id || uuidv4();
     this.logger = options.logger || new ConsoleLogger();
 
-    // Initialize LLM with default configuration
     this.llm =
       options.llm ||
       new ChatOpenAI({
@@ -60,7 +59,6 @@ export abstract class BaseAgent implements WorkflowCompatibleAgent {
         maxTokens: LangChainConfig.llm.maxTokens,
       });
 
-    // Initialize state
     this.state = {
       status: AgentStatus.INITIALIZING,
       errorCount: 0,
@@ -68,7 +66,6 @@ export abstract class BaseAgent implements WorkflowCompatibleAgent {
       metadata: {},
     };
 
-    // Initialize metrics
     this.metrics = {
       totalExecutions: 0,
       totalExecutionTimeMs: 0,
@@ -76,8 +73,6 @@ export abstract class BaseAgent implements WorkflowCompatibleAgent {
       tokensUsed: 0,
       errorRate: 0,
     };
-
-    // Register capabilities in child classes using this.registerCapability()
   }
 
   /**
@@ -171,7 +166,6 @@ export abstract class BaseAgent implements WorkflowCompatibleAgent {
   ): Partial<AgentResponse['metrics']> {
     const executionTimeMs = Date.now() - startTime;
 
-    // Update agent metrics
     this.metrics.totalExecutions += 1;
     this.metrics.totalExecutionTimeMs += executionTimeMs;
     this.metrics.averageExecutionTimeMs =
@@ -185,7 +179,6 @@ export abstract class BaseAgent implements WorkflowCompatibleAgent {
     this.metrics.errorRate =
       this.state.errorCount / this.metrics.totalExecutions;
 
-    // Return metrics for the response
     return {
       executionTimeMs,
       tokensUsed: tokenUsage,
@@ -245,10 +238,8 @@ export abstract class BaseAgent implements WorkflowCompatibleAgent {
       request,
     });
 
-    // Update error count in state
     this.state.errorCount += 1;
 
-    // Return error response
     return {
       output: `Error: ${error.message}`,
       metrics: {
@@ -264,12 +255,10 @@ export abstract class BaseAgent implements WorkflowCompatibleAgent {
     const startTime = Date.now();
 
     try {
-      // Initialize the agent if needed
       if (!this.isInitialized) {
         await this.initialize();
       }
 
-      // Update agent state
       this.setState({ status: AgentStatus.EXECUTING });
 
       // Pre-execution hook
@@ -278,10 +267,8 @@ export abstract class BaseAgent implements WorkflowCompatibleAgent {
       // Execute agent-specific logic
       const response = await this.executeInternal(request);
 
-      // Update state back to ready
       this.setState({ status: AgentStatus.READY });
 
-      // Process metrics
       const metrics = this.processMetrics(
         startTime,
         response.metrics?.tokensUsed,
@@ -297,7 +284,6 @@ export abstract class BaseAgent implements WorkflowCompatibleAgent {
         },
       };
 
-      // Calculate execution time for post-execute hook
       const executionTimeMs =
         metrics?.executionTimeMs || Date.now() - startTime;
 

@@ -17,7 +17,6 @@ jest.mock('p-limit', () => {
 
 // Define the OpenAI mock before using it
 jest.mock('openai', () => {
-  // Create a function that returns the mock structure we need
   const createMockOpenAI = () => ({
     chat: {
       completions: {
@@ -35,7 +34,6 @@ jest.mock('openai', () => {
     },
   });
 
-  // Return a mock constructor that produces our mock
   const MockOpenAI = jest.fn().mockImplementation(createMockOpenAI);
   return { __esModule: true, default: MockOpenAI };
 });
@@ -69,7 +67,6 @@ splitTranscriptMock.mockImplementation(
   },
 );
 
-// Update the mock to match the new function signature
 const processAllChunksMock = jest.spyOn(
   require('../../shared/utils/process-chunk.ts'),
   'processAllChunks',
@@ -98,7 +95,6 @@ const processFinalSummaryMock = jest.spyOn(
 ) as unknown as jest.Mock<Promise<string>, [string, OpenAI]>;
 processFinalSummaryMock.mockResolvedValue('Final summary text');
 
-// Get a reference to the mocked OpenAI constructor for assertions
 const OpenAIConstructorMock = jest.fn() as unknown as jest.MockedClass<
   typeof OpenAI
 >;
@@ -188,13 +184,11 @@ describe('generateSummary (modular version)', () => {
     // Store original env variable
     const originalEnv = process.env.OPENAI_API_KEY;
 
-    // Set test env variable
     process.env.OPENAI_API_KEY = 'test-api-key';
 
     // Clear existing mocks
     jest.clearAllMocks();
 
-    // Get a reference to the actual OpenAI constructor mock implementation
     const MockOpenAI = require('openai').default;
 
     // Act - call the function that should use the OpenAI constructor
@@ -216,7 +210,6 @@ describe('generateSummary (modular version)', () => {
       // Reset all mocks
       jest.clearAllMocks();
 
-      // Create a more realistic implementation that doesn't rely on external modules
       processAllChunksMock.mockImplementation(async (chunks) => {
         return chunks.map((chunk) => `Summary of: ${chunk}`);
       });

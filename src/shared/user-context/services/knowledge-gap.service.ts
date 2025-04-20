@@ -79,7 +79,6 @@ export class KnowledgeGapService extends BaseContextService {
     const maxResults = options.maxResults || 50;
     const minConfidence = options.minConfidence || 0.7;
 
-    // Set time threshold
     const maxTimestamp = Date.now() - minAgeInDays * 24 * 60 * 60 * 1000;
 
     // Find unanswered questions older than the threshold
@@ -108,7 +107,6 @@ export class KnowledgeGapService extends BaseContextService {
       return [];
     }
 
-    // Convert to knowledge gaps
     return result.matches
       .map((match) => {
         const metadata = match.metadata || {};
@@ -116,7 +114,6 @@ export class KnowledgeGapService extends BaseContextService {
           (Date.now() - ((metadata.timestamp as number) || 0)) /
           (24 * 60 * 60 * 1000);
 
-        // Calculate confidence based on age and importance factors
         let confidence = 0.7;
 
         // Older questions are more likely to be real gaps
@@ -135,11 +132,9 @@ export class KnowledgeGapService extends BaseContextService {
           return null;
         }
 
-        // Get content as string
         const contentStr =
           typeof metadata.content === 'string' ? metadata.content : '';
 
-        // Create knowledge gap entry
         return {
           id: this.generateContextId(userId, 'kg-'),
           userId,
@@ -192,7 +187,6 @@ export class KnowledgeGapService extends BaseContextService {
     const maxResults = options.maxResults || 20;
     const gaps: KnowledgeGap[] = [];
 
-    // Get top topics for each team
     const teamTopics: Record<
       string,
       {
@@ -260,7 +254,6 @@ export class KnowledgeGapService extends BaseContextService {
           if (team1Topics.has(key)) {
             const topic1 = team1Topics.get(key)!;
 
-            // Calculate similarity between the two team's understanding
             const similarity = this.calculateCosineSimilarity(
               topic1.embedding,
               topic2.embedding,
@@ -365,7 +358,6 @@ export class KnowledgeGapService extends BaseContextService {
       return [];
     }
 
-    // Convert to knowledge gaps
     const gaps: KnowledgeGap[] = [];
 
     for (const match of result.matches) {
@@ -403,7 +395,6 @@ export class KnowledgeGapService extends BaseContextService {
         continue;
       }
 
-      // Create knowledge gap entry
       gaps.push({
         id: this.generateContextId(userId, 'kg-'),
         userId,
@@ -448,7 +439,6 @@ export class KnowledgeGapService extends BaseContextService {
   async storeKnowledgeGap(userId: string, gap: KnowledgeGap): Promise<string> {
     const gapId = gap.id || this.generateContextId(userId, 'kg-');
 
-    // Create embedding for the gap (from title and description)
     const embeddingText = `${gap.title}\n${gap.description}`;
     const embedding = await this.executeWithRetry(
       () => this.embeddingService.generateEmbedding(embeddingText),
@@ -510,7 +500,6 @@ export class KnowledgeGapService extends BaseContextService {
     status: 'open' | 'addressed' | 'closed' | 'rejected',
     notes: string = '',
   ): Promise<boolean> {
-    // Get the current gap
     const result = await this.executeWithRetry(
       () =>
         this.pineconeService.fetchVectors(USER_CONTEXT_INDEX, [gapId], userId),
@@ -524,7 +513,6 @@ export class KnowledgeGapService extends BaseContextService {
     const record = result.records[gapId];
     const metadata = record.metadata || {};
 
-    // Update the status
     await this.executeWithRetry(
       () =>
         this.pineconeService.upsertVectors(
@@ -566,7 +554,6 @@ export class KnowledgeGapService extends BaseContextService {
       limit?: number;
     } = {},
   ): Promise<KnowledgeGap[]> {
-    // Build filter
     const filter: Record<string, any> = {
       contextType: ContextType.KNOWLEDGE_GAP,
     };
@@ -591,7 +578,6 @@ export class KnowledgeGapService extends BaseContextService {
       filter.teamIds = options.teamId;
     }
 
-    // Get matching gaps
     const result = await this.executeWithRetry(
       () =>
         this.pineconeService.queryVectors<RecordMetadata>(
@@ -612,7 +598,6 @@ export class KnowledgeGapService extends BaseContextService {
       return [];
     }
 
-    // Convert to knowledge gaps
     return result.matches.map((match) => {
       const metadata = match.metadata || {};
 

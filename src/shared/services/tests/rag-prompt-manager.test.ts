@@ -51,7 +51,6 @@ describe('RagPromptManager', () => {
     // Reset mocks and spy implementations
     jest.clearAllMocks();
 
-    // Create sample context items that tests expect
     sampleContextItems = [
       {
         content: 'This is the first context item about AI development.',
@@ -73,7 +72,6 @@ describe('RagPromptManager', () => {
       },
     ];
 
-    // Initialize mocks with necessary behavior
     (BaseContextService as jest.Mock).mockImplementation(() => ({
       retrieveUserContext: jest.fn().mockResolvedValue(sampleContextItems),
     }));
@@ -103,7 +101,6 @@ describe('RagPromptManager', () => {
     relevanceCalculationServiceMock =
       new RelevanceCalculationService() as jest.Mocked<RelevanceCalculationService>;
 
-    // Initialize PromptLibrary
     (PromptLibrary as any).promptComponents = new Map();
     (PromptLibrary as any).tags = new Map();
     PromptLibrary.initialize();
@@ -123,10 +120,8 @@ describe('RagPromptManager', () => {
       .spyOn(PromptLibrary, 'createCompositePrompt')
       .mockReturnValue('Composite instruction prompt' as any);
 
-    // Create RagPromptManager instance
     ragPromptManager = new RagPromptManager();
 
-    // Set services directly (hacky, but works for tests)
     Object.assign(ragPromptManager, {
       baseContextService: baseContextServiceMock,
       documentContextService: documentContextServiceMock,
@@ -185,7 +180,6 @@ describe('RagPromptManager', () => {
         };
       });
 
-    // Create a spy for generateReplacements
     (ragPromptManager as any).generateReplacements = jest
       .fn()
       .mockImplementation((query, context, options) => {
@@ -219,7 +213,6 @@ describe('RagPromptManager', () => {
             optimizationOptions,
           );
 
-          // Create context messages with the right format for the tests
           let contextContent;
 
           if (optimizationOptions.maxLength) {
@@ -240,15 +233,12 @@ describe('RagPromptManager', () => {
             { role: 'system', content: 'Composite system prompt' },
           ];
 
-          // Add context message
           messages.push({ role: 'system', content: contextContent });
 
-          // Add user message
           messages.push({ role: 'user', content });
 
           const usedComponents = ['system_instruction_base', 'rag_prefix'];
 
-          // Add task-specific components
           if (
             content.includes('code') ||
             content.includes('function') ||
@@ -467,7 +457,6 @@ describe('RagPromptManager', () => {
     });
 
     it('should limit context length if maxLength is specified', async () => {
-      // Set up a very short max length
       const result = await ragPromptManager.createOptimizedRagPrompt(
         'What is machine learning?',
         {

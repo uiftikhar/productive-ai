@@ -4,13 +4,13 @@
  * Defines the communication protocols between specialized agents
  */
 
-import { MeetingAnalysis } from '../types/meeting-analysis.types';
-import { Decision, DecisionReport } from '../types/decision-tracking.types';
+import { Decision, DecisionReport } from './decision-tracking.interface';
 import {
   AgentRequest,
   AgentResponse,
 } from '../../interfaces/base-agent.interface';
 import { Logger } from '../../../shared/logger/logger.interface';
+import { MeetingAnalysis } from './meeting-analysis.interface';
 
 /**
  * Communication message between agents

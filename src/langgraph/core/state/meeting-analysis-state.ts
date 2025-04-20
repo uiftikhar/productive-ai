@@ -94,7 +94,6 @@ export function createMeetingAnalysisState(
     ...overrides,
   });
 
-  // Add the meeting-specific defaults
   const meetingState: MeetingAnalysisState = {
     ...baseState,
     meetingId: overrides.meetingId || '',

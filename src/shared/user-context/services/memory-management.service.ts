@@ -40,7 +40,6 @@ export class MemoryManagementService extends BaseContextService {
     contextId: string,
     episodicContext: EpisodicContext,
   ): Promise<void> {
-    // Get the current context
     const response = await this.pineconeService.fetchVectors(
       USER_CONTEXT_INDEX,
       [contextId],
@@ -53,7 +52,6 @@ export class MemoryManagementService extends BaseContextService {
 
     const record = response.records[contextId];
 
-    // Update the record
     await this.pineconeService.upsertVectors(
       USER_CONTEXT_INDEX,
       [
@@ -89,7 +87,6 @@ export class MemoryManagementService extends BaseContextService {
     contextId: string,
     semanticStructure: SemanticStructure,
   ): Promise<void> {
-    // Get the current context
     const response = await this.pineconeService.fetchVectors(
       USER_CONTEXT_INDEX,
       [contextId],
@@ -102,7 +99,6 @@ export class MemoryManagementService extends BaseContextService {
 
     const record = response.records[contextId];
 
-    // Update the record
     await this.pineconeService.upsertVectors(
       USER_CONTEXT_INDEX,
       [
@@ -138,7 +134,6 @@ export class MemoryManagementService extends BaseContextService {
     contextId: string,
     proceduralSteps: ProceduralSteps,
   ): Promise<void> {
-    // Get the current context
     const response = await this.pineconeService.fetchVectors(
       USER_CONTEXT_INDEX,
       [contextId],
@@ -151,7 +146,6 @@ export class MemoryManagementService extends BaseContextService {
 
     const record = response.records[contextId];
 
-    // Update the record
     await this.pineconeService.upsertVectors(
       USER_CONTEXT_INDEX,
       [
@@ -187,7 +181,6 @@ export class MemoryManagementService extends BaseContextService {
     contextId: string,
     reinforcementStrength: number = 0.1,
   ): Promise<void> {
-    // Get the current context
     const response = await this.pineconeService.fetchVectors(
       USER_CONTEXT_INDEX,
       [contextId],
@@ -201,14 +194,12 @@ export class MemoryManagementService extends BaseContextService {
     const record = response.records[contextId];
     const metadata = record.metadata || {};
 
-    // Update memory strength
     const currentStrength = (metadata.memoryStrength as number) || 0.5;
     const newStrength = Math.min(
       1,
       currentStrength + reinforcementStrength * (1 - currentStrength),
     );
 
-    // Update the record
     await this.pineconeService.upsertVectors(
       USER_CONTEXT_INDEX,
       [
@@ -262,7 +253,6 @@ export class MemoryManagementService extends BaseContextService {
       throw new UserContextNotFoundError(targetContextId, userId);
     }
 
-    // Update source memory with connection to target
     const sourceRecord = response.records[sourceContextId];
     const sourceMetadata = sourceRecord.metadata || {};
     const sourceConnections =
@@ -289,7 +279,6 @@ export class MemoryManagementService extends BaseContextService {
       userId,
     );
 
-    // Update target memory with connection to source
     const targetRecord = response.records[targetContextId];
     const targetMetadata = targetRecord.metadata || {};
     const targetConnections =
@@ -348,7 +337,6 @@ export class MemoryManagementService extends BaseContextService {
     // Ensure depth is limited to prevent excessive queries
     const maxDepth = Math.min(depth, 3);
 
-    // Initialize result structures
     const nodesMap = new Map<string, Record<string, any>>();
     const edgesMap = new Map<
       string,
@@ -394,7 +382,6 @@ export class MemoryManagementService extends BaseContextService {
         continue;
       }
 
-      // Get the current node's connections
       const response = await this.pineconeService.fetchVectors(
         USER_CONTEXT_INDEX,
         [current.id],
@@ -419,13 +406,11 @@ export class MemoryManagementService extends BaseContextService {
         userId,
       );
 
-      // Process each connection
       for (const connectedId of connections) {
         const connectedRecord =
           connectedResponse.records[connectedId as string];
         if (!connectedRecord) continue;
 
-        // Get connection strength
         const connectionStrength = parseFloat(
           (record.metadata?.[
             `memoryConnectionStrength:${connectedId}`
@@ -437,7 +422,6 @@ export class MemoryManagementService extends BaseContextService {
           continue;
         }
 
-        // Add node if not already added
         if (!nodesMap.has(connectedId as string)) {
           nodesMap.set(connectedId as string, {
             id: connectedId,
@@ -447,7 +431,6 @@ export class MemoryManagementService extends BaseContextService {
           });
         }
 
-        // Add edge
         const edgeId = `${current.id}-${connectedId}`;
         const reverseEdgeId = `${connectedId}-${current.id}`;
 
@@ -459,7 +442,6 @@ export class MemoryManagementService extends BaseContextService {
           });
         }
 
-        // Add to queue if not visited
         if (!visited.has(connectedId as string)) {
           visited.add(connectedId as string);
           queue.push({

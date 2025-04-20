@@ -124,7 +124,6 @@ export class AgentDiscoveryService {
     // Sort by total score (descending)
     scoredAgents.sort((a, b) => b.metrics.totalScore - a.metrics.totalScore);
 
-    // Get the best agent
     const bestAgent = scoredAgents[0];
 
     // Gather alternatives
@@ -155,10 +154,8 @@ export class AgentDiscoveryService {
     const reliabilityWeight = options.reliabilityWeight ?? 0.3;
     const capabilityWeight = 1 - performanceWeight - reliabilityWeight;
 
-    // Get stored metrics for this agent and capability, or create default
     const storedMetrics = this.getAgentMetrics(agent.id, options.capability);
 
-    // Calculate capability score (based on how well the agent matches the capability)
     let capabilityScore = 1.0; // Default perfect score
 
     // Preferred agents get a boost
@@ -166,13 +163,10 @@ export class AgentDiscoveryService {
       capabilityScore += 0.5;
     }
 
-    // Calculate performance score (speed, resource usage)
     const performanceScore = storedMetrics.performanceScore;
 
-    // Calculate reliability score (success rate, error handling)
     const reliabilityScore = storedMetrics.reliabilityScore;
 
-    // Calculate total score (weighted average)
     const totalScore =
       capabilityScore * capabilityWeight +
       performanceScore * performanceWeight +
@@ -203,7 +197,6 @@ export class AgentDiscoveryService {
     const agentMetricsMap = this.agentMetrics.get(agentId)!;
 
     if (!agentMetricsMap[capability]) {
-      // Initialize default metrics
       agentMetricsMap[capability] = {
         capabilityScore: 1.0,
         performanceScore: 0.8,
@@ -233,10 +226,8 @@ export class AgentDiscoveryService {
     const currentMetrics = this.getAgentMetrics(agentId, capability);
     const agentMetricsMap = this.agentMetrics.get(agentId)!;
 
-    // Update last used timestamp
     currentMetrics.lastUsed = Date.now();
 
-    // Update average response time if provided
     if (metrics.executionTime !== undefined) {
       // Simple moving average (could be improved with exponential moving average)
       if (currentMetrics.averageResponseTime === undefined) {
@@ -247,7 +238,6 @@ export class AgentDiscoveryService {
           0.3 * metrics.executionTime;
       }
 
-      // Update performance score based on response time
       // Lower is better, scale between 0.5 and 1.0
       const maxResponseTime = 5000; // 5 seconds is considered slow
       currentMetrics.performanceScore = Math.max(
@@ -256,18 +246,15 @@ export class AgentDiscoveryService {
       );
     }
 
-    // Update success rate if success status provided
     if (metrics.success !== undefined) {
       if (currentMetrics.successRate === undefined) {
         currentMetrics.successRate = metrics.success ? 1.0 : 0.0;
       } else {
-        // Update with more weight to recent results (90% old, 10% new)
         currentMetrics.successRate =
           0.9 * currentMetrics.successRate +
           0.1 * (metrics.success ? 1.0 : 0.0);
       }
 
-      // Update reliability score based on success rate
       currentMetrics.reliabilityScore = currentMetrics.successRate;
     }
 

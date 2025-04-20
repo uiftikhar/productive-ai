@@ -52,29 +52,24 @@ export class MeetingAnalysisAgent extends BaseAgent {
     super(name, description, options);
     this.logger = options.logger || new ConsoleLogger();
 
-    // Initialize the OpenAI connector
     this.openAIConnector =
       options.openAIConnector ||
       new OpenAIConnector({
         logger: this.logger,
       });
 
-    // Initialize the embedding service
     this.embeddingService =
       options.embeddingService ||
       new EmbeddingService(this.openAIConnector, this.logger);
 
-    // Initialize the base context service for vector retrieval
     this.baseContextService =
       options.baseContextService ||
       new BaseContextService({
         logger: this.logger,
       });
 
-    // Initialize the RAG Prompt Manager
     this.ragPromptManager = new RagPromptManager();
 
-    // Register agent capabilities
     this.registerCapability({
       name: 'analyze-transcript-chunk',
       description:
@@ -111,7 +106,6 @@ export class MeetingAnalysisAgent extends BaseAgent {
     await super.initialize(config);
 
     try {
-      // Initialize the base context service
       await this.baseContextService.initialize();
 
       this.logger.info(
@@ -220,14 +214,12 @@ export class MeetingAnalysisAgent extends BaseAgent {
     // Determine relevant context types based on capability
     const contentTypes: ContextType[] = [ContextType.MEETING];
 
-    // Add more context types based on capability
     // TODO CHeck if needed
     if (capability === 'generate-final-analysis') {
       contentTypes.push(ContextType.DECISION);
       contentTypes.push(ContextType.ACTION_ITEM);
     }
 
-    // Set up RAG request options
     const ragOptions: RagContextOptions = {
       userId: parameters?.userId || 'system',
       queryText: capability,
@@ -241,7 +233,6 @@ export class MeetingAnalysisAgent extends BaseAgent {
       timeWindow: parameters?.includeHistorical
         ? undefined
         : 30 * 24 * 60 * 60 * 1000,
-      // Add document ID filter if specified
       documentIds: parameters?.documentIds,
     };
 
@@ -251,9 +242,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
   /**
    * Process transcript through the agent
    */
-  async executeInternal(
-    request: AgentRequest,
-  ): Promise<AgentResponse> {
+  async executeInternal(request: AgentRequest): Promise<AgentResponse> {
     const startTime = Date.now();
     const capability = request.capability || 'analyze-transcript-chunk';
 
@@ -262,11 +251,9 @@ export class MeetingAnalysisAgent extends BaseAgent {
     });
 
     try {
-      // Get the appropriate template and role for this capability
       const { template, role } =
         this.getTemplateAndRoleForCapability(capability);
 
-      // Get the input text (can be string or array of messages)
       const inputText =
         typeof request.input === 'string'
           ? request.input
@@ -331,7 +318,6 @@ export class MeetingAnalysisAgent extends BaseAgent {
           request.parameters,
         );
 
-      // Create a prompt using RagPromptManager
       const ragResult = await this.ragPromptManager.createRagPrompt(
         role,
         template,
@@ -349,7 +335,6 @@ export class MeetingAnalysisAgent extends BaseAgent {
         embeddingGenerated,
       });
 
-      // Convert the messages to BaseMessage format for the LLM
       const messages = ragResult.messages.map((msg) => {
         if (msg.role === 'system') {
           return new SystemMessage(msg.content);
@@ -366,7 +351,6 @@ export class MeetingAnalysisAgent extends BaseAgent {
       // Call the language model
       const response = await this.llm.invoke(messages);
 
-      // Calculate tokens (approximate)
       const inputTokens = this.estimateTokenCount(
         messages
           .map((m) =>
@@ -484,10 +468,11 @@ export class MeetingAnalysisAgent extends BaseAgent {
   ): Promise<any> {
     const capability = `extract-${infoType}`;
 
-    // Create an inline workflow for this operation
     // TODO make this production ready
     // This is a simplified approach - in a production app, you would likely use a more reusable pattern
-    const { AgentWorkflow } = require('../../langgraph/core/workflows/agent-workflow');
+    const {
+      AgentWorkflow,
+    } = require('../../langgraph/core/workflows/agent-workflow');
     const workflow = new AgentWorkflow(this, {
       tracingEnabled: options.tracingEnabled || false,
     });

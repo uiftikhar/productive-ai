@@ -58,7 +58,6 @@ export class EmbeddingService {
       // Validate input text
       if (!text) {
         this.logger.warn('Empty or undefined text provided for embedding');
-        // Return a zero vector with expected dimensions (3072 for text-embedding-3-large)
         return new Array(3072).fill(0);
       }
 

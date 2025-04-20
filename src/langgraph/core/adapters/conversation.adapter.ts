@@ -109,7 +109,6 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
     });
 
     this.agent = agent;
-    // Create a workflow for the agent
     this.agentWorkflow = new AgentWorkflow(this.agent, {
       tracingEnabled: options.tracingEnabled,
     });
@@ -186,7 +185,6 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
   ): StateGraph<any> {
     const graph = new StateGraph(schema);
 
-    // Add the nodes
     graph
       // Common nodes from base adapter
       .addNode('initialize', this.createInitializationNode())
@@ -232,7 +230,6 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
    * Create the initial state for conversation
    */
   protected createInitialState(input: SendMessageParams): ConversationState {
-    // Get the base state
     const baseState = super.createInitialState(input);
 
     const conversationId = input.conversationId || uuidv4();
@@ -265,7 +262,6 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
    * Process the final state to produce the output
    */
   protected processResult(state: ConversationState): SendMessageResult {
-    // Calculate metrics
     const executionTimeMs =
       state.totalExecutionTimeMs ||
       (state.endTime || Date.now()) - (state.startTime || Date.now());
@@ -292,7 +288,6 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
       };
     }
 
-    // Return the successful conversation result
     return {
       conversationId: state.conversationId,
       userId: state.userId,
@@ -317,7 +312,6 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
         `Initializing conversation ${state.conversationId} for user ${state.userId}`,
       );
 
-      // Initialize the agent if needed
       if (!this.agent.getInitializationStatus()) {
         try {
           await this.agent.initialize();
@@ -373,7 +367,6 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
   private createGenerateResponseNode() {
     return async (state: ConversationState) => {
       try {
-        // Create the agent request
         const request: AgentRequest = {
           input: state.userInput || '',
           capability: state.metadata?.capability as string,
@@ -388,7 +381,6 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
           // Execute the agent request using the workflow instead of direct execution
           const response = await this.agentWorkflow.execute(request);
 
-          // Create the agent message
           const message: AgentMessage = {
             role: 'assistant',
             content:
@@ -402,7 +394,6 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
             },
           };
 
-          // Add the message to the state
           const updatedMessages = [...state.messages, message];
 
           return {
@@ -421,7 +412,6 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
             error instanceof Error ? error.message : String(error);
           // this.logger.error('Error generating response:', errorMessage);
 
-          // Create error message
           const errorMsg: AgentMessage = {
             role: 'system',
             content: `Error generating response: ${errorMessage}`,
@@ -464,7 +454,6 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
   private createFinalizeNode() {
     return async (state: ConversationState) => {
       try {
-        // Calculate metrics and prepare final state
         const totalTimeMs =
           state.startTime !== undefined ? Date.now() - state.startTime : 0;
 

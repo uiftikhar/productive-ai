@@ -3,7 +3,15 @@
   "compilerOptions": {
     "noEmit": false,
     "allowImportingTsExtensions": false,
-    "sourceMap": true
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "target": "es2015", // Or higher like "es2016", "es2017", "es2018"
+    "downlevelIteration": true,
+    
+    // Keep your other existing settings
+    "outDir": "dist",
+    "module": "commonjs",
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
 }

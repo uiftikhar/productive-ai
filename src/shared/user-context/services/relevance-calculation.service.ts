@@ -209,7 +209,6 @@ export class RelevanceCalculationService extends BaseContextService {
       return 0.5; // Default moderate relevance if no theme data
     }
 
-    // Calculate theme match score
     let matchCount = 0;
     let totalRelevance = 0;
 

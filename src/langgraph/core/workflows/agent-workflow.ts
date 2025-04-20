@@ -236,7 +236,6 @@ export class AgentWorkflow<
       };
     }
 
-    // Create successful response
     return {
       output: state.output || 'Task completed successfully',
       artifacts: state.artifacts,
@@ -257,12 +256,10 @@ export class AgentWorkflow<
   private createPreExecuteNode() {
     return async (state: AgentExecutionState) => {
       try {
-        // Initialize the agent if not already initialized
         if (!this.agent.getInitializationStatus()) {
           await this.agent.initialize();
         }
 
-        // Return updated state
         return {
           ...state,
           status: WorkflowStatus.EXECUTING,
@@ -289,7 +286,6 @@ export class AgentWorkflow<
           await this.agent.initialize();
         }
 
-        // Build request from state
         const request: AgentRequest = {
           input: state.input,
           capability: state.capability,
@@ -299,7 +295,7 @@ export class AgentWorkflow<
 
         // Execute the agent using the most direct and safe method
         let response: AgentResponse;
-        
+
         // PRODUCTION-READY IMPLEMENTATION:
         // First check if the agent implements WorkflowCompatibleAgent
         if (isWorkflowCompatible(this.agent)) {
@@ -311,11 +307,11 @@ export class AgentWorkflow<
         }
 
         // Parse the response, handling both string and object content
-        const output = typeof response.output === 'string'
-          ? response.output
-          : response.output?.content || JSON.stringify(response.output);
+        const output =
+          typeof response.output === 'string'
+            ? response.output
+            : response.output?.content || JSON.stringify(response.output);
 
-        // Update state with response and artifacts
         return {
           ...state,
           output,
@@ -328,15 +324,10 @@ export class AgentWorkflow<
         };
       } catch (error) {
         // Comprehensive error handling
-        const errorObject = error instanceof Error 
-          ? error 
-          : new Error(String(error));
-          
-        return this.addErrorToState(
-          state,
-          errorObject,
-          'execute',
-        );
+        const errorObject =
+          error instanceof Error ? error : new Error(String(error));
+
+        return this.addErrorToState(state, errorObject, 'execute');
       }
     };
   }

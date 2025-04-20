@@ -85,7 +85,6 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
       );
     }
 
-    // Register capabilities
     this.registerCapability({
       name: 'retrieve_knowledge',
       description: 'Retrieve relevant knowledge from user context',
@@ -119,9 +118,7 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
   /**
    * Implementation of abstract execute method
    */
-  public async executeInternal(
-    request: AgentRequest,
-  ): Promise<AgentResponse> {
+  public async executeInternal(request: AgentRequest): Promise<AgentResponse> {
     const startTime = Date.now();
     const capability = request.capability || 'retrieve_knowledge';
 
@@ -231,7 +228,6 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
       results.push(...meetingResults.slice(0, topK));
     }
 
-    // Calculate relevance scores for each result
     const scoredResults = results.map((result) => ({
       ...result,
       score: this.relevanceCalculationService.calculateRelevanceScore(
@@ -302,14 +298,12 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
   ): Promise<AgentResponse> {
     const startTime = Date.now();
 
-    // Create embedding for the query
     const queryEmbedding = await this.embeddingService.generateEmbedding(query);
 
     // Determine retrieval options
     const retrievalOptions = parameters?.retrievalOptions || {};
     const strategy = retrievalOptions.strategy || RagRetrievalStrategy.HYBRID;
 
-    // Create a RAG prompt
     const ragResult = await this.ragPromptManager.createRagPrompt(
       'default' as any, // Use 'default' system role, casting to any to avoid type issues
       'rag_qa' as any, // Cast to any to accommodate the expected InstructionTemplateName type

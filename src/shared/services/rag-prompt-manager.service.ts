@@ -272,7 +272,6 @@ export class RagPromptManager {
     // Ensure the PromptLibrary is initialized
     PromptLibrary.initialize();
 
-    // Initialize template library
     PromptTemplateLibrary.initialize();
   }
 
@@ -366,7 +365,6 @@ export class RagPromptManager {
     // 6. Build the messages array
     const messages = [
       { role: 'system', content: systemPrompt },
-      // Add instruction components if available
       ...(promptComponents.instructionComponents.length > 0
         ? [
             {
@@ -378,9 +376,7 @@ export class RagPromptManager {
             },
           ]
         : []),
-      // Add context as a system message
       { role: 'system', content: enhancedContext },
-      // Add the user query
       { role: 'user', content },
     ];
 
@@ -414,17 +410,14 @@ export class RagPromptManager {
     // Always add a base system instruction
     systemComponents.push('system_instruction_base');
 
-    // Add RAG-specific components
     if (context.items.length > 0) {
       systemComponents.push('rag_prefix');
 
-      // Add citation instruction if required
       if (options.requiresCitations !== false) {
         instructionComponents.push('rag_citation_instruction');
       }
     }
 
-    // Add task-specific components
     if (options.taskType) {
       switch (options.taskType) {
         case 'summarization':
@@ -433,7 +426,6 @@ export class RagPromptManager {
         case 'code':
           instructionComponents.push('code_explanation_instruction');
           break;
-        // Add other task types as needed
       }
     } else {
       // Analyze query to infer task type if not explicitly specified
@@ -444,7 +436,6 @@ export class RagPromptManager {
       }
     }
 
-    // Add domain-specific components if available and relevant
     if (options.domainSpecific && options.domainSpecific.length > 0) {
       options.domainSpecific.forEach((domain) => {
         const domainComponent = `domain_${domain.toLowerCase()}`;
@@ -471,12 +462,10 @@ export class RagPromptManager {
   ): Record<string, string> {
     const replacements: Record<string, string> = {};
 
-    // Add common replacements
     replacements['query'] = query;
     replacements['context_count'] = String(context.items.length);
     replacements['context_sources'] = context.sources.join(', ');
 
-    // Add audience-specific replacements
     if (options.audience) {
       replacements['audience'] = options.audience;
 
@@ -492,7 +481,6 @@ export class RagPromptManager {
       }
     }
 
-    // Add tone-specific replacements
     if (options.toneStyle) {
       replacements['tone'] = options.toneStyle;
     }
@@ -623,7 +611,6 @@ export class RagPromptManager {
       timeWindow,
     } = options;
 
-    // Build the time range filter if specified
     let timeRangeStart: number | undefined;
     if (timeWindow) {
       timeRangeStart = Date.now() - timeWindow;
@@ -1034,7 +1021,6 @@ export class RagPromptManager {
       query.toLowerCase(),
     );
 
-    // Get all templates
     const templates = PromptTemplateLibrary.listTemplates();
 
     // Score templates based on query

@@ -12,7 +12,6 @@ describe('PromptRegistry', () => {
   });
 
   beforeEach(() => {
-    // Register test components in PromptLibrary
     PromptLibrary.registerComponent(
       'system.test',
       'You are a test assistant specialized in testing.',
@@ -33,7 +32,6 @@ describe('PromptRegistry', () => {
       },
     );
 
-    // Register test templates in PromptRegistry
     PromptRegistry.registerPromptTemplate({
       id: 'test-template',
       version: '1.0',

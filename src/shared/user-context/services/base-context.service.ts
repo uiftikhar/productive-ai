@@ -175,7 +175,6 @@ export class BaseContextService {
   ): RecordMetadata {
     const result: RecordMetadata = {};
 
-    // Process each metadata field
     for (const [key, value] of Object.entries(metadata)) {
       // Serialize complex objects to strings
       if (
@@ -217,7 +216,6 @@ export class BaseContextService {
     // Generate a unique ID for this context entry
     const contextId = this.generateContextId(userId);
 
-    // Create the record with complete metadata
     const record: VectorRecord<RecordMetadata> = {
       id: contextId,
       values: embeddings,
@@ -273,7 +271,6 @@ export class BaseContextService {
       metadata?: Partial<BaseContextMetadata>;
     }>,
   ): Promise<string[]> {
-    // Create records for all entries
     const records: VectorRecord<RecordMetadata>[] = entries.map((entry) => {
       const contextId = this.generateContextId(userId);
 
@@ -295,7 +292,6 @@ export class BaseContextService {
       userId,
     );
 
-    // Return all created IDs
     return records.map((record) => record.id);
   }
 
@@ -352,7 +348,6 @@ export class BaseContextService {
     // Find expired records
     const result = await this.pineconeService.queryVectors<RecordMetadata>(
       USER_CONTEXT_INDEX,
-      // Create a valid placeholder vector (3072 dimensions with zeros)
       Array(3072).fill(0),
       {
         topK: 1000, // Fetch a large number to check for expiration
@@ -396,14 +391,11 @@ export class BaseContextService {
     oldestEntry?: number;
     newestEntry?: number;
   }> {
-    // Get the index stats
     const stats =
       await this.pineconeService.describeIndexStats(USER_CONTEXT_INDEX);
 
-    // Get all entries for this namespace to analyze
     const result = await this.pineconeService.queryVectors<RecordMetadata>(
       USER_CONTEXT_INDEX,
-      // Create a valid placeholder vector (3072 dimensions with zeros)
       Array(3072).fill(0),
       {
         topK: 1000, // Fetch a large number to analyze
@@ -491,7 +483,6 @@ export class BaseContextService {
       // Increment view count and update last accessed timestamp
       const viewCount = ((record.metadata?.viewCount as number) || 0) + 1;
 
-      // Create an updated record
       const updatedRecord: VectorRecord<RecordMetadata> = {
         id: contextId,
         values: this.ensureNumberArray(record.values),
@@ -502,7 +493,6 @@ export class BaseContextService {
         },
       };
 
-      // Update the record
       await this.pineconeService.upsertVectors<RecordMetadata>(
         USER_CONTEXT_INDEX,
         [updatedRecord],
@@ -554,7 +544,6 @@ export class BaseContextService {
         throw new UserContextNotFoundError(contextId, userId);
       }
 
-      // Create an updated record with the feedback
       const updatedRecord: VectorRecord<RecordMetadata> = {
         id: contextId,
         values: this.ensureNumberArray(record.values),
@@ -565,7 +554,6 @@ export class BaseContextService {
         },
       };
 
-      // Update the record
       await this.pineconeService.upsertVectors<RecordMetadata>(
         USER_CONTEXT_INDEX,
         [updatedRecord],

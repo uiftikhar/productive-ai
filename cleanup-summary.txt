@@ -1,9 +1,0 @@
-1. Deleted LangChain config: src/langchain/config.ts
-2. Removed redundant adapters:
-   - src/langgraph/core/adapters/meeting-analysis.adapter.ts
-   - src/langgraph/core/adapters/meeting-analysis-langgraph.adapter.ts
-   - src/langgraph/core/adapters/unified-meeting-analysis.adapter.ts
-   - src/langgraph/core/adapters/base-agent.adapter.ts
-   - src/langgraph/core/adapters/task-execution.adapter.ts
-3. Updated adapter documentation to reflect the standardized approach
-4. Organized the remaining adapters in a clean, hierarchical structure

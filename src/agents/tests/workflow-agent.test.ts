@@ -19,7 +19,6 @@ class WorkflowTestAgent extends BaseAgent {
       logger: new MockLogger(),
     });
 
-    // Register a test capability
     this.registerCapability({
       name: 'test-capability',
       description: 'A test capability',
@@ -29,9 +28,7 @@ class WorkflowTestAgent extends BaseAgent {
   /**
    * Implementation of the internal execution logic
    */
-  public async executeInternal(
-    request: AgentRequest,
-  ): Promise<AgentResponse> {
+  public async executeInternal(request: AgentRequest): Promise<AgentResponse> {
     // Simulate processing delay
     if (this.executionDelay > 0) {
       await new Promise((resolve) => setTimeout(resolve, this.executionDelay));
@@ -42,7 +39,6 @@ class WorkflowTestAgent extends BaseAgent {
       throw new Error('Test execution error');
     }
 
-    // Return a test response
     const input =
       typeof request.input === 'string'
         ? request.input
@@ -111,7 +107,6 @@ describe('Agent workflow pattern', () => {
   test('should process metrics correctly through workflow', async () => {
     await agent.initialize();
 
-    // Add a delay to ensure measurable execution time
     agent.executionDelay = 50;
 
     // Execute twice via workflow
@@ -132,12 +127,12 @@ describe('Agent workflow pattern', () => {
       input: 'test input',
       capability: 'test-capability',
       parameters: { param1: 'value1' },
-      context: { userId: 'test-user' }
+      context: { userId: 'test-user' },
     };
 
     const response = await workflow.execute(request);
     expect(response.output).toBe('Processed: test input');
-    
+
     // Verify metrics were updated
     const metrics = agent.getMetrics();
     expect(metrics.totalExecutions).toBe(1);
@@ -145,22 +140,22 @@ describe('Agent workflow pattern', () => {
 
   test('direct execution vs workflow execution match in normal cases', async () => {
     await agent.initialize();
-    
+
     const request: AgentRequest = {
       input: 'test input',
     };
 
     // Execute directly
     const directResponse = await agent.execute(request);
-    
+
     // Execute via workflow
     const workflowResponse = await workflow.execute(request);
-    
+
     // Outputs should match
     expect(workflowResponse.output).toBe(directResponse.output);
-    
+
     // Both execution methods should update metrics
     const metrics = agent.getMetrics();
     expect(metrics.totalExecutions).toBe(2);
   });
-}); 
+});

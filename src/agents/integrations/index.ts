@@ -8,8 +8,5 @@ export * from './pinecone-connector';
 import { OpenAIConnector } from './openai-connector';
 import { PineconeConnector } from './pinecone-connector';
 
-// Create exports for direct use
 export const openAIConnector = new OpenAIConnector();
 export const pineconeConnector = new PineconeConnector();
-
-// Add any other connectors here as they are created

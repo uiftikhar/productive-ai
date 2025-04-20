@@ -18,7 +18,6 @@ class TestAgent extends BaseAgent {
       logger: new MockLogger(),
     });
 
-    // Register a test capability
     this.registerCapability({
       name: 'test-capability',
       description: 'A test capability',
@@ -28,9 +27,7 @@ class TestAgent extends BaseAgent {
   /**
    * Implementation of the internal execution logic
    */
-  public async executeInternal(
-    request: AgentRequest,
-  ): Promise<AgentResponse> {
+  public async executeInternal(request: AgentRequest): Promise<AgentResponse> {
     // Simulate processing delay
     if (this.executionDelay > 0) {
       await new Promise((resolve) => setTimeout(resolve, this.executionDelay));
@@ -41,7 +38,6 @@ class TestAgent extends BaseAgent {
       throw new Error('Test execution error');
     }
 
-    // Return a test response
     const input =
       typeof request.input === 'string'
         ? request.input
@@ -109,7 +105,6 @@ describe('BaseAgent', () => {
       await agent.execute(request);
       fail('Should have thrown an error');
     } catch (error: any) {
-      // Add type annotation here
       expect(error.message).toBe('Test execution error');
     }
 
@@ -132,7 +127,6 @@ describe('BaseAgent', () => {
   test('should process metrics correctly', async () => {
     await agent.initialize();
 
-    // Add a delay to ensure measurable execution time
     agent.executionDelay = 50;
 
     // Execute twice

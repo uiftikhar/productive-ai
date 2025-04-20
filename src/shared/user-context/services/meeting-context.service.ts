@@ -107,7 +107,6 @@ export class MeetingContextService extends BaseContextService {
       `Storing meeting content for user ${userId}, meeting ${meetingId}`,
     );
 
-    // Initialize user storage if needed
     if (!this.meetingContents[userId]) {
       this.meetingContents[userId] = {};
     }
@@ -204,7 +203,6 @@ export class MeetingContextService extends BaseContextService {
       `Storing decision for user ${userId}, meeting ${meetingId}`,
     );
 
-    // Initialize storage if needed
     if (!this.decisions[userId]) {
       this.decisions[userId] = {};
     }
@@ -219,14 +217,12 @@ export class MeetingContextService extends BaseContextService {
     );
 
     if (existingIndex >= 0) {
-      // Update existing decision
       this.decisions[userId][meetingId][existingIndex] = {
         id: decisionId,
         description: decision,
         context: decisionSummary || undefined,
       };
     } else {
-      // Add new decision
       this.decisions[userId][meetingId].push({
         id: decisionId,
         description: decision,
@@ -277,7 +273,6 @@ export class MeetingContextService extends BaseContextService {
       `Storing action item for user ${userId}, meeting ${meetingId}`,
     );
 
-    // Initialize storage if needed
     if (!this.actionItems[userId]) {
       this.actionItems[userId] = {};
     }
@@ -292,7 +287,6 @@ export class MeetingContextService extends BaseContextService {
     );
 
     if (existingIndex >= 0) {
-      // Update existing action item
       this.actionItems[userId][meetingId][existingIndex] = {
         id: actionItemId,
         description: actionItem,
@@ -301,7 +295,6 @@ export class MeetingContextService extends BaseContextService {
         status: 'pending',
       };
     } else {
-      // Add new action item
       this.actionItems[userId][meetingId].push({
         id: actionItemId,
         description: actionItem,
@@ -356,7 +349,6 @@ export class MeetingContextService extends BaseContextService {
       `Storing question for user ${userId}, meeting ${meetingId}`,
     );
 
-    // Initialize storage if needed
     if (!this.questions[userId]) {
       this.questions[userId] = {};
     }
@@ -371,7 +363,6 @@ export class MeetingContextService extends BaseContextService {
     );
 
     if (existingIndex >= 0) {
-      // Update existing question
       this.questions[userId][meetingId][existingIndex] = {
         id: questionId,
         question,
@@ -380,7 +371,6 @@ export class MeetingContextService extends BaseContextService {
         answer: isAnswered ? undefined : '',
       };
     } else {
-      // Add new question
       this.questions[userId][meetingId].push({
         id: questionId,
         question,
@@ -441,7 +431,6 @@ export class MeetingContextService extends BaseContextService {
     const question = result.matches[0];
     const values = this.ensureNumberArray(question.values);
 
-    // Update the question
     await this.executeWithRetry(
       () =>
         this.pineconeService.upsertVectors(
@@ -494,7 +483,6 @@ export class MeetingContextService extends BaseContextService {
       filter.topicId = options.topicId;
     }
 
-    // Add time range filter if specified
     if (options.timeRangeStart || options.timeRangeEnd) {
       filter.timestamp = {};
       if (options.timeRangeStart) {
@@ -673,7 +661,6 @@ export class MeetingContextService extends BaseContextService {
       return [];
     }
 
-    // Get all meetings for the user and sort by date (most recent first)
     const meetings = Object.values(this.meetingContents[userId])
       .sort((a, b) => b.date.getTime() - a.date.getTime())
       .slice(0, limit);

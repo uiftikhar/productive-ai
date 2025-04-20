@@ -29,14 +29,12 @@ describe('AgentFactory', () => {
     // Clear any previous registrations
     jest.clearAllMocks();
 
-    // Create fresh instances
     logger = new MockLogger();
     registry = AgentRegistryService.getInstance(logger);
 
     // Spy on the registry's registerAgent method
     jest.spyOn(registry, 'registerAgent');
 
-    // Create factory with our test dependencies
     factory = new AgentFactory({
       logger,
       registry,

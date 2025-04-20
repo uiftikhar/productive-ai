@@ -59,7 +59,6 @@ export function logStateTransition(
 
   const { includeFullState = false } = options;
 
-  // Create a simplified diff for logging
   const stateDiff: Record<string, { before: any; after: any }> = {};
 
   // Only include changed fields in the diff

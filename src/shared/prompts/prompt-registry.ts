@@ -352,7 +352,6 @@ export class PromptRegistry {
   static initialize(): void {
     this.registerDefaultPromptTemplates();
 
-    // Register system prompts as components in the PromptLibrary
     Object.entries(this.systemPrompts).forEach(([role, message]) => {
       PromptLibrary.registerComponent(
         `system.${role.toLowerCase()}`,
@@ -365,7 +364,6 @@ export class PromptRegistry {
       );
     });
 
-    // Register instruction templates as components in the PromptLibrary
     Object.entries(this.instructionTemplates).forEach(([name, template]) => {
       const rulesContent = template.rules.join('\n\n');
       const requirementsContent = template.outputRequirements

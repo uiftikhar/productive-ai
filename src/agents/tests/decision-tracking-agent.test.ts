@@ -25,13 +25,10 @@ describe('DecisionTrackingAgent', () => {
     // Clear any previous mocks
     jest.clearAllMocks();
 
-    // Create a mock logger
     logger = new MockLogger();
 
-    // Create an agent factory
     factory = new AgentFactory({ logger });
 
-    // Create the agent directly (not wrapped in workflow for testing)
     agent = factory.createDecisionTrackingAgent({
       id: 'test-decision-agent',
       wrapWithWorkflow: false,
@@ -48,9 +45,9 @@ describe('DecisionTrackingAgent', () => {
   test('should register capabilities', () => {
     const capabilities = agent.getCapabilities();
     expect(capabilities.length).toBeGreaterThan(0);
-    
+
     // Check for specific capabilities
-    const capabilityNames = capabilities.map(c => c.name);
+    const capabilityNames = capabilities.map((c) => c.name);
     expect(capabilityNames).toContain('Identify Decisions');
     expect(capabilityNames).toContain('Track Decisions');
     expect(capabilityNames).toContain('Generate Decision Report');
@@ -74,8 +71,8 @@ describe('DecisionTrackingAgent', () => {
       id: 'wrapped-decision-agent',
       wrapWithWorkflow: true,
     });
-    
+
     expect(wrappedAgent).toBeDefined();
     expect(wrappedAgent).toBeInstanceOf(AgentWorkflow);
   });
-}); 
+});

@@ -59,7 +59,6 @@ export class OpenAIConnector implements LanguageModelProvider {
   ) {
     this.logger = options.logger || new ConsoleLogger();
 
-    // Set up the chat model
     const modelConfig: OpenAIModelConfig = {
       model: options.modelConfig?.model || LangChainConfig.llm.model,
       temperature:
@@ -77,7 +76,6 @@ export class OpenAIConnector implements LanguageModelProvider {
       streaming: modelConfig.streaming,
     });
 
-    // Set up the embeddings
     const embeddingConfig: EmbeddingConfig = {
       model: options.embeddingConfig?.model || LangChainConfig.embeddings.model,
     };
@@ -123,7 +121,6 @@ export class OpenAIConnector implements LanguageModelProvider {
     options?: Partial<OpenAIModelConfig>,
   ): Promise<ModelResponse> {
     try {
-      // Convert messages to the expected format if needed
       const modelMessages =
         Array.isArray(messages) && messages.length > 0 && 'role' in messages[0]
           ? this.createMessages(messages as MessageConfig[])
@@ -145,7 +142,6 @@ export class OpenAIConnector implements LanguageModelProvider {
         responseFormat,
       });
 
-      // Create a temporary model with different options if needed
       let model = this.chatModel;
       if (options || responseFormat) {
         const modelOptions: any = {
@@ -155,7 +151,6 @@ export class OpenAIConnector implements LanguageModelProvider {
           streaming: options?.streaming ?? this.chatModel.streaming,
         };
 
-        // Add response format if specified
         if (responseFormat) {
           modelOptions.responseFormat = responseFormat;
         }
@@ -192,7 +187,6 @@ export class OpenAIConnector implements LanguageModelProvider {
     options?: Partial<OpenAIModelConfig>,
   ): Promise<void> {
     try {
-      // Convert messages to the expected format if needed
       const modelMessages =
         Array.isArray(messages) && messages.length > 0 && 'role' in messages[0]
           ? this.createMessages(messages as MessageConfig[])
@@ -209,7 +203,6 @@ export class OpenAIConnector implements LanguageModelProvider {
       // Track the full response
       let fullResponse = '';
 
-      // Create wrapped callbacks for streaming
       const wrappedCallbacks = {
         handleLLMNewToken(token: string) {
           fullResponse += token;

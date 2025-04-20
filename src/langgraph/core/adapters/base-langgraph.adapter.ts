@@ -133,22 +133,18 @@ export abstract class BaseLangGraphAdapter<
         adapterId: this.constructor.name,
       });
 
-      // Create the state schema
       const schema = this.createStateSchema();
 
-      // Create the state graph
       const graph = this.createStateGraph(schema);
 
       // Compile the graph
       const compiledGraph = graph.compile();
 
-      // Create the initial state
       const initialState = this.createInitialState(input);
 
       // Execute the graph
       const finalState = (await compiledGraph.invoke(initialState)) as TState;
 
-      // Process the result
       const result = this.processResult(finalState);
 
       // Log execution metrics
@@ -219,7 +215,6 @@ export abstract class BaseLangGraphAdapter<
       adapterId: this.constructor.name,
     });
 
-    // Create a standard error result
     // Child classes should override this method to provide specific error handling
     throw new WorkflowError(
       `Workflow execution failed: ${errorMessage}`,

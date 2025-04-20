@@ -36,7 +36,6 @@ export class UserContextFacade {
       logger?: Logger;
     } = {},
   ) {
-    // Initialize all services with the same dependencies
     this.baseContextService = new BaseContextService(options);
     this.conversationContextService = new ConversationContextService(options);
     this.documentContextService = new DocumentContextService(options);

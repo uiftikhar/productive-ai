@@ -38,7 +38,6 @@ describe('PromptLibrary', () => {
     });
 
     it('should update an existing component', () => {
-      // Register initial version
       PromptLibrary.registerComponent(
         'test_component',
         'Initial content',
@@ -55,7 +54,6 @@ describe('PromptLibrary', () => {
       const mockDateNow = jest.fn().mockReturnValue(initialCreatedAt + 1000);
       Date.now = mockDateNow;
 
-      // Update the component
       PromptLibrary.registerComponent(
         'test_component',
         'Updated content',
@@ -73,7 +71,6 @@ describe('PromptLibrary', () => {
       // Mock Date.now() for the third call to return an even later timestamp
       mockDateNow.mockReturnValue(initialCreatedAt + 2000);
 
-      // Update again
       PromptLibrary.registerComponent(
         'test_component',
         'Final content',
@@ -95,7 +92,6 @@ describe('PromptLibrary', () => {
 
   describe('getComponentsByTag', () => {
     it('should retrieve components by tag', () => {
-      // Register components with different tags
       PromptLibrary.registerComponent('component1', 'Content 1', '1.0.0', {
         tags: ['test', 'system'],
       });
@@ -108,7 +104,6 @@ describe('PromptLibrary', () => {
         tags: ['user'],
       });
 
-      // Get components by tag
       const testComponents = PromptLibrary.getComponentsByTag('test');
       expect(testComponents.length).toBe(2);
       expect(testComponents.map((c) => c.id)).toContain('component1');
@@ -132,7 +127,6 @@ describe('PromptLibrary', () => {
 
   describe('createCompositePrompt', () => {
     beforeEach(() => {
-      // Register test components
       PromptLibrary.registerComponent('header', 'This is the header', '1.0.0', {
         description: 'Header component',
       });
@@ -240,7 +234,6 @@ describe('PromptLibrary', () => {
 
   describe('deleteComponent', () => {
     it('should delete a component and clean up tags', () => {
-      // Register component with tags
       PromptLibrary.registerComponent(
         'component_to_delete',
         'Delete me',

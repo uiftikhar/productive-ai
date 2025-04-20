@@ -39,19 +39,16 @@ export async function generateRagSummary(
     const chunks = splitTranscript(transcript, 2000, 3);
     const ragManager = new RagPromptManager();
 
-    // Process each chunk with RAG-enhanced context
     const partialSummaries: string[] = [];
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
 
-      // Calculate chunk-specific embeddings (simplified - in practice you'd use a proper embedding API)
       const chunkEmbedding =
         i === 0
           ? embeddings // Use the full transcript embedding for first chunk as approximation
           : embeddings.map((v) => v * (1 - i * 0.1)); // Crude approximation for demonstration
 
-      // Build context retrieval options
       const contextOptions = {
         userId,
         queryText: chunk,
