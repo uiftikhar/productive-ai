@@ -1,7 +1,6 @@
 import { DecisionTrackingAgent } from '../../specialized/decision-tracking-agent';
 import { OpenAIConnector } from '../../integrations/openai-connector';
 import { Logger } from '../../../shared/logger/logger.interface';
-import { LogLevel } from '../../../shared/logger/console-logger';
 import { AgentResponse } from '../../interfaces/base-agent.interface';
 import { 
   Decision, 

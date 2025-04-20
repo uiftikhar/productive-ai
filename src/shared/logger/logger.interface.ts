@@ -1,4 +1,4 @@
-import { LogLevel } from './console-logger';
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'none';
 
 export interface Logger {
   setLogLevel(level: LogLevel): void;

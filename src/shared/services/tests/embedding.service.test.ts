@@ -2,8 +2,7 @@ import { EmbeddingService } from '../embedding.service';
 import { EmbeddingAdapter } from '../embedding-adapter';
 import { EmbeddingServiceFactory } from '../embedding.factory';
 import { OpenAIConnector } from '../../../agents/integrations/openai-connector';
-import { Logger } from '../../logger/logger.interface';
-import { LogLevel } from '../../logger/console-logger';
+import { Logger, LogLevel } from '../../../shared/logger/logger.interface';
 import { IEmbeddingService } from '../embedding.interface';
 
 // Mock OpenAIConnector

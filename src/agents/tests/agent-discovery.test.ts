@@ -9,46 +9,9 @@ import {
   AgentResponse,
   BaseAgentInterface
 } from '../interfaces/base-agent.interface';
-import { ConsoleLogger, LogLevel } from '../../shared/logger/console-logger';
-import { Logger } from '../../shared/logger/logger.interface';
-
-class MockLogger implements Logger {
-  private messages: Array<{ message: string, level: string, context?: any }> = [];
-
-  debug(message: string, context?: Record<string, any>): void {
-    this.messages.push({ message, level: 'debug', context });
-  }
-
-  info(message: string, context?: Record<string, any>): void {
-    this.messages.push({ message, level: 'info', context });
-  }
-
-  warn(message: string, context?: Record<string, any>): void {
-    this.messages.push({ message, level: 'warn', context });
-  }
-
-  error(message: string, context?: Record<string, any>): void {
-    this.messages.push({ message, level: 'error', context });
-  }
-
-  setLogLevel(level: LogLevel): void {
-    // Not implemented for tests
-  }
-
-  hasMessage(message: string, level: string): boolean {
-    return this.messages.some(m => 
-      m.message.includes(message) && m.level === level
-    );
-  }
-
-  getAllMessages(): Array<{ message: string, level: string, context?: any }> {
-    return this.messages;
-  }
-
-  clearMessages(): void {
-    this.messages = [];
-  }
-}
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { Logger, LogLevel } from '../../shared/logger/logger.interface';
+import { MockLogger } from './mocks/mock-logger';
 
 class MockAgent implements BaseAgentInterface {
   readonly id: string;
@@ -149,7 +112,7 @@ describe('AgentDiscoveryService', () => {
     (AgentRegistryService as any).instance = originalRegistryInstance;
     (AgentDiscoveryService as any).instance = originalDiscoveryInstance;
     
-    mockLogger.clearMessages();
+    mockLogger.clear();
     jest.restoreAllMocks();
   });
 

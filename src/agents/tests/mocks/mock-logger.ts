@@ -1,5 +1,4 @@
-import { Logger } from '../../../shared/logger/logger.interface';
-import { LogLevel } from '../../../shared/logger/console-logger';
+import { Logger, LogLevel } from '../../../shared/logger/logger.interface';
 
 interface LogMessage {
   level: LogLevel;
@@ -69,19 +68,19 @@ export class MockLogger implements Logger {
   }
 
   debug(message: string, context?: Record<string, any>): void {
-    this.messages.push({ level: 'debug', message, context });
+    this.log('debug', message, context);
   }
 
   info(message: string, context?: Record<string, any>): void {
-    this.messages.push({ level: 'info', message, context });
+    this.log('info', message, context);
   }
 
   warn(message: string, context?: Record<string, any>): void {
-    this.messages.push({ level: 'warn', message, context });
+    this.log('warn', message, context);
   }
 
   error(message: string, context?: Record<string, any>): void {
-    this.messages.push({ level: 'error', message, context });
+    this.log('error', message, context);
   }
 
   /**
