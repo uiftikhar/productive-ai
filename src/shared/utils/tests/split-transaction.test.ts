@@ -1,4 +1,4 @@
-import { splitTranscript } from '../split-transcript.ts';
+import { splitTranscript } from '../split-transcript';
 
 describe('splitTranscript (real implementation)', () => {
   it('should return a single chunk for a short transcript', () => {

@@ -2,10 +2,10 @@ import bcryptjs from 'bcryptjs';
 import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
 
-import { passportClient } from '../database/config/passport.ts';
-import type { IUser } from '../database/models/index.ts';
-import { User } from '../database/models/index.ts';
-import { hasRole, isAuthenticated } from './middlewares/index.ts';
+import { passportClient } from '../database/config/passport';
+import type { IUser } from '../database/models/index';
+import { User } from '../database/models/index';
+import { hasRole, isAuthenticated } from './middlewares/index';
 
 const router = Router();
 

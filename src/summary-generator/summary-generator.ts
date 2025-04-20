@@ -1,8 +1,10 @@
 import OpenAI from 'openai';
 
-import { processAllChunks } from '../shared/utils/process-chunk.ts';
-import { splitTranscript } from '../shared/utils/split-transcript.ts';
-import { processFinalSummary } from './process-final-summary.ts';
+import { processAllChunks } from '../shared/utils/process-chunk';
+import { splitTranscript } from '../shared/utils/split-transcript';
+import { processFinalSummary } from './process-final-summary';
+import { SystemRoleEnum } from '../shared/prompts/prompt-types';
+import { InstructionTemplateNameEnum } from '../shared/prompts/instruction-templates';
 
 /**
  * Generates a summary for a SCRUM meeting transcript.
@@ -30,8 +32,8 @@ export async function generateSummary(transcript: string): Promise<string> {
     const partialSummaries = await processAllChunks(
       chunks,
       client,
-      'MEETING_CHUNK_SUMMARIZER',
-      'MEETING_CHUNK_SUMMARY',
+      SystemRoleEnum.MEETING_CHUNK_SUMMARIZER,
+      InstructionTemplateNameEnum.MEETING_CHUNK_SUMMARY,
     );
 
     const combinedSummaries = partialSummaries.join('\n\n');

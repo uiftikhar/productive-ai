@@ -1,2 +1,2 @@
-export * from './middlewares/index.ts';
-export * from './auth.routes.ts';
+export * from './middlewares/index';
+export * from './auth.routes';
