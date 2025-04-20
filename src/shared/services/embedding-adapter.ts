@@ -16,6 +16,11 @@ import { ConsoleLogger } from '../logger/console-logger';
 import { OpenAIConnector } from '../../agents/integrations/openai-connector';
 import { IEmbeddingService } from './embedding.interface';
 import { EmbeddingServiceFactory } from './embedding.factory';
+import { 
+  EmbeddingConnectorError, 
+  EmbeddingGenerationError, 
+  EmbeddingValidationError 
+} from './embedding/embedding-error';
 
 /**
  * A unified adapter for embedding services
@@ -89,7 +94,17 @@ export class EmbeddingAdapter implements IEmbeddingService {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error generating embedding: ${errorMessage}`);
-      throw new Error(`Failed to generate embedding: ${errorMessage}`);
+      
+      // Don't rewrap errors of our custom types
+      if (error instanceof EmbeddingGenerationError ||
+          error instanceof EmbeddingConnectorError ||
+          error instanceof EmbeddingValidationError) {
+        throw error;
+      }
+      
+      throw new EmbeddingGenerationError(errorMessage, { 
+        cause: error instanceof Error ? error : undefined 
+      });
     }
   }
 
@@ -110,7 +125,7 @@ export class EmbeddingAdapter implements IEmbeddingService {
       this.logger.debug('Implementing cosine similarity locally');
       
       if (embedding1.length !== embedding2.length) {
-        throw new Error('Embeddings must have the same dimensions');
+        throw new EmbeddingValidationError('Embeddings must have the same dimensions');
       }
 
       let dotProduct = 0;
@@ -136,7 +151,15 @@ export class EmbeddingAdapter implements IEmbeddingService {
       if (errorMessage !== 'Embeddings must have the same dimensions') {
         this.logger.error(`Error calculating cosine similarity: ${errorMessage}`);
       }
-      throw error;
+      
+      // Don't rewrap errors of our custom types
+      if (error instanceof EmbeddingValidationError) {
+        throw error;
+      }
+      
+      throw new EmbeddingValidationError(errorMessage, {
+        cause: error instanceof Error ? error : undefined
+      });
     }
   }
 
@@ -190,7 +213,7 @@ export class EmbeddingAdapter implements IEmbeddingService {
       this.logger.debug('Implementing combineEmbeddings locally');
       
       if (embeddings.length === 0) {
-        throw new Error('No embeddings provided to combine');
+        throw new EmbeddingValidationError('No embeddings provided to combine');
       }
 
       const dimension = embeddings[0].length;
@@ -198,7 +221,7 @@ export class EmbeddingAdapter implements IEmbeddingService {
 
       for (const embedding of embeddings) {
         if (embedding.length !== dimension) {
-          throw new Error('All embeddings must have the same dimensions');
+          throw new EmbeddingValidationError('All embeddings must have the same dimensions');
         }
 
         for (let i = 0; i < dimension; i++) {
@@ -222,7 +245,15 @@ export class EmbeddingAdapter implements IEmbeddingService {
           !errorMessage.includes('same dimensions')) {
         this.logger.error(`Error combining embeddings: ${errorMessage}`);
       }
-      throw error;
+      
+      // Don't rewrap errors of our custom types
+      if (error instanceof EmbeddingValidationError) {
+        throw error;
+      }
+      
+      throw new EmbeddingValidationError(errorMessage, {
+        cause: error instanceof Error ? error : undefined
+      });
     }
   }
 

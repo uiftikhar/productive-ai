@@ -20,6 +20,11 @@ import { OpenAIConnector } from '../../agents/integrations/openai-connector';
 import { ConsoleLogger } from '../logger/console-logger';
 import { Logger } from '../logger/logger.interface';
 import { IEmbeddingService } from './embedding.interface';
+import { 
+  EmbeddingConnectorError, 
+  EmbeddingGenerationError, 
+  EmbeddingValidationError 
+} from './embedding/embedding-error';
 
 /**
  * Interface for embedding service results
@@ -90,7 +95,7 @@ export class EmbeddingService implements IEmbeddingService {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       this.logger.error(`Error generating embedding: ${errorMessage}`);
-      throw new Error(`Failed to generate embedding: ${errorMessage}`);
+      throw new EmbeddingGenerationError(errorMessage, { cause: error instanceof Error ? error : undefined });
     }
   }
 
@@ -126,7 +131,7 @@ export class EmbeddingService implements IEmbeddingService {
     }
 
     if (chunkEmbeddings.length === 0) {
-      throw new Error('Failed to generate any chunk embeddings');
+      throw new EmbeddingGenerationError('Failed to generate any chunk embeddings');
     }
 
     // Combine the embeddings
@@ -141,7 +146,7 @@ export class EmbeddingService implements IEmbeddingService {
     embedding2: number[],
   ): number {
     if (embedding1.length !== embedding2.length) {
-      throw new Error('Embeddings must have the same dimensions');
+      throw new EmbeddingValidationError('Embeddings must have the same dimensions');
     }
 
     let dotProduct = 0;
@@ -190,7 +195,7 @@ export class EmbeddingService implements IEmbeddingService {
    */
   combineEmbeddings(embeddings: number[][]): number[] {
     if (embeddings.length === 0) {
-      throw new Error('No embeddings provided to combine');
+      throw new EmbeddingValidationError('No embeddings provided to combine');
     }
 
     const dimension = embeddings[0].length;
@@ -198,7 +203,7 @@ export class EmbeddingService implements IEmbeddingService {
 
     for (const embedding of embeddings) {
       if (embedding.length !== dimension) {
-        throw new Error('All embeddings must have the same dimensions');
+        throw new EmbeddingValidationError('All embeddings must have the same dimensions');
       }
 
       for (let i = 0; i < dimension; i++) {

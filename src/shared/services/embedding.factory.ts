@@ -24,6 +24,8 @@ import { EmbeddingAdapter } from './embedding-adapter';
 import { OpenAIConnector } from '../../agents/integrations/openai-connector';
 import { Logger } from '../logger/logger.interface';
 import { ConsoleLogger } from '../logger/console-logger';
+import { ConfigurationError } from '../utils/base-error';
+import { EmbeddingConnectorError } from './embedding/embedding-error';
 
 /**
  * Factory options for creating embedding services
@@ -48,34 +50,52 @@ export class EmbeddingServiceFactory {
    * @returns An implementation of IEmbeddingService
    */
   static getService(options: EmbeddingServiceFactoryOptions = {}): IEmbeddingService {
-    // Use adapter if specifically requested
-    const useAdapter = options.useAdapter ?? false;
-    
-    // For testing and specific use cases, allow injecting a service
-    if (options.embeddingService) {
-      return useAdapter 
-        ? new EmbeddingAdapter({ embeddingService: options.embeddingService, logger: options.logger }) 
-        : options.embeddingService;
-    }
-    
-    // If there's a connector, create a new service with it
-    if (options.connector) {
+    try {
+      // Use adapter if specifically requested
+      const useAdapter = options.useAdapter ?? false;
       const logger = options.logger || new ConsoleLogger();
-      const service = new EmbeddingService(options.connector, logger, true);
-      return useAdapter ? new EmbeddingAdapter({ embeddingService: service, logger }) : service;
+      
+      // For testing and specific use cases, allow injecting a service
+      if (options.embeddingService) {
+        return useAdapter 
+          ? new EmbeddingAdapter({ embeddingService: options.embeddingService, logger }) 
+          : options.embeddingService;
+      }
+      
+      // If there's a connector, create a new service with it
+      if (options.connector) {
+        const service = new EmbeddingService(options.connector, logger, true);
+        return useAdapter ? new EmbeddingAdapter({ embeddingService: service, logger }) : service;
+      }
+      
+      // Create and cache a default instance if none exists
+      if (!EmbeddingServiceFactory.defaultInstance) {
+        try {
+          const connector = new OpenAIConnector();
+          const service = new EmbeddingService(connector, logger, true);
+          EmbeddingServiceFactory.defaultInstance = useAdapter 
+            ? new EmbeddingAdapter({ embeddingService: service, logger }) 
+            : service;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          logger.error(`Failed to create default embedding service: ${errorMessage}`);
+          throw new EmbeddingConnectorError(`Unable to initialize default connector: ${errorMessage}`, { 
+            cause: error instanceof Error ? error : undefined 
+          });
+        }
+      }
+      
+      return EmbeddingServiceFactory.defaultInstance;
+    } catch (error) {
+      if (error instanceof EmbeddingConnectorError || error instanceof ConfigurationError) {
+        throw error;
+      }
+      
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new ConfigurationError(`Error creating embedding service: ${errorMessage}`, { 
+        cause: error instanceof Error ? error : undefined 
+      });
     }
-    
-    // Create and cache a default instance if none exists
-    if (!EmbeddingServiceFactory.defaultInstance) {
-      const logger = options.logger || new ConsoleLogger();
-      const connector = new OpenAIConnector();
-      const service = new EmbeddingService(connector, logger, true);
-      EmbeddingServiceFactory.defaultInstance = useAdapter 
-        ? new EmbeddingAdapter({ embeddingService: service, logger }) 
-        : service;
-    }
-    
-    return EmbeddingServiceFactory.defaultInstance;
   }
   
   /**

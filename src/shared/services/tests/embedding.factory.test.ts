@@ -106,10 +106,9 @@ describe('EmbeddingServiceFactory', () => {
     // Assert
     expect(service).toBeDefined();
     expect(service).not.toBe(mockEmbeddingService); // Should be wrapped
-    expect(EmbeddingAdapter).toHaveBeenCalledWith({
+    expect(EmbeddingAdapter).toHaveBeenCalledWith(expect.objectContaining({
       embeddingService: mockEmbeddingService,
-      logger: undefined
-    });
+    }));
   });
 
   test('should reset default instance', () => {

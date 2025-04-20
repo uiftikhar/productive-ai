@@ -207,7 +207,7 @@ describe('EmbeddingAdapter', () => {
       
       // Act & Assert
       await expect(adapter.generateEmbedding('test text')).rejects
-        .toThrow('Failed to generate embedding: API error');
+        .toThrow('Embedding generation failed: API error');
       expect(mockLogger.hasMessage('Error generating embedding: API error', 'error')).toBe(true);
     });
   });
