@@ -38,6 +38,7 @@ module.exports = {
     '!src/**/*.routes.ts',
     '!src/**/*.controller.ts',
     '!src/agents/tests/mocks/mock-logger.ts',
+    '!src/agents/services/tests/**/*',
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov'],
