@@ -141,8 +141,6 @@ function generateLangSmithUrl(meetingId: string): string | null {
   
   // Link to the project page using the proper format
   const url = `https://smith.langchain.com/o/${workspaceId}/projects/p/${projectId}`;
-  // https://smith.langchain.com/o/5c5d6af3-fe6d-4c1b-b358-bda57e1dd889/projects/p/dec474da-bfe2-4354-a7f5-e36ce1004a45
-  // https://smith.langchain.com/o/60d3228f-f9e8-4197-a9e3-e604af59db95/projects/p/dec474da-bfe2-4354-a7f5-e36ce1004a45
   logger.info('Generated LangSmith project URL', { url });
   return url;
 }
