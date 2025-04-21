@@ -48,7 +48,8 @@ export interface Task {
 }
 
 export interface TaskAssignmentRequest {
-  taskDescription: string;
+  taskDescription?: string;
+  description?: string;  // Added to support workflow format
   priority?: number;
   requiredCapabilities?: string[];
   preferredAgentId?: string;
@@ -288,37 +289,116 @@ export class SupervisorAgent extends BaseAgent {
   /**
    * Handle task assignment
    */
-  private async handleTaskAssignment(request: AgentRequest): Promise<Task> {
-    const taskRequest = request.parameters as TaskAssignmentRequest;
-    
-    if (!taskRequest || !taskRequest.taskDescription) {
-      throw new Error('Missing task description');
+  private async handleTaskAssignment(request: AgentRequest): Promise<Task | Record<string, string>> {
+    try {
+      // Check if this is a batch task assignment request from the workflow
+      if (typeof request.input === 'string' && request.input.startsWith('[{')) {
+        try {
+          const taskRequests = JSON.parse(request.input);
+          
+          if (Array.isArray(taskRequests) && taskRequests.length > 0 && 'taskId' in taskRequests[0]) {
+            this.logger.info(`Processing batch task assignment for ${taskRequests.length} tasks from workflow`);
+            
+            // This is a batch request from the workflow
+            const assignments: Record<string, string> = {};
+            
+            // Process each task in the batch
+            for (const taskReq of taskRequests) {
+              const taskId = taskReq.taskId;
+              const requiredCapabilities = taskReq.requiredCapabilities || [];
+              const priority = taskReq.priority || 5;
+              
+              // Find the best agent for this task based on capabilities
+              const bestTeamMember = this.findBestTeamMemberByCapabilities(requiredCapabilities);
+              
+              if (bestTeamMember && bestTeamMember.agent) {
+                assignments[taskId] = bestTeamMember.agent.id;
+                this.logger.debug(`Assigned task ${taskId} to agent ${bestTeamMember.agent.id}`);
+              } else {
+                this.logger.warn(`No suitable agent found for task ${taskId}`);
+              }
+            }
+            
+            return assignments;
+          }
+        } catch (e) {
+          this.logger.warn('Failed to parse batch task assignment input as JSON', { error: e });
+          // Continue with single task assignment
+        }
+      }
+      
+      // Standard single task assignment
+      const taskRequest = request.parameters as TaskAssignmentRequest;
+      
+      // Support both taskDescription and direct description field
+      const description = taskRequest?.taskDescription || 
+                          (taskRequest && 'description' in taskRequest ? taskRequest.description : null) ||
+                          (typeof request.input === 'string' ? request.input : null);
+      
+      if (!taskRequest || !description) {
+        throw new Error('Missing task description');
+      }
+
+      // Create a new task
+      const task: Task = {
+        id: uuidv4(),
+        name: description.slice(0, 50), // Use first 50 chars as name
+        description: description,
+        status: 'pending',
+        priority: taskRequest.priority || 5, // Default priority
+        createdAt: Date.now(),
+        metadata: taskRequest.metadata || {},
+      };
+
+      // Find the best agent for this task
+      const bestAgentId = await this.findBestAgentForTask(task, {
+        ...taskRequest,
+        taskDescription: description // Ensure taskDescription is set for findBestAgentForTask
+      });
+      
+      if (bestAgentId) {
+        task.assignedTo = bestAgentId;
+      } else {
+        this.logger.warn('No suitable agent found for task', { task });
+      }
+
+      // Store the task
+      this.tasks.set(task.id, task);
+
+      return task;
+    } catch (error) {
+      this.logger.error('Error in handleTaskAssignment', { error });
+      throw error;
     }
+  }
 
-    // Create a new task
-    const task: Task = {
-      id: uuidv4(),
-      name: taskRequest.taskDescription.slice(0, 50), // Use first 50 chars as name
-      description: taskRequest.taskDescription,
-      status: 'pending',
-      priority: taskRequest.priority || 5, // Default priority
-      createdAt: Date.now(),
-      metadata: taskRequest.metadata || {},
-    };
-
-    // Find the best agent for this task
-    const bestAgentId = await this.findBestAgentForTask(task, taskRequest);
-    
-    if (bestAgentId) {
-      task.assignedTo = bestAgentId;
-    } else {
-      this.logger.warn('No suitable agent found for task', { task });
+  /**
+   * Find the best team member based on required capabilities
+   */
+  private findBestTeamMemberByCapabilities(requiredCapabilities: string[]): TeamMember | undefined {
+    // If no specific capabilities required, just return any available agent
+    if (!requiredCapabilities || requiredCapabilities.length === 0) {
+      const activeMembers = Array.from(this.team.values()).filter(m => m.active);
+      return activeMembers.length > 0 ? activeMembers[0] : undefined;
     }
-
-    // Store the task
-    this.tasks.set(task.id, task);
-
-    return task;
+    
+    // Score each team member based on how many required capabilities they have
+    const scoredMembers = Array.from(this.team.values())
+      .filter(member => member.active)
+      .map(member => {
+        const agentCapabilities = member.agent.getCapabilities().map(c => c.name);
+        const matchingCapabilities = requiredCapabilities.filter(rc => 
+          agentCapabilities.includes(rc)
+        );
+        
+        return {
+          member,
+          score: matchingCapabilities.length * 10 + member.priority,
+        };
+      })
+      .sort((a, b) => b.score - a.score); // Sort by highest score
+    
+    return scoredMembers.length > 0 ? scoredMembers[0].member : undefined;
   }
 
   /**
@@ -336,15 +416,25 @@ export class SupervisorAgent extends BaseAgent {
     
     if (usePlanning) {
       // Create a task plan using the task planning service
-      const tasks = coordinationRequest.tasks.map(taskRequest => ({
-        name: taskRequest.taskDescription.slice(0, 50),
-        description: taskRequest.taskDescription,
-        priority: taskRequest.priority || 5,
-        requiredCapabilities: taskRequest.requiredCapabilities || [],
-        dependencies: [],
-        status: 'pending' as 'pending', // Explicitly typed as 'pending'
-        metadata: taskRequest.metadata || {}
-      }));
+      const tasks = coordinationRequest.tasks.map(taskRequest => {
+        // Support both taskDescription and description fields
+        const description = taskRequest.taskDescription || 
+                          ('description' in taskRequest ? taskRequest.description : '');
+        
+        if (!description) {
+          throw new Error('Missing task description in one or more tasks');
+        }
+        
+        return {
+          name: description.slice(0, 50),
+          description: description,
+          priority: taskRequest.priority || 5,
+          requiredCapabilities: taskRequest.requiredCapabilities || [],
+          dependencies: [],
+          status: 'pending' as 'pending', // Explicitly typed as 'pending'
+          metadata: taskRequest.metadata || {}
+        };
+      });
       
       const planName = coordinationRequest.planName || 'Task Plan';
       const planDescription = coordinationRequest.planDescription || 'Generated task plan';

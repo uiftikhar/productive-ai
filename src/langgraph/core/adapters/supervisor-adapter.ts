@@ -3,6 +3,7 @@ import { SupervisorWorkflow } from '../workflows/supervisor-workflow';
 import { AgentRequest, AgentResponse } from '../../../agents/interfaces/base-agent.interface';
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Configuration for SupervisorAdapter
@@ -87,22 +88,25 @@ export class SupervisorAdapter {
   ): Promise<AgentResponse> {
     this.logger.info(`Executing coordinated task: ${taskDescription}`);
     
-    // Convert subtasks to task assignments
-    const tasks = subtasks.map(subtask => ({
-      taskDescription: subtask.description,
+    // Create properly formatted tasks for the workflow
+    const formattedTasks = subtasks.map(subtask => ({
+      id: uuidv4(),  // Ensure each task has a unique ID
+      name: subtask.description.split('\n')[0].slice(0, 50),  // First line as name
+      description: subtask.description,
       priority: subtask.priority || 5,
       requiredCapabilities: subtask.requiredCapabilities || [],
+      status: 'pending',  // Important initial state for the workflow
+      createdAt: Date.now()
     }));
     
     const request: AgentRequest = {
       input: taskDescription,
       capability: 'work-coordination',
       parameters: {
-        tasks,
+        tasks: formattedTasks,
         executionStrategy,
-        useTaskPlanningService: true,
-        planName: taskDescription,
-        planDescription: `Coordinated execution of ${tasks.length} subtasks`,
+        // Set to false to use direct task execution
+        useTaskPlanningService: false,
       },
     };
     
