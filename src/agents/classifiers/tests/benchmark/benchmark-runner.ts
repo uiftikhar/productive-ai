@@ -67,11 +67,14 @@ async function runBenchmark() {
     
     // Run benchmark
     logger.info('Running benchmark...');
-    const results = await benchmarkService.runBenchmark(classifier, {
-      dataset: BENCHMARK_DATASET,
-      includeCategories: flags.categories,
-      verbose: flags.verbose
-    });
+    const results = await benchmarkService.runBenchmark(
+      classifier,
+      BENCHMARK_DATASET,
+      BENCHMARK_AGENTS as Record<string, any>,
+      {
+        verbose: flags.verbose
+      }
+    );
     
     // Log results
     benchmarkService.logResults(results, flags.verbose);

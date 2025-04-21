@@ -1,4 +1,4 @@
-import { BenchmarkService, BenchmarkStats } from './benchmark.service';
+import { BenchmarkService, BenchmarkStats, BenchmarkAgent } from './benchmark.service';
 import { ClassifierInterface, ClassifierResult } from '../../interfaces/classifier.interface';
 import { ConversationMessage, ParticipantRole } from '../../types/conversation.types';
 import { MockLogger } from '../../../agents/tests/mocks/mock-logger';
@@ -101,6 +101,20 @@ describe('BenchmarkService', () => {
     }
   ];
 
+  // Mock benchmark agents
+  const mockAgents: Record<string, BenchmarkAgent> = {
+    'agent-1': {
+      id: 'agent-1',
+      name: 'Test Agent 1',
+      description: 'Test agent for benchmarking'
+    },
+    'agent-2': {
+      id: 'agent-2',
+      name: 'Test Agent 2',
+      description: 'Another test agent for benchmarking'
+    }
+  };
+
   beforeEach(() => {
     mockLogger = {
       debug: jest.fn(),
@@ -151,37 +165,45 @@ describe('BenchmarkService', () => {
 
   describe('runBenchmark', () => {
     test('should run full benchmark dataset', async () => {
-      const results = await service.runBenchmark(mockClassifier, {
-        dataset: sampleDataset,
-        verbose: false
-      });
+      const results = await service.runBenchmark(
+        mockClassifier,
+        sampleDataset,
+        mockAgents,
+        { verbose: false }
+      );
       
       // Should have called classifier for each item
       expect(mockClassifier.classifyCalls.length).toBe(3);
       
       // Should have calculated correct statistics
-      expect(results.overall.total).toBe(3);
-      expect(results.overall.passed).toBe(3);
-      expect(results.overall.failed).toBe(0);
-      expect(results.overall.accuracy).toBe(1); // 100% success
+      expect(results.totalTests).toBe(3);
+      expect(results.correctClassifications).toBe(3);
+      expect(results.accuracy).toBe(1); // 100% success
       
       // Should have set template type
       expect(mockClassifier.classifyCalls[2].input).toBe('yes'); // The follow-up test
     });
     
     test('should filter by category', async () => {
-      const results = await service.runBenchmark(mockClassifier, {
-        dataset: sampleDataset,
-        includeCategories: ['technical']
-      });
+      // Filter dataset by category
+      const technicalDataset = sampleDataset.filter(item => item.category === 'technical');
+      
+      const results = await service.runBenchmark(
+        mockClassifier,
+        technicalDataset,
+        mockAgents
+      );
       
       // Should only run technical test
       expect(mockClassifier.classifyCalls.length).toBe(1);
       expect(mockClassifier.classifyCalls[0].input).toBe('test query 2');
       
       // Stats should only include technical category
-      expect(results.overall.total).toBe(1);
-      expect(Object.keys(results.byCategory)).toEqual(['technical']);
+      expect(results.totalTests).toBe(1);
+      
+      // Check results have correct category data
+      const categoryResults = service['getCategoryResults'](results);
+      expect(Object.keys(categoryResults)).toEqual(['technical']);
     });
     
     test('should handle classifier errors', async () => {
@@ -195,39 +217,43 @@ describe('BenchmarkService', () => {
         intent: 'wrong_intent'
       };
       
-      const results = await service.runBenchmark(mockClassifier, {
-        dataset: sampleDataset
-      });
+      const results = await service.runBenchmark(
+        mockClassifier,
+        sampleDataset,
+        mockAgents
+      );
       
       // Should have 1 failure (the technical query)
-      expect(results.overall.passed).toBe(2);
-      expect(results.overall.failed).toBe(1);
-      expect(results.byCategory.technical.failed).toBe(1);
+      expect(results.correctClassifications).toBe(2);
+      expect(results.totalTests - results.correctClassifications).toBe(1);
+      
+      // Check category results
+      const categoryResults = service['getCategoryResults'](results);
+      expect(categoryResults.technical.correct).toBe(0);
       
       // Should record details of the failure
-      const failedDetails = results.details.find(d => !d.passed);
-      expect(failedDetails).toBeDefined();
-      expect(failedDetails?.input).toBe('test query 2');
+      const failedTests = results.results.filter(r => !r.isCorrect);
+      expect(failedTests).toHaveLength(1);
+      expect(failedTests[0].item.input).toBe('test query 2');
     });
     
     test('should handle exceptions during classification', async () => {
       // Make classifier throw an error
       mockClassifier.throwError = true;
       
-      const results = await service.runBenchmark(mockClassifier, {
-        dataset: sampleDataset
-      });
+      const results = await service.runBenchmark(
+        mockClassifier,
+        sampleDataset,
+        mockAgents,
+        { verbose: true }
+      );
       
       // All tests should fail due to error
-      expect(results.overall.passed).toBe(0);
-      expect(results.overall.failed).toBe(3);
+      expect(results.correctClassifications).toBe(0);
+      expect(results.errors.length).toBe(3);
       
       // Error should be logged
       expect(mockLogger.error).toHaveBeenCalled();
-      
-      // Should have error details in results
-      expect(results.details[0].passed).toBe(false);
-      expect(results.details[0].actual.reasoning).toContain('Error: Mock classifier error');
     });
   });
   
@@ -243,9 +269,11 @@ describe('BenchmarkService', () => {
         intent: 'wrong_intent'
       };
       
-      const results = await service.runBenchmark(mockClassifier, {
-        dataset: sampleDataset
-      });
+      const results = await service.runBenchmark(
+        mockClassifier,
+        sampleDataset,
+        mockAgents
+      );
       
       // Generate report
       const report = service.generateReport(results);
@@ -289,13 +317,15 @@ describe('BenchmarkService', () => {
         intent: ''
       };
       
-      const results = await service.runBenchmark(mockClassifier, {
-        dataset: [testItem]
-      });
+      const results = await service.runBenchmark(
+        mockClassifier,
+        [testItem],
+        mockAgents
+      );
       
       // Should fail validation
-      expect(results.overall.passed).toBe(0);
-      expect(results.overall.failed).toBe(1);
+      expect(results.correctClassifications).toBe(0);
+      expect(results.totalTests).toBe(1);
     });
     
     test('should validate confidence threshold', async () => {
@@ -320,13 +350,15 @@ describe('BenchmarkService', () => {
         intent: ''
       };
       
-      const results = await service.runBenchmark(mockClassifier, {
-        dataset: [testItem]
-      });
+      const results = await service.runBenchmark(
+        mockClassifier,
+        [testItem],
+        mockAgents
+      );
       
       // Should fail validation due to confidence
-      expect(results.overall.passed).toBe(0);
-      expect(results.overall.failed).toBe(1);
+      expect(results.correctClassifications).toBe(0);
+      expect(results.totalTests).toBe(1);
     });
     
     test('should validate entities and intent', async () => {
@@ -353,13 +385,15 @@ describe('BenchmarkService', () => {
         intent: 'specific_intent'
       };
       
-      const results = await service.runBenchmark(mockClassifier, {
-        dataset: [testItem]
-      });
+      const results = await service.runBenchmark(
+        mockClassifier,
+        [testItem],
+        mockAgents
+      );
       
       // Should fail validation due to missing entity
-      expect(results.overall.passed).toBe(0);
-      expect(results.overall.failed).toBe(1);
+      expect(results.correctClassifications).toBe(0);
+      expect(results.totalTests).toBe(1);
       
       // Update mock to include entities but wrong intent
       mockClassifier.mockResponses['entity test'] = {
@@ -371,13 +405,15 @@ describe('BenchmarkService', () => {
         intent: 'wrong_intent'
       };
       
-      const results2 = await service.runBenchmark(mockClassifier, {
-        dataset: [testItem]
-      });
+      const results2 = await service.runBenchmark(
+        mockClassifier,
+        [testItem],
+        mockAgents
+      );
       
       // Should fail validation due to wrong intent
-      expect(results2.overall.passed).toBe(0);
-      expect(results2.overall.failed).toBe(1);
+      expect(results2.correctClassifications).toBe(0);
+      expect(results2.totalTests).toBe(1);
     });
   });
 }); 

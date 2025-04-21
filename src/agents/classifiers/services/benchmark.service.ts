@@ -1,323 +1,179 @@
 import { ClassifierInterface, ClassifierResult } from '../../interfaces/classifier.interface';
-import { BenchmarkItem } from '../tests/benchmark/benchmark-dataset';
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
+import { ParticipantRole } from '../../types/conversation.types';
 
-/**
- * Benchmark result statistics
- */
-export interface BenchmarkStats {
-  /**
-   * Overall statistics
-   */
-  overall: {
-    total: number;
-    passed: number;
-    failed: number;
-    accuracy: number;
+export interface BenchmarkItem {
+  category: string;
+  input: string;
+  history?: Array<{
+    role: ParticipantRole;
+    content: string;
+    agentId?: string;
+  }>;
+  expected: {
+    agentId: string | null;
+    minConfidence: number;
+    isFollowUp: boolean;
+    expectedEntities?: string[];
+    expectedIntent?: string;
   };
-  
-  /**
-   * Statistics by category
-   */
-  byCategory: Record<string, {
-    total: number;
-    passed: number;
-    failed: number;
-    accuracy: number;
+}
+
+export interface BenchmarkAgent {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface BenchmarkStats {
+  accuracy: number;
+  totalTests: number;
+  correctClassifications: number;
+  results: Array<{
+    item: BenchmarkItem;
+    result: ClassifierResult;
+    isCorrect: boolean;
   }>;
-  
-  /**
-   * Detailed results for each test case
-   */
-  details: Array<{
-    category: string;
-    input: string;
-    expected: any;
-    actual: ClassifierResult;
-    passed: boolean;
+  errors: Array<{
+    item: BenchmarkItem;
+    error: Error;
   }>;
 }
 
-/**
- * Options for running classifier benchmarks
- */
 export interface BenchmarkOptions {
-  /**
-   * Dataset to use for benchmarking
-   */
-  dataset: BenchmarkItem[];
-  
-  /**
-   * Whether to use verbose logging
-   */
   verbose?: boolean;
-  
-  /**
-   * Logger instance
-   */
-  logger?: Logger;
-  
-  /**
-   * Categories to include in the benchmark (if not specified, all categories are included)
-   */
-  includeCategories?: string[];
-  
-  /**
-   * Filter function to determine which benchmark items to include
-   */
-  filter?: (item: BenchmarkItem) => boolean;
 }
 
-/**
- * Service for running benchmarks against classifiers
- */
 export class BenchmarkService {
   private logger: Logger;
   
-  /**
-   * Create a new benchmark service
-   */
-  constructor(options: { logger?: Logger } = {}) {
-    this.logger = options.logger || new ConsoleLogger();
+  constructor({ logger }: { logger?: Logger } = {}) {
+    this.logger = logger || new ConsoleLogger();
   }
   
-  /**
-   * Run a benchmark test suite against a classifier
-   */
   async runBenchmark(
     classifier: ClassifierInterface,
-    options: BenchmarkOptions
+    dataset: BenchmarkItem[],
+    agents: Record<string, BenchmarkAgent>,
+    options: BenchmarkOptions = {}
   ): Promise<BenchmarkStats> {
-    const { dataset, verbose = false } = options;
-    const filter = options.filter || (() => true);
+    const startTime = Date.now();
+    const results: BenchmarkStats['results'] = [];
+    const errors: BenchmarkStats['errors'] = [];
+    let correctClassifications = 0;
+
+    // Set up the classifier with the benchmark agents
+    const mockAgents = Object.values(agents).reduce((acc, agent) => {
+      acc[agent.id] = {
+        id: agent.id,
+        name: agent.name,
+        description: agent.description
+      };
+      return acc;
+    }, {} as Record<string, any>);
     
-    // Filter dataset if categories specified
-    const filteredDataset = dataset.filter(item => {
-      // Apply category filter if specified
-      if (options.includeCategories && !options.includeCategories.includes(item.category)) {
-        return false;
-      }
-      
-      // Apply custom filter if provided
-      return filter(item);
-    });
-    
-    // Initialize results tracking
-    const results: BenchmarkStats = {
-      overall: {
-        total: 0,
-        passed: 0,
-        failed: 0,
-        accuracy: 0
-      },
-      byCategory: {},
-      details: []
-    };
-    
-    // Initialize category stats
-    for (const item of filteredDataset) {
-      if (!results.byCategory[item.category]) {
-        results.byCategory[item.category] = {
-          total: 0,
-          passed: 0,
-          failed: 0,
-          accuracy: 0
-        };
-      }
+    classifier.setAgents(mockAgents);
+
+    if (options.verbose) {
+      this.logger.info(`Running benchmark with ${dataset.length} test cases`);
     }
-    
-    if (verbose) {
-      this.logger.info(`Running benchmarks on ${filteredDataset.length} test cases`);
-    }
-    
-    // Run benchmark on each item
-    for (const benchmarkItem of filteredDataset) {
+
+    // Run the benchmark tests
+    for (const item of dataset) {
       try {
-        // Set appropriate template type based on category
-        if ('setTemplateType' in classifier && typeof classifier.setTemplateType === 'function') {
-          if (benchmarkItem.category === 'followup') {
-            (classifier as any).setTemplateType('followup');
-          } else {
-            (classifier as any).setTemplateType('default');
-          }
+        // Prepare the input for the classifier
+        const messages = [];
+        
+        // Add history if present
+        if (item.history && item.history.length > 0) {
+          messages.push(...item.history.map(msg => ({
+            role: msg.role,
+            content: msg.content
+          })));
         }
         
-        // Perform the classification
-        const result = await classifier.classify(
-          benchmarkItem.input,
-          benchmarkItem.history || []
-        );
+        // Add the current input
+        messages.push({
+          role: 'user' as ParticipantRole,
+          content: item.input
+        });
+
+        // Call the classifier
+        const result = await classifier.classify(item.input, messages);
         
-        // Validate the results against expectations
-        const passed = this.validateResult(result, benchmarkItem.expected);
+        // Check if the classification matches the expected result
+        const isCorrect = this.validateResult(result, item.expected);
         
-        // Update overall stats
-        results.overall.total++;
-        if (passed) {
-          results.overall.passed++;
-        } else {
-          results.overall.failed++;
+        if (isCorrect) {
+          correctClassifications++;
         }
         
-        // Update category stats
-        results.byCategory[benchmarkItem.category].total++;
-        if (passed) {
-          results.byCategory[benchmarkItem.category].passed++;
-        } else {
-          results.byCategory[benchmarkItem.category].failed++;
-        }
-        
-        // Store details
-        results.details.push({
-          category: benchmarkItem.category,
-          input: benchmarkItem.input,
-          expected: benchmarkItem.expected,
-          actual: result,
-          passed
+        results.push({
+          item,
+          result,
+          isCorrect
         });
         
-        if (verbose) {
-          this.logger.info(
-            `[${passed ? 'PASS' : 'FAIL'}] ${benchmarkItem.category}: "${benchmarkItem.input.slice(0, 40)}${benchmarkItem.input.length > 40 ? '...' : ''}"`
-          );
+        if (options.verbose) {
+          this.logger.info(`Test case: ${item.category} - ${isCorrect ? '✓' : '✗'}`);
+          this.logger.info(`  Input: ${item.input.substring(0, 50)}...`);
+          this.logger.info(`  Expected: ${item.expected.agentId}, Got: ${result.selectedAgentId}`);
+          const reasoning = typeof result.reasoning === 'string' ? result.reasoning.substring(0, 100) : '';
+          this.logger.info(`  Reasoning: ${reasoning}...`);
         }
       } catch (error) {
-        // Handle errors in benchmark processing
-        results.overall.total++;
-        results.overall.failed++;
-        results.byCategory[benchmarkItem.category].total++;
-        results.byCategory[benchmarkItem.category].failed++;
-        
-        results.details.push({
-          category: benchmarkItem.category,
-          input: benchmarkItem.input,
-          expected: benchmarkItem.expected,
-          actual: {
-            selectedAgentId: null,
-            confidence: 0,
-            reasoning: `Error: ${error instanceof Error ? error.message : String(error)}`,
-            isFollowUp: false,
-            entities: [],
-            intent: ''
-          },
-          passed: false
+        errors.push({
+          item,
+          error: error instanceof Error ? error : new Error(String(error))
         });
         
-        this.logger.error(`Benchmark error for ${benchmarkItem.category}: "${benchmarkItem.input}"`, { error });
+        if (options.verbose) {
+          this.logger.error(`Error in test case: ${item.category}`);
+          this.logger.error(String(error));
+        }
       }
     }
+
+    const endTime = Date.now();
+    const accuracy = dataset.length > 0 ? correctClassifications / dataset.length : 0;
     
-    // Calculate accuracy percentages
-    results.overall.accuracy = results.overall.total > 0 
-      ? (results.overall.passed / results.overall.total) 
-      : 0;
+    if (options.verbose) {
+      this.logger.info(`Benchmark completed in ${endTime - startTime}ms`);
+      this.logger.info(`Accuracy: ${(accuracy * 100).toFixed(2)}% (${correctClassifications}/${dataset.length})`);
+    }
+
+    return {
+      accuracy,
+      totalTests: dataset.length,
+      correctClassifications,
+      results,
+      errors
+    };
+  }
+
+  async compareClassifiers(
+    classifiers: Array<{ classifier: ClassifierInterface; name: string }>,
+    dataset: BenchmarkItem[],
+    agents: Record<string, BenchmarkAgent>,
+    options: BenchmarkOptions = {}
+  ): Promise<Array<BenchmarkStats & { name: string }>> {
+    const results: Array<BenchmarkStats & { name: string }> = [];
     
-    // Calculate category accuracy
-    for (const category in results.byCategory) {
-      const categoryStats = results.byCategory[category];
-      categoryStats.accuracy = categoryStats.total > 0 
-        ? (categoryStats.passed / categoryStats.total) 
-        : 0;
+    for (const { classifier, name } of classifiers) {
+      if (options.verbose) {
+        this.logger.info(`Running benchmark for classifier: ${name}`);
+      }
+      
+      const result = await this.runBenchmark(classifier, dataset, agents, options);
+      results.push({ ...result, name });
     }
     
     return results;
   }
-  
-  /**
-   * Generate a formatted report from benchmark results
-   */
-  generateReport(results: BenchmarkStats): string {
-    const report = [];
-    
-    // Overall summary
-    report.push('# Classifier Benchmark Report');
-    report.push('');
-    report.push('## Overall Results');
-    report.push('');
-    report.push(`- Total test cases: ${results.overall.total}`);
-    report.push(`- Passed: ${results.overall.passed}`);
-    report.push(`- Failed: ${results.overall.failed}`);
-    report.push(`- Accuracy: ${(results.overall.accuracy * 100).toFixed(2)}%`);
-    report.push('');
-    
-    // Category breakdown
-    report.push('## Results by Category');
-    report.push('');
-    report.push('| Category | Total | Passed | Failed | Accuracy |');
-    report.push('|----------|-------|--------|--------|----------|');
-    
-    for (const category in results.byCategory) {
-      const stats = results.byCategory[category];
-      report.push(
-        `| ${category} | ${stats.total} | ${stats.passed} | ${stats.failed} | ${(stats.accuracy * 100).toFixed(2)}% |`
-      );
-    }
-    
-    report.push('');
-    
-    // Failed test cases
-    const failedTests = results.details.filter(detail => !detail.passed);
-    if (failedTests.length > 0) {
-      report.push('## Failed Test Cases');
-      report.push('');
-      
-      for (const test of failedTests) {
-        report.push(`### ${test.category}: "${test.input}"`);
-        report.push('');
-        report.push('**Expected:**');
-        report.push('```');
-        report.push(JSON.stringify(test.expected, null, 2));
-        report.push('```');
-        report.push('');
-        report.push('**Actual:**');
-        report.push('```');
-        report.push(JSON.stringify(test.actual, null, 2));
-        report.push('```');
-        report.push('');
-      }
-    }
-    
-    return report.join('\n');
-  }
-  
-  /**
-   * Log benchmark results to the console
-   */
-  logResults(results: BenchmarkStats, verbose = false): void {
-    // Log summary
-    this.logger.info('\n\nBenchmark Results:');
-    this.logger.info(`Total: ${results.overall.total}`);
-    this.logger.info(`Passed: ${results.overall.passed}`);
-    this.logger.info(`Failed: ${results.overall.failed}`);
-    this.logger.info(`Accuracy: ${(results.overall.accuracy * 100).toFixed(2)}%`);
-    
-    // Log category breakdown
-    this.logger.info('\nResults by Category:');
-    for (const category in results.byCategory) {
-      const stats = results.byCategory[category];
-      this.logger.info(
-        `${category}: ${stats.passed}/${stats.total} (${(stats.accuracy * 100).toFixed(2)}%)`
-      );
-    }
-    
-    // Log failed test cases
-    const failedTests = results.details.filter(detail => !detail.passed);
-    if (failedTests.length > 0 && verbose) {
-      this.logger.info('\nFailed Test Cases:');
-      failedTests.forEach(detail => {
-        this.logger.info(`- Category: ${detail.category}, Input: "${detail.input}"`);
-        this.logger.info(`  Expected: ${JSON.stringify(detail.expected)}`);
-        this.logger.info(`  Got: ${JSON.stringify(detail.actual)}`);
-        this.logger.info('');
-      });
-    }
-  }
-  
-  /**
-   * Helper to validate results against expectations
-   */
-  private validateResult(actual: ClassifierResult, expected: any): boolean {
+
+  // Validate the results against expected values
+  private validateResult(actual: ClassifierResult, expected: BenchmarkItem['expected']): boolean {
     // Check selected agent
     if (actual.selectedAgentId !== expected.agentId) {
       return false;
@@ -353,5 +209,121 @@ export class BenchmarkService {
     }
     
     return true;
+  }
+
+  /**
+   * Log benchmark results to the console
+   */
+  logResults(results: BenchmarkStats, verbose = false): void {
+    // Log summary
+    this.logger.info('\n\nBenchmark Results:');
+    this.logger.info(`Total: ${results.totalTests}`);
+    this.logger.info(`Passed: ${results.correctClassifications}`);
+    this.logger.info(`Failed: ${results.totalTests - results.correctClassifications}`);
+    this.logger.info(`Accuracy: ${(results.accuracy * 100).toFixed(2)}%`);
+    
+    // Log category breakdown
+    const categoryResults = this.getCategoryResults(results);
+    this.logger.info('\nResults by Category:');
+    
+    for (const category in categoryResults) {
+      const stats = categoryResults[category];
+      this.logger.info(
+        `${category}: ${stats.correct}/${stats.total} (${(stats.accuracy * 100).toFixed(2)}%)`
+      );
+    }
+    
+    // Log failed test cases
+    const failedTests = results.results.filter(detail => !detail.isCorrect);
+    if (failedTests.length > 0 && verbose) {
+      this.logger.info('\nFailed Test Cases:');
+      failedTests.forEach(detail => {
+        this.logger.info(`- Category: ${detail.item.category}, Input: "${detail.item.input}"`);
+        this.logger.info(`  Expected: ${detail.item.expected.agentId}`);
+        this.logger.info(`  Got: ${detail.result.selectedAgentId}`);
+        this.logger.info('');
+      });
+    }
+  }
+
+  /**
+   * Generate a formatted report from benchmark results
+   */
+  generateReport(results: BenchmarkStats): string {
+    const categoryResults = this.getCategoryResults(results);
+    const report = [];
+    
+    // Overall summary
+    report.push('# Classifier Benchmark Report');
+    report.push('');
+    report.push('## Overall Results');
+    report.push('');
+    report.push(`- Total test cases: ${results.totalTests}`);
+    report.push(`- Passed: ${results.correctClassifications}`);
+    report.push(`- Failed: ${results.totalTests - results.correctClassifications}`);
+    report.push(`- Accuracy: ${(results.accuracy * 100).toFixed(2)}%`);
+    report.push('');
+    
+    // Category breakdown
+    report.push('## Results by Category');
+    report.push('');
+    report.push('| Category | Total | Passed | Failed | Accuracy |');
+    report.push('|----------|-------|--------|--------|----------|');
+    
+    for (const category in categoryResults) {
+      const stats = categoryResults[category];
+      report.push(
+        `| ${category} | ${stats.total} | ${stats.correct} | ${stats.total - stats.correct} | ${(stats.accuracy * 100).toFixed(2)}% |`
+      );
+    }
+    
+    report.push('');
+    
+    // Failed test cases
+    const failedTests = results.results.filter(detail => !detail.isCorrect);
+    if (failedTests.length > 0) {
+      report.push('## Failed Test Cases');
+      report.push('');
+      
+      for (const test of failedTests) {
+        report.push(`### ${test.item.category}: "${test.item.input}"`);
+        report.push('');
+        report.push('**Expected:**');
+        report.push('```');
+        report.push(JSON.stringify(test.item.expected, null, 2));
+        report.push('```');
+        report.push('');
+        report.push('**Actual:**');
+        report.push('```');
+        report.push(JSON.stringify(test.result, null, 2));
+        report.push('```');
+        report.push('');
+      }
+    }
+    
+    return report.join('\n');
+  }
+
+  /**
+   * Helper method to get category statistics
+   */
+  private getCategoryResults(results: BenchmarkStats): Record<string, { total: number; correct: number; accuracy: number }> {
+    return results.results.reduce((acc, result) => {
+      const category = result.item.category;
+      if (!acc[category]) {
+        acc[category] = { total: 0, correct: 0, accuracy: 0 };
+      }
+      
+      acc[category].total++;
+      if (result.isCorrect) {
+        acc[category].correct++;
+      }
+      
+      acc[category].accuracy = acc[category].total > 0 
+        ? acc[category].correct / acc[category].total
+        : 0;
+      
+      return acc;
+    }, {} as Record<string, { total: number; correct: number; accuracy: number }>);
   }
 } 

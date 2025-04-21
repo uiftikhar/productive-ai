@@ -7,13 +7,18 @@ export interface BenchmarkItem {
   /**
    * Category of the query for testing different aspects
    */
-  category: 'general' | 'technical' | 'customer_service' | 'followup' | 'ambiguous';
-  
+  category:
+    | 'general'
+    | 'technical'
+    | 'customer_service'
+    | 'followup'
+    | 'ambiguous';
+
   /**
    * User input to classify
    */
   input: string;
-  
+
   /**
    * Optional conversation history context
    */
@@ -22,7 +27,7 @@ export interface BenchmarkItem {
     content: string;
     agentId?: string;
   }>;
-  
+
   /**
    * Expected classification result
    */
@@ -31,22 +36,22 @@ export interface BenchmarkItem {
      * Expected agent ID to select
      */
     agentId: string | null;
-    
+
     /**
      * Minimum confidence level expected
      */
     minConfidence: number;
-    
+
     /**
      * Whether this should be classified as a follow-up
      */
     isFollowUp: boolean;
-    
+
     /**
      * Expected entities to be identified (subset is acceptable)
      */
     expectedEntities?: string[];
-    
+
     /**
      * Expected intent category
      */
@@ -61,18 +66,21 @@ export const BENCHMARK_AGENTS = {
   GENERAL: {
     id: 'general-assistant',
     name: 'General Assistant',
-    description: 'A general-purpose assistant that can help with a wide range of tasks and questions.'
+    description:
+      'A general-purpose assistant that can help with a wide range of tasks and questions.',
   },
   TECHNICAL: {
     id: 'technical-assistant',
     name: 'Technical Assistant',
-    description: 'A specialized assistant for technical questions about programming, development, and IT issues.'
+    description:
+      'A specialized assistant for technical questions about programming, development, and IT issues.',
   },
   CUSTOMER_SERVICE: {
     id: 'customer-service',
     name: 'Customer Service Assistant',
-    description: 'An assistant specialized in handling customer inquiries, orders, and support issues.'
-  }
+    description:
+      'An assistant specialized in handling customer inquiries, orders, and support issues.',
+  },
 };
 
 /**
@@ -86,8 +94,8 @@ export const BENCHMARK_DATASET: BenchmarkItem[] = [
     expected: {
       agentId: BENCHMARK_AGENTS.GENERAL.id,
       isFollowUp: false,
-      minConfidence: 0.7
-    }
+      minConfidence: 0.7,
+    },
   },
   {
     category: 'general',
@@ -95,17 +103,17 @@ export const BENCHMARK_DATASET: BenchmarkItem[] = [
     expected: {
       agentId: BENCHMARK_AGENTS.GENERAL.id,
       isFollowUp: false,
-      minConfidence: 0.7
-    }
+      minConfidence: 0.7,
+    },
   },
   {
     category: 'general',
-    input: 'What\'s the weather like today?',
+    input: "What's the weather like today?",
     expected: {
       agentId: BENCHMARK_AGENTS.GENERAL.id,
       isFollowUp: false,
-      minConfidence: 0.7
-    }
+      minConfidence: 0.7,
+    },
   },
   {
     category: 'general',
@@ -113,10 +121,10 @@ export const BENCHMARK_DATASET: BenchmarkItem[] = [
     expected: {
       agentId: BENCHMARK_AGENTS.GENERAL.id,
       isFollowUp: false,
-      minConfidence: 0.7
-    }
+      minConfidence: 0.7,
+    },
   },
-  
+
   // Technical queries
   {
     category: 'technical',
@@ -124,26 +132,27 @@ export const BENCHMARK_DATASET: BenchmarkItem[] = [
     expected: {
       agentId: BENCHMARK_AGENTS.TECHNICAL.id,
       isFollowUp: false,
-      minConfidence: 0.7
-    }
+      minConfidence: 0.7,
+    },
   },
   {
     category: 'technical',
-    input: 'What\'s the difference between REST and GraphQL?',
+    input: "What's the difference between REST and GraphQL?",
     expected: {
       agentId: BENCHMARK_AGENTS.TECHNICAL.id,
       isFollowUp: false,
-      minConfidence: 0.7
-    }
+      minConfidence: 0.7,
+    },
   },
   {
     category: 'technical',
-    input: 'Can you help debug this React component that\'s not rendering correctly?',
+    input:
+      "Can you help debug this React component that's not rendering correctly?",
     expected: {
       agentId: BENCHMARK_AGENTS.TECHNICAL.id,
       isFollowUp: false,
-      minConfidence: 0.7
-    }
+      minConfidence: 0.7,
+    },
   },
   {
     category: 'technical',
@@ -151,10 +160,10 @@ export const BENCHMARK_DATASET: BenchmarkItem[] = [
     expected: {
       agentId: BENCHMARK_AGENTS.TECHNICAL.id,
       isFollowUp: false,
-      minConfidence: 0.7
-    }
+      minConfidence: 0.7,
+    },
   },
-  
+
   // Customer service queries
   {
     category: 'customer_service',
@@ -162,17 +171,17 @@ export const BENCHMARK_DATASET: BenchmarkItem[] = [
     expected: {
       agentId: BENCHMARK_AGENTS.CUSTOMER_SERVICE.id,
       isFollowUp: false,
-      minConfidence: 0.7
-    }
+      minConfidence: 0.7,
+    },
   },
   {
     category: 'customer_service',
-    input: 'My order hasn\'t arrived yet, can you check the status?',
+    input: "My order hasn't arrived yet, can you check the status?",
     expected: {
       agentId: BENCHMARK_AGENTS.CUSTOMER_SERVICE.id,
       isFollowUp: false,
-      minConfidence: 0.7
-    }
+      minConfidence: 0.7,
+    },
   },
   {
     category: 'customer_service',
@@ -180,8 +189,8 @@ export const BENCHMARK_DATASET: BenchmarkItem[] = [
     expected: {
       agentId: BENCHMARK_AGENTS.CUSTOMER_SERVICE.id,
       isFollowUp: false,
-      minConfidence: 0.7
-    }
+      minConfidence: 0.7,
+    },
   },
   {
     category: 'customer_service',
@@ -189,10 +198,10 @@ export const BENCHMARK_DATASET: BenchmarkItem[] = [
     expected: {
       agentId: BENCHMARK_AGENTS.CUSTOMER_SERVICE.id,
       isFollowUp: false,
-      minConfidence: 0.7
-    }
+      minConfidence: 0.7,
+    },
   },
-  
+
   // Follow-up queries
   {
     category: 'followup',
@@ -201,14 +210,14 @@ export const BENCHMARK_DATASET: BenchmarkItem[] = [
       {
         role: ParticipantRole.ASSISTANT,
         content: 'React uses a virtual DOM to optimize rendering performance.',
-        agentId: BENCHMARK_AGENTS.TECHNICAL.id
-      }
+        agentId: BENCHMARK_AGENTS.TECHNICAL.id,
+      },
     ],
     expected: {
       agentId: BENCHMARK_AGENTS.TECHNICAL.id,
       isFollowUp: true,
-      minConfidence: 0.7
-    }
+      minConfidence: 0.7,
+    },
   },
   {
     category: 'followup',
@@ -216,15 +225,16 @@ export const BENCHMARK_DATASET: BenchmarkItem[] = [
     history: [
       {
         role: ParticipantRole.ASSISTANT,
-        content: 'You can return your item within 30 days of purchase with the original receipt.',
-        agentId: BENCHMARK_AGENTS.CUSTOMER_SERVICE.id
-      }
+        content:
+          'You can return your item within 30 days of purchase with the original receipt.',
+        agentId: BENCHMARK_AGENTS.CUSTOMER_SERVICE.id,
+      },
     ],
     expected: {
       agentId: BENCHMARK_AGENTS.CUSTOMER_SERVICE.id,
       isFollowUp: true,
-      minConfidence: 0.7
-    }
+      minConfidence: 0.7,
+    },
   },
   {
     category: 'followup',
@@ -232,21 +242,22 @@ export const BENCHMARK_DATASET: BenchmarkItem[] = [
     history: [
       {
         role: ParticipantRole.USER,
-        content: 'What\'s the weather like today?'
+        content: "What's the weather like today?",
       },
       {
         role: ParticipantRole.ASSISTANT,
-        content: 'I don\'t have access to real-time weather data, but I can help you find a weather service.',
-        agentId: BENCHMARK_AGENTS.GENERAL.id
-      }
+        content:
+          "I don't have access to real-time weather data, but I can help you find a weather service.",
+        agentId: BENCHMARK_AGENTS.GENERAL.id,
+      },
     ],
     expected: {
       agentId: BENCHMARK_AGENTS.GENERAL.id,
       isFollowUp: true,
-      minConfidence: 0.7
-    }
+      minConfidence: 0.7,
+    },
   },
-  
+
   // Ambiguous queries
   {
     category: 'ambiguous',
@@ -254,8 +265,8 @@ export const BENCHMARK_DATASET: BenchmarkItem[] = [
     expected: {
       agentId: null,
       isFollowUp: false,
-      minConfidence: 0.4
-    }
+      minConfidence: 0.4,
+    },
   },
   {
     category: 'ambiguous',
@@ -263,8 +274,8 @@ export const BENCHMARK_DATASET: BenchmarkItem[] = [
     expected: {
       agentId: null,
       isFollowUp: false,
-      minConfidence: 0.4
-    }
+      minConfidence: 0.4,
+    },
   },
   {
     category: 'ambiguous',
@@ -272,7 +283,7 @@ export const BENCHMARK_DATASET: BenchmarkItem[] = [
     expected: {
       agentId: null,
       isFollowUp: false,
-      minConfidence: 0.4
-    }
-  }
-]; 
+      minConfidence: 0.4,
+    },
+  },
+];
