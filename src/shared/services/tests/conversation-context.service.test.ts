@@ -242,12 +242,9 @@ describe('ConversationContextService', () => {
       });
 
       // Act
-      await service.getConversationHistory(
-        userId,
-        conversationId,
-        limit,
+      await service.getConversationHistory(userId, conversationId, limit, {
         beforeTimestamp,
-      );
+      });
 
       // Assert
       expect(mockPineconeService.queryVectors).toHaveBeenCalledWith(

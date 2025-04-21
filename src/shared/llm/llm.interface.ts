@@ -11,13 +11,19 @@ export interface LLMInterface {
    * @param options Optional parameters for the LLM call
    * @returns Promise that resolves to the LLM response
    */
-  invoke(messages: BaseMessage[], options?: Record<string, any>): Promise<{ content: string | object }>;
-  
+  invoke(
+    messages: BaseMessage[],
+    options?: Record<string, any>,
+  ): Promise<{ content: string | object }>;
+
   /**
    * Stream the LLM response for a set of messages
    * @param messages Array of messages to send to the LLM
    * @param options Optional parameters for the LLM call
    * @returns AsyncIterable of token chunks
    */
-  stream?(messages: BaseMessage[], options?: Record<string, any>): AsyncIterable<{ content: string }>;
-} 
+  stream?(
+    messages: BaseMessage[],
+    options?: Record<string, any>,
+  ): AsyncIterable<{ content: string }>;
+}

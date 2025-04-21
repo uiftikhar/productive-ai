@@ -79,6 +79,25 @@ export interface BaseContextMetadata {
   turnId?: string;
   role?: 'user' | 'assistant' | 'system';
 
+  // Agent-specific fields
+  agentId?: string; // ID of the agent that processed this turn
+  agentName?: string; // Name of the agent
+  capability?: string; // Capability used by the agent
+  agentVersion?: string; // Version of the agent
+
+  // Conversation retention policy fields
+  retentionPolicy?: string; // Policy name: 'standard', 'extended', 'permanent'
+  retentionPriority?: number; // Priority for retention (1-10, higher = keep longer)
+  retentionTags?: string[]; // Tags to determine retention rules
+  isHighValue?: boolean; // Flag for high-value conversations to retain longer
+  markedForDeletion?: boolean; // Flag to mark content for upcoming deletion
+
+  // Conversation segment fields
+  segmentId?: string; // ID of a logical conversation segment/topic
+  segmentTopic?: string; // Topic of the current conversation segment
+  isSegmentStart?: boolean; // True if this turn starts a new segment
+  previousSegmentId?: string; // ID of the previous segment if this starts a new one
+
   // Meeting fields
   meetingId?: string;
   meetingTitle?: string;

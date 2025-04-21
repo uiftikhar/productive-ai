@@ -3,7 +3,10 @@ import { SupervisorAgent } from '../specialized/supervisor-agent';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { MessageType, MessagePriority } from '../communication/types';
 import { BaseAgent } from '../base/base-agent';
-import { AgentRequest, AgentResponse } from '../interfaces/base-agent.interface';
+import {
+  AgentRequest,
+  AgentResponse,
+} from '../interfaces/base-agent.interface';
 
 // Create a simple worker agent that can handle tasks
 class WorkerAgent extends BaseAgent {
@@ -14,7 +17,10 @@ class WorkerAgent extends BaseAgent {
   }
 
   // Make registerCapability public for the mixin
-  public registerCapability(capability: { name: string; description: string }): void {
+  public registerCapability(capability: {
+    name: string;
+    description: string;
+  }): void {
     super.registerCapability(capability);
   }
 }
@@ -60,18 +66,18 @@ async function runCommunicationExample() {
   worker1.subscribeToMessages(async (message) => {
     if (message.type === MessageType.TASK) {
       logger.info(`Worker 1 received task: ${message.content.taskDescription}`);
-      
+
       // Process the task
       const result = `Processed data task with ID: ${message.id}`;
-      
+
       // Send response back with the message ID as correlation ID
       await worker1.sendMessageToAgent(
         message.senderId,
         { result },
         {
           type: MessageType.RESPONSE,
-          correlationId: message.id
-        }
+          correlationId: message.id,
+        },
       );
     }
   });
@@ -79,19 +85,19 @@ async function runCommunicationExample() {
   worker2.subscribeToMessages(async (message) => {
     if (message.type === MessageType.TASK) {
       logger.info(`Worker 2 received task: ${message.content.taskDescription}`);
-      
+
       // Process the task (simple calculation)
       const numbers = [1, 2, 3, 4, 5];
       const sum = numbers.reduce((a, b) => a + b, 0);
-      
+
       // Send response back with the message ID as correlation ID
       await worker2.sendMessageToAgent(
         message.senderId,
         { result: { sum } },
         {
           type: MessageType.RESPONSE,
-          correlationId: message.id
-        }
+          correlationId: message.id,
+        },
       );
     }
   });
@@ -106,7 +112,9 @@ async function runCommunicationExample() {
   // Set up subscription for supervisor to handle responses
   supervisor.subscribeToMessages(async (message) => {
     if (message.type === MessageType.RESPONSE) {
-      logger.info(`Supervisor received response from ${message.senderId}: ${JSON.stringify(message.content.result)}`);
+      logger.info(
+        `Supervisor received response from ${message.senderId}: ${JSON.stringify(message.content.result)}`,
+      );
     }
   });
 
@@ -115,7 +123,7 @@ async function runCommunicationExample() {
   await supervisor.sendToChannel(
     teamChannelId,
     {
-      announcement: 'Welcome to the team! Let\'s get started with our tasks.',
+      announcement: "Welcome to the team! Let's get started with our tasks.",
       instructions: 'Check your individual assignments coming shortly.',
     },
     {
@@ -126,7 +134,7 @@ async function runCommunicationExample() {
 
   // Assign tasks to workers
   logger.info('Assigning tasks to workers');
-  
+
   const task1Id = await supervisor.sendTaskToAgent(
     worker1.id,
     'Process the latest data batch',
@@ -138,7 +146,7 @@ async function runCommunicationExample() {
       },
     },
   );
-  
+
   const task2Id = await supervisor.sendTaskToAgent(
     worker2.id,
     'Calculate summary statistics',
@@ -148,7 +156,7 @@ async function runCommunicationExample() {
   );
 
   // Wait for some time to allow for task processing and responses
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  await new Promise((resolve) => setTimeout(resolve, 1000));
 
   // Check team status
   logger.info('Checking team status');
@@ -171,7 +179,7 @@ async function runCommunicationExample() {
   await supervisor.terminate();
   await worker1.terminate();
   await worker2.terminate();
-  
+
   logger.info('Example completed');
 }
 
@@ -180,4 +188,8 @@ if (require.main === module) {
   runCommunicationExample().catch(console.error);
 }
 
-export { runCommunicationExample, CommunicativeSupervisor, CommunicativeWorker }; 
+export {
+  runCommunicationExample,
+  CommunicativeSupervisor,
+  CommunicativeWorker,
+};

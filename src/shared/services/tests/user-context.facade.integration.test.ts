@@ -321,7 +321,7 @@ describe('UserContextFacade Integration', () => {
 
       expect(
         mockConversationContextService.getConversationHistory,
-      ).toHaveBeenCalledWith(testUserId, 'conv-123', 10, undefined);
+      ).toHaveBeenCalledWith(testUserId, 'conv-123', 10, {});
       expect(result).toHaveLength(2);
       expect(result[0].metadata?.role).toBe('user');
     });

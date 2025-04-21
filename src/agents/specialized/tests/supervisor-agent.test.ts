@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import { SupervisorAgent, TeamMember, Task } from '../supervisor-agent';
 import { mock } from 'jest-mock-extended';
-import { AgentCapability, BaseAgentInterface } from '../../interfaces/base-agent.interface';
+import {
+  AgentCapability,
+  BaseAgentInterface,
+} from '../../interfaces/base-agent.interface';
 import { MockLogger } from '../../tests/mocks/mock-logger';
 
 describe('SupervisorAgent', () => {
@@ -26,9 +29,10 @@ describe('SupervisorAgent', () => {
       id: 'mock-agent-1',
       name: 'Mock Agent 1',
       description: 'A mock agent for testing',
-      getCapabilities: () => [
-        { name: 'test-capability-1', description: 'Test capability 1' },
-      ] as AgentCapability[],
+      getCapabilities: () =>
+        [
+          { name: 'test-capability-1', description: 'Test capability 1' },
+        ] as AgentCapability[],
       getInitializationStatus: () => true,
     });
 
@@ -36,9 +40,10 @@ describe('SupervisorAgent', () => {
       id: 'mock-agent-2',
       name: 'Mock Agent 2',
       description: 'Another mock agent for testing',
-      getCapabilities: () => [
-        { name: 'test-capability-2', description: 'Test capability 2' },
-      ] as AgentCapability[],
+      getCapabilities: () =>
+        [
+          { name: 'test-capability-2', description: 'Test capability 2' },
+        ] as AgentCapability[],
       getInitializationStatus: () => true,
     });
 
@@ -248,8 +253,8 @@ describe('SupervisorAgent', () => {
     it('should have the correct capabilities registered', () => {
       const capabilities = supervisorAgent.getCapabilities();
       expect(capabilities.length).toBe(5);
-      
-      const capabilityNames = capabilities.map(c => c.name);
+
+      const capabilityNames = capabilities.map((c) => c.name);
       expect(capabilityNames).toContain('team-management');
       expect(capabilityNames).toContain('task-assignment');
       expect(capabilityNames).toContain('work-coordination');
@@ -262,4 +267,4 @@ describe('SupervisorAgent', () => {
       expect(supervisorAgent.canHandle('unknown-capability')).toBe(false);
     });
   });
-}); 
+});

@@ -96,7 +96,9 @@ export class InMemoryMessagingService implements MessagingService {
       'Default channel for broadcasting messages to all agents',
     );
     this.channels.set(broadcastChannel.id, broadcastChannel);
-    this.logger.debug(`Created default broadcast channel: ${broadcastChannel.id}`);
+    this.logger.debug(
+      `Created default broadcast channel: ${broadcastChannel.id}`,
+    );
   }
 
   /**
@@ -169,7 +171,7 @@ export class InMemoryMessagingService implements MessagingService {
     options?: SubscriptionOptions,
   ): string {
     const subscriptionId = `sub-${uuidv4()}`;
-    
+
     this.subscriptions.set(subscriptionId, {
       id: subscriptionId,
       agentId,
@@ -177,7 +179,9 @@ export class InMemoryMessagingService implements MessagingService {
       options,
     });
 
-    this.logger.debug(`Agent ${agentId} subscribed to messages: ${subscriptionId}`);
+    this.logger.debug(
+      `Agent ${agentId} subscribed to messages: ${subscriptionId}`,
+    );
     return subscriptionId;
   }
 
@@ -196,7 +200,9 @@ export class InMemoryMessagingService implements MessagingService {
    * Query messages based on filter criteria
    */
   async queryMessages(filter: MessageFilter): Promise<AgentMessage[]> {
-    return this.messages.filter((message) => this.matchesFilter(message, filter));
+    return this.messages.filter((message) =>
+      this.matchesFilter(message, filter),
+    );
   }
 
   /**
@@ -208,7 +214,7 @@ export class InMemoryMessagingService implements MessagingService {
     participantIds?: string[],
   ): Promise<CommunicationChannel> {
     const channel = new Channel(name, description);
-    
+
     // Add initial participants if provided
     if (participantIds) {
       for (const agentId of participantIds) {
@@ -218,7 +224,7 @@ export class InMemoryMessagingService implements MessagingService {
 
     this.channels.set(channel.id, channel);
     this.logger.debug(`Created channel: ${channel.id}`, { name });
-    
+
     return channel;
   }
 
@@ -244,16 +250,18 @@ export class InMemoryMessagingService implements MessagingService {
     message: Omit<AgentMessage, 'recipientId'>,
   ): Promise<SendResult[]> {
     const channel = this.channels.get(channelId);
-    
+
     if (!channel) {
       const error = `Channel not found: ${channelId}`;
       this.logger.error(error);
-      return [{
-        success: false,
-        messageId: uuidv4(),
-        timestamp: Date.now(),
-        error,
-      }];
+      return [
+        {
+          success: false,
+          messageId: uuidv4(),
+          timestamp: Date.now(),
+          error,
+        },
+      ];
     }
 
     // Send to all participants
@@ -270,7 +278,7 @@ export class InMemoryMessagingService implements MessagingService {
     options?: SubscriptionOptions,
   ): string {
     const channel = this.channels.get(channelId);
-    
+
     if (!channel) {
       this.logger.error(`Channel not found: ${channelId}`);
       throw new Error(`Channel not found: ${channelId}`);
@@ -282,7 +290,7 @@ export class InMemoryMessagingService implements MessagingService {
     }
 
     const subscriptionId = `ch-sub-${uuidv4()}`;
-    
+
     this.subscriptions.set(subscriptionId, {
       id: subscriptionId,
       agentId,
@@ -294,7 +302,7 @@ export class InMemoryMessagingService implements MessagingService {
     this.logger.debug(
       `Agent ${agentId} subscribed to channel ${channelId}: ${subscriptionId}`,
     );
-    
+
     return subscriptionId;
   }
 
@@ -312,7 +320,7 @@ export class InMemoryMessagingService implements MessagingService {
    */
   async clearMessages(agentId: string, senderId?: string): Promise<number> {
     const initialCount = this.messages.length;
-    
+
     this.messages = this.messages.filter((message) => {
       // Keep messages that don't involve this agent
       if (message.senderId !== agentId && message.recipientId !== agentId) {
@@ -330,7 +338,7 @@ export class InMemoryMessagingService implements MessagingService {
 
     const removedCount = initialCount - this.messages.length;
     this.logger.debug(`Cleared ${removedCount} messages for agent ${agentId}`);
-    
+
     return removedCount;
   }
 
@@ -422,7 +430,10 @@ export class InMemoryMessagingService implements MessagingService {
     }
 
     // Check correlation ID
-    if (filter.correlationId && message.correlationId !== filter.correlationId) {
+    if (
+      filter.correlationId &&
+      message.correlationId !== filter.correlationId
+    ) {
       return false;
     }
 
@@ -443,4 +454,4 @@ export class InMemoryMessagingService implements MessagingService {
 
     return true;
   }
-} 
+}

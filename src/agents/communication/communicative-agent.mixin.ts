@@ -23,7 +23,10 @@ type Constructor<T = {}> = new (...args: any[]) => T;
  * Interface for agent with minimal capabilities needed for registerCapability
  */
 interface AgentWithRegisterCapability extends BaseAgentInterface {
-  registerCapability?: (capability: { name: string; description: string }) => void;
+  registerCapability?: (capability: {
+    name: string;
+    description: string;
+  }) => void;
 }
 
 /**
@@ -31,32 +34,73 @@ interface AgentWithRegisterCapability extends BaseAgentInterface {
  */
 export interface CommunicativeAgentCapabilities {
   // Messaging capabilities
-  sendMessageToAgent(recipientId: string, content: any, options?: any): Promise<string>;
-  broadcastMessage(content: any, recipientIds?: string[], options?: any): Promise<string[]>;
-  
+  sendMessageToAgent(
+    recipientId: string,
+    content: any,
+    options?: any,
+  ): Promise<string>;
+  broadcastMessage(
+    content: any,
+    recipientIds?: string[],
+    options?: any,
+  ): Promise<string[]>;
+
   // Task-specific messaging
-  sendTaskToAgent(recipientId: string, taskDescription: string, options?: any): Promise<string>;
-  respondToTask(messageId: string, result: any, success?: boolean, error?: string): Promise<string>;
-  
+  sendTaskToAgent(
+    recipientId: string,
+    taskDescription: string,
+    options?: any,
+  ): Promise<string>;
+  respondToTask(
+    messageId: string,
+    result: any,
+    success?: boolean,
+    error?: string,
+  ): Promise<string>;
+
   // Query capabilities
-  queryAgent(recipientId: string, query: string, context?: any): Promise<string>;
-  
+  queryAgent(
+    recipientId: string,
+    query: string,
+    context?: any,
+  ): Promise<string>;
+
   // Notification capabilities
-  sendNotification(recipientId: string, title: string, body: string, options?: any): Promise<string>;
-  
+  sendNotification(
+    recipientId: string,
+    title: string,
+    body: string,
+    options?: any,
+  ): Promise<string>;
+
   // Status updates
-  sendStatusUpdate(recipientId: string, status: string, options?: any): Promise<string>;
-  
+  sendStatusUpdate(
+    recipientId: string,
+    status: string,
+    options?: any,
+  ): Promise<string>;
+
   // Subscription management
-  subscribeToMessages(handler: MessageHandler, options?: SubscriptionOptions): string;
+  subscribeToMessages(
+    handler: MessageHandler,
+    options?: SubscriptionOptions,
+  ): string;
   unsubscribeFromMessages(subscriptionId: string): boolean;
-  
+
   // Channel management
-  createChannel(name: string, description?: string, participantIds?: string[]): Promise<string>;
+  createChannel(
+    name: string,
+    description?: string,
+    participantIds?: string[],
+  ): Promise<string>;
   joinChannel(channelId: string): void;
   leaveChannel(channelId: string): void;
-  sendToChannel(channelId: string, content: any, options?: any): Promise<string[]>;
-  
+  sendToChannel(
+    channelId: string,
+    content: any,
+    options?: any,
+  ): Promise<string[]>;
+
   // History and query
   getMessageHistory(filter?: MessageFilter): Promise<AgentMessage[]>;
   clearMessageHistory(withAgentId?: string): Promise<number>;
@@ -67,9 +111,9 @@ export interface CommunicativeAgentCapabilities {
  * @param Base The base class to extend with communication capabilities
  * @returns A new class that extends the base with communication capabilities
  */
-export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCapability>>(
-  Base: TBase
-) {
+export function CommunicativeAgent<
+  TBase extends Constructor<AgentWithRegisterCapability>,
+>(Base: TBase) {
   return class extends Base implements CommunicativeAgentCapabilities {
     // These properties should be accessible from child classes
     public readonly messagingService: MessagingService;
@@ -80,13 +124,16 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
     constructor(...args: any[]) {
       super(...args);
       this.commLogger = new ConsoleLogger();
-      this.messagingService = InMemoryMessagingService.getInstance(this.commLogger);
-      
+      this.messagingService = InMemoryMessagingService.getInstance(
+        this.commLogger,
+      );
+
       // Register communication capability if the base agent supports it
       if (typeof this.registerCapability === 'function') {
         this.registerCapability({
           name: 'agent-communication',
-          description: 'Communicate with other agents via messages and channels',
+          description:
+            'Communicate with other agents via messages and channels',
         });
       }
     }
@@ -96,9 +143,11 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
      */
     async initialize(config?: Record<string, any>): Promise<void> {
       await super.initialize?.(config);
-      
+
       // Any specific initialization for communication
-      this.commLogger.info(`Initializing communication capabilities for agent ${this.id}`);
+      this.commLogger.info(
+        `Initializing communication capabilities for agent ${this.id}`,
+      );
     }
 
     /**
@@ -110,7 +159,7 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
         this.messagingService.unsubscribe(subId);
       }
       this.subscriptions.clear();
-      
+
       await super.terminate?.();
     }
 
@@ -136,11 +185,11 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
       });
 
       const result = await this.messagingService.sendMessage(message);
-      
+
       if (!result.success) {
         throw new Error(`Failed to send message: ${result.error}`);
       }
-      
+
       return result.messageId;
     }
 
@@ -159,12 +208,16 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
     ): Promise<string[]> {
       // If no recipients specified, create a true broadcast message
       if (!recipientIds || recipientIds.length === 0) {
-        const message = MessageFactory.createBroadcastMessage(this.id, content, {
-          importance: options.priority,
-          correlationId: options.correlationId,
-          metadata: options.metadata,
-          category: options.category,
-        });
+        const message = MessageFactory.createBroadcastMessage(
+          this.id,
+          content,
+          {
+            importance: options.priority,
+            correlationId: options.correlationId,
+            metadata: options.metadata,
+            category: options.category,
+          },
+        );
 
         const result = await this.messagingService.sendMessage(message);
         return result.success ? [result.messageId] : [];
@@ -209,11 +262,11 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
       );
 
       const result = await this.messagingService.sendMessage(message);
-      
+
       if (!result.success) {
         throw new Error(`Failed to send task: ${result.error}`);
       }
-      
+
       return result.messageId;
     }
 
@@ -236,7 +289,7 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
       }
 
       const originalMessage = originalMessages[0];
-      
+
       const message = MessageFactory.createResponseMessage(
         this.id,
         originalMessage.senderId,
@@ -249,11 +302,11 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
       );
 
       const sendResult = await this.messagingService.sendMessage(message);
-      
+
       if (!sendResult.success) {
         throw new Error(`Failed to send response: ${sendResult.error}`);
       }
-      
+
       return sendResult.messageId;
     }
 
@@ -273,11 +326,11 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
       );
 
       const result = await this.messagingService.sendMessage(message);
-      
+
       if (!result.success) {
         throw new Error(`Failed to send query: ${result.error}`);
       }
-      
+
       return result.messageId;
     }
 
@@ -304,11 +357,11 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
       );
 
       const result = await this.messagingService.sendMessage(message);
-      
+
       if (!result.success) {
         throw new Error(`Failed to send notification: ${result.error}`);
       }
-      
+
       return result.messageId;
     }
 
@@ -335,11 +388,11 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
       );
 
       const result = await this.messagingService.sendMessage(message);
-      
+
       if (!result.success) {
         throw new Error(`Failed to send status update: ${result.error}`);
       }
-      
+
       return result.messageId;
     }
 
@@ -355,7 +408,7 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
         handler,
         options,
       );
-      
+
       this.subscriptions.add(subId);
       return subId;
     }
@@ -365,11 +418,11 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
      */
     unsubscribeFromMessages(subscriptionId: string): boolean {
       const result = this.messagingService.unsubscribe(subscriptionId);
-      
+
       if (result) {
         this.subscriptions.delete(subscriptionId);
       }
-      
+
       return result;
     }
 
@@ -382,7 +435,7 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
       participantIds?: string[],
     ): Promise<string> {
       // Always include self as a participant
-      const allParticipants = participantIds 
+      const allParticipants = participantIds
         ? Array.from(new Set([this.id, ...participantIds]))
         : [this.id];
 
@@ -391,7 +444,7 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
         description,
         allParticipants,
       );
-      
+
       this.subscribedChannels.add(channel.id);
       return channel.id;
     }
@@ -401,11 +454,11 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
      */
     joinChannel(channelId: string): void {
       const channel = this.messagingService.getChannel(channelId);
-      
+
       if (!channel) {
         throw new Error(`Channel not found: ${channelId}`);
       }
-      
+
       channel.addParticipant(this.id);
       this.subscribedChannels.add(channelId);
     }
@@ -415,11 +468,11 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
      */
     leaveChannel(channelId: string): void {
       const channel = this.messagingService.getChannel(channelId);
-      
+
       if (!channel) {
         throw new Error(`Channel not found: ${channelId}`);
       }
-      
+
       channel.removeParticipant(this.id);
       this.subscribedChannels.delete(channelId);
     }
@@ -444,8 +497,11 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
         metadata: options.metadata,
       });
 
-      const results = await this.messagingService.sendToChannel(channelId, message);
-      
+      const results = await this.messagingService.sendToChannel(
+        channelId,
+        message,
+      );
+
       return results
         .filter((result) => result.success)
         .map((result) => result.messageId);
@@ -460,7 +516,7 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
         ...filter,
         senderIds: filter?.senderIds || [this.id],
       };
-      
+
       return this.messagingService.queryMessages(fullFilter);
     }
 
@@ -471,4 +527,4 @@ export function CommunicativeAgent<TBase extends Constructor<AgentWithRegisterCa
       return this.messagingService.clearMessages(this.id, withAgentId);
     }
   };
-} 
+}

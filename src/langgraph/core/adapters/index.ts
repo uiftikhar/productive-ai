@@ -1,1 +1,1 @@
-export * from './supervisor-adapter'; 
+export * from './supervisor-adapter';

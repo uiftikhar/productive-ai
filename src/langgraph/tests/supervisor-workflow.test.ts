@@ -1,10 +1,20 @@
-import { describe, it, beforeEach, afterEach, expect, jest } from '@jest/globals';
+import {
+  describe,
+  it,
+  beforeEach,
+  afterEach,
+  expect,
+  jest,
+} from '@jest/globals';
 import { v4 as uuidv4 } from 'uuid';
 import { SupervisorAgent } from '../../agents/specialized/supervisor-agent';
 import { SupervisorWorkflow } from '../core/workflows/supervisor-workflow';
 import { SupervisorAdapter } from '../core/adapters/supervisor-adapter';
 import { BaseAgent } from '../../agents/base/base-agent';
-import { AgentRequest, AgentResponse } from '../../agents/interfaces/base-agent.interface';
+import {
+  AgentRequest,
+  AgentResponse,
+} from '../../agents/interfaces/base-agent.interface';
 import { AgentRegistryService } from '../../agents/services/agent-registry.service';
 import { TaskPlanningService } from '../../agents/services/task-planning.service';
 import { AgentTaskExecutorService } from '../../agents/services/agent-task-executor.service';
@@ -64,23 +74,23 @@ describe('SupervisorWorkflow', () => {
   let researchAgent: MockResearchAgent;
   let writingAgent: MockWritingAgent;
   let failingAgent: MockFailingAgent;
-  
+
   // Reset state before each test
   beforeEach(async () => {
     // Reset mocks and spies
     jest.resetAllMocks();
-    
+
     // Get singleton instances
     agentRegistry = AgentRegistryService.getInstance();
-    
+
     // Clear registry
     jest.spyOn(agentRegistry, 'listAgents').mockReturnValue([]);
-    
+
     // Create test agents
     researchAgent = new MockResearchAgent();
     writingAgent = new MockWritingAgent();
     failingAgent = new MockFailingAgent();
-    
+
     // Register agents
     jest.spyOn(agentRegistry, 'getAgent').mockImplementation((id: string) => {
       if (id === researchAgent.id) return researchAgent;
@@ -88,7 +98,7 @@ describe('SupervisorWorkflow', () => {
       if (id === failingAgent.id) return failingAgent;
       return undefined;
     });
-    
+
     // Create supervisor agent
     supervisorAgent = new SupervisorAgent({
       id: 'test-supervisor',
@@ -113,51 +123,63 @@ describe('SupervisorWorkflow', () => {
         },
       ],
     });
-    
+
     // Initialize agents
     await researchAgent.initialize();
     await writingAgent.initialize();
     await failingAgent.initialize();
     await supervisorAgent.initialize();
-    
+
     // Create the workflow
     supervisorWorkflow = new SupervisorWorkflow(supervisorAgent);
-    
+
     // Spy on agent executions
     jest.spyOn(researchAgent, 'execute');
     jest.spyOn(writingAgent, 'execute');
     jest.spyOn(failingAgent, 'execute');
     jest.spyOn(supervisorAgent, 'execute');
   });
-  
+
   afterEach(() => {
     jest.restoreAllMocks();
   });
-  
+
   // Tests
   it('should create a SupervisorWorkflow instance', () => {
     expect(supervisorWorkflow).toBeDefined();
     expect(supervisorWorkflow).toBeInstanceOf(SupervisorWorkflow);
   });
-  
+
   it('should execute a workflow with the supervisor agent', async () => {
     // Mock the execute method to return predetermined results
-    jest.spyOn(supervisorAgent, 'execute').mockResolvedValueOnce({
-      output: {
-        task1: { id: 'task1', name: 'Research Task', description: 'Do research', status: 'pending', priority: 5, createdAt: Date.now() }
-      } as any
-    }).mockResolvedValueOnce({
-      output: { task1: 'research-agent' } as any
-    }).mockResolvedValueOnce({
-      output: 'Execution started'
-    }).mockResolvedValueOnce({
-      output: {
-        tasks: [
-          { id: 'task1', status: 'completed', result: 'Research results' }
-        ]
-      } as any
-    });
-    
+    jest
+      .spyOn(supervisorAgent, 'execute')
+      .mockResolvedValueOnce({
+        output: {
+          task1: {
+            id: 'task1',
+            name: 'Research Task',
+            description: 'Do research',
+            status: 'pending',
+            priority: 5,
+            createdAt: Date.now(),
+          },
+        } as any,
+      })
+      .mockResolvedValueOnce({
+        output: { task1: 'research-agent' } as any,
+      })
+      .mockResolvedValueOnce({
+        output: 'Execution started',
+      })
+      .mockResolvedValueOnce({
+        output: {
+          tasks: [
+            { id: 'task1', status: 'completed', result: 'Research results' },
+          ],
+        } as any,
+      });
+
     const request: AgentRequest = {
       input: 'Research and write about AI',
       capability: 'work-coordination',
@@ -166,93 +188,108 @@ describe('SupervisorWorkflow', () => {
           {
             taskDescription: 'Research AI developments',
             requiredCapabilities: ['research'],
-          }
+          },
         ],
         executionStrategy: 'sequential',
       },
     };
-    
+
     const response = await supervisorWorkflow.execute(request);
-    
+
     expect(response).toBeDefined();
     expect(supervisorAgent.execute).toHaveBeenCalled();
   });
-  
+
   it('should handle task failures and implement recovery', async () => {
     // Setup mock responses for the supervisor agent
     const supervisorExecuteMock = jest.spyOn(supervisorAgent, 'execute');
-    
+
     // Adjust expectations: In actual execution, the workflow is calling the agent
     // at different points, but we don't need to be strict about the number of calls
     // as long as the key functionality is tested
-    
+
     // 1. Plan tasks phase - create task plan
     supervisorExecuteMock.mockResolvedValueOnce({
       output: {
-        task1: { id: 'task1', name: 'Failing Task', description: 'This will fail', status: 'pending', priority: 5, createdAt: Date.now() }
-      } as any
+        task1: {
+          id: 'task1',
+          name: 'Failing Task',
+          description: 'This will fail',
+          status: 'pending',
+          priority: 5,
+          createdAt: Date.now(),
+        },
+      } as any,
     });
-    
+
     // 2. Delegation phase - assign task to failing agent
     supervisorExecuteMock.mockResolvedValueOnce({
-      output: { task1: 'mock-failing-agent' } as any
+      output: { task1: 'mock-failing-agent' } as any,
     });
-    
+
     // 3. Execution phase - start execution
     supervisorExecuteMock.mockResolvedValueOnce({
-      output: 'Execution started'
+      output: 'Execution started',
     });
-    
+
     // 4. Monitoring phase - report task failure
     supervisorExecuteMock.mockResolvedValueOnce({
       output: {
         tasks: [
-          { id: 'task1', status: 'failed', metadata: { error: 'Task execution failed' } }
-        ]
-      } as any
+          {
+            id: 'task1',
+            status: 'failed',
+            metadata: { error: 'Task execution failed' },
+          },
+        ],
+      } as any,
     });
-    
+
     // 5. Error handling phase - reassign to research agent
     supervisorExecuteMock.mockResolvedValueOnce({
-      output: { task1: 'mock-research-agent' } as any
+      output: { task1: 'mock-research-agent' } as any,
     });
-    
+
     // 6. Execution phase again - restart execution
     supervisorExecuteMock.mockResolvedValueOnce({
-      output: 'Execution restarted'
+      output: 'Execution restarted',
     });
-    
+
     // 7. Monitoring phase again - report success
     supervisorExecuteMock.mockResolvedValueOnce({
       output: {
         tasks: [
-          { id: 'task1', status: 'completed', result: 'Research results after recovery' }
-        ]
-      } as any
+          {
+            id: 'task1',
+            status: 'completed',
+            result: 'Research results after recovery',
+          },
+        ],
+      } as any,
     });
-    
+
     const request: AgentRequest = {
       input: 'Run a task that will fail and recover',
       capability: 'work-coordination',
       parameters: {
         tasks: [
           {
-            id: 'task1',  // Set a specific ID to match our mock responses
+            id: 'task1', // Set a specific ID to match our mock responses
             taskDescription: 'This task will fail initially',
             requiredCapabilities: ['failing'],
-          }
+          },
         ],
         executionStrategy: 'sequential',
       },
     };
-    
+
     const response = await supervisorWorkflow.execute(request);
-    
+
     expect(response).toBeDefined();
     // Verify that the supervisor agent was called, but don't be strict about call count
     expect(supervisorExecuteMock).toHaveBeenCalled();
     expect(response.output).toBeDefined();
-    
+
     // Additional verification checks
     // Parse the output to ensure it includes the successful result after recovery
     if (typeof response.output === 'string') {
@@ -265,11 +302,11 @@ describe('SupervisorWorkflow', () => {
       }
     }
   });
-  
+
   it('should support the SupervisorAdapter pattern', async () => {
     // Create the adapter
     const adapter = new SupervisorAdapter(supervisorAgent);
-    
+
     // Mock the workflow execution
     jest.spyOn(adapter.getWorkflow(), 'execute').mockResolvedValueOnce({
       output: {
@@ -278,10 +315,10 @@ describe('SupervisorWorkflow', () => {
         results: {
           'Research Task': 'Research results',
           'Writing Task': 'Written content',
-        }
-      } as any
+        },
+      } as any,
     });
-    
+
     // Execute a coordinated task
     const result = await adapter.executeCoordinatedTask(
       'Research and write about AI technologies',
@@ -289,18 +326,18 @@ describe('SupervisorWorkflow', () => {
         {
           description: 'Research AI developments',
           requiredCapabilities: ['research'],
-          priority: 8
+          priority: 8,
         },
         {
           description: 'Write an article about AI',
           requiredCapabilities: ['writing'],
-          priority: 5
-        }
-      ]
+          priority: 5,
+        },
+      ],
     );
-    
+
     expect(result).toBeDefined();
     expect(result.output).toBeDefined();
     expect(adapter.getWorkflow().execute).toHaveBeenCalledTimes(1);
   });
-}); 
+});

@@ -58,7 +58,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
     } = {},
   ) {
     super(name, description, {
-        logger: options.logger,
+      logger: options.logger,
       llm: options.llm,
       id: options.id,
     });
@@ -143,7 +143,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
     template: InstructionTemplateName;
     role: SystemRole;
   } {
-      switch (capability) {
+    switch (capability) {
       case 'analyze-transcript-chunk':
         return {
           template: InstructionTemplateNameEnum.MEETING_ANALYSIS_CHUNK,
@@ -175,7 +175,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
           role: SystemRoleEnum.MEETING_ANALYST,
         };
 
-        default:
+      default:
         return {
           template: InstructionTemplateNameEnum.MEETING_ANALYSIS_CHUNK,
           role: SystemRoleEnum.MEETING_ANALYST,
@@ -189,7 +189,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
    */
   private async generateEmbeddings(text: string): Promise<number[]> {
     try {
-    return await this.embeddingService.generateEmbedding(text);
+      return await this.embeddingService.generateEmbedding(text);
     } catch (error) {
       this.logger.error(
         `Error generating embeddings: ${error instanceof Error ? error.message : String(error)}`,
@@ -241,7 +241,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
       userId: parameters?.userId || 'system',
       queryText: capability,
       queryEmbedding,
-        strategy: RagRetrievalStrategy.HYBRID,
+      strategy: RagRetrievalStrategy.HYBRID,
       maxItems: 5, // Retrieve up to 5 relevant items
       minRelevanceScore: 0.6, // Minimum relevance score threshold
       conversationId: parameters?.conversationId,
@@ -293,9 +293,9 @@ export class MeetingAnalysisAgent extends BaseAgent {
               : JSON.stringify(request.input),
             infoType as 'action-items' | 'topics' | 'decisions',
             request.parameters,
-      );
+          );
 
-      return {
+          return {
             output: result,
             metrics: {
               executionTimeMs: Date.now() - startTime,

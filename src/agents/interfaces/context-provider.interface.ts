@@ -51,6 +51,33 @@ export interface ContextProvider {
 }
 
 /**
+ * Retention policy options for conversations
+ */
+export enum ConversationRetentionPolicy {
+  STANDARD = 'standard', // Default retention (30 days)
+  EXTENDED = 'extended', // Extended retention (90 days)
+  PERMANENT = 'permanent', // Permanent retention (no deletion)
+}
+
+/**
+ * Enhanced conversation storage options
+ */
+export interface ConversationStorageOptions {
+  retentionPolicy?: ConversationRetentionPolicy;
+  retentionPriority?: number;
+  retentionTags?: string[];
+  isHighValue?: boolean;
+  segmentId?: string;
+  segmentTopic?: string;
+  isSegmentStart?: boolean;
+  agentId?: string;
+  agentName?: string;
+  capability?: string;
+  agentVersion?: string;
+  [key: string]: any;
+}
+
+/**
  * Base context provider types for specific context services
  */
 export interface ConversationContextProvider extends ContextProvider {
@@ -59,11 +86,20 @@ export interface ConversationContextProvider extends ContextProvider {
    * @param userId User identifier
    * @param conversationId Conversation identifier
    * @param limit Maximum number of turns to retrieve
+   * @param options Additional options for filtering
    */
   getConversationHistory(
     userId: string,
     conversationId: string,
     limit?: number,
+    options?: {
+      beforeTimestamp?: number;
+      afterTimestamp?: number;
+      segmentId?: string;
+      agentId?: string;
+      role?: 'user' | 'assistant' | 'system';
+      includeMetadata?: boolean;
+    },
   ): Promise<any[]>;
 
   /**
@@ -72,13 +108,63 @@ export interface ConversationContextProvider extends ContextProvider {
    * @param conversationId Conversation identifier
    * @param message The message content
    * @param role Who sent the message (user, assistant, system)
+   * @param options Enhanced storage options for agent-specific data and retention
    */
   storeConversationTurn(
     userId: string,
     conversationId: string,
     message: string,
     role: 'user' | 'assistant' | 'system',
+    options?: ConversationStorageOptions,
   ): Promise<string>;
+
+  /**
+   * Get conversation segments
+   * @param userId User identifier
+   * @param conversationId Conversation identifier
+   */
+  getConversationSegments?(
+    userId: string,
+    conversationId: string,
+  ): Promise<any[]>;
+
+  /**
+   * Update retention policy for conversation
+   * @param userId User identifier
+   * @param conversationId Conversation identifier
+   * @param policy Retention policy to apply
+   * @param options Additional options for filtering which turns to update
+   */
+  updateRetentionPolicy?(
+    userId: string,
+    conversationId: string,
+    policy: ConversationRetentionPolicy,
+    options?: {
+      turnIds?: string[];
+      segmentId?: string;
+      retentionPriority?: number;
+      retentionTags?: string[];
+      isHighValue?: boolean;
+    },
+  ): Promise<number>;
+
+  /**
+   * Get conversations by agent
+   * @param userId User identifier
+   * @param agentId Agent identifier
+   * @param limit Maximum number of conversations to retrieve
+   */
+  getConversationsByAgent?(
+    userId: string,
+    agentId: string,
+    limit?: number,
+  ): Promise<any[]>;
+
+  /**
+   * Delete expired conversations based on retention policy
+   * @param userId Optional user identifier (if not provided, clean up for all users)
+   */
+  pruneExpiredConversations?(userId?: string): Promise<number>;
 }
 
 export interface DocumentContextProvider extends ContextProvider {

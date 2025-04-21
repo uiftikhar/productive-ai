@@ -194,14 +194,16 @@ async function demonstrateTaskPlanningSystem() {
   const rootTaskId = plan.rootTaskIds[0];
   if (rootTaskId) {
     taskPlanningService.updateTaskStatus(
-      plan.id, 
+      plan.id,
       rootTaskId,
       'pending',
       undefined,
       undefined,
-      'project-management-agent'
+      'project-management-agent',
     );
-    logger.info(`Assigned Project Management Agent to the root task: ${rootTaskId}`);
+    logger.info(
+      `Assigned Project Management Agent to the root task: ${rootTaskId}`,
+    );
   }
 
   // Step 2: Manually add some specific tasks to the plan
@@ -431,7 +433,9 @@ async function demonstrateTaskPlanningSystem() {
       }
     }
   } catch (error) {
-    logger.error('Error executing task plan:', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Error executing task plan:', {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 
   // Step 7: Clean up

@@ -108,23 +108,31 @@ describe('Messaging Service Tests', () => {
 
     // Act - send messages with different priorities
     await messagingService.sendMessage(
-      MessageFactory.createMessage(senderId, { text: 'Normal message' }, {
-        recipientId,
-        priority: MessagePriority.NORMAL,
-      }),
+      MessageFactory.createMessage(
+        senderId,
+        { text: 'Normal message' },
+        {
+          recipientId,
+          priority: MessagePriority.NORMAL,
+        },
+      ),
     );
 
     await messagingService.sendMessage(
-      MessageFactory.createMessage(senderId, { text: 'High priority message' }, {
-        recipientId,
-        priority: MessagePriority.HIGH,
-      }),
+      MessageFactory.createMessage(
+        senderId,
+        { text: 'High priority message' },
+        {
+          recipientId,
+          priority: MessagePriority.HIGH,
+        },
+      ),
     );
 
     // Assert
     expect(normalPriorityMessages.length).toBe(1);
     expect(normalPriorityMessages[0].priority).toBe(MessagePriority.NORMAL);
-    
+
     expect(highPriorityMessages.length).toBe(1);
     expect(highPriorityMessages[0].priority).toBe(MessagePriority.HIGH);
   });
@@ -145,16 +153,16 @@ describe('Messaging Service Tests', () => {
     expect(channel.id).toBeDefined();
     expect(channel.name).toBe(channelName);
     expect(channel.participants.size).toBe(3);
-    
+
     // Verify we can get the channel
     const retrievedChannel = messagingService.getChannel(channel.id);
     expect(retrievedChannel).toBeDefined();
     expect(retrievedChannel?.name).toBe(channelName);
-    
+
     // Add and remove participants
     channel.addParticipant('agent-4');
     expect(channel.participants.size).toBe(4);
-    
+
     channel.removeParticipant('agent-1');
     expect(channel.participants.size).toBe(3);
     expect(channel.hasParticipant('agent-1')).toBe(false);
@@ -166,7 +174,7 @@ describe('Messaging Service Tests', () => {
     const senderId = 'agent-1';
     const recipientIds = ['agent-2', 'agent-3'];
     const channelMessages: AgentMessage[] = [];
-    
+
     // Create a channel with participants
     const channel = await messagingService.createChannel(
       'test-channel',
@@ -175,12 +183,9 @@ describe('Messaging Service Tests', () => {
     );
 
     // Subscribe agent-2 to messages
-    messagingService.subscribeToMessages(
-      'agent-2',
-      async (message) => {
-        channelMessages.push(message);
-      },
-    );
+    messagingService.subscribeToMessages('agent-2', async (message) => {
+      channelMessages.push(message);
+    });
 
     // Act
     const results = await messagingService.sendToChannel(
@@ -190,8 +195,8 @@ describe('Messaging Service Tests', () => {
 
     // Assert
     expect(results.length).toBe(3); // One for each participant, including the sender
-    expect(results.every(r => r.success)).toBe(true);
-    
+    expect(results.every((r) => r.success)).toBe(true);
+
     // Verify agent-2 received the message
     expect(channelMessages.length).toBe(1);
     expect(channelMessages[0].senderId).toBe(senderId);
@@ -205,16 +210,13 @@ describe('Messaging Service Tests', () => {
     const taskDescription = 'Process this data';
     const taskData = { numbers: [1, 2, 3, 4, 5] };
     const responseMessages: AgentMessage[] = [];
-    
+
     // Subscribe the sender to responses
-    messagingService.subscribeToMessages(
-      senderId,
-      async (message) => {
-        if (message.type === MessageType.RESPONSE) {
-          responseMessages.push(message);
-        }
-      },
-    );
+    messagingService.subscribeToMessages(senderId, async (message) => {
+      if (message.type === MessageType.RESPONSE) {
+        responseMessages.push(message);
+      }
+    });
 
     // Act - Send a task message
     const taskMessage = MessageFactory.createTaskMessage(
@@ -225,9 +227,9 @@ describe('Messaging Service Tests', () => {
         metadata: { data: taskData },
       },
     );
-    
+
     const taskResult = await messagingService.sendMessage(taskMessage);
-    
+
     // Simulate the recipient responding to the task
     const responseMessage = MessageFactory.createResponseMessage(
       recipientId,
@@ -235,7 +237,7 @@ describe('Messaging Service Tests', () => {
       { sum: 15 },
       taskResult.messageId,
     );
-    
+
     await messagingService.sendMessage(responseMessage);
 
     // Assert
@@ -249,18 +251,30 @@ describe('Messaging Service Tests', () => {
     // Arrange
     const agent1 = 'agent-1';
     const agent2 = 'agent-2';
-    
+
     // Send several messages
     await messagingService.sendMessage(
-      MessageFactory.createMessage(agent1, { text: 'Message 1' }, { recipientId: agent2 }),
+      MessageFactory.createMessage(
+        agent1,
+        { text: 'Message 1' },
+        { recipientId: agent2 },
+      ),
     );
-    
+
     await messagingService.sendMessage(
-      MessageFactory.createMessage(agent2, { text: 'Message 2' }, { recipientId: agent1 }),
+      MessageFactory.createMessage(
+        agent2,
+        { text: 'Message 2' },
+        { recipientId: agent1 },
+      ),
     );
-    
+
     await messagingService.sendMessage(
-      MessageFactory.createMessage(agent1, { text: 'Message 3' }, { recipientId: agent2 }),
+      MessageFactory.createMessage(
+        agent1,
+        { text: 'Message 3' },
+        { recipientId: agent2 },
+      ),
     );
 
     // Verify messages exist
@@ -272,7 +286,7 @@ describe('Messaging Service Tests', () => {
 
     // Assert
     expect(cleared).toBe(3); // All messages involve agent1
-    
+
     // Verify messages are cleared
     messages = await messagingService.queryMessages({});
     expect(messages.length).toBe(0);
@@ -283,7 +297,7 @@ describe('Messaging Service Tests', () => {
     const senderId = 'agent-1';
     const recipientIds = ['agent-2', 'agent-3', 'agent-4'];
     const message = { text: 'Broadcast test' };
-    
+
     // Act
     const results = await messagingService.broadcastMessage(
       MessageFactory.createMessage(senderId, message),
@@ -292,20 +306,20 @@ describe('Messaging Service Tests', () => {
 
     // Assert
     expect(results.length).toBe(3);
-    expect(results.every(r => r.success)).toBe(true);
-    
+    expect(results.every((r) => r.success)).toBe(true);
+
     // Check that messages were stored
     const storedMessages = await messagingService.queryMessages({
       senderIds: [senderId],
     });
-    
+
     expect(storedMessages.length).toBe(3);
     expect(storedMessages[0].content).toEqual(message);
     expect(storedMessages[1].content).toEqual(message);
     expect(storedMessages[2].content).toEqual(message);
-    
+
     // Each should have a different recipient
-    const recipients = storedMessages.map(m => m.recipientId);
+    const recipients = storedMessages.map((m) => m.recipientId);
     expect(recipients.sort()).toEqual(recipientIds.sort());
   });
-}); 
+});

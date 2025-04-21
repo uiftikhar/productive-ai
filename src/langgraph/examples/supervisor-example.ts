@@ -1,6 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
-import { SupervisorAgent, Task } from '../../agents/specialized/supervisor-agent';
+import {
+  SupervisorAgent,
+  Task,
+} from '../../agents/specialized/supervisor-agent';
 import { SupervisorWorkflow } from '../core/workflows/supervisor-workflow';
 import { AgentRegistryService } from '../../agents/services/agent-registry.service';
 import { TaskPlanningService } from '../../agents/services/task-planning.service';
@@ -88,13 +91,9 @@ class ContentCreationAgent extends BaseAgent {
 
 class DataVisualizationAgent extends BaseAgent {
   constructor() {
-    super(
-      'Data Visualization Agent',
-      'Creates visualizations from data',
-      {
-        id: 'data-visualization-agent',
-      },
-    );
+    super('Data Visualization Agent', 'Creates visualizations from data', {
+      id: 'data-visualization-agent',
+    });
 
     this.registerCapability({
       name: 'data-visualization',
@@ -139,7 +138,8 @@ agentRegistry.registerAgent(dataVisualizationAgent);
 // Create the supervisor agent
 const supervisorAgent = new SupervisorAgent({
   name: 'Project Supervisor',
-  description: 'Coordinates research, content creation, and visualization tasks',
+  description:
+    'Coordinates research, content creation, and visualization tasks',
   id: 'project-supervisor',
   defaultTeamMembers: [
     {
@@ -198,24 +198,24 @@ const projectTasks = [
 // Initialize the supervisor agent
 (async () => {
   await supervisorAgent.initialize();
-  
+
   // Register the supervisor agent
   agentRegistry.registerAgent(supervisorAgent);
-  
+
   // Create the supervisor workflow
   const supervisorWorkflow = new SupervisorWorkflow(supervisorAgent, {
     tracingEnabled: true,
     includeStateInLogs: true,
     logger,
   });
-  
+
   // Example of a multi-step project workflow
   const projectRequest: AgentRequest = {
     input: 'Create a comprehensive market analysis report on AI tools',
     capability: 'work-coordination',
     parameters: {
       // For direct work coordination without task planning
-      tasks: projectTasks.map(task => ({
+      tasks: projectTasks.map((task) => ({
         taskDescription: task.description,
         priority: task.priority,
         requiredCapabilities: task.requiredCapabilities,
@@ -223,22 +223,24 @@ const projectTasks = [
       executionStrategy: 'sequential',
       // For workflow execution
       planName: 'Market Analysis Project',
-      planDescription: 'Comprehensive market analysis of AI tools with research, content, and visualizations',
+      planDescription:
+        'Comprehensive market analysis of AI tools with research, content, and visualizations',
     },
   };
-  
+
   // For task planning stage, we need to provide these parameters
   const taskPlanningParams = {
     name: 'Market Analysis Project',
-    description: 'Comprehensive market analysis of AI tools with research, content, and visualizations',
+    description:
+      'Comprehensive market analysis of AI tools with research, content, and visualizations',
     tasks: projectTasks,
   };
-  
+
   try {
     logger.info('Starting supervisor workflow execution');
-    
+
     // Manually prepare the workflow stages to ensure proper parameters are passed
-    
+
     // 1. First, create a task plan
     logger.info('Creating task plan');
     const taskPlanResponse = await supervisorAgent.execute({
@@ -246,16 +248,16 @@ const projectTasks = [
       capability: 'task-planning',
       parameters: taskPlanningParams,
     });
-    
+
     const taskPlan = taskPlanResponse.output;
     const planId = taskPlanResponse.artifacts?.planId || 'missing-plan-id';
-    
+
     logger.info(`Created task plan with ID: ${planId}`);
-    
+
     // 2. Then, perform task assignments
     logger.info('Assigning tasks to agents');
     const taskAssignments: Record<string, string> = {};
-    
+
     for (const task of projectTasks) {
       const assignmentResponse = await supervisorAgent.execute({
         input: task.description,
@@ -266,30 +268,35 @@ const projectTasks = [
           requiredCapabilities: task.requiredCapabilities,
         },
       });
-      
+
       // Cast the output to our task interface
       const assignedTask = assignmentResponse.output as unknown as ExampleTask;
-      
+
       // Check if we have a valid task with ID and assignment
       if (assignedTask && assignedTask.id && assignedTask.assignedTo) {
-        logger.info(`Assigned task ${assignedTask.id} to agent ${assignedTask.assignedTo}`);
-        
+        logger.info(
+          `Assigned task ${assignedTask.id} to agent ${assignedTask.assignedTo}`,
+        );
+
         // Store the assignments
         taskAssignments[assignedTask.id] = assignedTask.assignedTo;
       } else {
-        logger.warn('Task assignment response did not contain expected task data', { 
-          taskDescription: task.description 
-        });
+        logger.warn(
+          'Task assignment response did not contain expected task data',
+          {
+            taskDescription: task.description,
+          },
+        );
       }
     }
-    
+
     // 3. Now execute all tasks using work coordination
     logger.info('Executing all tasks');
     const executionResponse = await supervisorAgent.execute({
       input: 'Execute all tasks for market analysis',
       capability: 'work-coordination',
       parameters: {
-        tasks: projectTasks.map(task => ({
+        tasks: projectTasks.map((task) => ({
           taskDescription: task.description,
           priority: task.priority,
           requiredCapabilities: task.requiredCapabilities,
@@ -297,20 +304,23 @@ const projectTasks = [
         executionStrategy: 'sequential',
       },
     });
-    
+
     // 4. Check progress
     logger.info('Checking task progress');
     const progressResponse = await supervisorAgent.execute({
       input: 'Get task progress',
       capability: 'progress-tracking',
     });
-    
+
     // Log the task progress properly
-    logger.info('Task progress:', progressResponse.output as Record<string, any>);
-    
+    logger.info(
+      'Task progress:',
+      progressResponse.output as Record<string, any>,
+    );
+
     // 5. Now run the full workflow
     logger.info('Running full workflow through SupervisorWorkflow');
-    
+
     // Create a simple execution task with required structure
     const researchTask: Task = {
       id: uuidv4(),
@@ -321,9 +331,9 @@ const projectTasks = [
       createdAt: Date.now(),
       metadata: {
         requiredCapabilities: ['information-gathering'],
-      }
+      },
     };
-    
+
     const contentTask: Task = {
       id: uuidv4(),
       name: 'Content Creation',
@@ -333,17 +343,21 @@ const projectTasks = [
       createdAt: Date.now(),
       metadata: {
         requiredCapabilities: ['content-writing'],
-      }
+      },
     };
-    
+
     // Add debug logging for the tasks
     logger.info('Task structure before execution:');
-    logger.info('Research task:', { task: { id: researchTask.id, name: researchTask.name } });
-    logger.info('Content task:', { task: { id: contentTask.id, name: contentTask.name } });
-    
+    logger.info('Research task:', {
+      task: { id: researchTask.id, name: researchTask.name },
+    });
+    logger.info('Content task:', {
+      task: { id: contentTask.id, name: contentTask.name },
+    });
+
     // Try a direct approach with the SupervisorAgent instead of using the workflow
     logger.info('Assigning and executing tasks directly with SupervisorAgent:');
-    
+
     // Assign tasks directly
     const assignedResearchTask = await supervisorAgent.execute({
       input: researchTask.description,
@@ -356,7 +370,7 @@ const projectTasks = [
         requiredCapabilities: researchTask.metadata?.requiredCapabilities,
       },
     });
-    
+
     const assignedContentTask = await supervisorAgent.execute({
       input: contentTask.description,
       capability: 'task-assignment',
@@ -368,16 +382,18 @@ const projectTasks = [
         requiredCapabilities: contentTask.metadata?.requiredCapabilities,
       },
     });
-    
+
     logger.info('Task assignments completed:', {
-      researchTaskOutput: typeof assignedResearchTask.output === 'string' 
-        ? assignedResearchTask.output.substring(0, 50) + '...' 
-        : 'complex output',
-      contentTaskOutput: typeof assignedContentTask.output === 'string' 
-        ? assignedContentTask.output.substring(0, 50) + '...' 
-        : 'complex output',
+      researchTaskOutput:
+        typeof assignedResearchTask.output === 'string'
+          ? assignedResearchTask.output.substring(0, 50) + '...'
+          : 'complex output',
+      contentTaskOutput:
+        typeof assignedContentTask.output === 'string'
+          ? assignedContentTask.output.substring(0, 50) + '...'
+          : 'complex output',
     });
-    
+
     // Execute tasks
     const executionResult = await supervisorAgent.execute({
       input: 'Execute research and content tasks',
@@ -402,13 +418,13 @@ const projectTasks = [
         executionStrategy: 'sequential',
       },
     });
-    
+
     logger.info('Task execution completed');
     logger.info('Execution result:', executionResult);
-    
+
     // Now try the workflow again but with simplified parameters
     logger.info('Now trying the workflow with task planning parameters:');
-    
+
     // Execute the workflow with task planning details
     const response = await supervisorWorkflow.execute({
       input: 'Research AI tools and create content',
@@ -422,24 +438,24 @@ const projectTasks = [
             description: 'Research current AI tools and their market trends',
             priority: 10,
             metadata: {
-              requiredCapabilities: ['information-gathering']
-            }
+              requiredCapabilities: ['information-gathering'],
+            },
           },
           {
             name: 'Create Content Summary',
             description: 'Write a summary article about AI tools',
             priority: 7,
             metadata: {
-              requiredCapabilities: ['content-writing']
-            }
-          }
-        ]
+              requiredCapabilities: ['content-writing'],
+            },
+          },
+        ],
       },
     });
-    
+
     logger.info('Supervisor workflow execution completed');
     logger.info('Response:', response);
-    
+
     // Parse output if needed
     let parsedOutput: any = response.output;
     if (typeof response.output === 'string') {
@@ -450,21 +466,21 @@ const projectTasks = [
         parsedOutput = response.output;
       }
     }
-    
+
     // Display the results
     if (parsedOutput && typeof parsedOutput === 'object') {
       if (parsedOutput.status) {
         logger.info('Status:', parsedOutput.status);
       }
-      
+
       if (parsedOutput.summary) {
         logger.info('Summary:', parsedOutput.summary);
       }
-      
+
       if (parsedOutput.stats) {
         logger.info('Stats:', parsedOutput.stats);
       }
-      
+
       logger.info('Results:');
       if (parsedOutput.results) {
         for (const [taskName, result] of Object.entries(parsedOutput.results)) {
@@ -474,19 +490,26 @@ const projectTasks = [
     } else {
       logger.info('Output:', parsedOutput);
     }
-    
+
     // Display metrics
     if (response.metrics) {
       logger.info('Execution metrics:');
       logger.info(`  Total time: ${response.metrics.executionTimeMs}ms`);
-      
+
       const taskCompletion = (response.metrics as any).taskCompletion;
       if (taskCompletion) {
-        logger.info(`  Tasks: ${taskCompletion.completed}/${taskCompletion.total} completed (${taskCompletion.failed} failed)`);
-        logger.info(`  Success rate: ${Math.round(taskCompletion.rate * 100)}%`);
+        logger.info(
+          `  Tasks: ${taskCompletion.completed}/${taskCompletion.total} completed (${taskCompletion.failed} failed)`,
+        );
+        logger.info(
+          `  Success rate: ${Math.round(taskCompletion.rate * 100)}%`,
+        );
       }
     }
   } catch (error) {
-    logger.error('Error executing supervisor workflow:', error as Record<string, any>);
+    logger.error(
+      'Error executing supervisor workflow:',
+      error as Record<string, any>,
+    );
   }
-})(); 
+})();

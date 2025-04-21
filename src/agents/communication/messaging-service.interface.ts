@@ -123,4 +123,4 @@ export interface MessagingService {
    * @returns A promise resolving to the number of messages cleared
    */
   clearMessages(agentId: string, senderId?: string): Promise<number>;
-} 
+}

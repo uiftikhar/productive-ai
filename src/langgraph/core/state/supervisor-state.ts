@@ -12,7 +12,7 @@ export enum SupervisedTaskStatus {
   COMPLETED = 'completed',
   FAILED = 'failed',
   CANCELLED = 'cancelled',
-  REASSIGNED = 'reassigned'
+  REASSIGNED = 'reassigned',
 }
 
 /**
@@ -22,7 +22,7 @@ export enum SupervisedAgentStatus {
   IDLE = 'idle',
   BUSY = 'busy',
   ERROR = 'error',
-  UNAVAILABLE = 'unavailable'
+  UNAVAILABLE = 'unavailable',
 }
 
 /**
@@ -83,11 +83,11 @@ export interface CoordinationMessage {
 /**
  * Type of the phases in supervisor workflow
  */
-export type SupervisorPhase = 
-  | 'planning'    // Initial task planning
-  | 'delegation'  // Assigning tasks to agents
-  | 'execution'   // Executing tasks
-  | 'monitoring'  // Checking task status
+export type SupervisorPhase =
+  | 'planning' // Initial task planning
+  | 'delegation' // Assigning tasks to agents
+  | 'execution' // Executing tasks
+  | 'monitoring' // Checking task status
   | 'completion'; // Finalizing execution
 
 /**
@@ -122,12 +122,12 @@ export interface SupervisorState extends BaseAgentState {
   taskStatus: Record<string, string>; // Status updates for tasks
   taskResults: Record<string, any>; // Results from completed tasks
   taskErrors: Record<string, string>; // Errors from failed tasks
-  
+
   // Workflow control
   currentPhase: SupervisorPhase;
   executionStrategy?: ExecutionStrategy;
   planId?: string; // ID of the task plan when using TaskPlanningService
-  
+
   // Progress tracking
   progressSummary?: {
     totalTasks: number;
@@ -137,14 +137,14 @@ export interface SupervisorState extends BaseAgentState {
     failedTasks: number;
     successRate: number;
   };
-  
+
   // Error handling and recovery
   recoveryAttempts: number;
   maxRecoveryAttempts: number;
   recoveryStrategy?: 'reassign' | 'retry' | 'skip';
-  
+
   // Result aggregation
   aggregatedResults?: Record<string, any>;
   overallStatus?: ExecutionStatus;
   completionSummary?: string;
-} 
+}

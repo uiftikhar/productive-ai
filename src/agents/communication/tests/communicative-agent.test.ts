@@ -1,7 +1,11 @@
 import { describe, expect, test, beforeEach, jest } from '@jest/globals';
 import { CommunicativeAgent } from '../communicative-agent.mixin';
 import { BaseAgent } from '../../base/base-agent';
-import { AgentRequest, AgentResponse, AgentCapability } from '../../interfaces/base-agent.interface';
+import {
+  AgentRequest,
+  AgentResponse,
+  AgentCapability,
+} from '../../interfaces/base-agent.interface';
 import { MockLogger } from '../../tests/mocks/mock-logger';
 import { MessageType } from '../types';
 import { InMemoryMessagingService } from '../in-memory-messaging.service';
@@ -32,7 +36,7 @@ describe('CommunicativeAgent Mixin Tests', () => {
     // Reset the messaging service for each test
     // @ts-ignore: Access private static field for testing
     InMemoryMessagingService.instance = undefined;
-    
+
     // Mock logger
     mockLogger = {
       debug: jest.fn(),
@@ -62,11 +66,15 @@ describe('CommunicativeAgent Mixin Tests', () => {
   test('should register communication capability on initialization', () => {
     // Get agent capabilities
     const capabilities = agent1.getCapabilities();
-    
+
     // Verify communication capability is registered
-    const commCapability = capabilities.find(cap => cap.name === 'agent-communication');
+    const commCapability = capabilities.find(
+      (cap) => cap.name === 'agent-communication',
+    );
     expect(commCapability).toBeDefined();
-    expect(commCapability?.description).toContain('Communicate with other agents');
+    expect(commCapability?.description).toContain(
+      'Communicate with other agents',
+    );
   });
 
   test('should send and receive messages between agents', async () => {
@@ -80,7 +88,10 @@ describe('CommunicativeAgent Mixin Tests', () => {
     });
 
     // Act
-    const messageId = await agent1.sendMessageToAgent('agent-2', messageContent);
+    const messageId = await agent1.sendMessageToAgent(
+      'agent-2',
+      messageContent,
+    );
 
     // Assert
     expect(messageId).toBeDefined();
@@ -131,7 +142,7 @@ describe('CommunicativeAgent Mixin Tests', () => {
     // expect(agent1Messages.length).toBe(0); // Changed: Sender might receive their own message
     expect(agent2Messages.length).toBe(1);
     expect(agent3Messages.length).toBe(1);
-    
+
     // Check message content
     expect(agent2Messages[0].senderId).toBe('agent-1');
     expect(agent2Messages[0].content.announcement).toBe('Team meeting at 3pm');
@@ -146,21 +157,21 @@ describe('CommunicativeAgent Mixin Tests', () => {
     const taskDescription = 'Calculate sum of array';
     const taskData = [1, 2, 3, 4, 5];
     let taskId: string;
-    
+
     // Set up agent2 to process tasks
     agent2.subscribeToMessages(async (message) => {
       if (message.type === MessageType.TASK) {
         // Process the task
         const sum = taskData.reduce((a, b) => a + b, 0);
-        
+
         // Send response back correctly using the message id
         const responseId = await agent2.sendMessageToAgent(
-          'agent-1', 
+          'agent-1',
           { sum },
           {
             type: MessageType.RESPONSE,
             correlationId: message.id, // Use message.id instead of taskId
-          }
+          },
         );
       }
     });
@@ -174,16 +185,12 @@ describe('CommunicativeAgent Mixin Tests', () => {
     });
 
     // Act - Send task
-    taskId = await agent1.sendTaskToAgent(
-      'agent-2',
-      taskDescription,
-      {
-        metadata: { data: taskData },
-      },
-    );
+    taskId = await agent1.sendTaskToAgent('agent-2', taskDescription, {
+      metadata: { data: taskData },
+    });
 
     // Wait briefly for async processing
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Assert
     expect(receivedResponses.length).toBe(1);
@@ -198,12 +205,12 @@ describe('CommunicativeAgent Mixin Tests', () => {
     const subscriptionId = agent1.subscribeToMessages(async () => {
       // Do nothing
     });
-    
+
     expect(agent1.subscriptions.has(subscriptionId)).toBe(true);
-    
+
     // Act
     await agent1.terminate();
-    
+
     // Assert
     expect(agent1.subscriptions.size).toBe(0);
   });
@@ -212,25 +219,25 @@ describe('CommunicativeAgent Mixin Tests', () => {
     // Arrange - Send several messages
     await agent1.sendMessageToAgent('agent-2', { text: 'Message 1' });
     await agent1.sendMessageToAgent('agent-2', { text: 'Message 2' });
-    
+
     // Act - Filter message history for specific messages
     const sentMessages = await agent1.messagingService.queryMessages({
       senderIds: ['agent-1'],
       // Add a filter by content to get only our specific test messages
       metadata: {
-        testFilter: true
-      }
+        testFilter: true,
+      },
     });
-    
-    // Assert - Since we can't reliably filter by content in this test 
+
+    // Assert - Since we can't reliably filter by content in this test
     // (message content is stored as-is), we'll validate that messages exist
     expect(sentMessages.length).toBeGreaterThanOrEqual(0);
-    
+
     // Check with custom filter - all messages involving agent1
     const fullFilter = await agent1.messagingService.queryMessages({
       senderIds: ['agent-1', 'agent-2'],
     });
-    
+
     expect(fullFilter.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -241,29 +248,33 @@ describe('CommunicativeAgent Mixin Tests', () => {
       id: 'agent-3',
     });
     await agent3.initialize();
-    
+
     const agent2Messages: any[] = [];
     const agent3Messages: any[] = [];
-    
+
     agent2.subscribeToMessages(async (message) => {
       agent2Messages.push(message);
     });
-    
+
     agent3.subscribeToMessages(async (message) => {
       agent3Messages.push(message);
     });
-    
+
     // Act
     const messageIds = await agent1.broadcastMessage(
       { announcement: 'System maintenance scheduled' },
       ['agent-2', 'agent-3'],
     );
-    
+
     // Assert
     expect(messageIds.length).toBe(2);
     expect(agent2Messages.length).toBe(1);
     expect(agent3Messages.length).toBe(1);
-    expect(agent2Messages[0].content.announcement).toBe('System maintenance scheduled');
-    expect(agent3Messages[0].content.announcement).toBe('System maintenance scheduled');
+    expect(agent2Messages[0].content.announcement).toBe(
+      'System maintenance scheduled',
+    );
+    expect(agent3Messages[0].content.announcement).toBe(
+      'System maintenance scheduled',
+    );
   });
-}); 
+});

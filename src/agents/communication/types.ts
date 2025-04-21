@@ -175,4 +175,4 @@ export interface CommunicationChannel {
   removeParticipant(agentId: string): void;
   hasParticipant(agentId: string): boolean;
   getParticipants(): string[];
-} 
+}

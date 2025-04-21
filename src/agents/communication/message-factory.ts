@@ -220,7 +220,8 @@ export class MessageFactory {
     } = {},
   ): ErrorMessage {
     const errorMessage = typeof error === 'string' ? error : error.message;
-    const stackTrace = options.stackTrace || (error instanceof Error ? error.stack : undefined);
+    const stackTrace =
+      options.stackTrace || (error instanceof Error ? error.stack : undefined);
 
     return {
       id: uuidv4(),
@@ -268,4 +269,4 @@ export class MessageFactory {
       metadata: options.metadata,
     };
   }
-} 
+}

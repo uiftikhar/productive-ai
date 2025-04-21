@@ -6,13 +6,14 @@ import { SupervisorAgent } from '../../../agents/specialized/supervisor-agent';
 import {
   AgentRequest,
   AgentResponse,
-  BaseAgentInterface
+  BaseAgentInterface,
 } from '../../../agents/interfaces/base-agent.interface';
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
 import { Task } from '../../../agents/specialized/supervisor-agent';
 import { AgentExecutionState } from './agent-workflow';
 import { v4 as uuidv4 } from 'uuid';
+import { UserContextFacade } from '../../../shared/services/user-context/user-context.facade';
 
 /**
  * Interface for SupervisorWorkflow state
@@ -26,11 +27,16 @@ export interface SupervisorExecutionState extends AgentExecutionState {
   taskStatus: Record<string, string>; // Status updates for tasks
   taskResults: Record<string, any>; // Results from completed tasks
   taskErrors: Record<string, string>; // Errors from failed tasks
-  currentPhase: 'planning' | 'delegation' | 'execution' | 'monitoring' | 'completion';
+  currentPhase:
+    | 'planning'
+    | 'delegation'
+    | 'execution'
+    | 'monitoring'
+    | 'completion';
   planId?: string; // ID of the current task plan
   executionStrategy?: 'sequential' | 'parallel' | 'prioritized';
   taskList?: Task[];
-  
+
   // Additional fields needed by the workflow
   taskRetryCount?: Record<string, number>; // Count of retries for each task
   completedTasks?: string[]; // List of completed task IDs
@@ -45,12 +51,14 @@ export interface SupervisorExecutionState extends AgentExecutionState {
 
 /**
  * SupervisorWorkflow
- * 
+ *
  * Specialized workflow for the supervisor agent to coordinate multiple agents,
  * manage task delegation, handle errors, and track task execution.
  */
 export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
   protected logger: Logger;
+  protected userContext?: UserContextFacade;
+  readonly id: string;
 
   /**
    * Create a new SupervisorWorkflow
@@ -61,10 +69,14 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
       tracingEnabled?: boolean;
       includeStateInLogs?: boolean;
       logger?: Logger;
+      userContext?: UserContextFacade;
+      id?: string;
     } = {},
   ) {
     super(agent, options);
     this.logger = options.logger || new ConsoleLogger();
+    this.userContext = options.userContext;
+    this.id = options.id || uuidv4();
   }
 
   /**
@@ -74,7 +86,7 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
   protected createStateSchema() {
     // Get the base schema from the parent class
     const baseSchema = super.createStateSchema();
-    
+
     // Add the supervisor-specific fields to the schema
     // Using the same pattern as in the parent class
     return {
@@ -101,23 +113,28 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
       }),
       taskAssignments: Annotation<Record<string, string>>({
         default: () => ({}),
-        value: (curr, update) => update ? { ...(curr || {}), ...update } : (curr || {}),
+        value: (curr, update) =>
+          update ? { ...(curr || {}), ...update } : curr || {},
       }),
       taskStatus: Annotation<Record<string, string>>({
         default: () => ({}),
-        value: (curr, update) => update ? { ...(curr || {}), ...update } : (curr || {}),
+        value: (curr, update) =>
+          update ? { ...(curr || {}), ...update } : curr || {},
       }),
       taskResults: Annotation<Record<string, any>>({
         default: () => ({}),
-        value: (curr, update) => update ? { ...(curr || {}), ...update } : (curr || {}),
+        value: (curr, update) =>
+          update ? { ...(curr || {}), ...update } : curr || {},
       }),
       taskErrors: Annotation<Record<string, string>>({
         default: () => ({}),
-        value: (curr, update) => update ? { ...(curr || {}), ...update } : (curr || {}),
+        value: (curr, update) =>
+          update ? { ...(curr || {}), ...update } : curr || {},
       }),
       taskRetryCount: Annotation<Record<string, number>>({
         default: () => ({}),
-        value: (curr, update) => update ? { ...(curr || {}), ...update } : (curr || {}),
+        value: (curr, update) =>
+          update ? { ...(curr || {}), ...update } : curr || {},
       }),
       completedTasks: Annotation<string[]>({
         default: () => [],
@@ -133,35 +150,43 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
       }),
       allTasksComplete: Annotation<boolean>({
         default: () => false,
-        value: (curr, update) => update !== undefined ? update : (curr || false),
+        value: (curr, update) =>
+          update !== undefined ? update : curr || false,
       }),
       error: Annotation<string | undefined>({
         default: () => undefined,
-        value: (curr, update) => update !== undefined ? update : curr,
+        value: (curr, update) => (update !== undefined ? update : curr),
       }),
       config: Annotation<Record<string, any>>({
         default: () => ({}),
-        value: (curr, update) => update ? { ...(curr || {}), ...update } : (curr || {}),
+        value: (curr, update) =>
+          update ? { ...(curr || {}), ...update } : curr || {},
       }),
       inputContext: Annotation<any>({
         default: () => null,
-        value: (curr, update) => update !== undefined ? update : curr,
+        value: (curr, update) => (update !== undefined ? update : curr),
       }),
       outputs: Annotation<Record<string, any>>({
         default: () => ({}),
-        value: (curr, update) => update ? { ...(curr || {}), ...update } : (curr || {}),
+        value: (curr, update) =>
+          update ? { ...(curr || {}), ...update } : curr || {},
       }),
-      currentPhase: Annotation<'planning' | 'delegation' | 'execution' | 'monitoring' | 'completion'>({
+      currentPhase: Annotation<
+        'planning' | 'delegation' | 'execution' | 'monitoring' | 'completion'
+      >({
         default: () => 'planning',
-        value: (curr, update) => update !== undefined ? update : (curr || 'planning'),
+        value: (curr, update) =>
+          update !== undefined ? update : curr || 'planning',
       }),
       planId: Annotation<string | undefined>({
         default: () => undefined,
-        value: (curr, update) => update !== undefined ? update : curr,
+        value: (curr, update) => (update !== undefined ? update : curr),
       }),
-      executionStrategy: Annotation<'sequential' | 'parallel' | 'prioritized' | undefined>({
+      executionStrategy: Annotation<
+        'sequential' | 'parallel' | 'prioritized' | undefined
+      >({
         default: () => undefined,
-        value: (curr, update) => update !== undefined ? update : curr,
+        value: (curr, update) => (update !== undefined ? update : curr),
       }),
     };
   }
@@ -252,12 +277,12 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
 
       // Check if all tasks are complete
       const allTasksComplete = Object.values(state.taskStatus).every(
-        status => status === 'completed'
+        (status) => status === 'completed',
       );
 
       // Check if any tasks failed
       const anyTasksFailed = Object.values(state.taskStatus).some(
-        status => status === 'failed'
+        (status) => status === 'failed',
       );
 
       if (anyTasksFailed) {
@@ -362,21 +387,27 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
    * This node creates and organizes tasks based on the input
    */
   private createPlanTasksNode() {
-    return async (state: AgentExecutionState & {
-      tasks?: Record<string, Task>;
-      planId?: string;
-      currentPhase?: string;
-      taskList?: Task[];
-    }) => {
+    return async (
+      state: AgentExecutionState & {
+        tasks?: Record<string, Task>;
+        planId?: string;
+        currentPhase?: string;
+        taskList?: Task[];
+      },
+    ) => {
       try {
         this.logger.info('Planning tasks for supervisor workflow');
-        
+
         // Add debug logging for state parameters
         this.logger.info('State parameters:', {
           hasParameters: !!state.parameters,
           hasTasksParam: !!state.parameters?.tasks,
-          taskParamType: state.parameters?.tasks ? typeof state.parameters.tasks : 'undefined',
-          isTaskParamArray: state.parameters?.tasks ? Array.isArray(state.parameters.tasks) : false,
+          taskParamType: state.parameters?.tasks
+            ? typeof state.parameters.tasks
+            : 'undefined',
+          isTaskParamArray: state.parameters?.tasks
+            ? Array.isArray(state.parameters.tasks)
+            : false,
         });
 
         // Check if we already have tasks directly in the parameters
@@ -388,10 +419,12 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
             // Case: Tasks provided as an array
             const directTasks = state.parameters.tasks;
 
-            this.logger.info(`Using ${directTasks.length} tasks provided directly in parameters (array format)`);
+            this.logger.info(
+              `Using ${directTasks.length} tasks provided directly in parameters (array format)`,
+            );
 
             // Process each task in the array
-            directTasks.forEach(task => {
+            directTasks.forEach((task) => {
               if (!task.id) {
                 task.id = uuidv4();
               }
@@ -400,24 +433,30 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
             });
 
             taskList = directTasks;
-          }
-          else if (typeof state.parameters.tasks === 'object') {
+          } else if (typeof state.parameters.tasks === 'object') {
             // Case: Tasks provided as a map
             taskMap = state.parameters.tasks as Record<string, Task>;
 
-            this.logger.info(`Using ${Object.keys(taskMap).length} tasks provided directly in parameters (map format)`);
+            this.logger.info(
+              `Using ${Object.keys(taskMap).length} tasks provided directly in parameters (map format)`,
+            );
 
             // Convert map to list if needed
             taskList = Object.values(taskMap);
           }
 
           // Check if we also have a separate task list
-          if (state.parameters.taskList && Array.isArray(state.parameters.taskList)) {
-            this.logger.info(`Using provided taskList with ${state.parameters.taskList.length} tasks`);
+          if (
+            state.parameters.taskList &&
+            Array.isArray(state.parameters.taskList)
+          ) {
+            this.logger.info(
+              `Using provided taskList with ${state.parameters.taskList.length} tasks`,
+            );
             taskList = state.parameters.taskList;
 
             // Make sure any tasks in the list are also in the map
-            taskList.forEach(task => {
+            taskList.forEach((task) => {
               if (task.id && !taskMap[task.id]) {
                 taskMap[task.id] = task;
               }
@@ -429,7 +468,7 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
             taskMapSize: Object.keys(taskMap).length,
             taskListLength: taskList.length,
             taskMapKeys: Object.keys(taskMap),
-            taskListIds: taskList.map(t => t.id),
+            taskListIds: taskList.map((t) => t.id),
           });
 
           // Update state with the direct tasks
@@ -438,17 +477,18 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
             tasks: taskMap,
             taskList: taskList,
             currentPhase: 'delegation',
-            executionStrategy: state.parameters.executionStrategy || 'sequential',
+            executionStrategy:
+              state.parameters.executionStrategy || 'sequential',
             status: WorkflowStatus.EXECUTING,
           };
-          
+
           // Add debug logging for the new state
           this.logger.info('New state after planning:', {
             tasksCount: Object.keys(newState.tasks || {}).length,
             taskListLength: newState.taskList?.length || 0,
             currentPhase: newState.currentPhase,
           });
-          
+
           return newState;
         }
 
@@ -462,18 +502,67 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
         } else if (Array.isArray(state.input)) {
           // If input is an array of BaseMessages, convert to string
           //  TODO fix this typing frp, any
-          inputString = (state.input as any[]).map(m => {
-            if (typeof m === 'string') return m;
-            // For BaseMessage objects, try to get content
-            if (typeof m === 'object' && m !== null) {
-              return 'content' in m && typeof m.content === 'string'
-                ? m.content
-                : JSON.stringify(m);
-            }
-            return String(m);
-          }).join('\n');
+          inputString = (state.input as any[])
+            .map((m) => {
+              if (typeof m === 'string') return m;
+              // For BaseMessage objects, try to get content
+              if (typeof m === 'object' && m !== null) {
+                return 'content' in m && typeof m.content === 'string'
+                  ? m.content
+                  : JSON.stringify(m);
+              }
+              return String(m);
+            })
+            .join('\n');
         } else if (state.input !== undefined && state.input !== null) {
           inputString = JSON.stringify(state.input);
+        }
+
+        // Retrieve context if we have userContext and userId
+        const userId = state.metadata?.context?.userId;
+        let contextData = state.metadata?.context;
+
+        if (this.userContext && userId) {
+          try {
+            // Add any relevant context from the user context system
+            if (inputString) {
+              // Get embeddings for the input
+              // Note: In a real implementation, you'd need to get embeddings for this
+              // This is a placeholder assuming embeddings would be generated
+              const dummyEmbeddings = Array(1536)
+                .fill(0)
+                .map(() => Math.random() - 0.5);
+
+              // Retrieve relevant context
+              const relevantContext = await this.userContext.retrieveRagContext(
+                userId,
+                dummyEmbeddings,
+                {
+                  topK: 5,
+                  minScore: 0.7,
+                  conversationId: state.metadata?.context?.conversationId,
+                  includeEmbeddings: false,
+                },
+              );
+
+              // Add context to the existing context data
+              contextData = {
+                ...contextData,
+                relevantContext,
+              };
+
+              this.logger.debug('Added user context to planning request', {
+                userId,
+                contextItemsCount: relevantContext.length,
+              });
+            }
+          } catch (error) {
+            this.logger.warn('Failed to retrieve user context', {
+              error: error instanceof Error ? error.message : String(error),
+              userId,
+            });
+            // Continue without context if retrieval fails
+          }
         }
 
         // Prepare task planning request
@@ -484,7 +573,7 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
             name: state.parameters?.name || 'Task Plan',
             description: state.parameters?.description || inputString,
           },
-          context: state.metadata?.context,
+          context: contextData,
         };
 
         // Execute planning through the supervisor agent
@@ -494,7 +583,7 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
         this.logger.debug('Planning response:', {
           responseType: typeof planningResponse.output,
           hasOutput: !!planningResponse.output,
-          planId: planningResponse.artifacts?.planId
+          planId: planningResponse.artifacts?.planId,
         });
 
         let tasks: Record<string, Task> = {};
@@ -504,18 +593,22 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
         if (planningResponse.output) {
           if (typeof planningResponse.output === 'object') {
             // Case 1: Output is already a map of tasks
-            tasks = (planningResponse.output as unknown) as Record<string, Task>;
+            tasks = planningResponse.output as unknown as Record<string, Task>;
             taskList = Object.values(tasks);
-            this.logger.info(`Extracted ${taskList.length} tasks from plan response (object)`);
+            this.logger.info(
+              `Extracted ${taskList.length} tasks from plan response (object)`,
+            );
           } else if (Array.isArray(planningResponse.output)) {
             // Case 2: Output is an array of tasks
-            taskList = (planningResponse.output as unknown) as Task[];
+            taskList = planningResponse.output as unknown as Task[];
             taskList.forEach((task) => {
               if (task.id) {
                 tasks[task.id] = task;
               }
             });
-            this.logger.info(`Extracted ${taskList.length} tasks from plan response (array)`);
+            this.logger.info(
+              `Extracted ${taskList.length} tasks from plan response (array)`,
+            );
           } else if (typeof planningResponse.output === 'string') {
             // Case 3: Output is a string, try to parse as JSON
             try {
@@ -527,17 +620,23 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
                     tasks[task.id] = task;
                   }
                 });
-                this.logger.info(`Extracted ${taskList.length} tasks from plan response (parsed array)`);
+                this.logger.info(
+                  `Extracted ${taskList.length} tasks from plan response (parsed array)`,
+                );
               } else if (typeof parsed === 'object') {
                 // Check if it's a map of tasks or a single task
                 if (parsed.id && parsed.name && parsed.description) {
                   taskList = [parsed as Task];
                   tasks[parsed.id] = parsed as Task;
-                  this.logger.info(`Extracted 1 task from plan response (parsed object)`);
+                  this.logger.info(
+                    `Extracted 1 task from plan response (parsed object)`,
+                  );
                 } else {
                   tasks = parsed as Record<string, Task>;
                   taskList = Object.values(tasks);
-                  this.logger.info(`Extracted ${taskList.length} tasks from plan response (parsed map)`);
+                  this.logger.info(
+                    `Extracted ${taskList.length} tasks from plan response (parsed map)`,
+                  );
                 }
               }
             } catch (e) {
@@ -556,7 +655,10 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
           const defaultTask: Task = {
             id: taskId,
             name: 'Process User Request',
-            description: typeof state.input === 'string' ? state.input : JSON.stringify(state.input),
+            description:
+              typeof state.input === 'string'
+                ? state.input
+                : JSON.stringify(state.input),
             status: 'pending',
             priority: 5,
             createdAt: Date.now(),
@@ -574,7 +676,7 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
           };
         } else {
           this.logger.info(`Planning complete with ${taskList.length} tasks`);
-          taskList.forEach(task => {
+          taskList.forEach((task) => {
             this.logger.debug(`- Task: ${task.name}`);
           });
         }
@@ -603,180 +705,168 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
    * This node handles assigning tasks to agents
    */
   private createDelegateTasksNode() {
-    return async (state: AgentExecutionState & {
-      tasks?: Record<string, Task>;
-      taskAssignments?: Record<string, string>;
-      taskStatus?: Record<string, string>;
-      currentPhase?: string;
-      taskList?: Task[];
-    }) => {
+    return async (
+      state: AgentExecutionState & {
+        tasks?: Record<string, Task>;
+        planId?: string;
+        currentPhase?: string;
+        taskList?: Task[];
+        taskAssignments?: Record<string, string>;
+      },
+    ) => {
       try {
-        this.logger.info('Delegating tasks to agents');
+        const tasks = state.taskList;
+        const currentPhase = state.currentPhase;
 
-        // Debug logging for input state
-        this.logger.info('Delegation input state:', {
-          hasState: !!state,
-          hasTasks: !!state.tasks,
-          hasTaskList: !!state.taskList,
-          stateKeys: Object.keys(state),
-          currentPhase: state.currentPhase || 'unknown',
-        });
+        this.logger.info(`Delegating ${tasks?.length || 0} tasks to agents`);
 
-        // Fix: Check both the direct state properties and the state.parameters.tasks
-        let taskMap = state.tasks || {};
-        let taskList = state.taskList || [];
-
-        // If tasks aren't in the state directly, try to get them from parameters
-        if (Object.keys(taskMap).length === 0 && state.parameters?.tasks) {
-          if (Array.isArray(state.parameters.tasks)) {
-            // Process tasks from parameters if they're in array format
-            state.parameters.tasks.forEach(task => {
-              if (!task.id) task.id = uuidv4();
-              taskMap[task.id] = task;
-            });
-            taskList = state.parameters.tasks;
-          } else if (typeof state.parameters.tasks === 'object') {
-            // Or if they're in object format
-            taskMap = state.parameters.tasks as Record<string, Task>;
-            taskList = Object.values(taskMap);
-          }
-        }
-
-        // Debug logging for tasks state
-        this.logger.info('Tasks state:', {
-          tasksCount: Object.keys(taskMap).length,
-          taskListLength: taskList.length,
-          taskKeys: Object.keys(taskMap),
-          taskListIds: taskList.map(t => t.id || 'unknown'),
-        });
-
-        // Check if we have tasks to delegate
-        if (Object.keys(taskMap).length === 0) {
-          this.logger.warn('No tasks available for assignment');
-
+        if (!tasks || tasks.length === 0) {
           return {
-            ...state,
-            tasks: {},
-            taskList: [],
+            currentPhase: 'execute',
             taskAssignments: {},
-            currentPhase: 'execution',
-            status: WorkflowStatus.EXECUTING,
           };
         }
 
-        // Prepare task requests for assignment
-        const taskRequests = Object.entries(taskMap).map(([id, task]) => {
-          return {
-            taskId: id,
-            name: task.name || 'Unnamed Task',
-            description: task.description || '',
-            priority: task.priority || 5,
-            requiredCapabilities: (task as any).requiredCapabilities || task.metadata?.requiredCapabilities || [],
-          };
-        });
+        // Create a task delegation request
+        const taskRequests = tasks.map((task) => ({
+          id: task.id,
+          name: task.name,
+          description: task.description,
+          priority: task.priority || 5,
+          // Only include requiredCapabilities if they exist on the task
+          ...(task.metadata?.requiredCapabilities
+            ? { requiredCapabilities: task.metadata.requiredCapabilities }
+            : {}),
+        }));
 
-        // Prepare assignment request
-        const assignmentRequest: AgentRequest = {
+        // Create context data for the request
+        const contextData = state.metadata?.context
+          ? {
+              ...state.metadata.context,
+              tasks: tasks.length,
+              executionStrategy:
+                state.parameters?.executionStrategy || 'sequential',
+              workflowId: this.id,
+            }
+          : {
+              tasks: tasks.length,
+              executionStrategy:
+                state.parameters?.executionStrategy || 'sequential',
+              workflowId: this.id,
+            };
+
+        // Get user ID from context if available
+        const userId = state.metadata?.context?.userId;
+        const conversationId = state.metadata?.context?.conversationId;
+
+        // Create request for the supervisor agent
+        const request: AgentRequest = {
+          capability: 'task-delegation',
           input: JSON.stringify(taskRequests),
-          capability: 'task-assignment',
-          parameters: {},
-          context: state.metadata?.context,
+          parameters: {
+            strategy: state.parameters?.executionStrategy || 'sequential',
+            priorityThreshold: state.parameters?.priorityThreshold || 3,
+          },
+          context: contextData,
         };
 
-        // Execute assignment through the supervisor agent
-        const assignmentResponse = await this.agent.execute(assignmentRequest);
+        // Execute delegation through the supervisor agent
+        const response = await this.agent.execute(request);
 
-        // Extract the task assignments
+        // Process the response
         let taskAssignments: Record<string, string> = {};
 
-        if (assignmentResponse.output) {
-          if (typeof assignmentResponse.output === 'object') {
-            taskAssignments = assignmentResponse.output as unknown as Record<string, string>;
-          } else if (typeof assignmentResponse.output === 'string') {
-            try {
-              taskAssignments = JSON.parse(assignmentResponse.output);
-            } catch (e) {
-              this.logger.warn('Failed to parse task assignments', {e});
-            }
+        try {
+          // Extract task assignments from the response
+          if (typeof response.output === 'string') {
+            taskAssignments = JSON.parse(response.output);
+          } else if (typeof response.output === 'object') {
+            // Safely cast the output to the desired type
+            taskAssignments = Object.fromEntries(
+              Object.entries(response.output || {}).filter(
+                ([k, v]) => typeof k === 'string' && typeof v === 'string',
+              ),
+            );
           }
-        }
 
-        // Initialize task status for assigned tasks
-        const taskStatus: Record<string, string> = {};
-        Object.keys(taskAssignments).forEach(taskId => {
-          taskStatus[taskId] = 'pending';
-        });
+          this.logger.info('Tasks have been assigned to agents', {
+            taskCount: Object.keys(taskAssignments).length,
+          });
 
-        // Debug logging for assignments
-        this.logger.info('Task assignments:', {
-          assignmentCount: Object.keys(taskAssignments).length,
-          assignmentKeys: Object.keys(taskAssignments),
-          assignmentValues: Object.values(taskAssignments),
-          assignments: JSON.stringify(taskAssignments),
-        });
-        
-        // Make sure each task in taskMap is in taskAssignments
-        // If there's a mismatch, create default assignments
-        if (Object.keys(taskMap).length > Object.keys(taskAssignments).length) {
-          this.logger.warn('Task count mismatch - creating default assignments');
-          
-          // Find the tasks without assignments
-          Object.keys(taskMap).forEach(taskId => {
-            if (!taskAssignments[taskId]) {
-              // Find any agent with matching capabilities
-              const requiredCapabilities = 
-                (taskMap[taskId] as any).requiredCapabilities || 
-                taskMap[taskId].metadata?.requiredCapabilities || [];
-                
-              const agents = this.agent['team']; // Access team members
-              
-              if (agents && agents.size > 0) {
-                // Just assign to the first available agent for simplicity
-                const firstAgent = Array.from(agents.values())[0];
-                if (firstAgent && firstAgent.agent) {
-                  taskAssignments[taskId] = firstAgent.agent.id;
-                  taskStatus[taskId] = 'pending';
+          // Store task delegation information in user context if available
+          if (this.userContext && userId && conversationId) {
+            try {
+              // For each task assignment, record it in user context
+              for (const [taskId, agentId] of Object.entries(taskAssignments)) {
+                const task = tasks.find((t) => t.id === taskId);
+                if (task) {
+                  // In a real implementation, you'd generate embeddings for the task description
+                  // This is a placeholder for demonstration
+                  const dummyEmbeddings = Array(1536)
+                    .fill(0)
+                    .map(() => Math.random() - 0.5);
+
+                  // Store the task delegation
+                  await this.userContext.storeUserContext(
+                    userId,
+                    `Task delegated: ${task.name} - ${task.description}`,
+                    dummyEmbeddings,
+                    {
+                      contextType: 'task' as any, // Safe cast to satisfy TypeScript
+                      conversationId,
+                      timestamp: Date.now(),
+                      metadata: {
+                        workflowId: this.id,
+                        taskId: task.id,
+                        agentId,
+                        priority: task.priority,
+                        requiredCapabilities:
+                          task.metadata?.requiredCapabilities,
+                      },
+                    },
+                  );
                 }
               }
-            }
-          });
-        }
-        
-        // Fallback check - if still no assignments, create dummy assignments
-        if (Object.keys(taskAssignments).length === 0 && Object.keys(taskMap).length > 0) {
-          this.logger.warn('No task assignments created - using fallback assignments');
-          Object.keys(taskMap).forEach(taskId => {
-            taskAssignments[taskId] = 'dummy-agent-' + taskId.substring(0, 8);
-            taskStatus[taskId] = 'pending';
-          });
-        }
-        
-        // Final state debugging before return
-        this.logger.debug('Final delegation state:', {
-          taskCount: Object.keys(taskMap).length,
-          assignmentCount: Object.keys(taskAssignments).length,
-          statusCount: Object.keys(taskStatus).length,
-          taskIds: Object.keys(taskMap),
-          assignmentIds: Object.keys(taskAssignments),
-        });
 
-        const updatedState = {
-          ...state,
-          tasks: taskMap,
-          taskList: taskList,
-          taskAssignments: taskAssignments,
-          taskStatus: taskStatus,
-          currentPhase: 'execution',
-          status: WorkflowStatus.EXECUTING,
+              this.logger.debug('Recorded task delegations in user context', {
+                taskCount: Object.keys(taskAssignments).length,
+                userId,
+                conversationId,
+              });
+            } catch (error) {
+              this.logger.warn(
+                'Failed to store task delegations in user context',
+                {
+                  error: error instanceof Error ? error.message : String(error),
+                  userId,
+                  conversationId,
+                },
+              );
+              // Continue even if context storage fails
+            }
+          }
+        } catch (error) {
+          this.logger.error('Error processing task assignment response', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return {
+            currentPhase: 'error',
+            error: `Failed to process task assignments: ${error instanceof Error ? error.message : String(error)}`,
+          };
+        }
+
+        return {
+          currentPhase: 'execute',
+          taskAssignments,
         };
-        
-        return updatedState;
       } catch (error) {
-        return this.addErrorToState(
-          state,
-          error instanceof Error ? error : String(error),
-          'delegate_tasks',
-        );
+        this.logger.error('Error in delegating tasks', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return {
+          currentPhase: 'error',
+          error: `Task delegation failed: ${error instanceof Error ? error.message : String(error)}`,
+        };
       }
     };
   }
@@ -786,15 +876,17 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
    * This node kicks off task execution using the appropriate strategy
    */
   private createExecuteTasksNode() {
-    return async (state: AgentExecutionState & {
-      tasks?: Record<string, Task>;
-      taskAssignments?: Record<string, string>;
-      taskStatus?: Record<string, string>;
-      taskErrors?: Record<string, string>;
-      taskResults?: Record<string, any>;
-      currentPhase?: string;
-      executionStrategy?: 'sequential' | 'parallel' | 'prioritized';
-    }) => {
+    return async (
+      state: AgentExecutionState & {
+        tasks?: Record<string, Task>;
+        taskAssignments?: Record<string, string>;
+        taskStatus?: Record<string, string>;
+        taskErrors?: Record<string, string>;
+        taskResults?: Record<string, any>;
+        currentPhase?: string;
+        executionStrategy?: 'sequential' | 'parallel' | 'prioritized';
+      },
+    ) => {
       try {
         const executionStrategy = state.executionStrategy || 'sequential';
         this.logger.info(`Executing tasks using ${executionStrategy} strategy`);
@@ -804,7 +896,9 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
           hasState: !!state,
           hasTasks: !!state.tasks,
           hasTaskAssignments: !!state.taskAssignments,
-          taskAssignmentsCount: state.taskAssignments ? Object.keys(state.taskAssignments).length : 0,
+          taskAssignmentsCount: state.taskAssignments
+            ? Object.keys(state.taskAssignments).length
+            : 0,
           taskAssignments: state.taskAssignments || {},
           executionStrategy,
           stateKeys: Object.keys(state),
@@ -813,58 +907,70 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
         // Get tasks and assignments from state
         const tasks = state.tasks || {};
         const taskAssignments = state.taskAssignments || {};
-        
+
         // Add detailed debug logging
         this.logger.debug('Tasks and assignments:', {
           tasksObj: tasks,
-          assignmentsObj: taskAssignments
+          assignmentsObj: taskAssignments,
         });
-        
+
         // Initialize status for assigned tasks if not present
         let taskStatus = state.taskStatus || {};
-        if (Object.keys(taskStatus).length === 0 && Object.keys(taskAssignments).length > 0) {
+        if (
+          Object.keys(taskStatus).length === 0 &&
+          Object.keys(taskAssignments).length > 0
+        ) {
           this.logger.info('Initializing task status from assignments');
           // If we have assignments but no status, initialize the status
-          Object.keys(taskAssignments).forEach(taskId => {
+          Object.keys(taskAssignments).forEach((taskId) => {
             taskStatus[taskId] = 'pending';
           });
         }
-        
+
         this.logger.debug('Task status:', { statusMap: taskStatus });
 
         // Identify tasks to execute based on assignments and status
         const pendingTaskIds = Object.entries(taskStatus)
           .filter(([_, status]) => status === 'pending')
           .map(([id]) => id)
-          .filter(id => taskAssignments[id]); // Only tasks with assignments
-        
-        this.logger.info(`Found ${pendingTaskIds.length} pending tasks to execute`);
-        
+          .filter((id) => taskAssignments[id]); // Only tasks with assignments
+
+        this.logger.info(
+          `Found ${pendingTaskIds.length} pending tasks to execute`,
+        );
+
         if (pendingTaskIds.length === 0) {
           // If no pending tasks but we have tasks, make sure they have status
-          if (Object.keys(tasks).length > 0 && Object.keys(taskStatus).length === 0) {
+          if (
+            Object.keys(tasks).length > 0 &&
+            Object.keys(taskStatus).length === 0
+          ) {
             this.logger.warn('No task status found, initializing from tasks');
-            Object.keys(tasks).forEach(taskId => {
+            Object.keys(tasks).forEach((taskId) => {
               taskStatus[taskId] = 'pending';
             });
-            
+
             // Recompute pending tasks
             const recomputedPendingTaskIds = Object.entries(taskStatus)
               .filter(([_, status]) => status === 'pending')
               .map(([id]) => id);
-            
+
             if (recomputedPendingTaskIds.length > 0) {
-              this.logger.info(`After initialization, found ${recomputedPendingTaskIds.length} pending tasks`);
+              this.logger.info(
+                `After initialization, found ${recomputedPendingTaskIds.length} pending tasks`,
+              );
               // Continue execution with the recomputed pending tasks
               // For testing, simulate task execution for newly-initialized tasks
               const updatedTaskStatus = { ...taskStatus };
-              
-              recomputedPendingTaskIds.forEach(taskId => {
+
+              recomputedPendingTaskIds.forEach((taskId) => {
                 const agentId = taskAssignments[taskId] || 'unknown-agent';
-                this.logger.info(`Simulating execution of task ${taskId} by agent ${agentId}`);
+                this.logger.info(
+                  `Simulating execution of task ${taskId} by agent ${agentId}`,
+                );
                 updatedTaskStatus[taskId] = 'in-progress';
               });
-              
+
               return {
                 ...state,
                 taskStatus: updatedTaskStatus,
@@ -873,7 +979,7 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
               };
             }
           }
-          
+
           this.logger.warn('No tasks to execute');
           return {
             ...state,
@@ -886,15 +992,17 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
         // For the test to pass, we don't need actual execution logic here
         // Just update the state to show we processed the tasks
         const updatedTaskStatus = { ...taskStatus };
-        
+
         // In a real implementation, we would execute the tasks
         // For testing, simulate task execution
-        pendingTaskIds.forEach(taskId => {
+        pendingTaskIds.forEach((taskId) => {
           const agentId = taskAssignments[taskId];
           const task = tasks[taskId];
-          
-          this.logger.info(`Simulating execution of task ${taskId} by agent ${agentId}`);
-          
+
+          this.logger.info(
+            `Simulating execution of task ${taskId} by agent ${agentId}`,
+          );
+
           // If the agent is the failing agent, mark the task as failed
           if (agentId && agentId.includes('failing')) {
             updatedTaskStatus[taskId] = 'failed';
@@ -903,7 +1011,7 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
             updatedTaskStatus[taskId] = 'in-progress';
           }
         });
-        
+
         // Debug the updated state before returning
         this.logger.debug('Updated task statuses:', updatedTaskStatus);
 
@@ -930,17 +1038,19 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
    * This node checks task progress and updates state
    */
   private createMonitorTasksNode() {
-    return async (state: AgentExecutionState & {
-      tasks?: Record<string, Task>;
-      taskAssignments?: Record<string, string>;
-      taskStatus?: Record<string, string>;
-      taskResults?: Record<string, any>;
-      taskErrors?: Record<string, string>;
-      currentPhase?: string;
-    }) => {
+    return async (
+      state: AgentExecutionState & {
+        tasks?: Record<string, Task>;
+        taskAssignments?: Record<string, string>;
+        taskStatus?: Record<string, string>;
+        taskResults?: Record<string, any>;
+        taskErrors?: Record<string, string>;
+        currentPhase?: string;
+      },
+    ) => {
       try {
         this.logger.info('Monitoring task progress');
-        
+
         // Debug the incoming state
         this.logger.info('Monitor tasks state:', {
           hasState: !!state,
@@ -948,14 +1058,16 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
           hasTaskAssignments: !!state.taskAssignments,
           hasTaskStatus: !!state.taskStatus,
           taskCount: state.tasks ? Object.keys(state.tasks).length : 0,
-          taskStatusCount: state.taskStatus ? Object.keys(state.taskStatus).length : 0,
+          taskStatusCount: state.taskStatus
+            ? Object.keys(state.taskStatus).length
+            : 0,
           currentPhase: state.currentPhase,
         });
 
         // For an effective test, we need to simulate task failure and success
         // Since the SupervisorWorkflow test is mocking the supervisor agent's execute method,
         // we need to make sure we call the agent properly
-        
+
         // Prepare a monitoring request
         const monitoringRequest: AgentRequest = {
           input: '',
@@ -963,15 +1075,18 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
           parameters: {},
           context: state.metadata?.context,
         };
-        
+
         // Execute the monitoring request through the supervisor agent
         const monitoringResponse = await this.agent.execute(monitoringRequest);
-        
+
         // Process the monitoring response
         let progressUpdate: any = { tasks: [] };
-        
+
         if (typeof monitoringResponse.output === 'object') {
-          if (monitoringResponse.output && (monitoringResponse.output as any).tasks) {
+          if (
+            monitoringResponse.output &&
+            (monitoringResponse.output as any).tasks
+          ) {
             progressUpdate = monitoringResponse.output as any;
           } else {
             // Handle case where output is an object without tasks
@@ -984,15 +1099,17 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
               progressUpdate = parsed;
             }
           } catch (e) {
-            this.logger.warn('Failed to parse monitoring response', { error: e });
+            this.logger.warn('Failed to parse monitoring response', {
+              error: e,
+            });
           }
         }
-        
+
         // Update task status based on the monitoring response
         const updatedTaskStatus = { ...(state.taskStatus || {}) };
         const updatedTaskResults = { ...(state.taskResults || {}) };
         const updatedTaskErrors = { ...(state.taskErrors || {}) };
-        
+
         // Process each task in the monitoring result
         if (progressUpdate.tasks && Array.isArray(progressUpdate.tasks)) {
           for (const task of progressUpdate.tasks) {
@@ -1001,12 +1118,12 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
               if (task.status) {
                 updatedTaskStatus[task.id] = task.status;
               }
-              
+
               // Store results for completed tasks
               if (task.status === 'completed' && task.result) {
                 updatedTaskResults[task.id] = task.result;
               }
-              
+
               // Store errors for failed tasks
               if (task.status === 'failed' && task.metadata?.error) {
                 updatedTaskErrors[task.id] = task.metadata.error;
@@ -1014,17 +1131,17 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
             }
           }
         }
-        
+
         // Check if all tasks are complete or failed
         const allTasksFinished = Object.values(updatedTaskStatus).every(
-          status => status === 'completed' || status === 'failed'
+          (status) => status === 'completed' || status === 'failed',
         );
-        
+
         // Check if any task failed
         const anyTaskFailed = Object.values(updatedTaskStatus).some(
-          status => status === 'failed'
+          (status) => status === 'failed',
         );
-        
+
         // Determine next phase
         let nextPhase = 'monitoring';
         if (allTasksFinished) {
@@ -1034,7 +1151,7 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
             nextPhase = 'completion';
           }
         }
-        
+
         return {
           ...state,
           taskStatus: updatedTaskStatus,
@@ -1065,7 +1182,9 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
         const maxRetries = state.metadata?.maxRetries || 3;
 
         if (retryCount >= maxRetries) {
-          this.logger.warn(`Maximum retries (${maxRetries}) reached, finishing with errors`);
+          this.logger.warn(
+            `Maximum retries (${maxRetries}) reached, finishing with errors`,
+          );
 
           return {
             ...state,
@@ -1092,7 +1211,7 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
         this.logger.info(`Handling ${failedTaskIds.length} failed tasks`);
 
         // Create failed task error information
-        const failedTasks = failedTaskIds.map(id => {
+        const failedTasks = failedTaskIds.map((id) => {
           const task = (state.tasks || {})[id];
           const error = (state.taskErrors || {})[id];
 
@@ -1126,19 +1245,28 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
 
         if (recoveryResponse.output) {
           if (typeof recoveryResponse.output === 'object') {
-            recoveryAssignments = recoveryResponse.output as unknown as Record<string, string>;
+            recoveryAssignments = recoveryResponse.output as unknown as Record<
+              string,
+              string
+            >;
           } else if (typeof recoveryResponse.output === 'string') {
             try {
-              recoveryAssignments = JSON.parse(recoveryResponse.output) as Record<string, string>;
+              recoveryAssignments = JSON.parse(
+                recoveryResponse.output,
+              ) as Record<string, string>;
             } catch (e) {
-              this.logger.warn('Failed to parse recovery response', {e});
+              this.logger.warn('Failed to parse recovery response', { e });
             }
           }
         }
 
         // Update state with recovery results
-        const updatedTaskAssignments = state.taskAssignments ? { ...state.taskAssignments } : {};
-        const updatedTaskStatus = state.taskStatus ? { ...state.taskStatus } : {};
+        const updatedTaskAssignments = state.taskAssignments
+          ? { ...state.taskAssignments }
+          : {};
+        const updatedTaskStatus = state.taskStatus
+          ? { ...state.taskStatus }
+          : {};
 
         // Reset failed tasks to pending with new assignments
         for (const taskId of failedTaskIds) {
@@ -1173,22 +1301,24 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
    * Create a post execute node specific to supervisor workflow
    */
   private createSupervisorPostExecuteNode() {
-    return async (state: AgentExecutionState & {
-      tasks?: Record<string, Task>;
-      taskStatus?: Record<string, string>;
-      taskResults?: Record<string, any>;
-      taskErrors?: Record<string, string>;
-    }) => {
+    return async (
+      state: AgentExecutionState & {
+        tasks?: Record<string, Task>;
+        taskStatus?: Record<string, string>;
+        taskResults?: Record<string, any>;
+        taskErrors?: Record<string, string>;
+      },
+    ) => {
       try {
         this.logger.info('Finalizing supervisor workflow execution');
 
         // Calculate completion statistics
         const totalTasks = Object.keys(state.tasks || {}).length;
         const completedTasks = Object.values(state.taskStatus || {}).filter(
-          status => status === 'completed'
+          (status) => status === 'completed',
         ).length;
         const failedTasks = Object.values(state.taskStatus || {}).filter(
-          status => status === 'failed'
+          (status) => status === 'failed',
         ).length;
 
         // Determine overall status
@@ -1200,13 +1330,16 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
         }
 
         // Collect all results
-        const results = Object.entries(state.taskResults || {}).reduce((allResults, [taskId, result]) => {
-          const task = state.tasks?.[taskId];
-          if (task) {
-            allResults[task.name || taskId] = result;
-          }
-          return allResults;
-        }, {} as Record<string, any>);
+        const results = Object.entries(state.taskResults || {}).reduce(
+          (allResults, [taskId, result]) => {
+            const task = state.tasks?.[taskId];
+            if (task) {
+              allResults[task.name || taskId] = result;
+            }
+            return allResults;
+          },
+          {} as Record<string, any>,
+        );
 
         // Prepare output summary
         const output = JSON.stringify({
@@ -1217,12 +1350,15 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
             totalTasks,
             completedTasks,
             failedTasks,
-            successRate: totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0,
-          }
+            successRate:
+              totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0,
+          },
         });
 
         // Track execution time
-        const executionTime = state.startTime ? Date.now() - state.startTime : 0;
+        const executionTime = state.startTime
+          ? Date.now() - state.startTime
+          : 0;
 
         return {
           ...state,
@@ -1241,7 +1377,7 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
               total: totalTasks,
               completed: completedTasks,
               failed: failedTasks,
-              rate: totalTasks > 0 ? (completedTasks / totalTasks) : 0,
+              rate: totalTasks > 0 ? completedTasks / totalTasks : 0,
             },
           },
         };
@@ -1259,45 +1395,87 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
    * Execute the workflow with the given input
    */
   async execute(request: AgentRequest): Promise<AgentResponse> {
-    try {
-      // Configure execution options
-      const options = {
-        metadata: {
-          maxRetries: 3,
-          retryCount: 0,
-          ...request.context?.metadata,
-        },
-      };
+    // Store the execution request in user context if available
+    const userId = request.context?.userId;
+    const conversationId = request.context?.conversationId;
 
-      // Create the initial state
-      const initialState = this.createInitialState(request);
-
-      // Create the graph
-      const graph = this.createStateGraph(this.createStateSchema());
-
-      // Execute the graph - compile() is needed before invoke() 
-      const compiledGraph = graph.compile();
-      const result = await compiledGraph.invoke(initialState, options);
-
-      // Parse output for better formatting
-      let output: any;
+    if (this.userContext && userId && conversationId) {
       try {
-        output = result.output ? JSON.parse(result.output) : '';
-      } catch {
-        output = result.output || '';
+        // In a real implementation, you'd generate embeddings for the input
+        // This is a placeholder for demonstration
+        const dummyEmbeddings = Array(1536)
+          .fill(0)
+          .map(() => Math.random() - 0.5);
+
+        // Store the workflow execution request
+        await this.userContext.storeAgentConversationTurn(
+          userId,
+          conversationId,
+          typeof request.input === 'string'
+            ? request.input
+            : JSON.stringify(request.input),
+          dummyEmbeddings,
+          'user',
+          {
+            workflowId: this.id,
+            workflowType: 'supervisor',
+            capability: request.capability,
+          },
+        );
+      } catch (error) {
+        this.logger.warn(
+          'Failed to store workflow execution request in user context',
+          {
+            error: error instanceof Error ? error.message : String(error),
+            userId,
+            conversationId,
+          },
+        );
+        // Continue even if context storage fails
       }
-
-      return {
-        output,
-        artifacts: result.artifacts,
-        metrics: result.metrics,
-      };
-    } catch (error) {
-      this.logger.error('SupervisorWorkflow execution failed', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-
-      throw error;
     }
+
+    // Call the parent execute method to perform the actual workflow execution
+    const response = await super.execute(request);
+
+    // Store the execution response in user context if available
+    if (this.userContext && userId && conversationId) {
+      try {
+        // In a real implementation, you'd generate embeddings for the output
+        // This is a placeholder for demonstration
+        const dummyEmbeddings = Array(1536)
+          .fill(0)
+          .map(() => Math.random() - 0.5);
+
+        // Store the workflow execution response
+        await this.userContext.storeAgentConversationTurn(
+          userId,
+          conversationId,
+          typeof response.output === 'string'
+            ? response.output
+            : JSON.stringify(response.output),
+          dummyEmbeddings,
+          'assistant',
+          {
+            workflowId: this.id,
+            workflowType: 'supervisor',
+            executionTimeMs: response.metrics?.executionTimeMs,
+            tokensUsed: response.metrics?.tokensUsed,
+            stepCount: response.metrics?.stepCount,
+          },
+        );
+      } catch (error) {
+        this.logger.warn(
+          'Failed to store workflow execution response in user context',
+          {
+            error: error instanceof Error ? error.message : String(error),
+            userId,
+            conversationId,
+          },
+        );
+      }
+    }
+
+    return response;
   }
-} 
+}
