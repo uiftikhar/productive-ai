@@ -18,27 +18,7 @@ import { v4 as uuidv4 } from 'uuid';
  * Interface for SupervisorWorkflow state
  * Extends AgentExecutionState with supervisor-specific fields
  */
-export interface SupervisorExecutionState {
-  // Core fields inherited from BaseWorkflowState
-  id: string;
-  runId: string;
-  status: string;
-  startTime: number;
-  endTime?: number;
-  errorCount: number;
-  errors: any[];
-  metrics: Record<string, any>;
-  metadata: Record<string, any>;
-
-  // Agent fields inherited from AgentExecutionState
-  agentId: string;
-  input: string;
-  capability?: string;
-  parameters?: Record<string, any>;
-  output?: string;
-  artifacts?: Record<string, any>;
-  messages: any[];
-
+export interface SupervisorExecutionState extends AgentExecutionState {
   // Supervisor-specific fields
   teamMembers: string[]; // IDs of team member agents
   tasks: Record<string, Task>; // Tasks mapped by task ID
@@ -50,6 +30,17 @@ export interface SupervisorExecutionState {
   planId?: string; // ID of the current task plan
   executionStrategy?: 'sequential' | 'parallel' | 'prioritized';
   taskList?: Task[];
+  
+  // Additional fields needed by the workflow
+  taskRetryCount?: Record<string, number>; // Count of retries for each task
+  completedTasks?: string[]; // List of completed task IDs
+  failedTasks?: string[]; // List of failed task IDs
+  inProgressTasks?: string[]; // List of in-progress task IDs
+  allTasksComplete?: boolean; // Whether all tasks are complete
+  error?: string; // Error message if workflow failed
+  config?: Record<string, any>; // Configuration options
+  inputContext?: any; // Context for input
+  outputs?: Record<string, any>; // Output data
 }
 
 /**
@@ -81,42 +72,97 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
    * Extends the base agent schema with supervisor-specific fields
    */
   protected createStateSchema() {
+    // Get the base schema from the parent class
     const baseSchema = super.createStateSchema();
-
+    
+    // Add the supervisor-specific fields to the schema
+    // Using the same pattern as in the parent class
     return {
       ...baseSchema,
-      // Add additional supervisor-specific fields
       teamMembers: Annotation<string[]>({
         default: () => [],
-        reducer: (curr, update) => update || curr,
+        value: (curr, update) => update || curr || [],
       }),
       tasks: Annotation<Record<string, Task>>({
         default: () => ({}),
-        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+        value: (curr, update) => {
+          if (!curr || Object.keys(curr).length === 0) {
+            return update || {};
+          }
+          if (!update || Object.keys(update).length === 0) {
+            return curr;
+          }
+          return { ...curr, ...update };
+        },
+      }),
+      taskList: Annotation<Task[]>({
+        default: () => [],
+        value: (curr, update) => update || curr || [],
       }),
       taskAssignments: Annotation<Record<string, string>>({
         default: () => ({}),
-        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+        value: (curr, update) => update ? { ...(curr || {}), ...update } : (curr || {}),
       }),
       taskStatus: Annotation<Record<string, string>>({
         default: () => ({}),
-        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+        value: (curr, update) => update ? { ...(curr || {}), ...update } : (curr || {}),
       }),
       taskResults: Annotation<Record<string, any>>({
         default: () => ({}),
-        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+        value: (curr, update) => update ? { ...(curr || {}), ...update } : (curr || {}),
       }),
       taskErrors: Annotation<Record<string, string>>({
         default: () => ({}),
-        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+        value: (curr, update) => update ? { ...(curr || {}), ...update } : (curr || {}),
+      }),
+      taskRetryCount: Annotation<Record<string, number>>({
+        default: () => ({}),
+        value: (curr, update) => update ? { ...(curr || {}), ...update } : (curr || {}),
+      }),
+      completedTasks: Annotation<string[]>({
+        default: () => [],
+        value: (curr, update) => update || curr || [],
+      }),
+      failedTasks: Annotation<string[]>({
+        default: () => [],
+        value: (curr, update) => update || curr || [],
+      }),
+      inProgressTasks: Annotation<string[]>({
+        default: () => [],
+        value: (curr, update) => update || curr || [],
+      }),
+      allTasksComplete: Annotation<boolean>({
+        default: () => false,
+        value: (curr, update) => update !== undefined ? update : (curr || false),
+      }),
+      error: Annotation<string | undefined>({
+        default: () => undefined,
+        value: (curr, update) => update !== undefined ? update : curr,
+      }),
+      config: Annotation<Record<string, any>>({
+        default: () => ({}),
+        value: (curr, update) => update ? { ...(curr || {}), ...update } : (curr || {}),
+      }),
+      inputContext: Annotation<any>({
+        default: () => null,
+        value: (curr, update) => update !== undefined ? update : curr,
+      }),
+      outputs: Annotation<Record<string, any>>({
+        default: () => ({}),
+        value: (curr, update) => update ? { ...(curr || {}), ...update } : (curr || {}),
       }),
       currentPhase: Annotation<'planning' | 'delegation' | 'execution' | 'monitoring' | 'completion'>({
         default: () => 'planning',
-        reducer: (curr, update) => update || curr,
+        value: (curr, update) => update !== undefined ? update : (curr || 'planning'),
       }),
-      planId: Annotation<string | undefined>(),
-      executionStrategy: Annotation<'sequential' | 'parallel' | 'prioritized' | undefined>(),
-      taskList: Annotation<Task[] | undefined>(),
+      planId: Annotation<string | undefined>({
+        default: () => undefined,
+        value: (curr, update) => update !== undefined ? update : curr,
+      }),
+      executionStrategy: Annotation<'sequential' | 'parallel' | 'prioritized' | undefined>({
+        default: () => undefined,
+        value: (curr, update) => update !== undefined ? update : curr,
+      }),
     };
   }
 
