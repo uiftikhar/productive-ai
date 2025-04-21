@@ -275,12 +275,12 @@ describe('ClassifierFactory', () => {
   });
   
   describe('configuration', () => {
-    test('should set telemetry handler', () => {
+    test('should set telemetry handler', async () => {
       const newHandler = jest.fn();
       factory.setTelemetryHandler(newHandler);
       
       // Trigger classification to check handler
-      factory.classify('test', []);
+      await factory.classify('test', []);
       
       expect(newHandler).toHaveBeenCalled();
       expect(mockLogger.hasMessage('Telemetry handler set')).toBe(true);

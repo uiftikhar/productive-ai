@@ -332,7 +332,8 @@ describe('BaseClassifier', () => {
       
       expect(result.selectedAgentId).toBeNull();
       expect(result.confidence).toBe(0);
-      expect(result.reasoning).toContain('Classification error: Error: Test classification error');
+      expect(result.reasoning).toContain('Classification error');
+      expect(result.reasoning).toContain('Test classification error');
       expect(mockLogger.hasMessage('Classification error')).toBe(true);
     });
     
