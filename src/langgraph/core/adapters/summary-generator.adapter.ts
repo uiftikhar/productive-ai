@@ -129,21 +129,24 @@ export class SummaryGeneratorAdapter extends BaseLangGraphAdapter<
       status: Annotation<string>(),
       startTime: Annotation<number>(),
       endTime: Annotation<number | undefined>(),
-      errorCount: Annotation<number>(),
+      errorCount: Annotation<number>({
+        default: () => 0,
+        value: (curr, update) => (curr || 0) + (update || 0),
+      }),
       errors: Annotation<any[]>({
         default: () => [],
-        reducer: (curr, update) => [
+        value: (curr, update) => [
           ...(curr || []),
           ...(Array.isArray(update) ? update : [update]),
         ],
       }),
       metrics: Annotation<any>({
         default: () => ({}),
-        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+        value: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
       }),
       metadata: Annotation<Record<string, any>>({
         default: () => ({}),
-        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+        value: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
       }),
 
       // Summary-specific fields
@@ -164,7 +167,7 @@ export class SummaryGeneratorAdapter extends BaseLangGraphAdapter<
       }),
       partialSummaries: Annotation<string[]>({
         default: () => [],
-        reducer: (curr, update) => [
+        value: (curr, update) => [
           ...(curr || []),
           ...(Array.isArray(update) ? update : [update]),
         ],

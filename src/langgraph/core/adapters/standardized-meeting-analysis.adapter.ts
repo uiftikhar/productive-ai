@@ -1,4 +1,4 @@
-import { Annotation, StateGraph, START, END } from '@langchain/langgraph';
+import { Annotation, AnnotationRoot, StateGraph, START, END } from '@langchain/langgraph';
 
 import {
   BaseLangGraphAdapter,
