@@ -4,7 +4,7 @@
 
 /**
  * Default prompt template for agent classification
- * 
+ *
  * This template is used to classify user queries to determine which specialized agent
  * is best suited to handle the request.
  */
@@ -46,7 +46,7 @@ Skip any preamble and provide only the JSON response.
 
 /**
  * Classifier template for follow-up detection
- * 
+ *
  * Specialized template focusing on detecting if the current message is a follow-up
  * to a previous conversation.
  */
@@ -82,7 +82,7 @@ Skip any preamble and provide only the JSON response.
 
 /**
  * Template for specialized agent classification
- * 
+ *
  * Used for classifying intents within a specific domain or for a specific agent's capabilities.
  */
 export const SPECIALIZED_CLASSIFIER_TEMPLATE = `
@@ -120,4 +120,4 @@ Skip any preamble and provide only the JSON response.
 
 /**
  * Additional templates can be added here as the classification needs expand
- */ 
+ */

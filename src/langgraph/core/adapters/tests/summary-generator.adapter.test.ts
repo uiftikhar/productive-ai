@@ -1,4 +1,7 @@
-import { SummaryGeneratorAdapter, SummaryGenerationState } from '../summary-generator.adapter';
+import {
+  SummaryGeneratorAdapter,
+  SummaryGenerationState,
+} from '../summary-generator.adapter';
 import { BaseAgent } from '../../../../agents/base/base-agent';
 import { WorkflowStatus } from '../base-langgraph.adapter';
 import { AgentWorkflow } from '../../workflows/agent-workflow';
@@ -33,11 +36,17 @@ describe('SummaryGeneratorAdapter Unit Tests', () => {
       description: 'Agent for generating summaries',
       capabilities: [
         { name: 'summarize-chunk', description: 'Summarize content chunks' },
-        { name: 'generate-final-summary', description: 'Generate final summary' },
+        {
+          name: 'generate-final-summary',
+          description: 'Generate final summary',
+        },
       ],
       getCapabilities: jest.fn().mockReturnValue([
         { name: 'summarize-chunk', description: 'Summarize content chunks' },
-        { name: 'generate-final-summary', description: 'Generate final summary' },
+        {
+          name: 'generate-final-summary',
+          description: 'Generate final summary',
+        },
       ]),
       canHandle: jest.fn().mockReturnValue(true),
       execute: jest.fn().mockResolvedValue({ output: 'Test summary' }),
@@ -57,7 +66,9 @@ describe('SummaryGeneratorAdapter Unit Tests', () => {
     } as unknown as jest.Mocked<AgentWorkflow>;
 
     // Mock AgentWorkflow constructor
-    (AgentWorkflow as unknown as jest.Mock).mockImplementation(() => mockAgentWorkflow);
+    (AgentWorkflow as unknown as jest.Mock).mockImplementation(
+      () => mockAgentWorkflow,
+    );
 
     // Create the adapter instance
     adapter = new SummaryGeneratorAdapter(mockAgent, {
@@ -72,12 +83,12 @@ describe('SummaryGeneratorAdapter Unit Tests', () => {
     test('should create a valid state schema', () => {
       // Access private method using type assertion
       const schema = (adapter as any).createStateSchema();
-      
+
       // Verify schema exists and has the expected type
       expect(schema).toBeDefined();
-      expect(schema.lc_graph_name).toBe("AnnotationRoot");
+      expect(schema.lc_graph_name).toBe('AnnotationRoot');
       expect(schema.spec).toBeDefined();
-      
+
       // Check that the schema spec contains the expected fields
       expect(schema.spec).toHaveProperty('id');
       expect(schema.spec).toHaveProperty('runId');
@@ -178,20 +189,20 @@ describe('SummaryGeneratorAdapter Unit Tests', () => {
       const prepareContentNode = jest.fn().mockImplementation(() => {
         return {
           chunks: ['A'.repeat(1000), 'A'.repeat(1000), 'A'.repeat(500)],
-          status: WorkflowStatus.READY
+          status: WorkflowStatus.READY,
         };
       });
 
       // Assign the mock to the adapter
       (adapter as any).createPrepareContentNode = () => prepareContentNode;
-      
+
       // Call the mocked function
       const result = await prepareContentNode(state);
 
       // Verify state changes
       expect(result.chunks).toBeDefined();
       expect(result.chunks.length).toBeGreaterThan(1);
-      expect(result.chunks[0].length).toBe(1000); 
+      expect(result.chunks[0].length).toBe(1000);
       expect(result.status).toBe(WorkflowStatus.READY);
     });
 
@@ -239,7 +250,9 @@ describe('SummaryGeneratorAdapter Unit Tests', () => {
       });
 
       // Verify state changes
-      expect(result.partialSummaries).toEqual(['Summary of chunk 1: key information extracted']);
+      expect(result.partialSummaries).toEqual([
+        'Summary of chunk 1: key information extracted',
+      ]);
       expect(result.metrics).toEqual({ tokensUsed: 35 });
       expect(result.status).toBe(WorkflowStatus.READY);
     });
@@ -284,7 +297,8 @@ describe('SummaryGeneratorAdapter Unit Tests', () => {
 
       // Set up JSON response for final summary
       const jsonSummary = {
-        summary: 'This is a comprehensive summary of the document, covering both introduction and key findings.',
+        summary:
+          'This is a comprehensive summary of the document, covering both introduction and key findings.',
         keypoints: ['Key finding 1', 'Key finding 2', 'Key finding 3'],
         tags: ['report', 'analysis', 'findings'],
       };
@@ -299,7 +313,9 @@ describe('SummaryGeneratorAdapter Unit Tests', () => {
       });
 
       // Access private method using type assertion
-      const generateFinalSummaryNode = (adapter as any).createGenerateFinalSummaryNode();
+      const generateFinalSummaryNode = (
+        adapter as any
+      ).createGenerateFinalSummaryNode();
       const result = await generateFinalSummaryNode(state);
 
       // Verify agent workflow was called with correct parameters
@@ -335,27 +351,31 @@ describe('SummaryGeneratorAdapter Unit Tests', () => {
       // Create a mock function that always returns a fixed valid response
       const mockGenerateFinalSummary = jest.fn().mockImplementation(() => {
         return {
-          generatedSummary: 'This is a plain text summary that is not valid JSON',
+          generatedSummary:
+            'This is a plain text summary that is not valid JSON',
           keypoints: [],
           tags: [],
           metrics: {
-            tokensUsed: 80 // 50 + 30
+            tokensUsed: 80, // 50 + 30
           },
           status: WorkflowStatus.READY,
         };
       });
-      
+
       // Assign the mock to the adapter
-      (adapter as any).createGenerateFinalSummaryNode = () => mockGenerateFinalSummary;
+      (adapter as any).createGenerateFinalSummaryNode = () =>
+        mockGenerateFinalSummary;
 
       // Call the mocked function
       const result = await mockGenerateFinalSummary(state);
 
       // Verify the mock was called
       expect(mockGenerateFinalSummary).toHaveBeenCalled();
-      
+
       // Verify state changes from the mock
-      expect(result.generatedSummary).toBe('This is a plain text summary that is not valid JSON');
+      expect(result.generatedSummary).toBe(
+        'This is a plain text summary that is not valid JSON',
+      );
       expect(result.keypoints).toEqual([]);
       expect(result.tags).toEqual([]);
       expect(result.metrics.tokensUsed).toBe(80); // This is from our mock
@@ -383,7 +403,7 @@ describe('SummaryGeneratorAdapter Unit Tests', () => {
       // Verify state changes
       expect(result.status).toBe(WorkflowStatus.COMPLETED);
       expect(result.endTime).toBeDefined();
-      
+
       // Verify logger was called with storage request info
       expect(mockLogger.info).toHaveBeenCalled();
       expect(mockLogger.debug).toHaveBeenCalled();
@@ -450,7 +470,7 @@ describe('SummaryGeneratorAdapter Unit Tests', () => {
             code: 'EXECUTION_ERROR',
             node: 'generate_final_summary',
             timestamp: new Date().toISOString(),
-          }
+          },
         ],
         metadata: {},
       };
@@ -469,15 +489,17 @@ describe('SummaryGeneratorAdapter Unit Tests', () => {
   describe('generateSummary method', () => {
     test('should execute workflow correctly', async () => {
       // We'll mock the execute method since it handles the workflow execution
-      const mockExecute = jest.spyOn(adapter as any, 'execute').mockResolvedValueOnce({
-        documentId: 'test-doc-123',
-        userId: 'test-user',
-        summary: 'This is a test summary',
-        keypoints: ['Point 1', 'Point 2'],
-        tags: ['tag1', 'tag2'],
-        status: 'completed',
-        success: true,
-      });
+      const mockExecute = jest
+        .spyOn(adapter as any, 'execute')
+        .mockResolvedValueOnce({
+          documentId: 'test-doc-123',
+          userId: 'test-user',
+          summary: 'This is a test summary',
+          keypoints: ['Point 1', 'Point 2'],
+          tags: ['tag1', 'tag2'],
+          status: 'completed',
+          success: true,
+        });
 
       const params = {
         documentId: 'test-doc-123',
@@ -497,4 +519,4 @@ describe('SummaryGeneratorAdapter Unit Tests', () => {
       expect(result.success).toBe(true);
     });
   });
-}); 
+});

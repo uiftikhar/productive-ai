@@ -1,4 +1,7 @@
-import { ConversationAdapter, ConversationState } from '../conversation.adapter';
+import {
+  ConversationAdapter,
+  ConversationState,
+} from '../conversation.adapter';
 import { BaseAgent } from '../../../../agents/base/base-agent';
 import { WorkflowStatus } from '../base-langgraph.adapter';
 import { AgentWorkflow } from '../../workflows/agent-workflow';
@@ -31,8 +34,14 @@ describe('ConversationAdapter Unit Tests', () => {
       id: 'test-agent',
       name: 'Test Agent',
       description: 'Agent for testing',
-      capabilities: [{ name: 'test-capability', description: 'Test capability' }],
-      getCapabilities: jest.fn().mockReturnValue([{ name: 'test-capability', description: 'Test capability' }]),
+      capabilities: [
+        { name: 'test-capability', description: 'Test capability' },
+      ],
+      getCapabilities: jest
+        .fn()
+        .mockReturnValue([
+          { name: 'test-capability', description: 'Test capability' },
+        ]),
       canHandle: jest.fn().mockReturnValue(true),
       execute: jest.fn().mockResolvedValue({ output: 'Test response' }),
       initialize: jest.fn().mockResolvedValue(undefined),
@@ -51,7 +60,9 @@ describe('ConversationAdapter Unit Tests', () => {
     } as unknown as jest.Mocked<AgentWorkflow>;
 
     // Mock AgentWorkflow constructor
-    (AgentWorkflow as unknown as jest.Mock).mockImplementation(() => mockAgentWorkflow);
+    (AgentWorkflow as unknown as jest.Mock).mockImplementation(
+      () => mockAgentWorkflow,
+    );
 
     // Create the adapter instance
     adapter = new ConversationAdapter(mockAgent, {
@@ -64,12 +75,12 @@ describe('ConversationAdapter Unit Tests', () => {
     test('should create a valid state schema', () => {
       // Access private method using type assertion
       const schema = (adapter as any).createStateSchema();
-      
+
       // Verify schema exists and has the expected type
       expect(schema).toBeDefined();
-      expect(schema.lc_graph_name).toBe("AnnotationRoot");
+      expect(schema.lc_graph_name).toBe('AnnotationRoot');
       expect(schema.spec).toBeDefined();
-      
+
       // Check that the schema spec contains the expected fields
       expect(schema.spec).toHaveProperty('id');
       expect(schema.spec).toHaveProperty('runId');
@@ -164,7 +175,7 @@ describe('ConversationAdapter Unit Tests', () => {
       expect(result.status).toBe(WorkflowStatus.EXECUTING);
       expect(result.thinking).toBe(true);
     });
-    
+
     test('generate response node should call agent workflow and update state', async () => {
       // Create a message state for testing
       const state: Partial<ConversationState> = {
@@ -175,13 +186,19 @@ describe('ConversationAdapter Unit Tests', () => {
         userInput: 'Hello, agent!',
         metadata: { capability: 'test-capability' },
         messages: [
-          { role: 'user', content: 'Hello, agent!', timestamp: new Date().toISOString() }
+          {
+            role: 'user',
+            content: 'Hello, agent!',
+            timestamp: new Date().toISOString(),
+          },
         ],
         context: { testKey: 'testValue' },
       };
 
       // Access private method using type assertion
-      const generateResponseNode = (adapter as any).createGenerateResponseNode();
+      const generateResponseNode = (
+        adapter as any
+      ).createGenerateResponseNode();
       const result = await generateResponseNode(state);
 
       // Verify agent workflow was called with correct parameters
@@ -243,7 +260,7 @@ describe('ConversationAdapter Unit Tests', () => {
             code: 'TEST_ERROR',
             node: 'generate_response',
             timestamp: new Date().toISOString(),
-          }
+          },
         ],
       };
 
@@ -270,8 +287,16 @@ describe('ConversationAdapter Unit Tests', () => {
         endTime: Date.now(),
         errorCount: 0,
         messages: [
-          { role: 'user', content: 'Hello', timestamp: new Date().toISOString() },
-          { role: 'assistant', content: 'Hi there!', timestamp: new Date().toISOString() },
+          {
+            role: 'user',
+            content: 'Hello',
+            timestamp: new Date().toISOString(),
+          },
+          {
+            role: 'assistant',
+            content: 'Hi there!',
+            timestamp: new Date().toISOString(),
+          },
         ],
         currentMessageIndex: 1,
         thinking: false,
@@ -313,10 +338,14 @@ describe('ConversationAdapter Unit Tests', () => {
             code: 'EXECUTION_ERROR',
             node: 'generate_response',
             timestamp: new Date().toISOString(),
-          }
+          },
         ],
         messages: [
-          { role: 'user', content: 'Hello', timestamp: new Date().toISOString() },
+          {
+            role: 'user',
+            content: 'Hello',
+            timestamp: new Date().toISOString(),
+          },
         ],
         currentMessageIndex: 0,
         thinking: false,
@@ -341,14 +370,16 @@ describe('ConversationAdapter Unit Tests', () => {
   describe('sendMessage method', () => {
     test('should execute workflow correctly', async () => {
       // We'll mock the execute method since it handles the workflow execution
-      const mockExecute = jest.spyOn(adapter as any, 'execute').mockResolvedValueOnce({
-        conversationId: 'test-conversation',
-        userId: 'test-user',
-        message: 'Hello',
-        response: 'Hi there!',
-        status: 'completed',
-        success: true,
-      });
+      const mockExecute = jest
+        .spyOn(adapter as any, 'execute')
+        .mockResolvedValueOnce({
+          conversationId: 'test-conversation',
+          userId: 'test-user',
+          message: 'Hello',
+          response: 'Hi there!',
+          status: 'completed',
+          success: true,
+        });
 
       const params = {
         message: 'Hello',
@@ -365,4 +396,4 @@ describe('ConversationAdapter Unit Tests', () => {
       expect(result.success).toBe(true);
     });
   });
-}); 
+});

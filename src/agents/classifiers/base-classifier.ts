@@ -1,6 +1,14 @@
-import { ClassifierInterface, ClassifierOptions, ClassifierResult, TemplateVariables } from '../interfaces/classifier.interface';
+import {
+  ClassifierInterface,
+  ClassifierOptions,
+  ClassifierResult,
+  TemplateVariables,
+} from '../interfaces/classifier.interface';
 import { BaseAgentInterface } from '../interfaces/base-agent.interface';
-import { ConversationMessage, ParticipantRole } from '../types/conversation.types';
+import {
+  ConversationMessage,
+  ParticipantRole,
+} from '../types/conversation.types';
 import { Logger } from '../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { DEFAULT_CLASSIFIER_TEMPLATE } from './templates/classifier-templates';
@@ -53,7 +61,7 @@ export abstract class BaseClassifier implements ClassifierInterface {
   protected agentDescriptions: string;
   protected promptTemplate: string;
   protected options: ClassifierOptions;
-  
+
   /**
    * Create a new classifier
    */
@@ -64,35 +72,35 @@ export abstract class BaseClassifier implements ClassifierInterface {
     this.agentDescriptions = '';
     this.promptTemplate = options.promptTemplate || DEFAULT_CLASSIFIER_TEMPLATE;
   }
-  
+
   /**
    * Initialize the classifier
    */
   async initialize(options?: Record<string, any>): Promise<void> {
     this.logger.debug('Initializing classifier', { options });
-    
+
     // Override options if provided
     if (options) {
       this.options = { ...this.options, ...options };
     }
   }
-  
+
   /**
    * Set the available agents for classification
    */
   setAgents(agents: Record<string, BaseAgentInterface>): void {
     this.agents = agents;
-    
+
     // Format agent descriptions for the prompt
     this.agentDescriptions = Object.entries(agents)
       .map(([id, agent]) => `${id}: ${agent.description}`)
       .join('\n\n');
-      
-    this.logger.debug('Set agents for classification', { 
-      agentCount: Object.keys(agents).length 
+
+    this.logger.debug('Set agents for classification', {
+      agentCount: Object.keys(agents).length,
     });
   }
-  
+
   /**
    * Set a custom prompt template for classification
    */
@@ -100,30 +108,31 @@ export abstract class BaseClassifier implements ClassifierInterface {
     this.promptTemplate = template;
     this.logger.debug('Set custom prompt template');
   }
-  
+
   /**
    * Classify user input to determine the most appropriate agent
    */
   async classify(
     input: string,
     conversationHistory: ConversationMessage[],
-    metadata?: Record<string, any>
+    metadata?: Record<string, any>,
   ): Promise<ClassifierResult> {
     const startTime = Date.now();
-    
+
     try {
-      this.logger.debug('Classifying input', { 
+      this.logger.debug('Classifying input', {
         inputLength: input.length,
         historyLength: conversationHistory.length,
-        metadata
+        metadata,
       });
-      
+
       // Check for previous agent in conversation history
       const previousAgent = this.findPreviousAgent(conversationHistory);
-      
+
       // Prepare the formatted conversation history
-      const formattedHistory = this.formatConversationHistory(conversationHistory);
-      
+      const formattedHistory =
+        this.formatConversationHistory(conversationHistory);
+
       // Format template variables
       const variables: TemplateVariables = {
         AGENT_DESCRIPTIONS: this.agentDescriptions,
@@ -131,44 +140,50 @@ export abstract class BaseClassifier implements ClassifierInterface {
         PREVIOUS_AGENT: previousAgent || '',
         USER_INPUT: input,
       };
-      
+
       // Apply maximum retries for classification
       const maxRetries = this.options.maxRetries || 3;
       let retries = 0;
       let error: Error | null = null;
-      
+
       while (retries < maxRetries) {
         try {
           // Call the classifier implementation
-          const result = await this.classifyInternal(input, conversationHistory, variables, metadata);
-          
+          const result = await this.classifyInternal(
+            input,
+            conversationHistory,
+            variables,
+            metadata,
+          );
+
           // Log the result
           const executionTime = Date.now() - startTime;
           this.logger.debug('Classification completed', {
             executionTimeMs: executionTime,
             selectedAgent: result.selectedAgentId,
-            confidence: result.confidence
+            confidence: result.confidence,
           });
-          
+
           return result;
         } catch (err) {
           retries++;
           error = err as Error;
-          this.logger.warn(`Classification attempt ${retries} failed`, { error });
-          
+          this.logger.warn(`Classification attempt ${retries} failed`, {
+            error,
+          });
+
           // Slight delay before retry
           if (retries < maxRetries) {
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise((resolve) => setTimeout(resolve, 500));
           }
         }
       }
-      
+
       // If we get here, all retries failed
       throw error || new Error('Classification failed after all retries');
-      
     } catch (error) {
       this.logger.error('Classification error', { error });
-      
+
       // Return a default "no match" result
       return {
         selectedAgentId: null,
@@ -176,26 +191,27 @@ export abstract class BaseClassifier implements ClassifierInterface {
         reasoning: `Classification error: ${error instanceof Error ? error.message : String(error)}`,
         isFollowUp: false,
         entities: [],
-        intent: ''
+        intent: '',
       };
     }
   }
-  
+
   /**
    * Format conversation history for the prompt
    */
   protected formatConversationHistory(history: ConversationMessage[]): string {
     return history
-      .map(msg => {
-        const role = msg.role === ParticipantRole.ASSISTANT 
-          ? `Assistant${msg.agentId ? ` [${msg.agentId}]` : ''}` 
-          : msg.role;
-          
+      .map((msg) => {
+        const role =
+          msg.role === ParticipantRole.ASSISTANT
+            ? `Assistant${msg.agentId ? ` [${msg.agentId}]` : ''}`
+            : msg.role;
+
         return `${role}: ${msg.content}`;
       })
       .join('\n');
   }
-  
+
   /**
    * Find the most recent agent ID in the conversation history
    */
@@ -209,28 +225,31 @@ export abstract class BaseClassifier implements ClassifierInterface {
     }
     return null;
   }
-  
+
   /**
    * Fill template placeholders with values
    */
-  protected fillTemplate(template: string, variables: TemplateVariables): string {
+  protected fillTemplate(
+    template: string,
+    variables: TemplateVariables,
+  ): string {
     let filledTemplate = template;
-    
+
     // First pass: replace known variables
     for (const [key, value] of Object.entries(variables)) {
       const placeholder = `{{${key}}}`;
       filledTemplate = filledTemplate.replace(
-        new RegExp(placeholder, 'g'), 
-        value !== undefined && value !== null ? String(value) : ''
+        new RegExp(placeholder, 'g'),
+        value !== undefined && value !== null ? String(value) : '',
       );
     }
-    
+
     // Second pass: replace any remaining template variables with empty strings
     filledTemplate = filledTemplate.replace(/\{\{[^}]+\}\}/g, '');
-    
+
     return filledTemplate;
   }
-  
+
   /**
    * Internal classification implementation to be provided by subclasses
    */
@@ -238,6 +257,6 @@ export abstract class BaseClassifier implements ClassifierInterface {
     input: string,
     conversationHistory: ConversationMessage[],
     variables: TemplateVariables,
-    metadata?: Record<string, any>
+    metadata?: Record<string, any>,
   ): Promise<ClassifierResult>;
-} 
+}
