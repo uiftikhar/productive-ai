@@ -299,6 +299,15 @@ export class ConversationContextService extends BaseContextService {
       options 
     });
 
+    // Check for required parameters
+    if (!userId || !conversationId) {
+      this.logger.warn('Missing userId or conversationId for getConversationHistory', {
+        userId,
+        conversationId
+      });
+      return [];
+    }
+
     // Try using multiple filter strategies based on what worked in testing
     // Strategy 1: If we have turnIds, query directly by turnId (most precise)
     if (options.turnIds && options.turnIds.length > 0) {
@@ -400,60 +409,70 @@ export class ConversationContextService extends BaseContextService {
     // Log the filter being used
     this.logger.debug('Using filter for conversation history', { filter });
 
-    // Get all conversation turns with context type
-    const result = await this.executeWithRetry(
-      () =>
-        this.pineconeService.queryVectors<RecordMetadata>(
-          USER_CONTEXT_INDEX,
-          Array(3072).fill(0),
-          {
-            topK: limit * 5,
-            filter,
-            includeValues: false,
-            includeMetadata: options.includeMetadata !== false,
-          },
-          userId,
-        ),
-      `getConversationHistory:${userId}:${conversationId}`,
-    );
+    try {
+      // Get all conversation turns with context type
+      const result = await this.executeWithRetry(
+        () =>
+          this.pineconeService.queryVectors<RecordMetadata>(
+            USER_CONTEXT_INDEX,
+            Array(3072).fill(0),
+            {
+              topK: limit * 5,
+              filter,
+              includeValues: false,
+              includeMetadata: options.includeMetadata !== false,
+            },
+            userId,
+          ),
+        `getConversationHistory:${userId}:${conversationId}`,
+      );
 
-    const turns = result.matches || [];
-    
-    // If no turns are found, return empty array
-    if (turns.length === 0) {
-      return [];
-    }
+      const turns = result.matches || [];
+      
+      // If no turns are found, return empty array
+      if (turns.length === 0) {
+        return [];
+      }
 
-    // Filter for the specific conversation
-    let filteredTurns = turns.filter(turn => {
-      const turnConversationId = turn.metadata?.conversationId;
-      return turnConversationId === conversationId;
-    });
-
-    // Apply additional in-memory filters
-    if (options.segmentId) {
-      filteredTurns = filteredTurns.filter(turn => {
-        const segmentId = turn.metadata?.segmentId;
-        return segmentId === options.segmentId;
+      // Filter for the specific conversation
+      let filteredTurns = turns.filter(turn => {
+        const turnConversationId = turn.metadata?.conversationId;
+        return turnConversationId === conversationId;
       });
-    }
 
-    if (options.agentId) {
-      filteredTurns = filteredTurns.filter(turn => {
-        const agentId = turn.metadata?.agentId;
-        return agentId === options.agentId;
+      // Apply additional in-memory filters
+      if (options.segmentId) {
+        filteredTurns = filteredTurns.filter(turn => {
+          const segmentId = turn.metadata?.segmentId;
+          return segmentId === options.segmentId;
+        });
+      }
+
+      if (options.agentId) {
+        filteredTurns = filteredTurns.filter(turn => {
+          const agentId = turn.metadata?.agentId;
+          return agentId === options.agentId;
+        });
+      }
+
+      // Sort chronologically (default)
+      filteredTurns.sort((a, b) => {
+        const timestampA = (a.metadata?.timestamp as number) || 0;
+        const timestampB = (b.metadata?.timestamp as number) || 0;
+        return timestampA - timestampB;
       });
+      
+      // Limit to requested number
+      return filteredTurns.slice(0, limit);
+    } catch (error) {
+      // Log error to make debugging easier
+      this.logger.error('Failed to retrieve conversation history', {
+        userId,
+        conversationId,
+        error
+      });
+      throw error; // Rethrow to maintain original behavior
     }
-
-    // Sort chronologically (default)
-    filteredTurns.sort((a, b) => {
-      const timestampA = (a.metadata?.timestamp as number) || 0;
-      const timestampB = (b.metadata?.timestamp as number) || 0;
-      return timestampA - timestampB;
-    });
-    
-    // Limit to requested number
-    return filteredTurns.slice(0, limit);
   }
 
   /**

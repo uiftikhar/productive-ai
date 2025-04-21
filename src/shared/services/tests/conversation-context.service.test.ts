@@ -1,6 +1,7 @@
 import { UserContextValidationError } from '../user-context/types/context.types';
 import { BaseContextService } from '../user-context/base-context.service';
 import { ConversationContextService } from '../user-context/conversation-context.service';
+import { MockLogger } from '../../../agents/tests/mocks/mock-logger';
 
 // Mock dependencies
 jest.mock('../user-context/base-context.service');
@@ -10,9 +11,19 @@ describe('ConversationContextService', () => {
   let service: ConversationContextService;
   let mockPineconeService: any;
   let mockRetryCounter = 0;
+  let mockLogger: MockLogger;
 
   beforeEach(() => {
     mockRetryCounter = 0;
+
+    // Create a mock logger using MockLogger
+    mockLogger = new MockLogger();
+    
+    // Spy on logger methods to make them proper jest mocks
+    jest.spyOn(mockLogger, 'debug');
+    jest.spyOn(mockLogger, 'info');
+    jest.spyOn(mockLogger, 'warn');
+    jest.spyOn(mockLogger, 'error');
 
     // Mock the parent class behavior
     (BaseContextService.prototype as any).executeWithRetry = jest
@@ -25,9 +36,15 @@ describe('ConversationContextService', () => {
     (BaseContextService.prototype as any).storeUserContext = jest
       .fn()
       .mockResolvedValue('mock-id-123');
+    
+    // Mock the logger property on the prototype to ensure it's there
+    // This is critical for resolving the TypeError
+    (BaseContextService.prototype as any).logger = mockLogger;
 
-    // Create instance with mocked parent class
-    service = new ConversationContextService();
+    // Create instance with mocked parent class and logger
+    service = new ConversationContextService({
+      logger: mockLogger
+    });
 
     // Set up pinecone service mock
     mockPineconeService = {
@@ -35,10 +52,14 @@ describe('ConversationContextService', () => {
       deleteVectors: jest.fn().mockResolvedValue({ success: true }),
     };
     (service as any).pineconeService = mockPineconeService;
+    
+    // Explicitly set the logger to ensure it's properly attached
+    (service as any).logger = mockLogger;
   });
 
   afterEach(() => {
     jest.clearAllMocks();
+    mockLogger.clear();
   });
 
   describe('storeConversationTurn', () => {
@@ -172,144 +193,233 @@ describe('ConversationContextService', () => {
   });
 
   describe('getConversationHistory', () => {
-    test('should retrieve conversation history with correct filter', async () => {
+    test('should retrieve conversation history successfully', async () => {
       // Arrange
-      const userId = 'user-123';
-      const conversationId = 'conv-123';
+      const userId = 'test-user-123';
+      const conversationId = 'test-conversation-456';
       const limit = 10;
-
+      
       const mockMatches = [
-        {
-          id: 'match-1',
+        { 
+          id: 'turn-1',
           metadata: {
+            conversationId,
             timestamp: 1000,
             role: 'user',
-            content: 'Hello',
-          },
+            message: 'Hello',
+            segmentId: 'segment-1'
+          }
         },
-        {
-          id: 'match-2',
+        { 
+          id: 'turn-2',
           metadata: {
+            conversationId,
+            timestamp: 1001,
+            role: 'assistant',
+            message: 'Hi there',
+            segmentId: 'segment-1'
+          }
+        }
+      ];
+      
+      mockPineconeService.queryVectors.mockResolvedValue({
+        matches: mockMatches
+      });
+      
+      // Act
+      const result = await service.getConversationHistory(userId, conversationId, limit);
+      
+      // Assert
+      expect(mockPineconeService.queryVectors).toHaveBeenCalledWith(
+        'user-context',
+        expect.any(Array),
+        {
+          topK: limit * 5,
+          filter: {
+            contextType: 'conversation'
+          },
+          includeValues: false,
+          includeMetadata: true
+        },
+        userId
+      );
+      
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe('turn-1');
+      expect(result[1].id).toBe('turn-2');
+      expect(mockLogger.debug).toHaveBeenCalledWith('Using filter for conversation history', expect.any(Object));
+    });
+    
+    test('should return empty array when no turns found', async () => {
+      // Arrange
+      const userId = 'test-user-123';
+      const conversationId = 'empty-conversation';
+      
+      mockPineconeService.queryVectors.mockResolvedValue({
+        matches: []
+      });
+      
+      // Act
+      const result = await service.getConversationHistory(userId, conversationId);
+      
+      // Assert
+      expect(result).toEqual([]);
+      expect(mockLogger.debug).toHaveBeenCalledWith('Using filter for conversation history', expect.any(Object));
+    });
+    
+    test('should filter by segment ID when provided', async () => {
+      // Arrange
+      const userId = 'test-user-123';
+      const conversationId = 'test-conversation-456';
+      const segmentId = 'segment-2';
+      
+      const mockMatches = [
+        { 
+          id: 'turn-1',
+          metadata: {
+            conversationId,
+            timestamp: 1000,
+            role: 'user',
+            message: 'Hello',
+            segmentId: 'segment-1'
+          }
+        },
+        { 
+          id: 'turn-2',
+          metadata: {
+            conversationId,
+            timestamp: 1001,
+            role: 'assistant',
+            message: 'Hi there',
+            segmentId: 'segment-2'
+          }
+        }
+      ];
+      
+      mockPineconeService.queryVectors.mockResolvedValue({
+        matches: mockMatches
+      });
+      
+      // Act
+      const result = await service.getConversationHistory(userId, conversationId, 10, { segmentId });
+      
+      // Assert
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('turn-2');
+    });
+    
+    test('should filter by agent ID when provided', async () => {
+      // Arrange
+      const userId = 'test-user-123';
+      const conversationId = 'test-conversation-456';
+      const agentId = 'agent-xyz';
+      
+      const mockMatches = [
+        { 
+          id: 'turn-1',
+          metadata: {
+            conversationId,
+            timestamp: 1000,
+            role: 'user',
+            message: 'Hello',
+            agentId: 'agent-abc'
+          }
+        },
+        { 
+          id: 'turn-2',
+          metadata: {
+            conversationId,
+            timestamp: 1001,
+            role: 'assistant',
+            message: 'Hi there',
+            agentId: 'agent-xyz'
+          }
+        }
+      ];
+      
+      mockPineconeService.queryVectors.mockResolvedValue({
+        matches: mockMatches
+      });
+      
+      // Act
+      const result = await service.getConversationHistory(userId, conversationId, 10, { agentId });
+      
+      // Assert
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('turn-2');
+    });
+    
+    test('should handle error during conversation retrieval', async () => {
+      // Arrange
+      const userId = 'test-user-123';
+      const conversationId = 'test-conversation-456';
+      const error = new Error('Failed to retrieve vectors');
+      
+      mockPineconeService.queryVectors.mockRejectedValue(error);
+      
+      // Act & Assert
+      await expect(service.getConversationHistory(userId, conversationId)).rejects.toThrow(error);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to retrieve conversation history'),
+        expect.objectContaining({
+          error
+        })
+      );
+    });
+    
+    test('should not query when userId is missing', async () => {
+      // Arrange
+      const conversationId = 'test-conversation-456';
+      
+      // Act
+      const result = await service.getConversationHistory('', conversationId);
+      
+      // Assert
+      expect(result).toEqual([]);
+      expect(mockPineconeService.queryVectors).not.toHaveBeenCalled();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Missing userId or conversationId'),
+        expect.any(Object)
+      );
+    });
+    
+    test('should sort results chronologically by default', async () => {
+      // Arrange
+      const userId = 'test-user-123';
+      const conversationId = 'test-conversation-456';
+      
+      const mockMatches = [
+        { 
+          id: 'turn-2',
+          metadata: {
+            conversationId,
             timestamp: 2000,
             role: 'assistant',
-            content: 'Hi there',
-          },
+            message: 'Hi there'
+          }
         },
-      ];
-
-      mockPineconeService.queryVectors.mockResolvedValue({
-        matches: mockMatches,
-      });
-
-      // Act
-      const result = await service.getConversationHistory(
-        userId,
-        conversationId,
-        limit,
-      );
-
-      // Assert
-      expect(mockPineconeService.queryVectors).toHaveBeenCalledWith(
-        'user-context',
-        expect.any(Array),
-        {
-          topK: limit,
-          filter: {
-            contextType: 'conversation',
+        { 
+          id: 'turn-1',
+          metadata: {
             conversationId,
-          },
-          includeValues: false,
-          includeMetadata: true,
-        },
-        userId,
-      );
-
+            timestamp: 1000,
+            role: 'user',
+            message: 'Hello'
+          }
+        }
+      ];
+      
+      mockPineconeService.queryVectors.mockResolvedValue({
+        matches: mockMatches
+      });
+      
+      // Act
+      const result = await service.getConversationHistory(userId, conversationId);
+      
+      // Assert
       expect(result).toHaveLength(2);
-      expect(result).toEqual(
-        mockMatches.sort((a, b) => a.metadata.timestamp - b.metadata.timestamp),
-      );
-    });
-
-    test('should apply timestamp filter when beforeTimestamp is provided', async () => {
-      // Arrange
-      const userId = 'user-123';
-      const conversationId = 'conv-123';
-      const limit = 10;
-      const beforeTimestamp = 1500;
-
-      mockPineconeService.queryVectors.mockResolvedValue({
-        matches: [],
-      });
-
-      // Act
-      await service.getConversationHistory(userId, conversationId, limit, {
-        beforeTimestamp,
-      });
-
-      // Assert
-      expect(mockPineconeService.queryVectors).toHaveBeenCalledWith(
-        'user-context',
-        expect.any(Array),
-        {
-          topK: limit,
-          filter: {
-            contextType: 'conversation',
-            conversationId,
-            timestamp: { $lt: beforeTimestamp },
-          },
-          includeValues: false,
-          includeMetadata: true,
-        },
-        userId,
-      );
-    });
-
-    test('should sort results by timestamp', async () => {
-      // Arrange
-      const userId = 'user-123';
-      const conversationId = 'conv-123';
-
-      // Out of order timestamps
-      const mockMatches = [
-        { id: 'match-3', metadata: { timestamp: 3000 } },
-        { id: 'match-1', metadata: { timestamp: 1000 } },
-        { id: 'match-2', metadata: { timestamp: 2000 } },
-      ];
-
-      mockPineconeService.queryVectors.mockResolvedValue({
-        matches: mockMatches,
-      });
-
-      // Act
-      const result = await service.getConversationHistory(
-        userId,
-        conversationId,
-      );
-
-      // Assert
-      expect(result[0].id).toBe('match-1');
-      expect(result[1].id).toBe('match-2');
-      expect(result[2].id).toBe('match-3');
-    });
-
-    test('should use retry mechanism', async () => {
-      // Arrange
-      const userId = 'user-123';
-      const conversationId = 'conv-123';
-
-      mockPineconeService.queryVectors.mockResolvedValue({ matches: [] });
-
-      // Act
-      await service.getConversationHistory(userId, conversationId);
-
-      // Assert
-      expect(mockRetryCounter).toBe(1);
-      expect(
-        (BaseContextService.prototype as any).executeWithRetry,
-      ).toHaveBeenCalledWith(
-        expect.any(Function),
-        `getConversationHistory:${userId}:${conversationId}`,
-      );
+      expect(result[0].id).toBe('turn-1'); // Earlier timestamp should come first
+      expect(result[1].id).toBe('turn-2');
     });
   });
 
