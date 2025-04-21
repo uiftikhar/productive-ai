@@ -492,6 +492,58 @@ export class ClassifierFactory {
         intent: '',
       };
 
+      // Try to use classifier fallback when primary classifier fails with error
+      const useFallbackClassifier =
+        (options.enableFallback || this.fallbackOptions.enabled) &&
+        this.fallbackOptions.classifierType !== classifierType;
+
+      if (useFallbackClassifier) {
+        this.logger.info(
+          'Primary classifier failed with error, trying fallback',
+          {
+            primaryType: classifierType,
+            fallbackType: this.fallbackOptions.classifierType,
+            error: error.message,
+          },
+        );
+
+        try {
+          // Get the fallback classifier
+          const fallbackClassifier = this.createClassifier(
+            this.fallbackOptions.classifierType,
+          );
+
+          // Try with the fallback classifier
+          const fallbackResult = await fallbackClassifier.classify(
+            input,
+            history,
+            options.metadata,
+          );
+
+          if (fallbackResult.selectedAgentId) {
+            result = fallbackResult;
+            telemetry = {
+              ...telemetry,
+              classifierType: this.fallbackOptions.classifierType,
+              selectedAgentId: result.selectedAgentId,
+              confidence: result.confidence,
+              isFollowUp: result.isFollowUp,
+              additionalMetrics: {
+                ...(telemetry.additionalMetrics || {}),
+                usedFallbackClassifier: true,
+                primaryClassifierType: classifierType,
+                primaryClassifierError: error.message,
+              },
+            };
+            // Skip default agent fallback since we have a valid result
+            return result;
+          }
+        } catch (fallbackError) {
+          this.logger.error('Fallback classifier also failed', { fallbackError });
+          // Continue with default agent fallback as last resort
+        }
+      }
+
       // Try to use default agent fallback even in error case if enabled
       const useDefaultFallback =
         options.enableDefaultAgentFallback !== undefined
@@ -503,6 +555,7 @@ export class ClassifierFactory {
 
         if (result.selectedAgentId) {
           telemetry.additionalMetrics = {
+            ...(telemetry.additionalMetrics || {}),
             fallbackTriggered: true,
             fallbackAgentId: result.selectedAgentId,
             fallbackReason: 'Error in classification: ' + error.message,

@@ -23,6 +23,7 @@ describe('ClassifierFactory', () => {
 
   // Helper to capture telemetry data
   const telemetryHandler = (data: ClassificationTelemetry) => {
+    console.log('Telemetry received:', JSON.stringify(data, null, 2));
     telemetryData.push(data);
   };
 
@@ -274,55 +275,43 @@ describe('ClassifierFactory', () => {
     });
 
     test('should use fallback classifier when primary fails', async () => {
-      // Rather than getting complex with mocking, let's simplify this test
-      // and focus on what we're really testing - the fallback when OpenAI fails
-
       // Setup primary classifier to throw error
       (OpenAIClassifier.prototype.classify as jest.Mock).mockRejectedValueOnce(
         new Error('Classification failed'),
       );
 
       // Mock the bedrock classifier to return a successful result
-      (BedrockClassifier.prototype.classify as jest.Mock).mockReturnValue({
+      (BedrockClassifier.prototype.classify as jest.Mock).mockResolvedValue({
         selectedAgentId: 'bedrock-agent',
         confidence: 0.85,
         reasoning: 'Bedrock classified this',
         isFollowUp: false,
         entities: ['test'],
         intent: 'test_intent',
+      });
+
+      // Enable fallback to Bedrock
+      factory.configureFallback({
+        enabled: true,
+        classifierType: 'bedrock',
       });
 
       // Disable default agent fallback to ensure it doesn't interfere
       factory.configureDefaultAgentFallback({ enabled: false });
 
-      // Instead of trying to use the complex classify method, create a simpler
-      // test version that just returns our expected result
-      const testClassify = jest.fn().mockResolvedValue({
-        selectedAgentId: 'bedrock-agent',
-        confidence: 0.85,
-        reasoning: 'Bedrock classified this',
-        isFollowUp: false,
-        entities: ['test'],
-        intent: 'test_intent',
+      // Execute the test with the actual classify method
+      const result = await factory.classify('test', [], {
+        enableFallback: true
       });
 
-      // Save original classify method
-      const originalClassify = factory.classify;
-
-      try {
-        // Replace with our test implementation
-        factory.classify = testClassify;
-
-        // Execute the test
-        const result = await factory.classify('test', []);
-
-        // Verify the result
-        expect(result.selectedAgentId).toBe('bedrock-agent');
-        expect(testClassify).toHaveBeenCalled();
-      } finally {
-        // Restore original method
-        factory.classify = originalClassify;
-      }
+      // Verify the result - should have used the Bedrock classifier as fallback
+      expect(result.selectedAgentId).toBe('bedrock-agent');
+      expect(result.confidence).toBe(0.85);
+      expect(result.reasoning).toBe('Bedrock classified this');
+      
+      // Check that both classifiers were called - first OpenAI (which failed), then Bedrock
+      expect(OpenAIClassifier.prototype.classify).toHaveBeenCalledTimes(1);
+      expect(BedrockClassifier.prototype.classify).toHaveBeenCalledTimes(1);
     });
 
     test('should apply default agent fallback for low confidence', async () => {
