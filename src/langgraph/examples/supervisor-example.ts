@@ -11,6 +11,21 @@ import {
   AgentResponse,
 } from '../../agents/interfaces/base-agent.interface';
 
+// Define a Task interface for use in the example
+interface ExampleTask {
+  id: string;
+  name: string;
+  description: string;
+  status: string;
+  assignedTo?: string;
+  priority: number;
+  requiredCapabilities?: string[];
+  createdAt?: number;
+  completedAt?: number;
+  result?: any;
+  metadata?: Record<string, any>;
+}
+
 // Create a logger instance
 const logger = new ConsoleLogger();
 logger.info('Starting Supervisor Workflow Example');
@@ -105,11 +120,12 @@ class DataVisualizationAgent extends BaseAgent {
   }
 
   async executeInternal(request: AgentRequest): Promise<AgentResponse> {
+    const inputStr = String(request.input);
     logger.info(
       `DataVisualizationAgent executing: ${typeof request.input === 'string' ? request.input : 'complex input'}`,
     );
 
-    if (request.input.includes('fail')) {
+    if (typeof inputStr === 'string' && inputStr.includes('fail')) {
       // Simulate a failure for testing error handling
       throw new Error('Failed to process visualization request');
     }
@@ -159,6 +175,38 @@ const supervisorAgent = new SupervisorAgent({
   ],
 });
 
+// Define our tasks for the market analysis project
+const projectTasks = [
+  {
+    name: 'Research AI Tools Market',
+    description: 'Research current AI tools market trends and competitors',
+    priority: 10,
+    requiredCapabilities: ['information-gathering'],
+    status: 'pending',
+  },
+  {
+    name: 'Write Executive Summary',
+    description: 'Write an executive summary of market findings',
+    priority: 8,
+    requiredCapabilities: ['content-writing'],
+    status: 'pending',
+  },
+  {
+    name: 'Create Visualization Charts',
+    description: 'Create visualization charts for market share data',
+    priority: 6,
+    requiredCapabilities: ['data-visualization'],
+    status: 'pending',
+  },
+  {
+    name: 'Create Failed Visualization',
+    description: 'Create visualization that will fail for demonstration',
+    priority: 4,
+    requiredCapabilities: ['data-visualization'],
+    status: 'pending',
+  },
+];
+
 // Initialize the supervisor agent
 (async () => {
   await supervisorAgent.initialize();
@@ -178,55 +226,159 @@ const supervisorAgent = new SupervisorAgent({
     input: 'Create a comprehensive market analysis report on AI tools',
     capability: 'work-coordination',
     parameters: {
-      tasks: [
-        {
-          taskDescription: 'Research current AI tools market trends and competitors',
-          priority: 10,
-          requiredCapabilities: ['information-gathering', 'data-analysis'],
-        },
-        {
-          taskDescription: 'Write an executive summary of market findings',
-          priority: 8,
-          requiredCapabilities: ['content-writing'],
-        },
-        {
-          taskDescription: 'Create visualization charts for market share data',
-          priority: 6,
-          requiredCapabilities: ['data-visualization'],
-        },
-        {
-          // This task will fail to test error handling
-          taskDescription: 'Create visualization that will fail for demonstration',
-          priority: 4,
-          requiredCapabilities: ['data-visualization'],
-        },
-      ],
+      // For direct work coordination without task planning
+      tasks: projectTasks.map(task => ({
+        taskDescription: task.description,
+        priority: task.priority,
+        requiredCapabilities: task.requiredCapabilities,
+      })),
       executionStrategy: 'sequential',
-      useTaskPlanningService: true,
+      // For workflow execution
       planName: 'Market Analysis Project',
       planDescription: 'Comprehensive market analysis of AI tools with research, content, and visualizations',
     },
   };
   
+  // For task planning stage, we need to provide these parameters
+  const taskPlanningParams = {
+    name: 'Market Analysis Project',
+    description: 'Comprehensive market analysis of AI tools with research, content, and visualizations',
+    tasks: projectTasks,
+  };
+  
   try {
     logger.info('Starting supervisor workflow execution');
-    const response = await supervisorWorkflow.execute(projectRequest);
+    
+    // Manually prepare the workflow stages to ensure proper parameters are passed
+    
+    // 1. First, create a task plan
+    logger.info('Creating task plan');
+    const taskPlanResponse = await supervisorAgent.execute({
+      input: 'Create comprehensive market analysis tasks',
+      capability: 'task-planning',
+      parameters: taskPlanningParams,
+    });
+    
+    const taskPlan = taskPlanResponse.output;
+    const planId = taskPlanResponse.artifacts?.planId || 'missing-plan-id';
+    
+    logger.info(`Created task plan with ID: ${planId}`);
+    
+    // 2. Then, perform task assignments
+    logger.info('Assigning tasks to agents');
+    const taskAssignments: Record<string, string> = {};
+    
+    for (const task of projectTasks) {
+      const assignmentResponse = await supervisorAgent.execute({
+        input: task.description,
+        capability: 'task-assignment',
+        parameters: {
+          taskDescription: task.description,
+          priority: task.priority,
+          requiredCapabilities: task.requiredCapabilities,
+        },
+      });
+      
+      // Cast the output to our task interface
+      const assignedTask = assignmentResponse.output as unknown as ExampleTask;
+      
+      // Check if we have a valid task with ID and assignment
+      if (assignedTask && assignedTask.id && assignedTask.assignedTo) {
+        logger.info(`Assigned task ${assignedTask.id} to agent ${assignedTask.assignedTo}`);
+        
+        // Store the assignments
+        taskAssignments[assignedTask.id] = assignedTask.assignedTo;
+      } else {
+        logger.warn('Task assignment response did not contain expected task data', { 
+          taskDescription: task.description 
+        });
+      }
+    }
+    
+    // 3. Now execute all tasks using work coordination
+    logger.info('Executing all tasks');
+    const executionResponse = await supervisorAgent.execute({
+      input: 'Execute all tasks for market analysis',
+      capability: 'work-coordination',
+      parameters: {
+        tasks: projectTasks.map(task => ({
+          taskDescription: task.description,
+          priority: task.priority,
+          requiredCapabilities: task.requiredCapabilities,
+        })),
+        executionStrategy: 'sequential',
+      },
+    });
+    
+    // 4. Check progress
+    logger.info('Checking task progress');
+    const progressResponse = await supervisorAgent.execute({
+      input: 'Get task progress',
+      capability: 'progress-tracking',
+    });
+    
+    // Log the task progress properly
+    logger.info('Task progress:', progressResponse.output as Record<string, any>);
+    
+    // 5. Now run the full workflow
+    logger.info('Running full workflow through SupervisorWorkflow');
+    const response = await supervisorWorkflow.execute({
+      input: 'Create a comprehensive market analysis report on AI tools',
+      capability: 'work-coordination',
+      parameters: {
+        tasks: projectTasks.map(task => ({
+          taskDescription: task.description,
+          priority: task.priority,
+          requiredCapabilities: task.requiredCapabilities,
+        })),
+        executionStrategy: 'sequential',
+        taskList: Object.values(projectTasks).map(task => ({
+          id: uuidv4(),
+          name: task.name,
+          description: task.description,
+          status: 'pending',
+          priority: task.priority,
+          createdAt: Date.now(),
+        })),
+      },
+    });
     
     logger.info('Supervisor workflow execution completed');
     logger.info('Response:', response);
     
+    // Parse output if needed
+    let parsedOutput: any = response.output;
+    if (typeof response.output === 'string') {
+      try {
+        parsedOutput = JSON.parse(response.output);
+      } catch {
+        // If not parseable as JSON, keep as is
+        parsedOutput = response.output;
+      }
+    }
+    
     // Display the results
-    if (typeof response.output === 'object') {
-      logger.info('Status:', response.output.status);
-      logger.info('Summary:', response.output.summary);
-      logger.info('Stats:', response.output.stats);
+    if (parsedOutput && typeof parsedOutput === 'object') {
+      if (parsedOutput.status) {
+        logger.info('Status:', parsedOutput.status);
+      }
+      
+      if (parsedOutput.summary) {
+        logger.info('Summary:', parsedOutput.summary);
+      }
+      
+      if (parsedOutput.stats) {
+        logger.info('Stats:', parsedOutput.stats);
+      }
       
       logger.info('Results:');
-      for (const [taskName, result] of Object.entries(response.output.results || {})) {
-        logger.info(`  ${taskName}:`, result);
+      if (parsedOutput.results) {
+        for (const [taskName, result] of Object.entries(parsedOutput.results)) {
+          logger.info(`  ${taskName}:`, result as Record<string, any>);
+        }
       }
     } else {
-      logger.info('Output:', response.output);
+      logger.info('Output:', parsedOutput);
     }
     
     // Display metrics
@@ -234,13 +386,13 @@ const supervisorAgent = new SupervisorAgent({
       logger.info('Execution metrics:');
       logger.info(`  Total time: ${response.metrics.executionTimeMs}ms`);
       
-      if (response.metrics.taskCompletion) {
-        const tc = response.metrics.taskCompletion;
-        logger.info(`  Tasks: ${tc.completed}/${tc.total} completed (${tc.failed} failed)`);
-        logger.info(`  Success rate: ${Math.round(tc.rate * 100)}%`);
+      const taskCompletion = (response.metrics as any).taskCompletion;
+      if (taskCompletion) {
+        logger.info(`  Tasks: ${taskCompletion.completed}/${taskCompletion.total} completed (${taskCompletion.failed} failed)`);
+        logger.info(`  Success rate: ${Math.round(taskCompletion.rate * 100)}%`);
       }
     }
   } catch (error) {
-    logger.error('Error executing supervisor workflow:', error);
+    logger.error('Error executing supervisor workflow:', error as Record<string, any>);
   }
 })(); 
