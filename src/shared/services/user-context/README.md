@@ -46,6 +46,21 @@ The User Context Service has been refactored to a modular architecture to improv
 
 - **`UserContextFacade`**: Provides a unified interface to all services, maintaining backward compatibility
 
+## Enhanced Conversation Service
+
+The User Context Service includes an enhanced conversation management system that provides advanced features for storing, retrieving, and analyzing conversation history. Key enhancements include:
+
+- Conversation segmentation with topic detection
+- Agent-specific context filtering
+- Advanced retention policies
+- Conversation analytics
+- Optimized context windows
+- Relevance-based retrieval
+
+For detailed documentation on using these features, see [CONVERSATION_SERVICE.md](./CONVERSATION_SERVICE.md).
+For a quick start guide, see [CONVERSATION_QUICKSTART.md](./CONVERSATION_QUICKSTART.md).
+For technical details on the Pinecone integration, see [PINECONE_INTEGRATION.md](./PINECONE_INTEGRATION.md).
+
 ## Usage
 
 ### Installing Dependencies

@@ -153,7 +153,7 @@ export class ConversationContextService extends BaseContextService {
     // TODO: Fix type error - investigate how BaseContextService's prepareMetadataForStorage
     // handles different value types and ensure we're using compatible types
     const metadata: Partial<BaseContextMetadata> = {
-      contextType: ContextType.CONVERSATION,
+      contextType: ContextType.CONVERSATION, // Use enum value for type safety
       conversationId,
       turnId: messageId,
       role,
@@ -163,6 +163,8 @@ export class ConversationContextService extends BaseContextService {
       retentionPriority: additionalMetadata.retentionPriority || 5,
       retentionTags: additionalMetadata.retentionTags || [],
       isHighValue: additionalMetadata.isHighValue === true ? true : false, // Ensure boolean
+      // Add timestamp for querying by date ranges
+      timestamp: Date.now(),
       // Agent-specific metadata
       agentId: additionalMetadata.agentId,
       agentName: additionalMetadata.agentName,
@@ -286,51 +288,129 @@ export class ConversationContextService extends BaseContextService {
       includeMetadata?: boolean;
       sortBy?: 'chronological' | 'relevance';
       relevanceEmbedding?: number[];
+      turnIds?: string[];
     } = {},
   ) {
+    // Add debugging to see what's being attempted
+    this.logger.debug('getConversationHistory parameters', { 
+      userId, 
+      conversationId, 
+      limit, 
+      options 
+    });
+
+    // Try using multiple filter strategies based on what worked in testing
+    // Strategy 1: If we have turnIds, query directly by turnId (most precise)
+    if (options.turnIds && options.turnIds.length > 0) {
+      this.logger.debug('Using turnId filter strategy');
+      const turnResults = [];
+      for (const turnId of options.turnIds) {
+        try {
+          const result = await this.executeWithRetry(
+            () =>
+              this.pineconeService.queryVectors<RecordMetadata>(
+                USER_CONTEXT_INDEX,
+                Array(3072).fill(0),
+                {
+                  topK: 1,
+                  filter: { turnId },
+                  includeValues: false,
+                  includeMetadata: options.includeMetadata !== false,
+                },
+                userId,
+              ),
+            `getConversationHistoryByTurn:${userId}:${turnId}`,
+          );
+          
+          if (result.matches && result.matches.length > 0) {
+            turnResults.push(result.matches[0]);
+          }
+        } catch (error) {
+          this.logger.warn(`Error querying turn ${turnId}`, { error });
+        }
+      }
+      
+      if (turnResults.length > 0) {
+        return turnResults
+          .filter(turn => turn.metadata?.conversationId === conversationId)
+          .sort((a, b) => {
+            const timestampA = (a.metadata?.timestamp as number) || 0;
+            const timestampB = (b.metadata?.timestamp as number) || 0;
+            return timestampA - timestampB;
+          });
+      }
+    }
+
+    // Strategy 2: Try role filter if specified (works well in testing)
+    if (options.role) {
+      this.logger.debug('Using role filter strategy');
+      try {
+        const result = await this.executeWithRetry(
+          () =>
+            this.pineconeService.queryVectors<RecordMetadata>(
+              USER_CONTEXT_INDEX,
+              Array(3072).fill(0),
+              {
+                topK: limit * 5,
+                filter: { 
+                  role: options.role,
+                  contextType: 'conversation'
+                },
+                includeValues: false,
+                includeMetadata: options.includeMetadata !== false,
+              },
+              userId,
+            ),
+          `getConversationHistoryByRole:${userId}:${options.role}`,
+        );
+        
+        const filteredResults = (result.matches || [])
+          .filter(turn => turn.metadata?.conversationId === conversationId)
+          .sort((a, b) => {
+            const timestampA = (a.metadata?.timestamp as number) || 0;
+            const timestampB = (b.metadata?.timestamp as number) || 0;
+            return timestampA - timestampB;
+          });
+        
+        if (filteredResults.length > 0) {
+          return filteredResults.slice(0, limit);
+        }
+      } catch (error) {
+        this.logger.warn('Error in role-based query', { error });
+      }
+    }
+
+    // Strategy 3: Fall back to basic contextType filter (most reliable)
+    this.logger.debug('Using fallback contextType filter strategy');
     const filter: Record<string, any> = {
-      contextType: ContextType.CONVERSATION,
-      conversationId,
+      contextType: 'conversation'
     };
 
-    if (options.beforeTimestamp) {
-      filter.timestamp = filter.timestamp || {};
-      filter.timestamp.$lt = options.beforeTimestamp;
+    // Add timestamp filters if specified
+    if (options.beforeTimestamp || options.afterTimestamp) {
+      filter.timestamp = {};
+      if (options.afterTimestamp) {
+        filter.timestamp.$gte = options.afterTimestamp;
+      }
+      if (options.beforeTimestamp) {
+        filter.timestamp.$lte = options.beforeTimestamp;
+      }
     }
 
-    if (options.afterTimestamp) {
-      filter.timestamp = filter.timestamp || {};
-      filter.timestamp.$gte = options.afterTimestamp;
-    }
+    // Log the filter being used
+    this.logger.debug('Using filter for conversation history', { filter });
 
-    if (options.segmentId) {
-      filter.segmentId = options.segmentId;
-    }
-
-    if (options.agentId) {
-      filter.agentId = options.agentId;
-    }
-
-    if (options.role) {
-      filter.role = options.role;
-    }
-
-    // Sort by relevance requires an embedding vector for similarity comparison
-    const sortByRelevance = options.sortBy === 'relevance' && Array.isArray(options.relevanceEmbedding);
-    
-    // Use the relevance embedding if sorting by relevance, otherwise use placeholder vector
-    const queryVector = sortByRelevance && options.relevanceEmbedding ? options.relevanceEmbedding : Array(3072).fill(0);
-
+    // Get all conversation turns with context type
     const result = await this.executeWithRetry(
       () =>
         this.pineconeService.queryVectors<RecordMetadata>(
           USER_CONTEXT_INDEX,
-          queryVector,
+          Array(3072).fill(0),
           {
-            topK: limit,
+            topK: limit * 5,
             filter,
             includeValues: false,
-            includeMetadata: options.includeMetadata !== false, // Default to true
+            includeMetadata: options.includeMetadata !== false,
           },
           userId,
         ),
@@ -338,18 +418,42 @@ export class ConversationContextService extends BaseContextService {
     );
 
     const turns = result.matches || [];
+    
+    // If no turns are found, return empty array
+    if (turns.length === 0) {
+      return [];
+    }
 
-    // If sorting by relevance and we used a real embedding, results are already sorted by relevance
-    // Otherwise, sort turns by timestamp (chronological)
-    if (!sortByRelevance) {
-      return turns.sort((a, b) => {
-        const timestampA = (a.metadata?.timestamp as number) || 0;
-        const timestampB = (b.metadata?.timestamp as number) || 0;
-        return timestampA - timestampB;
+    // Filter for the specific conversation
+    let filteredTurns = turns.filter(turn => {
+      const turnConversationId = turn.metadata?.conversationId;
+      return turnConversationId === conversationId;
+    });
+
+    // Apply additional in-memory filters
+    if (options.segmentId) {
+      filteredTurns = filteredTurns.filter(turn => {
+        const segmentId = turn.metadata?.segmentId;
+        return segmentId === options.segmentId;
       });
     }
+
+    if (options.agentId) {
+      filteredTurns = filteredTurns.filter(turn => {
+        const agentId = turn.metadata?.agentId;
+        return agentId === options.agentId;
+      });
+    }
+
+    // Sort chronologically (default)
+    filteredTurns.sort((a, b) => {
+      const timestampA = (a.metadata?.timestamp as number) || 0;
+      const timestampB = (b.metadata?.timestamp as number) || 0;
+      return timestampA - timestampB;
+    });
     
-    return turns;
+    // Limit to requested number
+    return filteredTurns.slice(0, limit);
   }
 
   /**

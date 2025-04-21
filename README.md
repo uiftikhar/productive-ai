@@ -497,9 +497,20 @@ npx ts-node src/langgraph/examples/meeting-analysis-example.ts
 
 Contributions are welcome! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-## 📄 License
+## 📚 Documentation
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+The codebase includes comprehensive documentation for each major component:
+
+- [Agent System Documentation](./src/agents/README.md)
+- [LangGraph Integration Guide](./src/langgraph/README.md)
+- [User Context Service Documentation](./src/shared/services/user-context/README.md)
+- [Conversation Service Guide](./src/shared/services/user-context/CONVERSATION_SERVICE.md)
+- [Conversation Quickstart](./src/shared/services/user-context/CONVERSATION_QUICKSTART.md)
+- [Pinecone Integration Guide](./src/shared/services/user-context/PINECONE_INTEGRATION.md)
+
+## 📝 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## 🙏 Acknowledgments
 
