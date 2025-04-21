@@ -1,7 +1,7 @@
 /**
  * Logger Utility
- * 
- * Provides a simple logger instance that delegates to the appropriate 
+ *
+ * Provides a simple logger instance that delegates to the appropriate
  * logging mechanism based on the environment.
  */
 
@@ -41,13 +41,13 @@ export function setGlobalLogLevel(level: LogLevel): void {
 export function createContextLogger(context: string): Logger {
   return {
     setLogLevel: (level: LogLevel) => logger.setLogLevel(level),
-    debug: (message: string, ctx?: Record<string, any>) => 
+    debug: (message: string, ctx?: Record<string, any>) =>
       logger.debug(message, { ...ctx, context }),
-    info: (message: string, ctx?: Record<string, any>) => 
+    info: (message: string, ctx?: Record<string, any>) =>
       logger.info(message, { ...ctx, context }),
-    warn: (message: string, ctx?: Record<string, any>) => 
+    warn: (message: string, ctx?: Record<string, any>) =>
       logger.warn(message, { ...ctx, context }),
-    error: (message: string, ctx?: Record<string, any>) => 
+    error: (message: string, ctx?: Record<string, any>) =>
       logger.error(message, { ...ctx, context }),
   };
-} 
+}

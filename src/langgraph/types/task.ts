@@ -1,6 +1,6 @@
 /**
  * Task Interface
- * 
+ *
  * Defines the structure for tasks in the LangGraph system.
  * Tasks represent units of work that can be assigned to agents in a workflow.
  */
@@ -14,7 +14,7 @@ export enum TaskPriority {
   LOW = 'low',
   MEDIUM = 'medium',
   HIGH = 'high',
-  CRITICAL = 'critical'
+  CRITICAL = 'critical',
 }
 
 /**
@@ -26,7 +26,7 @@ export enum TaskStatus {
   IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
   FAILED = 'failed',
-  CANCELED = 'canceled'
+  CANCELED = 'canceled',
 }
 
 /**
@@ -76,4 +76,4 @@ export interface TaskCreationOptions {
   input?: any;
   timeoutMs?: number;
   maxRetries?: number;
-} 
+}

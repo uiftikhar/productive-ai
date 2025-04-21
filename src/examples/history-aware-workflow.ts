@@ -1,6 +1,6 @@
 /**
  * Example: History-Aware Workflow
- * 
+ *
  * This example demonstrates how to use the HistoryAwareSupervisor
  * to create a workflow that leverages conversation history
  * for more informed decision making.
@@ -14,8 +14,16 @@ import { v4 as uuidv4 } from 'uuid';
 
 // Import agent mocks for the example
 import { BaseAgent } from '../agents/base/base-agent';
-import { AgentResponse, AgentRequest } from '../agents/interfaces/base-agent.interface';
-import { LanguageModelProvider, ModelResponse, MessageConfig, StreamHandler } from '../agents/interfaces/language-model-provider.interface';
+import {
+  AgentResponse,
+  AgentRequest,
+} from '../agents/interfaces/base-agent.interface';
+import {
+  LanguageModelProvider,
+  ModelResponse,
+  MessageConfig,
+  StreamHandler,
+} from '../agents/interfaces/language-model-provider.interface';
 import { BaseMessage } from '@langchain/core/messages';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 
@@ -34,7 +42,7 @@ const logger = {
   },
   debug: (message: string, context?: Record<string, any>): void => {
     console.debug(message, context || '');
-  }
+  },
 };
 
 /**
@@ -45,15 +53,15 @@ export async function runHistoryAwareWorkflowExample(): Promise<void> {
 
   // Initialize basic services
   const consoleLogger = new ConsoleLogger();
-  
+
   // Set up user context services
   const conversationContextService = new ConversationContextService({
-    logger: consoleLogger
+    logger: consoleLogger,
   });
-  
+
   // Initialize the UserContextFacade
   const userContextFacade = new UserContextFacade({
-    logger: consoleLogger
+    logger: consoleLogger,
   });
 
   // Create unique user and conversation IDs for this demonstration
@@ -61,9 +69,18 @@ export async function runHistoryAwareWorkflowExample(): Promise<void> {
   const conversationId = `demo-conversation-${uuidv4()}`;
 
   // Create mock agents for the example
-  const knowledgeAgent = new MockKnowledgeAgent('knowledge', 'Retrieves relevant knowledge');
-  const planningAgent = new MockPlanningAgent('planner', 'Creates plans and sequences actions');
-  const contentAgent = new MockContentAgent('content', 'Generates high-quality content');
+  const knowledgeAgent = new MockKnowledgeAgent(
+    'knowledge',
+    'Retrieves relevant knowledge',
+  );
+  const planningAgent = new MockPlanningAgent(
+    'planner',
+    'Creates plans and sequences actions',
+  );
+  const contentAgent = new MockContentAgent(
+    'content',
+    'Generates high-quality content',
+  );
 
   // Create and configure the HistoryAwareSupervisor
   const historyAwareSupervisor = new HistoryAwareSupervisor({
@@ -73,12 +90,12 @@ export async function runHistoryAwareWorkflowExample(): Promise<void> {
     conversationId,
     historyLimit: 10,
     includeMetadata: true,
-    llmConnector: new MockLLMConnector()
+    llmConnector: new MockLLMConnector(),
   });
 
   // Add mock methods to access the private userContextFacade
   const supervisor = historyAwareSupervisor as any;
-  
+
   // Register the agents with the supervisor
   historyAwareSupervisor.registerAgent(knowledgeAgent);
   historyAwareSupervisor.registerAgent(planningAgent);
@@ -90,38 +107,40 @@ export async function runHistoryAwareWorkflowExample(): Promise<void> {
 
   // First query - no history yet
   logger.info('Example 1: First query with no prior history');
-  const firstQuery = "What are the key benefits of TypeScript over JavaScript?";
-  
+  const firstQuery = 'What are the key benefits of TypeScript over JavaScript?';
+
   await executeWorkflowExample(
-    supervisor, 
-    firstQuery, 
-    userId, 
+    supervisor,
+    firstQuery,
+    userId,
     conversationId,
-    'Example 1: First query'
+    'Example 1: First query',
   );
 
   // Second query - follow-up question that requires history context
   logger.info('Example 2: Follow-up query that references previous context');
-  const followUpQuery = "How do those benefits specifically help with large-scale applications?";
-  
+  const followUpQuery =
+    'How do those benefits specifically help with large-scale applications?';
+
   await executeWorkflowExample(
-    supervisor, 
-    followUpQuery, 
-    userId, 
+    supervisor,
+    followUpQuery,
+    userId,
     conversationId,
-    'Example 2: Follow-up query'
+    'Example 2: Follow-up query',
   );
 
   // Third query - new topic that should be detected as a topic change
   logger.info('Example 3: New topic that triggers segmentation');
-  const newTopicQuery = "Let's talk about something else. What are the best practices for RESTful API design?";
-  
+  const newTopicQuery =
+    "Let's talk about something else. What are the best practices for RESTful API design?";
+
   await executeWorkflowExample(
-    supervisor, 
-    newTopicQuery, 
-    userId, 
+    supervisor,
+    newTopicQuery,
+    userId,
     conversationId,
-    'Example 3: Topic change query'
+    'Example 3: Topic change query',
   );
 
   logger.info('HistoryAwareSupervisor workflow example completed');
@@ -135,28 +154,29 @@ async function executeWorkflowExample(
   userInput: string,
   userId: string,
   conversationId: string,
-  label: string
+  label: string,
 ): Promise<void> {
   logger.info(`Executing ${label}`, { userInput });
-  
+
   try {
     // Execute the workflow with the user input
     const result = await supervisor.executeWithHistory(userInput, {
       userId,
       conversationId,
     });
-    
+
     // Log the results
     logger.info(`${label} - Result`, {
-      finalResponse: typeof result.finalResponse === 'string' 
-        ? result.finalResponse 
-        : result.finalResponse.content,
+      finalResponse:
+        typeof result.finalResponse === 'string'
+          ? result.finalResponse
+          : result.finalResponse.content,
       agentsInvolved: result.agentsInvolved,
       primaryAgent: result.primaryAgent,
       totalExecutionTimeMs: result.metrics.totalExecutionTimeMs,
       taskCount: result.tasks.length,
     });
-    
+
     // Check if this was detected as a topic change
     if (result.createNewSegment) {
       logger.info(`${label} - Topic change detected`, {
@@ -164,7 +184,7 @@ async function executeWorkflowExample(
         segmentSummary: result.segmentSummary,
       });
     }
-    
+
     // Store the result in conversation history
     await supervisor.userContextFacade.storeConversationTurn(
       userId,
@@ -173,14 +193,14 @@ async function executeWorkflowExample(
       [],
       'user',
       undefined,
-      {}
+      {},
     );
-    
+
     await supervisor.userContextFacade.storeConversationTurn(
       userId,
       conversationId,
-      typeof result.finalResponse === 'string' 
-        ? result.finalResponse 
+      typeof result.finalResponse === 'string'
+        ? result.finalResponse
         : result.finalResponse.content,
       [],
       'assistant',
@@ -189,9 +209,8 @@ async function executeWorkflowExample(
         agentsInvolved: result.agentsInvolved,
         primaryAgent: result.primaryAgent,
         executionTime: result.metrics.totalExecutionTimeMs,
-      }
+      },
     );
-    
   } catch (error) {
     logger.error(`${label} - Error executing workflow`, {
       error: error instanceof Error ? error.message : String(error),
@@ -210,28 +229,31 @@ class MockLLMConnector implements LanguageModelProvider {
 
   async generateResponse(
     messages: BaseMessage[] | MessageConfig[],
-    options?: Record<string, any>
+    options?: Record<string, any>,
   ): Promise<ModelResponse> {
-    const content = Array.isArray(messages) && messages.length > 0
-      ? `Response to: ${typeof messages[0].content === 'string' 
-        ? messages[0].content.substring(0, 30) 
-        : 'message'}...`
-      : 'Mock response';
-      
+    const content =
+      Array.isArray(messages) && messages.length > 0
+        ? `Response to: ${
+            typeof messages[0].content === 'string'
+              ? messages[0].content.substring(0, 30)
+              : 'message'
+          }...`
+        : 'Mock response';
+
     return {
       content,
       usage: {
         promptTokens: 10,
         completionTokens: 20,
-        totalTokens: 30
-      }
+        totalTokens: 30,
+      },
     };
   }
 
   async generateStreamingResponse(
     messages: BaseMessage[] | MessageConfig[],
     streamHandler: StreamHandler,
-    options?: Record<string, any>
+    options?: Record<string, any>,
   ): Promise<void> {
     const content = 'Mock streaming response';
     streamHandler.onToken(content);
@@ -239,24 +261,30 @@ class MockLLMConnector implements LanguageModelProvider {
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
-    return Array(1536).fill(0).map((_, i) => i / 1536);
+    return Array(1536)
+      .fill(0)
+      .map((_, i) => i / 1536);
   }
 
   async generateBatchEmbeddings(texts: string[]): Promise<number[][]> {
-    return texts.map(() => Array(1536).fill(0).map((_, i) => i / 1536));
+    return texts.map(() =>
+      Array(1536)
+        .fill(0)
+        .map((_, i) => i / 1536),
+    );
   }
 
   createPromptTemplate(
     systemTemplate: string,
     humanTemplate: string,
-    inputVariables?: string[]
+    inputVariables?: string[],
   ): ChatPromptTemplate {
     return ChatPromptTemplate.fromMessages([]);
   }
 
   async formatPromptTemplate(
     template: ChatPromptTemplate,
-    variables: Record<string, any>
+    variables: Record<string, any>,
   ): Promise<BaseMessage[]> {
     return [];
   }
@@ -280,11 +308,11 @@ class MockKnowledgeAgent extends BaseAgent {
       output: `Knowledge response for: ${request.input.toString().substring(0, 20)}...`,
       metrics: {
         tokensUsed: 100,
-        executionTimeMs: 200
+        executionTimeMs: 200,
       },
       artifacts: {
-        sources: ['Mock source 1', 'Mock source 2']
-      }
+        sources: ['Mock source 1', 'Mock source 2'],
+      },
     };
   }
 }
@@ -302,11 +330,11 @@ class MockPlanningAgent extends BaseAgent {
       output: `Plan for: ${request.input.toString().substring(0, 20)}...`,
       metrics: {
         tokensUsed: 150,
-        executionTimeMs: 300
+        executionTimeMs: 300,
       },
       artifacts: {
-        steps: ['Step 1', 'Step 2', 'Step 3']
-      }
+        steps: ['Step 1', 'Step 2', 'Step 3'],
+      },
     };
   }
 }
@@ -324,12 +352,12 @@ class MockContentAgent extends BaseAgent {
       output: `Generated content for: ${request.input.toString().substring(0, 20)}...`,
       metrics: {
         tokensUsed: 500,
-        executionTimeMs: 800
+        executionTimeMs: 800,
       },
       artifacts: {
         format: 'markdown',
-        sections: 3
-      }
+        sections: 3,
+      },
     };
   }
 }
@@ -345,4 +373,4 @@ if (require.main === module) {
       logger.error('Example failed with error', { error });
       process.exit(1);
     });
-} 
+}

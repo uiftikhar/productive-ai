@@ -292,19 +292,22 @@ export class ConversationContextService extends BaseContextService {
     } = {},
   ) {
     // Add debugging to see what's being attempted
-    this.logger.debug('getConversationHistory parameters', { 
-      userId, 
-      conversationId, 
-      limit, 
-      options 
+    this.logger.debug('getConversationHistory parameters', {
+      userId,
+      conversationId,
+      limit,
+      options,
     });
 
     // Check for required parameters
     if (!userId || !conversationId) {
-      this.logger.warn('Missing userId or conversationId for getConversationHistory', {
-        userId,
-        conversationId
-      });
+      this.logger.warn(
+        'Missing userId or conversationId for getConversationHistory',
+        {
+          userId,
+          conversationId,
+        },
+      );
       return [];
     }
 
@@ -330,7 +333,7 @@ export class ConversationContextService extends BaseContextService {
               ),
             `getConversationHistoryByTurn:${userId}:${turnId}`,
           );
-          
+
           if (result.matches && result.matches.length > 0) {
             turnResults.push(result.matches[0]);
           }
@@ -338,10 +341,10 @@ export class ConversationContextService extends BaseContextService {
           this.logger.warn(`Error querying turn ${turnId}`, { error });
         }
       }
-      
+
       if (turnResults.length > 0) {
         return turnResults
-          .filter(turn => turn.metadata?.conversationId === conversationId)
+          .filter((turn) => turn.metadata?.conversationId === conversationId)
           .sort((a, b) => {
             const timestampA = (a.metadata?.timestamp as number) || 0;
             const timestampB = (b.metadata?.timestamp as number) || 0;
@@ -361,9 +364,9 @@ export class ConversationContextService extends BaseContextService {
               Array(3072).fill(0),
               {
                 topK: limit * 5,
-                filter: { 
+                filter: {
                   role: options.role,
-                  contextType: 'conversation'
+                  contextType: 'conversation',
                 },
                 includeValues: false,
                 includeMetadata: options.includeMetadata !== false,
@@ -372,15 +375,15 @@ export class ConversationContextService extends BaseContextService {
             ),
           `getConversationHistoryByRole:${userId}:${options.role}`,
         );
-        
+
         const filteredResults = (result.matches || [])
-          .filter(turn => turn.metadata?.conversationId === conversationId)
+          .filter((turn) => turn.metadata?.conversationId === conversationId)
           .sort((a, b) => {
             const timestampA = (a.metadata?.timestamp as number) || 0;
             const timestampB = (b.metadata?.timestamp as number) || 0;
             return timestampA - timestampB;
           });
-        
+
         if (filteredResults.length > 0) {
           return filteredResults.slice(0, limit);
         }
@@ -392,7 +395,7 @@ export class ConversationContextService extends BaseContextService {
     // Strategy 3: Fall back to basic contextType filter (most reliable)
     this.logger.debug('Using fallback contextType filter strategy');
     const filter: Record<string, any> = {
-      contextType: 'conversation'
+      contextType: 'conversation',
     };
 
     // Add timestamp filters if specified
@@ -428,28 +431,28 @@ export class ConversationContextService extends BaseContextService {
       );
 
       const turns = result.matches || [];
-      
+
       // If no turns are found, return empty array
       if (turns.length === 0) {
         return [];
       }
 
       // Filter for the specific conversation
-      let filteredTurns = turns.filter(turn => {
+      let filteredTurns = turns.filter((turn) => {
         const turnConversationId = turn.metadata?.conversationId;
         return turnConversationId === conversationId;
       });
 
       // Apply additional in-memory filters
       if (options.segmentId) {
-        filteredTurns = filteredTurns.filter(turn => {
+        filteredTurns = filteredTurns.filter((turn) => {
           const segmentId = turn.metadata?.segmentId;
           return segmentId === options.segmentId;
         });
       }
 
       if (options.agentId) {
-        filteredTurns = filteredTurns.filter(turn => {
+        filteredTurns = filteredTurns.filter((turn) => {
           const agentId = turn.metadata?.agentId;
           return agentId === options.agentId;
         });
@@ -461,7 +464,7 @@ export class ConversationContextService extends BaseContextService {
         const timestampB = (b.metadata?.timestamp as number) || 0;
         return timestampA - timestampB;
       });
-      
+
       // Limit to requested number
       return filteredTurns.slice(0, limit);
     } catch (error) {
@@ -469,7 +472,7 @@ export class ConversationContextService extends BaseContextService {
       this.logger.error('Failed to retrieve conversation history', {
         userId,
         conversationId,
-        error
+        error,
       });
       throw error; // Rethrow to maintain original behavior
     }
@@ -1097,19 +1100,19 @@ export class ConversationContextService extends BaseContextService {
   }> {
     // Set default window size
     const windowSize = options.windowSize || 10;
-    
+
     // Get the current segment if needed
     let segmentId: string | undefined;
     if (options.includeCurrentSegmentOnly) {
       segmentId = await this.getCurrentSegmentId(userId, conversationId);
     }
-    
+
     // Build filter criteria
     const filterOptions: any = {
       segmentId,
       includeMetadata: options.includeTurnMetadata !== false,
     };
-    
+
     // Add agent filters
     if (options.includeAgentIds && options.includeAgentIds.length > 0) {
       // We will filter post-query as Pinecone doesn't support $in operations directly
@@ -1122,102 +1125,128 @@ export class ConversationContextService extends BaseContextService {
         exclude: options.excludeAgentIds,
       };
     }
-    
+
     // Configure relevance search if specified
     if (options.relevanceQuery || options.relevanceEmbedding) {
       filterOptions.sortBy = 'relevance';
       filterOptions.relevanceEmbedding = options.relevanceEmbedding;
     }
-    
+
     // Retrieve the conversation history
     let messages = await this.getConversationHistory(
-      userId, 
+      userId,
       conversationId,
       windowSize * 2, // Fetch more initially as we may filter some out
-      filterOptions
+      filterOptions,
     );
-    
+
     // Post-processing: Apply additional filters that weren't handled by database query
     if (filterOptions.agentFilter) {
-      messages = messages.filter(message => {
+      messages = messages.filter((message) => {
         const messageAgentId = message.metadata?.agentId;
-        
+
         // If include filter is set, message must match one of the included agent IDs
-        if (filterOptions.agentFilter.include && filterOptions.agentFilter.include.length > 0) {
-          if (!messageAgentId || !filterOptions.agentFilter.include.includes(messageAgentId)) {
+        if (
+          filterOptions.agentFilter.include &&
+          filterOptions.agentFilter.include.length > 0
+        ) {
+          if (
+            !messageAgentId ||
+            !filterOptions.agentFilter.include.includes(messageAgentId)
+          ) {
             return false;
           }
         }
-        
+
         // If exclude filter is set, message must not match any excluded agent IDs
-        if (filterOptions.agentFilter.exclude && filterOptions.agentFilter.exclude.length > 0) {
-          if (messageAgentId && filterOptions.agentFilter.exclude.includes(messageAgentId)) {
+        if (
+          filterOptions.agentFilter.exclude &&
+          filterOptions.agentFilter.exclude.length > 0
+        ) {
+          if (
+            messageAgentId &&
+            filterOptions.agentFilter.exclude.includes(messageAgentId)
+          ) {
             return false;
           }
         }
-        
+
         return true;
       });
     }
-    
+
     // Filter by capabilities if specified
-    if (options.filterByCapabilities && options.filterByCapabilities.length > 0) {
-      messages = messages.filter(message => {
+    if (
+      options.filterByCapabilities &&
+      options.filterByCapabilities.length > 0
+    ) {
+      messages = messages.filter((message) => {
         const capability = message.metadata?.capability as string | undefined;
         return capability && options.filterByCapabilities?.includes(capability);
       });
     }
-    
+
     // Apply recency weighting if doing relevance search with recency bias
-    if (options.recencyWeight && options.recencyWeight > 0 && options.relevanceEmbedding) {
-      const maxTimestamp = Math.max(...messages.map(m => (m.metadata?.timestamp as number) || 0));
-      const minTimestamp = Math.min(...messages.map(m => (m.metadata?.timestamp as number) || 0));
+    if (
+      options.recencyWeight &&
+      options.recencyWeight > 0 &&
+      options.relevanceEmbedding
+    ) {
+      const maxTimestamp = Math.max(
+        ...messages.map((m) => (m.metadata?.timestamp as number) || 0),
+      );
+      const minTimestamp = Math.min(
+        ...messages.map((m) => (m.metadata?.timestamp as number) || 0),
+      );
       const timeRange = maxTimestamp - minTimestamp || 1; // Avoid division by zero
-      
+
       // Adjust scores based on recency
-      messages = messages.map(message => {
+      messages = messages.map((message) => {
         const timestamp = (message.metadata?.timestamp as number) || 0;
         const recencyScore = (timestamp - minTimestamp) / timeRange;
         const originalScore = message.score || 0;
-        
+
         // Weighted average of relevance and recency
-        const combinedScore = 
-          (originalScore * (1 - options.recencyWeight!)) + 
-          (recencyScore * options.recencyWeight!);
-        
+        const combinedScore =
+          originalScore * (1 - options.recencyWeight!) +
+          recencyScore * options.recencyWeight!;
+
         return {
           ...message,
-          score: combinedScore
+          score: combinedScore,
         };
       });
-      
+
       // Re-sort by combined score
       messages.sort((a, b) => (b.score || 0) - (a.score || 0));
     }
-    
+
     // Apply relevance threshold if specified
     if (options.relevanceThreshold && options.relevanceThreshold > 0) {
-      messages = messages.filter(message => 
-        (message.score || 0) >= (options.relevanceThreshold || 0)
+      messages = messages.filter(
+        (message) => (message.score || 0) >= (options.relevanceThreshold || 0),
       );
     }
-    
+
     // Limit to window size after all filtering
     messages = messages.slice(0, windowSize);
-    
+
     // Get segment information if this is a segment-specific context window
     let segmentInfo;
     if (segmentId) {
-      const segments = await this.getConversationSegments(userId, conversationId);
-      const segment = segments.find(s => s.segmentId === segmentId);
+      const segments = await this.getConversationSegments(
+        userId,
+        conversationId,
+      );
+      const segment = segments.find((s) => s.segmentId === segmentId);
       if (segment) {
         segmentInfo = {
           id: segment.segmentId,
-          topic: segment.segmentTopic
+          topic: segment.segmentTopic,
         };
       }
     }
-    
+
     // Calculate token count if maxTokens is specified
     // This is a simple approximation assuming 1 token per 4 characters
     let tokenCount;
@@ -1227,38 +1256,42 @@ export class ConversationContextService extends BaseContextService {
       }, '');
       tokenCount = Math.ceil(totalContent.length / 4);
     }
-    
+
     // If token count exceeds the max, truncate messages
     if (tokenCount && options.maxTokens && tokenCount > options.maxTokens) {
       // Sort by importance (keeping most recent and most relevant)
       const sortedByImportance = [...messages].sort((a, b) => {
-        const scoreA = (a.score || 0) + (a.metadata?.timestamp as number || 0) / Date.now();
-        const scoreB = (b.score || 0) + (b.metadata?.timestamp as number || 0) / Date.now();
+        const scoreA =
+          (a.score || 0) +
+          ((a.metadata?.timestamp as number) || 0) / Date.now();
+        const scoreB =
+          (b.score || 0) +
+          ((b.metadata?.timestamp as number) || 0) / Date.now();
         return scoreB - scoreA;
       });
-      
+
       // Keep messages until we reach the token limit
       let currentTokens = 0;
       const keptMessages: any[] = [];
       for (const message of sortedByImportance) {
         const messageContent = (message.metadata?.message as string) || '';
         const messageTokens = Math.ceil(messageContent.length / 4);
-        
+
         if (currentTokens + messageTokens <= options.maxTokens) {
           keptMessages.push(message);
           currentTokens += messageTokens;
         }
       }
-      
+
       // Restore original order
-      messages = messages.filter(msg => keptMessages.includes(msg));
+      messages = messages.filter((msg) => keptMessages.includes(msg));
       tokenCount = currentTokens;
     }
-    
+
     return {
       messages,
       segmentInfo,
-      tokenCount
+      tokenCount,
     };
   }
 
@@ -1269,36 +1302,38 @@ export class ConversationContextService extends BaseContextService {
    * @param segmentId Optional segment ID (defaults to current segment)
    */
   async generateContextSummary(
-    userId: string, 
+    userId: string,
     conversationId: string,
-    segmentId?: string
+    segmentId?: string,
   ): Promise<string> {
     // If segment ID not provided, get current segment
     if (!segmentId) {
       segmentId = await this.getCurrentSegmentId(userId, conversationId);
     }
-    
+
     // Get the segment messages
     const messages = await this.getConversationHistory(
       userId,
       conversationId,
       50, // Reasonable number of messages to summarize
-      { segmentId }
+      { segmentId },
     );
-    
+
     if (messages.length === 0) {
-      return "No conversation history available.";
+      return 'No conversation history available.';
     }
-    
+
     // In a real implementation, this would use an LLM to generate a summary
     // For now, just return a basic contextual summary
     const segments = await this.getConversationSegments(userId, conversationId);
-    const segment = segments.find(s => s.segmentId === segmentId);
-    
+    const segment = segments.find((s) => s.segmentId === segmentId);
+
     const messageCount = messages.length;
-    const topic = segment?.segmentTopic || "Unspecified topic";
-    const firstTimestamp = new Date(segment?.firstTimestamp || Date.now()).toLocaleString();
-    
+    const topic = segment?.segmentTopic || 'Unspecified topic';
+    const firstTimestamp = new Date(
+      segment?.firstTimestamp || Date.now(),
+    ).toLocaleString();
+
     return `This conversation segment "${topic}" contains ${messageCount} messages starting from ${firstTimestamp}.`;
   }
 }

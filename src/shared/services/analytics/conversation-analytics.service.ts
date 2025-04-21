@@ -1,6 +1,6 @@
 /**
  * Conversation Analytics Service
- * 
+ *
  * Provides analytics capabilities for conversation data, including:
  * - Usage statistics and trends
  * - Topic analysis and topic distribution
@@ -213,7 +213,10 @@ export class ConversationAnalyticsService {
   private conversationService: ConversationContextService;
   private config: Required<ConversationAnalyticsConfig>;
   private analysisCacheKey = 'conversation-analytics';
-  private analysisCache: Map<string, { result: ConversationAnalyticsResult; timestamp: number }> = new Map();
+  private analysisCache: Map<
+    string,
+    { result: ConversationAnalyticsResult; timestamp: number }
+  > = new Map();
 
   constructor(
     options: {
@@ -221,10 +224,10 @@ export class ConversationAnalyticsService {
       pineconeService?: PineconeConnectionService;
       logger?: Logger;
       config?: ConversationAnalyticsConfig;
-    } = {}
+    } = {},
   ) {
     this.logger = options.logger || new ConsoleLogger();
-    
+
     // Create conversation service if not provided
     if (options.conversationService) {
       this.conversationService = options.conversationService;
@@ -239,10 +242,13 @@ export class ConversationAnalyticsService {
     this.config = {
       enableSentimentAnalysis: options.config?.enableSentimentAnalysis ?? true,
       enableTopicAnalysis: options.config?.enableTopicAnalysis ?? true,
-      enableAgentPerformanceMetrics: options.config?.enableAgentPerformanceMetrics ?? true,
+      enableAgentPerformanceMetrics:
+        options.config?.enableAgentPerformanceMetrics ?? true,
       enableUsageStatistics: options.config?.enableUsageStatistics ?? true,
-      enableResponseTimeAnalysis: options.config?.enableResponseTimeAnalysis ?? true,
-      enableConversationQualityMetrics: options.config?.enableConversationQualityMetrics ?? true,
+      enableResponseTimeAnalysis:
+        options.config?.enableResponseTimeAnalysis ?? true,
+      enableConversationQualityMetrics:
+        options.config?.enableConversationQualityMetrics ?? true,
       analysisTimePeriod: {
         days: options.config?.analysisTimePeriod?.days ?? 30,
         hours: options.config?.analysisTimePeriod?.hours ?? 0,
@@ -254,7 +260,7 @@ export class ConversationAnalyticsService {
 
   /**
    * Generate comprehensive analytics for a user's conversations
-   * 
+   *
    * @param userId User identifier
    * @param options Analytics options
    * @returns Comprehensive analytics result
@@ -273,14 +279,17 @@ export class ConversationAnalyticsService {
       includeAgentPerformance?: boolean;
       includeQualityMetrics?: boolean;
       includeSegmentAnalytics?: boolean;
-    } = {}
+    } = {},
   ): Promise<ConversationAnalyticsResult> {
     const cacheKey = `${userId}-${JSON.stringify(options)}`;
-    
+
     // Check cache first if not forcing refresh
     if (!options.forceRefresh) {
       const cached = this.analysisCache.get(cacheKey);
-      if (cached && Date.now() - cached.timestamp < this.config.cacheExpirationMs) {
+      if (
+        cached &&
+        Date.now() - cached.timestamp < this.config.cacheExpirationMs
+      ) {
         this.logger.debug('Returning cached analytics result', { userId });
         return cached.result;
       }
@@ -288,7 +297,8 @@ export class ConversationAnalyticsService {
 
     // Calculate timeframe
     const endTime = options.timeframe?.endTime || Date.now();
-    const startTime = options.timeframe?.startTime || this.calculateStartTime(endTime);
+    const startTime =
+      options.timeframe?.startTime || this.calculateStartTime(endTime);
 
     // Initialize result structure
     const result: ConversationAnalyticsResult = {
@@ -302,53 +312,78 @@ export class ConversationAnalyticsService {
 
     try {
       // Get all user conversations within timeframe
-      const conversations = await this.conversationService.listUserConversations(userId);
-      
+      const conversations =
+        await this.conversationService.listUserConversations(userId);
+
       // Filter by timeframe
       const filteredConversations = conversations.filter(
-        (conv) => conv.lastTimestamp >= startTime && conv.firstTimestamp <= endTime
+        (conv) =>
+          conv.lastTimestamp >= startTime && conv.firstTimestamp <= endTime,
       );
 
       // Run enabled analytics
       if (
-        (options.includeUsageStatistics !== false && this.config.enableUsageStatistics) || 
+        (options.includeUsageStatistics !== false &&
+          this.config.enableUsageStatistics) ||
         options.includeUsageStatistics === true
       ) {
-        result.usageStatistics = await this.calculateUsageStatistics(userId, filteredConversations, startTime, endTime);
+        result.usageStatistics = await this.calculateUsageStatistics(
+          userId,
+          filteredConversations,
+          startTime,
+          endTime,
+        );
       }
 
       if (
-        (options.includeTopicAnalysis !== false && this.config.enableTopicAnalysis) || 
+        (options.includeTopicAnalysis !== false &&
+          this.config.enableTopicAnalysis) ||
         options.includeTopicAnalysis === true
       ) {
-        result.topicAnalysis = await this.performTopicAnalysis(userId, filteredConversations);
+        result.topicAnalysis = await this.performTopicAnalysis(
+          userId,
+          filteredConversations,
+        );
       }
 
       if (
-        (options.includeSentimentAnalysis !== false && this.config.enableSentimentAnalysis) || 
+        (options.includeSentimentAnalysis !== false &&
+          this.config.enableSentimentAnalysis) ||
         options.includeSentimentAnalysis === true
       ) {
-        result.sentimentAnalysis = await this.performSentimentAnalysis(userId, filteredConversations);
+        result.sentimentAnalysis = await this.performSentimentAnalysis(
+          userId,
+          filteredConversations,
+        );
       }
 
       if (
-        (options.includeAgentPerformance !== false && this.config.enableAgentPerformanceMetrics) || 
+        (options.includeAgentPerformance !== false &&
+          this.config.enableAgentPerformanceMetrics) ||
         options.includeAgentPerformance === true
       ) {
-        result.agentPerformance = await this.calculateAgentPerformanceMetrics(userId, filteredConversations);
+        result.agentPerformance = await this.calculateAgentPerformanceMetrics(
+          userId,
+          filteredConversations,
+        );
       }
 
       if (
-        (options.includeQualityMetrics !== false && this.config.enableConversationQualityMetrics) || 
+        (options.includeQualityMetrics !== false &&
+          this.config.enableConversationQualityMetrics) ||
         options.includeQualityMetrics === true
       ) {
-        result.qualityMetrics = await this.calculateQualityMetrics(userId, filteredConversations);
+        result.qualityMetrics = await this.calculateQualityMetrics(
+          userId,
+          filteredConversations,
+        );
       }
 
-      if (
-        options.includeSegmentAnalytics !== false
-      ) {
-        result.segmentAnalytics = await this.calculateSegmentAnalytics(userId, filteredConversations);
+      if (options.includeSegmentAnalytics !== false) {
+        result.segmentAnalytics = await this.calculateSegmentAnalytics(
+          userId,
+          filteredConversations,
+        );
       }
 
       // Store in cache
@@ -375,14 +410,17 @@ export class ConversationAnalyticsService {
     userId: string,
     conversations: any[],
     startTime: number,
-    endTime: number
+    endTime: number,
   ): Promise<UsageStatistics> {
     this.logger.debug('Calculating usage statistics', { userId });
-    
+
     // Placeholder implementation - would be more sophisticated in production
     const totalConversations = conversations.length;
-    const totalTurns = conversations.reduce((sum, conv) => sum + (conv.turnCount || 0), 0);
-    
+    const totalTurns = conversations.reduce(
+      (sum, conv) => sum + (conv.turnCount || 0),
+      0,
+    );
+
     // Simplified statistics for demonstration purposes
     return {
       overall: {
@@ -391,7 +429,8 @@ export class ConversationAnalyticsService {
         totalConversations,
         totalTurns,
         totalUsers: 1, // Just one user in this context
-        avgTurnsPerConversation: totalConversations > 0 ? totalTurns / totalConversations : 0,
+        avgTurnsPerConversation:
+          totalConversations > 0 ? totalTurns / totalConversations : 0,
         avgResponseTime: null, // Would require message-level analysis
         avgMessagesPerUser: totalTurns,
         turnsByRole: {
@@ -410,9 +449,16 @@ export class ConversationAnalyticsService {
           userId,
           conversationCount: totalConversations,
           totalTurns,
-          avgTurnsPerConversation: totalConversations > 0 ? totalTurns / totalConversations : 0,
-          firstSeen: conversations.length > 0 ? Math.min(...conversations.map(c => c.firstTimestamp)) : Date.now(),
-          lastSeen: conversations.length > 0 ? Math.max(...conversations.map(c => c.lastTimestamp)) : Date.now(),
+          avgTurnsPerConversation:
+            totalConversations > 0 ? totalTurns / totalConversations : 0,
+          firstSeen:
+            conversations.length > 0
+              ? Math.min(...conversations.map((c) => c.firstTimestamp))
+              : Date.now(),
+          lastSeen:
+            conversations.length > 0
+              ? Math.max(...conversations.map((c) => c.lastTimestamp))
+              : Date.now(),
           activeHours: [], // Would analyze active hours
         },
       },
@@ -430,22 +476,22 @@ export class ConversationAnalyticsService {
    */
   private async performTopicAnalysis(
     userId: string,
-    conversations: any[]
+    conversations: any[],
   ): Promise<TopicAnalysisResult> {
     this.logger.debug('Performing topic analysis', { userId });
-    
+
     // Get segment data from conversations
     const segmentCounts: Record<string, number> = {};
-    
+
     // Count segments by topic
     for (const conversation of conversations) {
       if (conversation.segments && conversation.segments > 0) {
         // Get segments for this conversation
         const segments = await this.conversationService.getConversationSegments(
           userId,
-          conversation.conversationId
+          conversation.conversationId,
         );
-        
+
         // Count by topic
         for (const segment of segments) {
           const topic = segment.segmentTopic || 'Unlabeled';
@@ -453,15 +499,20 @@ export class ConversationAnalyticsService {
         }
       }
     }
-    
+
     // Convert to distribution
-    const totalSegments = Object.values(segmentCounts).reduce((sum, count) => sum + count, 0);
-    const topicDistribution = Object.entries(segmentCounts).map(([topic, count]) => ({
-      topic,
-      count,
-      percentage: totalSegments > 0 ? (count / totalSegments) * 100 : 0,
-    })).sort((a, b) => b.count - a.count);
-    
+    const totalSegments = Object.values(segmentCounts).reduce(
+      (sum, count) => sum + count,
+      0,
+    );
+    const topicDistribution = Object.entries(segmentCounts)
+      .map(([topic, count]) => ({
+        topic,
+        count,
+        percentage: totalSegments > 0 ? (count / totalSegments) * 100 : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+
     // Simple placeholder implementation - would be more sophisticated in production
     return {
       topicDistribution,
@@ -476,10 +527,10 @@ export class ConversationAnalyticsService {
    */
   private async performSentimentAnalysis(
     userId: string,
-    conversations: any[]
+    conversations: any[],
   ): Promise<SentimentAnalysisResult> {
     this.logger.debug('Performing sentiment analysis', { userId });
-    
+
     // Placeholder implementation - in a real system this would use a sentiment analysis model
     return {
       overallSentiment: 0.2, // Slightly positive sentiment
@@ -498,18 +549,21 @@ export class ConversationAnalyticsService {
    */
   private async calculateAgentPerformanceMetrics(
     userId: string,
-    conversations: any[]
+    conversations: any[],
   ): Promise<AgentPerformanceMetrics> {
     this.logger.debug('Calculating agent performance metrics', { userId });
-    
+
     // Extract unique agent IDs
-    const agentMap: Record<string, { 
-      agentId: string, 
-      agentName: string,
-      responseCount: number,
-      // Other metrics would be calculated from actual data
-    }> = {};
-    
+    const agentMap: Record<
+      string,
+      {
+        agentId: string;
+        agentName: string;
+        responseCount: number;
+        // Other metrics would be calculated from actual data
+      }
+    > = {};
+
     // Process agent IDs from conversations
     for (const conversation of conversations) {
       if (conversation.agentIds && conversation.agentIds.length > 0) {
@@ -521,13 +575,13 @@ export class ConversationAnalyticsService {
               responseCount: 0,
             };
           }
-          
+
           // Increment response count - this is a simplification
           agentMap[agentId].responseCount += 1;
         }
       }
     }
-    
+
     // Simplified metrics - would be more sophisticated in production
     return {
       overall: {
@@ -546,7 +600,7 @@ export class ConversationAnalyticsService {
             userSatisfactionScore: 4.3, // Placeholder value
             topCapabilities: [], // Would analyze top capabilities
           },
-        ])
+        ]),
       ),
       trends: {
         daily: [], // Would analyze daily trends
@@ -561,10 +615,10 @@ export class ConversationAnalyticsService {
    */
   private async calculateQualityMetrics(
     userId: string,
-    conversations: any[]
+    conversations: any[],
   ): Promise<ConversationQualityMetrics> {
     this.logger.debug('Calculating conversation quality metrics', { userId });
-    
+
     // Placeholder implementation - would be more sophisticated in production
     return {
       coherenceScore: 0.85, // 85% coherence - placeholder value
@@ -583,46 +637,52 @@ export class ConversationAnalyticsService {
    */
   private async calculateSegmentAnalytics(
     userId: string,
-    conversations: any[]
+    conversations: any[],
   ): Promise<SegmentAnalytics> {
     this.logger.debug('Calculating segment analytics', { userId });
-    
+
     // Get all segments for all conversations
     const allSegments: any[] = [];
-    
+
     for (const conversation of conversations) {
       if (conversation.segments && conversation.segments > 0) {
         const segments = await this.conversationService.getConversationSegments(
           userId,
-          conversation.conversationId
+          conversation.conversationId,
         );
         allSegments.push(...segments);
       }
     }
-    
+
     // Count segments by topic
     const topicCounts: Record<string, number> = {};
     for (const segment of allSegments) {
       const topic = segment.segmentTopic || 'Unlabeled';
       topicCounts[topic] = (topicCounts[topic] || 0) + 1;
     }
-    
+
     // Calculate distribution
     const totalSegments = allSegments.length;
-    const segmentDistribution = Object.entries(topicCounts).map(([topic, count]) => ({
-      segmentTopic: topic,
-      count,
-      percentage: totalSegments > 0 ? (count / totalSegments) * 100 : 0,
-    })).sort((a, b) => b.count - a.count);
-    
+    const segmentDistribution = Object.entries(topicCounts)
+      .map(([topic, count]) => ({
+        segmentTopic: topic,
+        count,
+        percentage: totalSegments > 0 ? (count / totalSegments) * 100 : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+
     // Calculate average segments per conversation
-    const avgSegmentsPerConversation = conversations.length > 0 ? 
-      totalSegments / conversations.length : 0;
-    
+    const avgSegmentsPerConversation =
+      conversations.length > 0 ? totalSegments / conversations.length : 0;
+
     // Calculate average turns per segment
-    const totalTurns = conversations.reduce((sum, conv) => sum + (conv.turnCount || 0), 0);
-    const avgTurnsPerSegment = totalSegments > 0 ? totalTurns / totalSegments : 0;
-    
+    const totalTurns = conversations.reduce(
+      (sum, conv) => sum + (conv.turnCount || 0),
+      0,
+    );
+    const avgTurnsPerSegment =
+      totalSegments > 0 ? totalTurns / totalSegments : 0;
+
     return {
       segmentDistribution,
       avgSegmentsPerConversation,
@@ -637,11 +697,9 @@ export class ConversationAnalyticsService {
    */
   private calculateStartTime(endTime: number): number {
     const { days = 0, hours = 0, minutes = 0 } = this.config.analysisTimePeriod;
-    const totalMilliseconds = 
-      (days * 24 * 60 * 60 * 1000) + 
-      (hours * 60 * 60 * 1000) + 
-      (minutes * 60 * 1000);
-    
+    const totalMilliseconds =
+      days * 24 * 60 * 60 * 1000 + hours * 60 * 60 * 1000 + minutes * 60 * 1000;
+
     return endTime - totalMilliseconds;
   }
-} 
+}

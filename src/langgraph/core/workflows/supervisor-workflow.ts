@@ -1,7 +1,7 @@
 import { StateGraph, Annotation } from '@langchain/langgraph';
 import { END, START } from '@langchain/langgraph';
 import { AgentWorkflow } from './agent-workflow';
-import {  WorkflowStatus } from './base-workflow';
+import { WorkflowStatus } from './base-workflow';
 import { SupervisorAgent } from '../../../agents/specialized/supervisor-agent';
 import {
   AgentRequest,
