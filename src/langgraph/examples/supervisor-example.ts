@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
-import { SupervisorAgent } from '../../agents/specialized/supervisor-agent';
+import { SupervisorAgent, Task } from '../../agents/specialized/supervisor-agent';
 import { SupervisorWorkflow } from '../core/workflows/supervisor-workflow';
 import { AgentRegistryService } from '../../agents/services/agent-registry.service';
 import { TaskPlanningService } from '../../agents/services/task-planning.service';
@@ -11,20 +11,8 @@ import {
   AgentResponse,
 } from '../../agents/interfaces/base-agent.interface';
 
-// Define a Task interface for use in the example
-interface ExampleTask {
-  id: string;
-  name: string;
-  description: string;
-  status: string;
-  assignedTo?: string;
-  priority: number;
-  requiredCapabilities?: string[];
-  createdAt?: number;
-  completedAt?: number;
-  result?: any;
-  metadata?: Record<string, any>;
-}
+// Define a local task interface for use in the example if needed
+interface ExampleTask extends Task {}
 
 // Create a logger instance
 const logger = new ConsoleLogger();
@@ -322,24 +310,130 @@ const projectTasks = [
     
     // 5. Now run the full workflow
     logger.info('Running full workflow through SupervisorWorkflow');
-    const response = await supervisorWorkflow.execute({
-      input: 'Create a comprehensive market analysis report on AI tools',
+    
+    // Create a simple execution task with required structure
+    const researchTask: Task = {
+      id: uuidv4(),
+      name: 'AI Market Research',
+      description: 'Research current AI tools market trends and competitors',
+      status: 'pending',
+      priority: 10,
+      createdAt: Date.now(),
+      metadata: {
+        requiredCapabilities: ['information-gathering'],
+      }
+    };
+    
+    const contentTask: Task = {
+      id: uuidv4(),
+      name: 'Content Creation',
+      description: 'Write a summary about AI tools market',
+      status: 'pending',
+      priority: 8,
+      createdAt: Date.now(),
+      metadata: {
+        requiredCapabilities: ['content-writing'],
+      }
+    };
+    
+    // Add debug logging for the tasks
+    logger.info('Task structure before execution:');
+    logger.info('Research task:', { task: { id: researchTask.id, name: researchTask.name } });
+    logger.info('Content task:', { task: { id: contentTask.id, name: contentTask.name } });
+    
+    // Try a direct approach with the SupervisorAgent instead of using the workflow
+    logger.info('Assigning and executing tasks directly with SupervisorAgent:');
+    
+    // Assign tasks directly
+    const assignedResearchTask = await supervisorAgent.execute({
+      input: researchTask.description,
+      capability: 'task-assignment',
+      parameters: {
+        taskId: researchTask.id,
+        taskName: researchTask.name,
+        taskDescription: researchTask.description,
+        priority: researchTask.priority,
+        requiredCapabilities: researchTask.metadata?.requiredCapabilities,
+      },
+    });
+    
+    const assignedContentTask = await supervisorAgent.execute({
+      input: contentTask.description,
+      capability: 'task-assignment',
+      parameters: {
+        taskId: contentTask.id,
+        taskName: contentTask.name,
+        taskDescription: contentTask.description,
+        priority: contentTask.priority,
+        requiredCapabilities: contentTask.metadata?.requiredCapabilities,
+      },
+    });
+    
+    logger.info('Task assignments completed:', {
+      researchTaskOutput: typeof assignedResearchTask.output === 'string' 
+        ? assignedResearchTask.output.substring(0, 50) + '...' 
+        : 'complex output',
+      contentTaskOutput: typeof assignedContentTask.output === 'string' 
+        ? assignedContentTask.output.substring(0, 50) + '...' 
+        : 'complex output',
+    });
+    
+    // Execute tasks
+    const executionResult = await supervisorAgent.execute({
+      input: 'Execute research and content tasks',
       capability: 'work-coordination',
       parameters: {
-        tasks: projectTasks.map(task => ({
-          taskDescription: task.description,
-          priority: task.priority,
-          requiredCapabilities: task.requiredCapabilities,
-        })),
+        tasks: [
+          {
+            taskId: researchTask.id,
+            taskName: researchTask.name,
+            taskDescription: researchTask.description,
+            priority: researchTask.priority,
+            requiredCapabilities: researchTask.metadata?.requiredCapabilities,
+          },
+          {
+            taskId: contentTask.id,
+            taskName: contentTask.name,
+            taskDescription: contentTask.description,
+            priority: contentTask.priority,
+            requiredCapabilities: contentTask.metadata?.requiredCapabilities,
+          },
+        ],
         executionStrategy: 'sequential',
-        taskList: Object.values(projectTasks).map(task => ({
-          id: uuidv4(),
-          name: task.name,
-          description: task.description,
-          status: 'pending',
-          priority: task.priority,
-          createdAt: Date.now(),
-        })),
+      },
+    });
+    
+    logger.info('Task execution completed');
+    logger.info('Execution result:', executionResult);
+    
+    // Now try the workflow again but with simplified parameters
+    logger.info('Now trying the workflow with task planning parameters:');
+    
+    // Execute the workflow with task planning details
+    const response = await supervisorWorkflow.execute({
+      input: 'Research AI tools and create content',
+      capability: 'task-planning',
+      parameters: {
+        name: 'Simple Research and Content',
+        description: 'Research about AI tools and create a summary article',
+        tasks: [
+          {
+            name: 'Research AI Tools',
+            description: 'Research current AI tools and their market trends',
+            priority: 10,
+            metadata: {
+              requiredCapabilities: ['information-gathering']
+            }
+          },
+          {
+            name: 'Create Content Summary',
+            description: 'Write a summary article about AI tools',
+            priority: 7,
+            metadata: {
+              requiredCapabilities: ['content-writing']
+            }
+          }
+        ]
       },
     });
     
