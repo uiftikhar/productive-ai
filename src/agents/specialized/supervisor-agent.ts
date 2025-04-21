@@ -15,6 +15,13 @@ import {
   AgentResponse,
   BaseAgentInterface,
 } from '../interfaces/base-agent.interface';
+import { LLMInterface } from '../../shared/llm/llm.interface';
+import { AgentRegistryService } from '../services/agent-registry.service';
+import { AgentTaskExecutorService, TaskExecutionOptions, TaskExecutionEventType } from '../services/agent-task-executor.service';
+import { TaskPlanningService, PlannedTask, TaskPlan, TaskDecompositionOptions } from '../services/task-planning.service';
+
+// TODO: Update BaseAgent to support LLMInterface directly instead of requiring ChatOpenAI
+// This would provide better flexibility to use various model providers in the future
 
 /**
  * Team management interfaces
@@ -53,6 +60,11 @@ export interface WorkCoordinationRequest {
   tasks: TaskAssignmentRequest[];
   teamContext?: Record<string, any>;
   executionStrategy?: 'sequential' | 'parallel' | 'prioritized';
+  useTaskPlanningService?: boolean;
+  planName?: string;
+  planDescription?: string;
+  parallelLimit?: number;
+  timeout?: number;
 }
 
 export interface SupervisorAgentConfig {
@@ -60,8 +72,12 @@ export interface SupervisorAgentConfig {
   name?: string;
   description?: string;
   logger?: Logger;
-  llm?: ChatOpenAI;
+  llm?: LLMInterface | ChatOpenAI;
   defaultTeamMembers?: TeamMember[];
+  priorityThreshold?: number;
+  agentRegistry?: AgentRegistryService;
+  taskPlanningService?: TaskPlanningService;
+  agentTaskExecutor?: AgentTaskExecutorService;
 }
 
 /**
@@ -75,18 +91,46 @@ export class SupervisorAgent extends BaseAgent {
   private tasks: Map<string, Task> = new Map();
   private priorityThreshold: number = 5;
   private workStrategies: Record<string, Function> = {};
+  private agentRegistry: AgentRegistryService;
+  private taskPlanningService: TaskPlanningService;
+  private agentTaskExecutor: AgentTaskExecutorService;
 
   constructor(options: SupervisorAgentConfig = {}) {
+    // Convert LLMInterface to ChatOpenAI if needed
+    let chatLLM: ChatOpenAI | undefined = undefined;
+    const logger = options.logger || new ConsoleLogger();
+    
+    if (options.llm) {
+      // If it's already a ChatOpenAI instance, use it directly
+      if (options.llm instanceof ChatOpenAI) {
+        chatLLM = options.llm;
+      } else {
+        // For now, we don't have a way to properly convert a generic LLMInterface to ChatOpenAI
+        // This is a temporary solution until BaseAgent supports LLMInterface directly
+        logger.warn('LLMInterface provided but ChatOpenAI expected. Using default LLM.');
+        // We'll let BaseAgent create a default ChatOpenAI instance
+      }
+    }
+    
     super(
       options.name || 'Supervisor Agent',
       options.description ||
         'Coordinates multiple agents for complex multi-step tasks',
       {
         id: options.id || `supervisor-agent-${uuidv4()}`,
-        logger: options.logger || new ConsoleLogger(),
-        llm: options.llm,
+        logger: logger,
+        llm: chatLLM,
       },
     );
+
+    // Initialize services
+    this.agentRegistry = options.agentRegistry || AgentRegistryService.getInstance();
+    this.taskPlanningService = options.taskPlanningService || TaskPlanningService.getInstance();
+    this.agentTaskExecutor = options.agentTaskExecutor || AgentTaskExecutorService.getInstance();
+    
+    if (options.priorityThreshold !== undefined) {
+      this.priorityThreshold = options.priorityThreshold;
+    }
 
     // Register capabilities
     this.registerCapability({
@@ -107,6 +151,12 @@ export class SupervisorAgent extends BaseAgent {
     this.registerCapability({
       name: 'progress-tracking',
       description: 'Track progress of tasks and overall goals',
+    });
+
+    // Register additional capabilities
+    this.registerCapability({
+      name: 'task-planning',
+      description: 'Create and manage task plans with dependencies',
     });
 
     // Initialize work strategies
@@ -177,6 +227,9 @@ export class SupervisorAgent extends BaseAgent {
           break;
         case 'progress-tracking':
           result = await this.handleProgressTracking(request);
+          break;
+        case 'task-planning':
+          result = await this.handleTaskPlanning(request);
           break;
         default:
           // If no specific capability is provided, treat as general coordination request
@@ -278,22 +331,54 @@ export class SupervisorAgent extends BaseAgent {
       throw new Error('Missing tasks for coordination');
     }
 
-    // Create tasks for each requested task
-    const taskPromises = coordinationRequest.tasks.map(taskRequest => 
-      this.handleTaskAssignment({ ...request, parameters: taskRequest })
-    );
+    // Determine if we should use the task planning service
+    const usePlanning = coordinationRequest.useTaskPlanningService === true;
     
-    const createdTasks = await Promise.all(taskPromises);
-    
-    // Execute the tasks according to the requested strategy
-    const strategy = coordinationRequest.executionStrategy || 'sequential';
-    const executionStrategy = this.workStrategies[strategy];
-    
-    if (!executionStrategy) {
-      throw new Error(`Unsupported execution strategy: ${strategy}`);
+    if (usePlanning) {
+      // Create a task plan using the task planning service
+      const tasks = coordinationRequest.tasks.map(taskRequest => ({
+        name: taskRequest.taskDescription.slice(0, 50),
+        description: taskRequest.taskDescription,
+        priority: taskRequest.priority || 5,
+        requiredCapabilities: taskRequest.requiredCapabilities || [],
+        dependencies: [],
+        status: 'pending' as 'pending', // Explicitly typed as 'pending'
+        metadata: taskRequest.metadata || {}
+      }));
+      
+      const planName = coordinationRequest.planName || 'Task Plan';
+      const planDescription = coordinationRequest.planDescription || 'Generated task plan';
+      
+      // Create the plan
+      const plan = await this.createTaskPlan(planName, planDescription, tasks);
+      
+      // Execute the plan
+      const executionOptions: TaskExecutionOptions = {
+        parallelLimit: coordinationRequest.parallelLimit,
+        timeout: coordinationRequest.timeout,
+        context: coordinationRequest.teamContext
+      };
+      
+      return this.executeTaskPlan(plan.id, executionOptions);
+    } else {
+      // Use the original implementation
+      // Create tasks for each requested task
+      const taskPromises = coordinationRequest.tasks.map(taskRequest => 
+        this.handleTaskAssignment({ ...request, parameters: taskRequest })
+      );
+      
+      const createdTasks = await Promise.all(taskPromises);
+      
+      // Execute the tasks according to the requested strategy
+      const strategy = coordinationRequest.executionStrategy || 'sequential';
+      const executionStrategy = this.workStrategies[strategy];
+      
+      if (!executionStrategy) {
+        throw new Error(`Unsupported execution strategy: ${strategy}`);
+      }
+      
+      return executionStrategy(createdTasks, coordinationRequest.teamContext);
     }
-    
-    return executionStrategy(createdTasks, coordinationRequest.teamContext);
   }
 
   /**
@@ -326,6 +411,22 @@ export class SupervisorAgent extends BaseAgent {
         })),
       };
     }
+  }
+
+  /**
+   * Handle task planning
+   */
+  private async handleTaskPlanning(request: AgentRequest): Promise<any> {
+    const { name, description, tasks } = request.parameters as { name: string; description: string; tasks: Partial<PlannedTask>[] };
+
+    if (!name || !description || !tasks || tasks.length === 0) {
+      throw new Error('Missing task plan details');
+    }
+
+    // Create a task plan using the task planning service
+    const plan = await this.createTaskPlan(name, description, tasks);
+    
+    return plan;
   }
 
   /**
@@ -489,7 +590,35 @@ Provide a clear, step-by-step coordination plan.
    * Execute tasks sequentially
    */
   private async executeSequentially(
-    tasks: Task[], 
+    tasks: Task[],
+    context?: Record<string, any>,
+    useTaskExecutor: boolean = false
+  ): Promise<any[]> {
+    if (useTaskExecutor) {
+      // Convert internal tasks to a task plan
+      const plan = await this.convertToTaskPlan(
+        tasks,
+        'Sequential Execution Plan',
+        'Tasks to be executed sequentially'
+      );
+      
+      // Execute the plan with sequential settings
+      const executionOptions: TaskExecutionOptions = {
+        parallelLimit: 1, // Ensure sequential execution
+        context
+      };
+      
+      const result = await this.executeTaskPlan(plan.id, executionOptions);
+      return result.results.map((r: any) => r.result);
+    } else {
+      // Use the original implementation
+      return this._executeSequentiallyOriginal(tasks, context);
+    }
+  }
+  
+  // Renamed original implementation for backward compatibility
+  private async _executeSequentiallyOriginal(
+    tasks: Task[],
     context?: Record<string, any>
   ): Promise<any[]> {
     const results = [];
@@ -540,7 +669,35 @@ Provide a clear, step-by-step coordination plan.
    * Execute tasks in parallel
    */
   private async executeInParallel(
-    tasks: Task[], 
+    tasks: Task[],
+    context?: Record<string, any>,
+    useTaskExecutor: boolean = false
+  ): Promise<any[]> {
+    if (useTaskExecutor) {
+      // Convert internal tasks to a task plan
+      const plan = await this.convertToTaskPlan(
+        tasks,
+        'Parallel Execution Plan',
+        'Tasks to be executed in parallel'
+      );
+      
+      // Execute the plan with parallel settings
+      const executionOptions: TaskExecutionOptions = {
+        parallelLimit: tasks.length, // Allow maximum parallelism
+        context
+      };
+      
+      const result = await this.executeTaskPlan(plan.id, executionOptions);
+      return result.results.map((r: any) => r.result);
+    } else {
+      // Use the original implementation
+      return this._executeInParallelOriginal(tasks, context);
+    }
+  }
+  
+  // Renamed original implementation for backward compatibility
+  private async _executeInParallelOriginal(
+    tasks: Task[],
     context?: Record<string, any>
   ): Promise<any[]> {
     const taskPromises = tasks.map(async task => {
@@ -589,7 +746,42 @@ Provide a clear, step-by-step coordination plan.
    * Execute tasks by priority
    */
   private async executeByPriority(
-    tasks: Task[], 
+    tasks: Task[],
+    context?: Record<string, any>,
+    useTaskExecutor: boolean = false
+  ): Promise<any[]> {
+    if (useTaskExecutor) {
+      // Convert internal tasks to a task plan with priority information preserved
+      const plan = await this.convertToTaskPlan(
+        tasks,
+        'Priority-based Execution Plan',
+        'Tasks to be executed based on priority'
+      );
+      
+      // We'll let the task executor handle execution based on task priorities
+      const executionOptions: TaskExecutionOptions = {
+        context
+      };
+      
+      const result = await this.executeTaskPlan(plan.id, executionOptions);
+      
+      // Ensure results are returned in the original task order
+      const resultMap = new Map<string, any>();
+      result.results.forEach((r: any) => {
+        resultMap.set(r.taskId, r.result);
+      });
+      
+      // Map back to original task IDs
+      return plan.tasks.map(t => resultMap.get(t.id));
+    } else {
+      // Use the original implementation
+      return this._executeByPriorityOriginal(tasks, context);
+    }
+  }
+  
+  // Renamed original implementation for backward compatibility
+  private async _executeByPriorityOriginal(
+    tasks: Task[],
     context?: Record<string, any>
   ): Promise<any[]> {
     // Sort tasks by priority (highest first)
@@ -600,10 +792,10 @@ Provide a clear, step-by-step coordination plan.
     const lowPriorityTasks = sortedTasks.filter(t => t.priority < this.priorityThreshold);
     
     // Execute high priority tasks in parallel
-    const highPriorityResults = await this.executeInParallel(highPriorityTasks, context);
+    const highPriorityResults = await this._executeInParallelOriginal(highPriorityTasks, context);
     
     // Execute low priority tasks sequentially
-    const lowPriorityResults = await this.executeSequentially(lowPriorityTasks, context);
+    const lowPriorityResults = await this._executeSequentiallyOriginal(lowPriorityTasks, context);
     
     // Reconstruct results in the original task order
     const resultMap = new Map<string, any>();
@@ -691,5 +883,102 @@ Description: ${task.description}
     
     // Rough estimate based on average token length of 4 characters
     return Math.ceil((inputLength + outputLength) / 4);
+  }
+
+  /**
+   * Create a task plan in the task planning service
+   */
+  async createTaskPlan(name: string, description: string, tasks: Partial<PlannedTask>[]): Promise<TaskPlan> {
+    // Create task decomposition options with the tasks provided as context
+    const options: TaskDecompositionOptions = {
+      context: {
+        predefinedTasks: tasks
+      }
+    };
+    
+    // Create the plan using the TaskPlanningService
+    const plan = await this.taskPlanningService.createTaskPlan(name, description, options);
+    
+    // If predefined tasks were provided, add them to the plan
+    if (tasks && tasks.length > 0) {
+      for (const taskData of tasks) {
+        // Ensure status is one of the allowed values
+        const status = taskData.status && ['pending', 'in-progress', 'completed', 'failed'].includes(taskData.status) 
+          ? taskData.status as 'pending' | 'in-progress' | 'completed' | 'failed'
+          : 'pending';
+        
+        // Create the task with required fields
+        const task: PlannedTask = {
+          id: uuidv4(),
+          name: taskData.name || 'Unnamed Task',
+          description: taskData.description || '',
+          status: status,
+          priority: taskData.priority || 5,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          ...taskData
+        };
+        
+        // Add the task to the plan
+        this.taskPlanningService.addTask(plan.id, task);
+      }
+    }
+    
+    return plan;
+  }
+
+  /**
+   * Execute a task plan using the AgentTaskExecutorService
+   */
+  async executeTaskPlan(planId: string, options: TaskExecutionOptions = {}): Promise<any> {
+    this.logger.info(`Executing task plan: ${planId}`);
+    return this.agentTaskExecutor.executePlan(planId, options);
+  }
+
+  /**
+   * Execute a specific task from a plan
+   */
+  async executeTaskFromPlan(planId: string, taskId: string, options: TaskExecutionOptions = {}): Promise<any> {
+    this.logger.info(`Executing specific task: ${taskId} from plan: ${planId}`);
+    return this.agentTaskExecutor.executeTaskDirectly(planId, taskId, options);
+  }
+
+  /**
+   * Subscribe to task execution events
+   */
+  subscribeToTaskEvents(callback: (event: any) => void, eventTypes?: TaskExecutionEventType[]): string {
+    return this.agentTaskExecutor.subscribe(callback, eventTypes);
+  }
+
+  /**
+   * Unsubscribe from task execution events
+   */
+  unsubscribeFromTaskEvents(subscriptionId: string): void {
+    this.agentTaskExecutor.unsubscribe(subscriptionId);
+  }
+
+  /**
+   * Convert internal tasks to task planning format
+   */
+  async convertToTaskPlan(tasks: Task[], name: string, description: string): Promise<TaskPlan> {
+    const plannedTasks = tasks.map(task => {
+      // Convert the status to the proper type
+      const status = task.status && ['pending', 'in-progress', 'completed', 'failed'].includes(task.status) 
+        ? task.status as 'pending' | 'in-progress' | 'completed' | 'failed'
+        : 'pending';
+      
+      return {
+        name: task.name,
+        description: task.description,
+        assignedTo: task.assignedTo,
+        status: status,
+        priority: task.priority,
+        metadata: task.metadata,
+        dependencies: [],
+        requiredCapabilities: []
+      };
+    });
+
+    return this.createTaskPlan(name, description, plannedTasks);
   }
 } 

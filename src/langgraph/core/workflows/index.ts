@@ -3,3 +3,4 @@
  */
 export * from './base-workflow';
 export * from './agent-workflow';
+export * from './supervisor-workflow';

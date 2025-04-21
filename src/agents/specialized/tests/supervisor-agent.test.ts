@@ -247,13 +247,14 @@ describe('SupervisorAgent', () => {
   describe('capability handling', () => {
     it('should have the correct capabilities registered', () => {
       const capabilities = supervisorAgent.getCapabilities();
-      expect(capabilities.length).toBe(4);
+      expect(capabilities.length).toBe(5);
       
       const capabilityNames = capabilities.map(c => c.name);
       expect(capabilityNames).toContain('team-management');
       expect(capabilityNames).toContain('task-assignment');
       expect(capabilityNames).toContain('work-coordination');
       expect(capabilityNames).toContain('progress-tracking');
+      expect(capabilityNames).toContain('task-planning');
     });
 
     it('should correctly check if it can handle a capability', () => {
