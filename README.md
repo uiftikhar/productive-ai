@@ -8,7 +8,7 @@
 
 </div>
 
-A powerful platform for AI-driven productivity, focusing on meeting intelligence, knowledge management, and workflow automation. Productive AI uses advanced LLM orchestration to transform organizational communication and decision-making.
+A powerful platform for AI-driven productivity, focusing on meeting intelligence, knowledge management, workflow automation, and intelligent agent coordination. Productive AI uses advanced LLM orchestration to transform organizational communication and decision-making.
 
 ## 🚀 Key Features
 
@@ -19,6 +19,10 @@ A powerful platform for AI-driven productivity, focusing on meeting intelligence
 - **Expertise Fingerprinting**: Map organizational knowledge to the people who possess it
 - **Vector Search & RAG**: Semantic search capabilities with Retrieval-Augmented Generation
 - **LangGraph Workflows**: Sophisticated agent orchestration using LangGraph
+- **Intent Classification System**: Smart routing of requests to specialized agents based on intent
+- **SupervisorAgent**: Multi-agent coordination and task orchestration
+- **Task Planning System**: Decomposition of complex tasks into manageable subtasks
+- **Agent Communication Framework**: Inter-agent communication for collaborative problem-solving
 
 ## 🏗️ Architecture
 
@@ -27,10 +31,23 @@ The application is built with a modular architecture:
 ```
 src/
 ├── agents/            # Agent implementations (core AI components)
+│   ├── base/          # Base agent implementations
+│   ├── classifiers/   # Intent classification systems
+│   ├── communication/ # Agent communication framework
+│   ├── factories/     # Agent factory patterns
+│   ├── interfaces/    # Agent interfaces and contracts
+│   ├── services/      # Agent services (registry, discovery, task execution)
+│   ├── specialized/   # Specialized agent implementations (including Supervisor)
+│   └── types/         # Type definitions
 ├── auth/              # Authentication and authorization
 ├── database/          # Database configurations and models
 ├── jira-ticket-generator/ # Jira integration services
 ├── langgraph/         # LangGraph workflow implementations
+│   ├── core/          # Core LangGraph components
+│   │   ├── adapters/  # Workflow adapters
+│   │   ├── state/     # State management
+│   │   └── workflows/ # Workflow implementations
+│   └── examples/      # Example implementations
 ├── langchain/         # LangChain utilities and extensions
 ├── pinecone/          # Vector database integrations
 ├── shared/            # Shared utilities and services
@@ -42,7 +59,9 @@ src/
 ### Core Components
 
 - **Agent System**: Extensible AI agent framework with standardized interfaces
+- **Intent Classification**: Intelligent request routing to specialized agents
 - **LangGraph Integration**: Advanced workflow orchestration for complex AI tasks
+- **SupervisorAgent**: Multi-agent coordination and task management
 - **Vector Database**: Persistent storage of embeddings for semantic search
 - **Embedding Service**: Text embedding generation for semantic understanding
 - **Context Management**: Sophisticated context handling for conversations and documents
@@ -119,6 +138,76 @@ const result = await meetingAnalysisAgent.execute({
 console.log(result.output);
 ```
 
+### Intent Classification
+
+```typescript
+import { ClassifierFactory } from './src/agents/factories/classifier-factory';
+import { AgentRegistryService } from './src/agents/services/agent-registry.service';
+
+// Get the registry with registered agents
+const registry = AgentRegistryService.getInstance();
+
+// Create a classifier
+const classifier = ClassifierFactory.getInstance().createClassifier('openai');
+classifier.setAgents(registry.getAllAgents());
+
+// Classify a user query
+const result = await classifier.classify(
+  "I need a summary of yesterday's marketing meeting",
+  previousConversationHistory
+);
+
+console.log(`Selected agent: ${result.selectedAgentId}`);
+console.log(`Confidence: ${result.confidence}`);
+console.log(`Intent: ${result.intent}`);
+```
+
+### Multi-Agent Task Orchestration
+
+```typescript
+import { SupervisorAgent } from './src/agents/specialized/supervisor-agent';
+import { SupervisorAdapter } from './src/langgraph/core/adapters/supervisor-adapter';
+import { ResearchAgent } from './src/agents/specialized/research-agent';
+import { ContentAgent } from './src/agents/specialized/content-agent';
+
+// Create specialized agents
+const researchAgent = new ResearchAgent();
+const contentAgent = new ContentAgent();
+
+// Create a supervisor agent with team members
+const supervisor = new SupervisorAgent({
+  defaultTeamMembers: [
+    { agent: researchAgent, role: 'Researcher', priority: 8, active: true },
+    { agent: contentAgent, role: 'Content Creator', priority: 6, active: true }
+  ]
+});
+
+// Create a LangGraph workflow adapter
+const adapter = new SupervisorAdapter(supervisor, {
+  tracingEnabled: true
+});
+
+// Execute a coordinated task with multiple subtasks
+const result = await adapter.executeCoordinatedTask(
+  'Create a comprehensive report on renewable energy',
+  [
+    {
+      description: 'Research current renewable energy technologies and adoption rates',
+      requiredCapabilities: ['research'],
+      priority: 9
+    },
+    {
+      description: 'Create a detailed report based on research findings',
+      requiredCapabilities: ['content-creation'],
+      priority: 7
+    }
+  ],
+  'sequential' // Execution strategy: sequential, parallel, or prioritized
+);
+
+console.log(result.output);
+```
+
 ### Document Summarization
 
 ```typescript
@@ -157,6 +246,8 @@ console.log(results);
 
 The project uses LangGraph for advanced workflow orchestration:
 
+### Meeting Analysis Workflow
+
 ```typescript
 import { StandardizedMeetingAnalysisAdapter } from './src/langgraph/core/adapters/standardized-meeting-analysis.adapter';
 import { MeetingAnalysisAgent } from './src/agents/specialized/meeting-analysis-agent';
@@ -186,6 +277,52 @@ const result = await adapter.processMeetingTranscript({
 console.log(result.output);
 ```
 
+### Supervisor Workflow
+
+```typescript
+import { SupervisorWorkflow } from './src/langgraph/core/workflows/supervisor-workflow';
+import { SupervisorAgent } from './src/agents/specialized/supervisor-agent';
+
+// Create a supervisor agent
+const supervisor = new SupervisorAgent();
+
+// Create a workflow for multi-agent orchestration
+const workflow = new SupervisorWorkflow(supervisor, {
+  tracingEnabled: true
+});
+
+// Execute a complex workflow with multiple agents
+const result = await workflow.execute({
+  input: 'Analyze market trends and create a report',
+  parameters: {
+    tasks: [
+      {
+        name: 'Market Research',
+        description: 'Research current market trends in tech sector',
+        priority: 9,
+        requiredCapabilities: ['research']
+      },
+      {
+        name: 'Data Analysis',
+        description: 'Analyze collected market data',
+        priority: 8,
+        requiredCapabilities: ['data-analysis']
+      },
+      {
+        name: 'Report Creation',
+        description: 'Create a comprehensive market report',
+        priority: 7,
+        requiredCapabilities: ['content-creation'],
+        dependencies: ['Market Research', 'Data Analysis']
+      }
+    ],
+    executionStrategy: 'sequential'
+  }
+});
+
+console.log(result);
+```
+
 ## 🧩 Creating Custom Agents
 
 1. Extend the BaseAgent class:
@@ -196,10 +333,12 @@ import { BaseAgent } from './src/agents/base/base-agent';
 export class MyCustomAgent extends BaseAgent {
   constructor(options = {}) {
     super(
-      'my-custom-agent-id',
       'My Custom Agent',
       'A custom agent for specialized tasks',
-      options
+      {
+        id: 'my-custom-agent-id',
+        ...options
+      }
     );
     
     this.registerCapability({
@@ -250,20 +389,35 @@ open visualizations/meeting-analysis-workflow.html
 # Run all tests
 npm test
 
-# Run specific tests
-npm test -- -t "EmbeddingService"
+# Run specific test suite
+npm test -- --testPathPattern=supervisor-agent
 
 # Run tests with coverage
-npm run test:coverage
+npm test -- --coverage
 ```
 
-## 🤝 Contributing
+## 🚀 Running Examples
 
-Contributions are welcome! Please check out our [contribution guidelines](CONTRIBUTING.md) for details.
+The project includes several examples to demonstrate functionality:
 
-## 📜 License
+```bash
+# Run the supervisor multi-agent scenario
+npx ts-node src/langgraph/examples/supervisor-multi-agent-scenario.ts
 
-TODO
+# Run the task planning example
+npx ts-node src/agents/examples/task-planning-example.ts
+
+# Run the meeting analysis example
+npx ts-node src/langgraph/examples/meeting-analysis-example.ts
+```
+
+## 📝 Contributing
+
+Contributions are welcome! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
