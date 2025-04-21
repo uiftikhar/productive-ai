@@ -23,6 +23,7 @@ A powerful platform for AI-driven productivity, focusing on meeting intelligence
 - **SupervisorAgent**: Multi-agent coordination and task orchestration
 - **Task Planning System**: Decomposition of complex tasks into manageable subtasks
 - **Agent Communication Framework**: Inter-agent communication for collaborative problem-solving
+- **Enhanced Conversation Context**: Advanced conversation history retrieval with agent-specific filters, relevance ranking, and context windows
 
 ## 🏗️ Architecture
 
@@ -34,6 +35,7 @@ src/
 │   ├── base/          # Base agent implementations
 │   ├── classifiers/   # Intent classification systems
 │   ├── communication/ # Agent communication framework
+│   ├── examples/      # Example implementations for various capabilities
 │   ├── factories/     # Agent factory patterns
 │   ├── interfaces/    # Agent interfaces and contracts
 │   ├── services/      # Agent services (registry, discovery, task execution)
@@ -51,6 +53,10 @@ src/
 ├── langchain/         # LangChain utilities and extensions
 ├── pinecone/          # Vector database integrations
 ├── shared/            # Shared utilities and services
+│   ├── logger/        # Logging utilities
+│   ├── services/      # Shared service implementations
+│   │   ├── user-context/ # User context and conversation management
+│   │   └── embedding/    # Embedding service interfaces
 ├── summary-generator/ # Document summarization services
 ├── app.ts             # Express application setup
 └── index.ts           # Application entry point
@@ -65,6 +71,10 @@ src/
 - **Vector Database**: Persistent storage of embeddings for semantic search
 - **Embedding Service**: Text embedding generation for semantic understanding
 - **Context Management**: Sophisticated context handling for conversations and documents
+  - **Conversation Segmentation**: Automatic segmentation of conversations by topic
+  - **Agent-Specific Filtering**: Retrieve only the conversation history relevant to specific agents
+  - **Relevance Sorting**: Sort conversation history by semantic relevance to the current query
+  - **Context Windows**: Create tailored context windows optimized for different agent needs
 
 ## 🔧 Getting Started
 
@@ -199,13 +209,85 @@ const result = await adapter.executeCoordinatedTask(
     {
       description: 'Create a detailed report based on research findings',
       requiredCapabilities: ['content-creation'],
-      priority: 7
+      priority: 7,
+      dependsOn: ['Research current renewable energy technologies and adoption rates']
     }
-  ],
-  'sequential' // Execution strategy: sequential, parallel, or prioritized
+  ]
+);
+```
+
+### Conversation Context Windows
+
+```typescript
+import { ConversationContextService } from './src/shared/services/user-context/conversation-context.service';
+import { PineconeConnectionService } from './src/pinecone/pinecone-connection.service';
+import { EmbeddingService } from './src/shared/services/embedding/embedding.service';
+
+// Initialize services
+const pineconeService = new PineconeConnectionService({
+  config: {
+    maxRetries: 3,
+    batchSize: 100,
+  },
+  logger: myLogger,
+});
+
+// Initialize the conversation context service with segmentation enabled
+const conversationService = new ConversationContextService({
+  pineconeService,
+  logger: myLogger,
+  segmentationConfig: {
+    enabled: true,
+    detectTopicChanges: true,
+    assignTopicNames: true,
+  },
+});
+
+// Create an agent-specific context window
+const technicalContext = await conversationService.createContextWindow(
+  userId,
+  conversationId,
+  {
+    windowSize: 10,
+    includeAgentIds: ['technical-support-agent'],
+    excludeAgentIds: ['sales-agent'],
+    filterByCapabilities: ['troubleshooting'],
+    includeTurnMetadata: true,
+  }
 );
 
-console.log(result.output);
+console.log(`Retrieved ${technicalContext.messages.length} messages for the technical support agent`);
+console.log(`Context segment topic: ${technicalContext.segmentInfo?.topic}`);
+
+// For technical agents, the context window might need the most relevant information
+// rather than just the most recent messages
+const queryEmbedding = await embeddingService.generateEmbedding(
+  "device won't turn on troubleshooting steps"
+);
+
+const relevanceContext = await conversationService.createContextWindow(
+  userId,
+  conversationId,
+  {
+    relevanceEmbedding: queryEmbedding,
+    recencyWeight: 0.3, // 30% weight to recency, 70% to relevance
+    windowSize: 5,
+    maxTokens: 1500, // Limit token usage
+  }
+);
+
+// Use the context window to provide the agent with the most relevant context
+const agentResponse = await technicalAgent.execute({
+  input: "What should I try next to fix the device?",
+  context: {
+    conversationHistory: relevanceContext.messages,
+    contextSummary: await conversationService.generateContextSummary(
+      userId, 
+      conversationId,
+      relevanceContext.segmentInfo?.id
+    )
+  }
+});
 ```
 
 ### Document Summarization

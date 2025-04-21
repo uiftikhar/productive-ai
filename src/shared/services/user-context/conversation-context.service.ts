@@ -284,6 +284,8 @@ export class ConversationContextService extends BaseContextService {
       agentId?: string;
       role?: 'user' | 'assistant' | 'system';
       includeMetadata?: boolean;
+      sortBy?: 'chronological' | 'relevance';
+      relevanceEmbedding?: number[];
     } = {},
   ) {
     const filter: Record<string, any> = {
@@ -313,12 +315,17 @@ export class ConversationContextService extends BaseContextService {
       filter.role = options.role;
     }
 
-    // Use a proper placeholder vector for a metadata-only search
+    // Sort by relevance requires an embedding vector for similarity comparison
+    const sortByRelevance = options.sortBy === 'relevance' && Array.isArray(options.relevanceEmbedding);
+    
+    // Use the relevance embedding if sorting by relevance, otherwise use placeholder vector
+    const queryVector = sortByRelevance && options.relevanceEmbedding ? options.relevanceEmbedding : Array(3072).fill(0);
+
     const result = await this.executeWithRetry(
       () =>
         this.pineconeService.queryVectors<RecordMetadata>(
           USER_CONTEXT_INDEX,
-          Array(3072).fill(0), // Placeholder vector filled with zeros - matching index dimension
+          queryVector,
           {
             topK: limit,
             filter,
@@ -332,12 +339,17 @@ export class ConversationContextService extends BaseContextService {
 
     const turns = result.matches || [];
 
-    // Sort turns by timestamp
-    return turns.sort((a, b) => {
-      const timestampA = (a.metadata?.timestamp as number) || 0;
-      const timestampB = (b.metadata?.timestamp as number) || 0;
-      return timestampA - timestampB;
-    });
+    // If sorting by relevance and we used a real embedding, results are already sorted by relevance
+    // Otherwise, sort turns by timestamp (chronological)
+    if (!sortByRelevance) {
+      return turns.sort((a, b) => {
+        const timestampA = (a.metadata?.timestamp as number) || 0;
+        const timestampB = (b.metadata?.timestamp as number) || 0;
+        return timestampA - timestampB;
+      });
+    }
+    
+    return turns;
   }
 
   /**
@@ -927,5 +939,243 @@ export class ConversationContextService extends BaseContextService {
       'Updated conversation retention periods',
       this.retentionPeriods,
     );
+  }
+
+  /**
+   * Create a context window for specific agent needs
+   * @param userId User identifier
+   * @param conversationId Conversation identifier
+   * @param options Context window configuration options
+   */
+  async createContextWindow(
+    userId: string,
+    conversationId: string,
+    options: {
+      windowSize?: number;
+      includeCurrentSegmentOnly?: boolean;
+      includeAgentIds?: string[];
+      excludeAgentIds?: string[];
+      relevanceThreshold?: number;
+      relevanceQuery?: string;
+      relevanceEmbedding?: number[];
+      recencyWeight?: number;
+      filterByCapabilities?: string[];
+      maxTokens?: number;
+      includeTurnMetadata?: boolean;
+    } = {},
+  ): Promise<{
+    messages: Array<any>;
+    contextSummary?: string;
+    segmentInfo?: {
+      id: string;
+      topic?: string;
+    };
+    tokenCount?: number;
+  }> {
+    // Set default window size
+    const windowSize = options.windowSize || 10;
+    
+    // Get the current segment if needed
+    let segmentId: string | undefined;
+    if (options.includeCurrentSegmentOnly) {
+      segmentId = await this.getCurrentSegmentId(userId, conversationId);
+    }
+    
+    // Build filter criteria
+    const filterOptions: any = {
+      segmentId,
+      includeMetadata: options.includeTurnMetadata !== false,
+    };
+    
+    // Add agent filters
+    if (options.includeAgentIds && options.includeAgentIds.length > 0) {
+      // We will filter post-query as Pinecone doesn't support $in operations directly
+      filterOptions.agentFilter = {
+        include: options.includeAgentIds,
+        exclude: options.excludeAgentIds || [],
+      };
+    } else if (options.excludeAgentIds && options.excludeAgentIds.length > 0) {
+      filterOptions.agentFilter = {
+        exclude: options.excludeAgentIds,
+      };
+    }
+    
+    // Configure relevance search if specified
+    if (options.relevanceQuery || options.relevanceEmbedding) {
+      filterOptions.sortBy = 'relevance';
+      filterOptions.relevanceEmbedding = options.relevanceEmbedding;
+    }
+    
+    // Retrieve the conversation history
+    let messages = await this.getConversationHistory(
+      userId, 
+      conversationId,
+      windowSize * 2, // Fetch more initially as we may filter some out
+      filterOptions
+    );
+    
+    // Post-processing: Apply additional filters that weren't handled by database query
+    if (filterOptions.agentFilter) {
+      messages = messages.filter(message => {
+        const messageAgentId = message.metadata?.agentId;
+        
+        // If include filter is set, message must match one of the included agent IDs
+        if (filterOptions.agentFilter.include && filterOptions.agentFilter.include.length > 0) {
+          if (!messageAgentId || !filterOptions.agentFilter.include.includes(messageAgentId)) {
+            return false;
+          }
+        }
+        
+        // If exclude filter is set, message must not match any excluded agent IDs
+        if (filterOptions.agentFilter.exclude && filterOptions.agentFilter.exclude.length > 0) {
+          if (messageAgentId && filterOptions.agentFilter.exclude.includes(messageAgentId)) {
+            return false;
+          }
+        }
+        
+        return true;
+      });
+    }
+    
+    // Filter by capabilities if specified
+    if (options.filterByCapabilities && options.filterByCapabilities.length > 0) {
+      messages = messages.filter(message => {
+        const capability = message.metadata?.capability as string | undefined;
+        return capability && options.filterByCapabilities?.includes(capability);
+      });
+    }
+    
+    // Apply recency weighting if doing relevance search with recency bias
+    if (options.recencyWeight && options.recencyWeight > 0 && options.relevanceEmbedding) {
+      const maxTimestamp = Math.max(...messages.map(m => (m.metadata?.timestamp as number) || 0));
+      const minTimestamp = Math.min(...messages.map(m => (m.metadata?.timestamp as number) || 0));
+      const timeRange = maxTimestamp - minTimestamp || 1; // Avoid division by zero
+      
+      // Adjust scores based on recency
+      messages = messages.map(message => {
+        const timestamp = (message.metadata?.timestamp as number) || 0;
+        const recencyScore = (timestamp - minTimestamp) / timeRange;
+        const originalScore = message.score || 0;
+        
+        // Weighted average of relevance and recency
+        const combinedScore = 
+          (originalScore * (1 - options.recencyWeight!)) + 
+          (recencyScore * options.recencyWeight!);
+        
+        return {
+          ...message,
+          score: combinedScore
+        };
+      });
+      
+      // Re-sort by combined score
+      messages.sort((a, b) => (b.score || 0) - (a.score || 0));
+    }
+    
+    // Apply relevance threshold if specified
+    if (options.relevanceThreshold && options.relevanceThreshold > 0) {
+      messages = messages.filter(message => 
+        (message.score || 0) >= (options.relevanceThreshold || 0)
+      );
+    }
+    
+    // Limit to window size after all filtering
+    messages = messages.slice(0, windowSize);
+    
+    // Get segment information if this is a segment-specific context window
+    let segmentInfo;
+    if (segmentId) {
+      const segments = await this.getConversationSegments(userId, conversationId);
+      const segment = segments.find(s => s.segmentId === segmentId);
+      if (segment) {
+        segmentInfo = {
+          id: segment.segmentId,
+          topic: segment.segmentTopic
+        };
+      }
+    }
+    
+    // Calculate token count if maxTokens is specified
+    // This is a simple approximation assuming 1 token per 4 characters
+    let tokenCount;
+    if (options.maxTokens) {
+      const totalContent = messages.reduce((content, message) => {
+        return content + ((message.metadata?.message as string) || '');
+      }, '');
+      tokenCount = Math.ceil(totalContent.length / 4);
+    }
+    
+    // If token count exceeds the max, truncate messages
+    if (tokenCount && options.maxTokens && tokenCount > options.maxTokens) {
+      // Sort by importance (keeping most recent and most relevant)
+      const sortedByImportance = [...messages].sort((a, b) => {
+        const scoreA = (a.score || 0) + (a.metadata?.timestamp as number || 0) / Date.now();
+        const scoreB = (b.score || 0) + (b.metadata?.timestamp as number || 0) / Date.now();
+        return scoreB - scoreA;
+      });
+      
+      // Keep messages until we reach the token limit
+      let currentTokens = 0;
+      const keptMessages: any[] = [];
+      for (const message of sortedByImportance) {
+        const messageContent = (message.metadata?.message as string) || '';
+        const messageTokens = Math.ceil(messageContent.length / 4);
+        
+        if (currentTokens + messageTokens <= options.maxTokens) {
+          keptMessages.push(message);
+          currentTokens += messageTokens;
+        }
+      }
+      
+      // Restore original order
+      messages = messages.filter(msg => keptMessages.includes(msg));
+      tokenCount = currentTokens;
+    }
+    
+    return {
+      messages,
+      segmentInfo,
+      tokenCount
+    };
+  }
+
+  /**
+   * Generate a summary for a conversation segment to provide context
+   * @param userId User identifier
+   * @param conversationId Conversation identifier
+   * @param segmentId Optional segment ID (defaults to current segment)
+   */
+  async generateContextSummary(
+    userId: string, 
+    conversationId: string,
+    segmentId?: string
+  ): Promise<string> {
+    // If segment ID not provided, get current segment
+    if (!segmentId) {
+      segmentId = await this.getCurrentSegmentId(userId, conversationId);
+    }
+    
+    // Get the segment messages
+    const messages = await this.getConversationHistory(
+      userId,
+      conversationId,
+      50, // Reasonable number of messages to summarize
+      { segmentId }
+    );
+    
+    if (messages.length === 0) {
+      return "No conversation history available.";
+    }
+    
+    // In a real implementation, this would use an LLM to generate a summary
+    // For now, just return a basic contextual summary
+    const segments = await this.getConversationSegments(userId, conversationId);
+    const segment = segments.find(s => s.segmentId === segmentId);
+    
+    const messageCount = messages.length;
+    const topic = segment?.segmentTopic || "Unspecified topic";
+    const firstTimestamp = new Date(segment?.firstTimestamp || Date.now()).toLocaleString();
+    
+    return `This conversation segment "${topic}" contains ${messageCount} messages starting from ${firstTimestamp}.`;
   }
 }

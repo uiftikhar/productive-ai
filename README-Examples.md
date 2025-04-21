@@ -56,6 +56,19 @@ An example showcasing advanced conversation management features:
   - Enhanced metadata support for conversation turns
   - Advanced search capabilities with filters
 
+### 3. History-Aware Supervisor Workflow
+
+A comprehensive example demonstrating a history-aware supervisor implementation:
+
+- Location: `src/examples/history-aware-workflow.ts`
+- Features:
+  - Context-aware workflow execution
+  - Conversation history integration
+  - Analytics-driven decision making
+  - Agent selection based on historical performance
+  - Relevance-ranked historical context
+  - Multi-turn conversation continuity
+
 ## Running the Examples
 
 ### Supervisor with Context Example
@@ -83,6 +96,19 @@ This example demonstrates:
 - Retention policy management
 - Advanced search capabilities
 
+### History-Aware Workflow Example
+```bash
+npx ts-node src/examples/history-aware-workflow.ts
+```
+
+This example demonstrates:
+- Integration of conversation history into workflow execution
+- Context-aware task assignment to specialized agents
+- Follow-up question handling with continuity
+- History summarization for token efficiency
+- Analytics-enhanced decision making
+- Progressive conversation across multiple turns
+
 ## Key Takeaways
 
 1. **Modular Context Storage**: The system supports different storage implementations through a common interface.
@@ -90,5 +116,7 @@ This example demonstrates:
 3. **Segmentation Support**: Conversations can be segmented by topic or agent capability.
 4. **Context-Aware Workflows**: SupervisorWorkflow can access and utilize historical context.
 5. **Retention Management**: Conversations can have configurable retention policies.
+6. **History-Awareness**: Workflows can maintain continuity across conversation turns.
+7. **Analytics Integration**: Decision making can be enhanced with conversation analytics.
 
 These examples and fixes demonstrate how the User Context integration enhances the LangGraph workflow system with improved context awareness and conversation management capabilities. 
