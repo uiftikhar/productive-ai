@@ -34,6 +34,7 @@ export function createRateLimiter(options: RateLimitOptions) {
   const rateLimits = new Map<string, RateLimitRecord>();
   
   // Clean up old entries periodically
+  // Call unref() to prevent the interval from keeping the process alive
   setInterval(() => {
     const now = Date.now();
     for (const [key, record] of rateLimits.entries()) {
@@ -41,7 +42,7 @@ export function createRateLimiter(options: RateLimitOptions) {
         rateLimits.delete(key);
       }
     }
-  }, windowMs);
+  }, windowMs).unref();
   
   // The middleware function
   return function rateLimiter(req: Request, res: Response, next: NextFunction) {

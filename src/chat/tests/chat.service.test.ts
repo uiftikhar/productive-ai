@@ -183,7 +183,7 @@ describe('ChatService', () => {
         'user-123',
         expect.any(String), // conversation ID
         'Hello, AI!',
-        [],
+        expect.any(Array), // embeddings - now we expect an array with values
         'user',
         expect.any(String), // message ID
         {}

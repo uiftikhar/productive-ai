@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat API Test Client</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 40px);
+    }
+    .section {
+      margin-bottom: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    .chat-container {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .chat-messages {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 15px;
+      background-color: #f9f9f9;
+    }
+    .message {
+      margin-bottom: 15px;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    .user-message {
+      background-color: #e3f2fd;
+      align-self: flex-end;
+    }
+    .assistant-message {
+      background-color: #f1f1f1;
+      align-self: flex-start;
+    }
+    .message-form {
+      display: flex;
+      padding: 10px;
+      border-top: 1px solid #ddd;
+    }
+    .message-input {
+      flex-grow: 1;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+    .send-button {
+      margin-left: 10px;
+      padding: 10px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .send-button:hover {
+      background-color: #45a049;
+    }
+    .form-group {
+      margin-bottom: 10px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+    }
+    input, button {
+      padding: 8px;
+      width: 100%;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+    }
+    .button-group button {
+      flex: 1;
+    }
+    .session-info {
+      font-size: 0.8em;
+      color: #555;
+      margin-top: 10px;
+    }
+    .stream-toggle {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+    }
+    .stream-toggle input {
+      width: auto;
+      margin-right: 5px;
+    }
+    #typing-indicator {
+      font-style: italic;
+      color: #888;
+      margin-bottom: 10px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Chat API Test Client</h1>
+    
+    <div class="section">
+      <h2>Session Management</h2>
+      <div class="form-group">
+        <label for="user-id">User ID:</label>
+        <input type="text" id="user-id" value="test-user-123">
+      </div>
+      <div class="button-group">
+        <button id="create-session">Create New Session</button>
+        <button id="get-sessions">Get User Sessions</button>
+      </div>
+      <div class="session-info" id="session-info"></div>
+    </div>
+    
+    <div class="chat-container">
+      <div class="chat-messages" id="chat-messages">
+        <div class="message system-message">
+          Welcome to the Chat API Test Client. Create a session to start chatting.
+        </div>
+        <div id="typing-indicator">AI is typing...</div>
+      </div>
+      <div class="message-form">
+        <input type="text" class="message-input" id="message-input" placeholder="Type a message..." disabled>
+        <button class="send-button" id="send-button" disabled>Send</button>
+      </div>
+      <div class="stream-toggle">
+        <input type="checkbox" id="stream-toggle" checked>
+        <label for="stream-toggle">Use streaming API</label>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State management
+    const state = {
+      sessionId: null,
+      userId: null,
+      messages: []
+    };
+
+    // DOM Elements
+    const userIdInput = document.getElementById('user-id');
+    const createSessionBtn = document.getElementById('create-session');
+    const getSessionsBtn = document.getElementById('get-sessions');
+    const sessionInfo = document.getElementById('session-info');
+    const chatMessages = document.getElementById('chat-messages');
+    const messageInput = document.getElementById('message-input');
+    const sendButton = document.getElementById('send-button');
+    const streamToggle = document.getElementById('stream-toggle');
+    const typingIndicator = document.getElementById('typing-indicator');
+
+    // Event Listeners
+    createSessionBtn.addEventListener('click', createSession);
+    getSessionsBtn.addEventListener('click', getUserSessions);
+    sendButton.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    // API Functions
+    async function createSession() {
+      const userId = userIdInput.value.trim();
+      if (!userId) {
+        alert('Please enter a User ID');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/chat/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            metadata: { source: 'web-client' }
+          })
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+          throw new Error(data.error?.message || 'Failed to create session');
+        }
+
+        // Update state
+        state.sessionId = data.session.sessionId;
+        state.userId = userId;
+
+        // Update UI
+        sessionInfo.textContent = `Active Session: ${state.sessionId}`;
+        messageInput.disabled = false;
+        sendButton.disabled = false;
+        
+        // Add system message
+        addMessage('System', `Session created. You can now send messages.`, 'system-message');
+      } catch (error) {
+        console.error('Error creating session:', error);
+        alert('Failed to create session: ' + error.message);
+      }
+    }
+
+    async function getUserSessions() {
+      const userId = userIdInput.value.trim();
+      if (!userId) {
+        alert('Please enter a User ID');
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/chat/users/${userId}/sessions`);
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.error?.message || 'Failed to get sessions');
+        }
+
+        // Display sessions
+        if (data.sessions.length === 0) {
+          addMessage('System', 'No active sessions found for this user.', 'system-message');
+        } else {
+          const sessionsList = data.sessions.map(s => 
+            `Session ID: ${s.sessionId} (Created: ${new Date(s.createdAt).toLocaleString()})`
+          ).join('\n');
+          addMessage('System', `Available sessions:\n${sessionsList}`, 'system-message');
+        }
+      } catch (error) {
+        console.error('Error getting sessions:', error);
+        alert('Failed to get sessions: ' + error.message);
+      }
+    }
+
+    async function sendMessage() {
+      const content = messageInput.value.trim();
+      if (!content || !state.sessionId) return;
+
+      // Add user message to UI
+      addMessage('User', content, 'user-message');
+      messageInput.value = '';
+
+      // Show typing indicator for streaming
+      if (streamToggle.checked) {
+        typingIndicator.style.display = 'block';
+      }
+
+      try {
+        if (streamToggle.checked) {
+          // Use streaming API
+          const eventSource = new EventSource(`/api/chat/messages/stream?sessionId=${state.sessionId}&content=${encodeURIComponent(content)}`);
+          
+          let assistantMessage = '';
+          let messageElement = null;
+          
+          eventSource.addEventListener('message', (event) => {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'token') {
+              // First token - create message container
+              if (!messageElement) {
+                messageElement = document.createElement('div');
+                messageElement.className = 'message assistant-message';
+                chatMessages.appendChild(messageElement);
+              }
+              
+              // Append token to message
+              assistantMessage += data.content;
+              messageElement.textContent = assistantMessage;
+              
+              // Scroll to bottom
+              chatMessages.scrollTop = chatMessages.scrollHeight;
+            } else if (data.type === 'complete') {
+              // Message complete
+              eventSource.close();
+              typingIndicator.style.display = 'none';
+            } else if (data.type === 'error') {
+              // Error occurred
+              addMessage('System', `Error: ${data.error}`, 'system-message');
+              eventSource.close();
+              typingIndicator.style.display = 'none';
+            }
+          });
+          
+          eventSource.onerror = (error) => {
+            console.error('EventSource error:', error);
+            eventSource.close();
+            typingIndicator.style.display = 'none';
+            addMessage('System', 'Connection error. Please try again.', 'system-message');
+          };
+        } else {
+          // Use regular API
+          const response = await fetch('/api/chat/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionId: state.sessionId,
+              content
+            })
+          });
+
+          const data = await response.json();
+          if (!data.success) {
+            throw new Error(data.error?.message || 'Failed to send message');
+          }
+
+          // Add assistant response to UI
+          addMessage('Assistant', data.result.message.content, 'assistant-message');
+        }
+      } catch (error) {
+        console.error('Error sending message:', error);
+        addMessage('System', `Error: ${error.message}`, 'system-message');
+        typingIndicator.style.display = 'none';
+      }
+    }
+
+    // UI Helper Functions
+    function addMessage(sender, content, className) {
+      const messageElement = document.createElement('div');
+      messageElement.className = `message ${className}`;
+      messageElement.textContent = content;
+      
+      chatMessages.appendChild(messageElement);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+  </script>
+</body>
+</html> 
