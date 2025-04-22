@@ -449,6 +449,352 @@ describe('ConversationContextService', () => {
       expect(result[0].id).toBe('turn-1'); // Earlier timestamp should come first
       expect(result[1].id).toBe('turn-2');
     });
+
+    test('should use turnId filter strategy when turnIds are provided', async () => {
+      // Arrange
+      const userId = 'test-user-123';
+      const conversationId = 'test-conversation-456';
+      const turnIds = ['turn-id-1', 'turn-id-2'];
+
+      // Mock responses for each turnId query
+      mockPineconeService.queryVectors
+        .mockResolvedValueOnce({
+          matches: [
+            {
+              id: 'turn-id-1',
+              metadata: {
+                conversationId,
+                timestamp: 1000,
+                role: 'user',
+                message: 'First message',
+              },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          matches: [
+            {
+              id: 'turn-id-2',
+              metadata: {
+                conversationId,
+                timestamp: 2000,
+                role: 'assistant',
+                message: 'Second message',
+              },
+            },
+          ],
+        });
+
+      // Act
+      const result = await service.getConversationHistory(
+        userId,
+        conversationId,
+        10,
+        { turnIds },
+      );
+
+      // Assert
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe('turn-id-1');
+      expect(result[1].id).toBe('turn-id-2');
+      
+      // Should call queryVectors twice, once for each turnId
+      expect(mockPineconeService.queryVectors).toHaveBeenCalledTimes(2);
+      expect(mockPineconeService.queryVectors).toHaveBeenCalledWith(
+        'user-context',
+        expect.any(Array),
+        {
+          topK: 1,
+          filter: { turnId: 'turn-id-1' },
+          includeValues: false,
+          includeMetadata: true,
+        },
+        userId,
+      );
+      expect(mockPineconeService.queryVectors).toHaveBeenCalledWith(
+        'user-context',
+        expect.any(Array),
+        {
+          topK: 1,
+          filter: { turnId: 'turn-id-2' },
+          includeValues: false,
+          includeMetadata: true,
+        },
+        userId,
+      );
+      
+      expect(mockLogger.debug).toHaveBeenCalledWith('Using turnId filter strategy');
+    });
+
+    test('should handle errors for individual turnIds and continue', async () => {
+      // Arrange
+      const userId = 'test-user-123';
+      const conversationId = 'test-conversation-456';
+      const turnIds = ['turn-id-1', 'turn-id-2'];
+
+      // First turnId succeeds, second fails
+      mockPineconeService.queryVectors
+        .mockResolvedValueOnce({
+          matches: [
+            {
+              id: 'turn-id-1',
+              metadata: {
+                conversationId,
+                timestamp: 1000,
+                role: 'user',
+                message: 'First message',
+              },
+            },
+          ],
+        })
+        .mockRejectedValueOnce(new Error('Failed to query turn'));
+
+      // Act
+      const result = await service.getConversationHistory(
+        userId,
+        conversationId,
+        10,
+        { turnIds },
+      );
+
+      // Assert
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('turn-id-1');
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Error querying turn turn-id-2'),
+        expect.any(Object),
+      );
+    });
+
+    test('should use role filter strategy when role is provided', async () => {
+      // Arrange
+      const userId = 'test-user-123';
+      const conversationId = 'test-conversation-456';
+      const role = 'user';
+
+      const mockMatches = [
+        {
+          id: 'turn-1',
+          metadata: {
+            conversationId,
+            timestamp: 1000,
+            role: 'user',
+            message: 'Hello',
+          },
+        },
+        {
+          id: 'turn-3',
+          metadata: {
+            conversationId,
+            timestamp: 3000,
+            role: 'user',
+            message: 'How are you?',
+          },
+        },
+      ];
+
+      mockPineconeService.queryVectors.mockResolvedValue({
+        matches: mockMatches,
+      });
+
+      // Act
+      const result = await service.getConversationHistory(
+        userId,
+        conversationId,
+        10,
+        { role },
+      );
+
+      // Assert
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe('turn-1');
+      expect(result[1].id).toBe('turn-3');
+      
+      expect(mockPineconeService.queryVectors).toHaveBeenCalledWith(
+        'user-context',
+        expect.any(Array),
+        {
+          topK: 10 * 5,
+          filter: {
+            role: 'user',
+            contextType: 'conversation',
+          },
+          includeValues: false,
+          includeMetadata: true,
+        },
+        userId,
+      );
+      
+      expect(mockLogger.debug).toHaveBeenCalledWith('Using role filter strategy');
+    });
+
+    test('should handle error in role-based query and fall back to contextType filter', async () => {
+      // Arrange
+      const userId = 'test-user-123';
+      const conversationId = 'test-conversation-456';
+      const role = 'user';
+
+      // Role-based query fails, then falls back to context type
+      mockPineconeService.queryVectors
+        .mockRejectedValueOnce(new Error('Role filter failed'))
+        .mockResolvedValueOnce({
+          matches: [
+            {
+              id: 'turn-1',
+              metadata: {
+                conversationId,
+                timestamp: 1000,
+                role: 'user',
+                message: 'Hello',
+              },
+            },
+          ],
+        });
+
+      // Act
+      const result = await service.getConversationHistory(
+        userId,
+        conversationId,
+        10,
+        { role },
+      );
+
+      // Assert
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('turn-1');
+      
+      // First call (role-based) fails
+      expect(mockPineconeService.queryVectors).toHaveBeenCalledWith(
+        'user-context',
+        expect.any(Array),
+        {
+          topK: 10 * 5,
+          filter: {
+            role: 'user',
+            contextType: 'conversation',
+          },
+          includeValues: false,
+          includeMetadata: true,
+        },
+        userId,
+      );
+      
+      // Second call (fallback to contextType)
+      expect(mockPineconeService.queryVectors).toHaveBeenCalledWith(
+        'user-context',
+        expect.any(Array),
+        {
+          topK: 10 * 5,
+          filter: {
+            contextType: 'conversation',
+          },
+          includeValues: false,
+          includeMetadata: true,
+        },
+        userId,
+      );
+      
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Error in role-based query',
+        expect.any(Object),
+      );
+      expect(mockLogger.debug).toHaveBeenCalledWith('Using fallback contextType filter strategy');
+    });
+
+    test('should apply timestamp filters when provided', async () => {
+      // Arrange
+      const userId = 'test-user-123';
+      const conversationId = 'test-conversation-456';
+      const beforeTimestamp = 2000;
+      const afterTimestamp = 1000;
+
+      mockPineconeService.queryVectors.mockResolvedValue({
+        matches: [
+          {
+            id: 'turn-1',
+            metadata: {
+              conversationId,
+              timestamp: 1500,
+              role: 'user',
+              message: 'Hello',
+            },
+          },
+        ],
+      });
+
+      // Act
+      const result = await service.getConversationHistory(
+        userId,
+        conversationId,
+        10,
+        { beforeTimestamp, afterTimestamp },
+      );
+
+      // Assert
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('turn-1');
+      
+      expect(mockPineconeService.queryVectors).toHaveBeenCalledWith(
+        'user-context',
+        expect.any(Array),
+        {
+          topK: 10 * 5,
+          filter: {
+            contextType: 'conversation',
+            timestamp: {
+              $gte: afterTimestamp,
+              $lte: beforeTimestamp,
+            },
+          },
+          includeValues: false,
+          includeMetadata: true,
+        },
+        userId,
+      );
+    });
+
+    test('should respect includeMetadata option when set to false', async () => {
+      // Arrange
+      const userId = 'test-user-123';
+      const conversationId = 'test-conversation-456';
+
+      mockPineconeService.queryVectors.mockResolvedValue({
+        matches: [
+          {
+            id: 'turn-1',
+            metadata: {
+              conversationId,
+              timestamp: 1000,
+              role: 'user',
+              message: 'Hello',
+            },
+          },
+        ],
+      });
+
+      // Act
+      await service.getConversationHistory(
+        userId,
+        conversationId,
+        10,
+        { includeMetadata: false },
+      );
+
+      // Assert
+      expect(mockPineconeService.queryVectors).toHaveBeenCalledWith(
+        'user-context',
+        expect.any(Array),
+        {
+          topK: 10 * 5,
+          filter: {
+            contextType: 'conversation',
+          },
+          includeValues: false,
+          includeMetadata: false,
+        },
+        userId,
+      );
+    });
   });
 
   describe('deleteConversation', () => {
