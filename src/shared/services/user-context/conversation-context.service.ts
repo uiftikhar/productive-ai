@@ -18,6 +18,7 @@ import {
 } from './types/context.types';
 import { Logger } from '../../logger/logger.interface';
 import { PineconeConnectionService } from '../../../pinecone/pinecone-connection.service';
+import { LanguageModelProvider } from '../../../agents/interfaces/language-model-provider.interface';
 
 /**
  * Retention policy options
@@ -63,6 +64,13 @@ export interface ConversationStorageOptions {
 export class ConversationContextService extends BaseContextService {
   private metadataValidator: MetadataValidationService;
   private segmentationConfig: SegmentationConfig;
+  private languageModelProvider?: LanguageModelProvider;
+  private rateLimiter: {
+    tokens: number;
+    maxTokens: number;
+    refillRate: number; // tokens per millisecond
+    lastRefill: number;
+  };
 
   /**
    * Default retention periods in days
@@ -73,12 +81,20 @@ export class ConversationContextService extends BaseContextService {
     [RetentionPolicy.PERMANENT]: 9999, // ~27 years (effectively permanent)
   };
 
+  // Reusable placeholder vector to avoid repeatedly creating the same array
+  private static readonly PLACEHOLDER_VECTOR = Array(3072).fill(0);
+
   constructor(
     options: {
       pineconeService?: PineconeConnectionService;
       logger?: Logger;
       segmentationConfig?: Partial<SegmentationConfig>;
       retentionPeriods?: Partial<Record<RetentionPolicy, number>>;
+      languageModelProvider?: LanguageModelProvider;
+      rateLimiter?: {
+        maxRequestsPerSecond?: number;
+        maxBurstRequests?: number;
+      };
     } = {},
   ) {
     // Extract the base service options
@@ -106,6 +122,65 @@ export class ConversationContextService extends BaseContextService {
         ...options.retentionPeriods,
       };
     }
+    
+    this.languageModelProvider = options.languageModelProvider;
+    
+    // Initialize the rate limiter with defaults
+    const maxRequestsPerSecond = options.rateLimiter?.maxRequestsPerSecond || 10; // Default to 10 requests per second
+    const maxBurstRequests = options.rateLimiter?.maxBurstRequests || 20; // Default to 20 burst requests
+    
+    this.rateLimiter = {
+      tokens: maxBurstRequests, // Start with full tokens
+      maxTokens: maxBurstRequests,
+      refillRate: maxRequestsPerSecond / 1000, // Convert to tokens per millisecond
+      lastRefill: Date.now(),
+    };
+  }
+
+  /**
+   * Applies rate limiting and returns a promise that resolves when the operation can proceed
+   * @private
+   */
+  private async applyRateLimit(): Promise<void> {
+    // Refill tokens based on time elapsed
+    const now = Date.now();
+    const elapsedMs = now - this.rateLimiter.lastRefill;
+    const tokensToAdd = elapsedMs * this.rateLimiter.refillRate;
+    
+    this.rateLimiter.tokens = Math.min(
+      this.rateLimiter.maxTokens,
+      this.rateLimiter.tokens + tokensToAdd
+    );
+    this.rateLimiter.lastRefill = now;
+    
+    if (this.rateLimiter.tokens < 1) {
+      // Calculate wait time to get at least one token
+      const msToWait = Math.ceil((1 - this.rateLimiter.tokens) / this.rateLimiter.refillRate);
+      this.logger.debug('Rate limit reached, waiting before proceeding', { msToWait });
+      
+      // Wait for enough tokens
+      await new Promise(resolve => setTimeout(resolve, msToWait));
+      return this.applyRateLimit(); // Retry after waiting
+    }
+    
+    // Consume one token
+    this.rateLimiter.tokens -= 1;
+  }
+
+  /**
+   * Extends executeWithRetry to include rate limiting
+   * @private
+   */
+  protected async executeWithRetry<T>(
+    operation: () => Promise<T>,
+    operationKey: string,
+    retries = 3
+  ): Promise<T> {
+    // Apply rate limiting before proceeding
+    await this.applyRateLimit();
+    
+    // Call the parent's executeWithRetry method
+    return super.executeWithRetry(operation, operationKey, retries);
   }
 
   /**
@@ -148,10 +223,8 @@ export class ConversationContextService extends BaseContextService {
       additionalMetadata,
     );
 
-    // Pinecone metadata only accepts string values for non-primitive types
-    // We need to ensure all values are correctly formatted for storage
-    // TODO: Fix type error - investigate how BaseContextService's prepareMetadataForStorage
-    // handles different value types and ensure we're using compatible types
+    // Prepare metadata for storage
+    // Convert complex objects to proper format for storage in vector database
     const metadata: Partial<BaseContextMetadata> = {
       contextType: ContextType.CONVERSATION, // Use enum value for type safety
       conversationId,
@@ -212,21 +285,125 @@ export class ConversationContextService extends BaseContextService {
       };
     }
 
-    // If automatic topic detection is enabled, check for topic changes
-    // This is a placeholder - in a real implementation, we would use
-    // semantic analysis to detect topic changes
+    // If automatic topic detection is enabled, perform semantic analysis
     if (this.segmentationConfig.detectTopicChanges && role === 'user') {
-      // For now, just return the current segment ID
-      const currentSegmentId = await this.getCurrentSegmentId(
-        userId,
-        conversationId,
-      );
-
-      return {
-        segmentId: currentSegmentId,
-        segmentTopic: options.segmentTopic,
-        isSegmentStart: false,
-      };
+      try {
+        // Get current segment ID
+        const currentSegmentId = await this.getCurrentSegmentId(
+          userId,
+          conversationId,
+        );
+        
+        // Get recent conversation history
+        const recentHistory = await this.getConversationHistory(
+          userId,
+          conversationId,
+          this.segmentationConfig.minSegmentLength || 5,
+        );
+        
+        // If we don't have enough history, continue with current segment
+        if (recentHistory.length < (this.segmentationConfig.minSegmentLength || 5)) {
+          return {
+            segmentId: currentSegmentId,
+            segmentTopic: options.segmentTopic,
+            isSegmentStart: false,
+          };
+        }
+        
+        // Extract recent messages for topic analysis
+        const recentMessages = recentHistory.map(
+          turn => turn.metadata?.message || ''
+        ).join(' ');
+        
+        // Check for topic change using semantic similarity if we have an LLM provider
+        if (this.languageModelProvider && recentMessages) {
+          // Get embeddings for the current message and recent history
+          const messageEmbedding = await this.languageModelProvider.generateEmbedding(message);
+          const historyEmbedding = await this.languageModelProvider.generateEmbedding(recentMessages);
+          
+          // Calculate semantic similarity (cosine similarity)
+          const similarity = this.calculateCosineSimilarity(messageEmbedding, historyEmbedding);
+          
+          // If similarity is below threshold, create a new segment
+          if (similarity < this.segmentationConfig.topicChangeThreshold!) {
+            const newSegmentId = `segment-${uuidv4()}`;
+            
+            // Generate a topic name if enabled
+            let segmentTopic = options.segmentTopic || 'New Topic';
+            
+            if (this.segmentationConfig.assignTopicNames && this.languageModelProvider) {
+              try {
+                // Use LLM to generate a topic name based on the message
+                const topicPrompt = `
+Generate a very short (2-4 words) topic name for this message:
+"${message}"
+The topic should be concise and descriptive. Please provide only the topic name without any explanation or punctuation.
+`;
+                
+                const topicResponse = await this.languageModelProvider.generateResponse(
+                  [{ role: 'user', content: topicPrompt }],
+                  { maxTokens: 20, temperature: 0.3 }
+                );
+                
+                // Extract the topic name from the response
+                const generatedTopic = typeof topicResponse.content === 'string' 
+                  ? topicResponse.content.trim()
+                  : JSON.stringify(topicResponse.content);
+                
+                // Use the generated topic if it's not empty
+                if (generatedTopic && generatedTopic.length > 0) {
+                  segmentTopic = generatedTopic;
+                }
+              } catch (topicError) {
+                this.logger.warn('Failed to generate topic name', {
+                  error: topicError instanceof Error ? topicError.message : String(topicError),
+                });
+                // Continue with default topic name
+              }
+            }
+            
+            this.logger.info('Detected topic change, creating new segment', {
+              userId,
+              conversationId,
+              similarity,
+              threshold: this.segmentationConfig.topicChangeThreshold,
+              segmentTopic,
+            });
+            
+            // Return new segment metadata
+            return {
+              segmentId: newSegmentId,
+              segmentTopic,
+              isSegmentStart: true,
+              previousSegmentId: currentSegmentId,
+              topicChangeScore: similarity,
+            };
+          }
+        }
+        
+        // No topic change detected or no LLM provider available
+        return {
+          segmentId: currentSegmentId,
+          segmentTopic: options.segmentTopic,
+          isSegmentStart: false,
+        };
+      } catch (error) {
+        this.logger.error('Error during semantic topic detection', {
+          error: error instanceof Error ? error.message : String(error),
+          userId,
+          conversationId,
+        });
+        
+        // Fall back to continuing with current segment
+        const currentSegmentId = await this.getCurrentSegmentId(
+          userId,
+          conversationId,
+        );
+        return {
+          segmentId: currentSegmentId,
+          isSegmentStart: false,
+        };
+      }
     }
 
     // Default case: continue with current segment
@@ -238,6 +415,35 @@ export class ConversationContextService extends BaseContextService {
       segmentId: currentSegmentId,
       isSegmentStart: false,
     };
+  }
+  
+  /**
+   * Calculate cosine similarity between two vectors
+   * @protected
+   */
+  protected calculateCosineSimilarity(vec1: number[], vec2: number[]): number {
+    if (vec1.length !== vec2.length) {
+      throw new Error('Vectors must be of the same dimension');
+    }
+    
+    let dotProduct = 0;
+    let mag1 = 0;
+    let mag2 = 0;
+    
+    for (let i = 0; i < vec1.length; i++) {
+      dotProduct += vec1[i] * vec2[i];
+      mag1 += vec1[i] * vec1[i];
+      mag2 += vec2[i] * vec2[i];
+    }
+    
+    mag1 = Math.sqrt(mag1);
+    mag2 = Math.sqrt(mag2);
+    
+    if (mag1 === 0 || mag2 === 0) {
+      return 0; // Avoid division by zero
+    }
+    
+    return dotProduct / (mag1 * mag2);
   }
 
   /**
@@ -311,116 +517,62 @@ export class ConversationContextService extends BaseContextService {
       return [];
     }
 
-    // Try using multiple filter strategies based on what worked in testing
-    // Strategy 1: If we have turnIds, query directly by turnId (most precise)
-    if (options.turnIds && options.turnIds.length > 0) {
-      this.logger.debug('Using turnId filter strategy');
-      const turnResults = [];
-      for (const turnId of options.turnIds) {
-        try {
-          const result = await this.executeWithRetry(
-            () =>
-              this.pineconeService.queryVectors<RecordMetadata>(
-                USER_CONTEXT_INDEX,
-                Array(3072).fill(0),
-                {
-                  topK: 1,
-                  filter: { turnId },
-                  includeValues: false,
-                  includeMetadata: options.includeMetadata !== false,
-                },
-                userId,
-              ),
-            `getConversationHistoryByTurn:${userId}:${turnId}`,
-          );
-
-          if (result.matches && result.matches.length > 0) {
-            turnResults.push(result.matches[0]);
-          }
-        } catch (error) {
-          this.logger.warn(`Error querying turn ${turnId}`, { error });
-        }
-      }
-
-      if (turnResults.length > 0) {
-        return turnResults
-          .filter((turn) => turn.metadata?.conversationId === conversationId)
-          .sort((a, b) => {
-            const timestampA = (a.metadata?.timestamp as number) || 0;
-            const timestampB = (b.metadata?.timestamp as number) || 0;
-            return timestampA - timestampB;
-          });
-      }
-    }
-
-    // Strategy 2: Try role filter if specified (works well in testing)
-    if (options.role) {
-      this.logger.debug('Using role filter strategy');
-      try {
-        const result = await this.executeWithRetry(
-          () =>
-            this.pineconeService.queryVectors<RecordMetadata>(
-              USER_CONTEXT_INDEX,
-              Array(3072).fill(0),
-              {
-                topK: limit * 5,
-                filter: {
-                  role: options.role,
-                  contextType: 'conversation',
-                },
-                includeValues: false,
-                includeMetadata: options.includeMetadata !== false,
-              },
-              userId,
-            ),
-          `getConversationHistoryByRole:${userId}:${options.role}`,
-        );
-
-        const filteredResults = (result.matches || [])
-          .filter((turn) => turn.metadata?.conversationId === conversationId)
-          .sort((a, b) => {
-            const timestampA = (a.metadata?.timestamp as number) || 0;
-            const timestampB = (b.metadata?.timestamp as number) || 0;
-            return timestampA - timestampB;
-          });
-
-        if (filteredResults.length > 0) {
-          return filteredResults.slice(0, limit);
-        }
-      } catch (error) {
-        this.logger.warn('Error in role-based query', { error });
-      }
-    }
-
-    // Strategy 3: Fall back to basic contextType filter (most reliable)
-    this.logger.debug('Using fallback contextType filter strategy');
-    const filter: Record<string, any> = {
-      contextType: 'conversation',
-    };
-
-    // Add timestamp filters if specified
-    if (options.beforeTimestamp || options.afterTimestamp) {
-      filter.timestamp = {};
-      if (options.afterTimestamp) {
-        filter.timestamp.$gte = options.afterTimestamp;
-      }
-      if (options.beforeTimestamp) {
-        filter.timestamp.$lte = options.beforeTimestamp;
-      }
-    }
-
-    // Log the filter being used
-    this.logger.debug('Using filter for conversation history', { filter });
-
     try {
-      // Get all conversation turns with context type
+      // Use a single, optimized query strategy with appropriate filters
+      const filter: Record<string, any> = {
+        contextType: ContextType.CONVERSATION,
+        conversationId, // Always filter by conversation ID directly
+      };
+
+      // Apply additional filters as needed
+      if (options.role) {
+        filter.role = options.role;
+      }
+
+      if (options.segmentId) {
+        filter.segmentId = options.segmentId;
+      }
+
+      if (options.agentId) {
+        filter.agentId = options.agentId;
+      }
+
+      if (options.turnIds && options.turnIds.length > 0) {
+        filter.turnId = { $in: options.turnIds };
+      }
+
+      // Add timestamp filters if specified
+      if (options.beforeTimestamp || options.afterTimestamp) {
+        filter.timestamp = {};
+        if (options.afterTimestamp) {
+          filter.timestamp.$gte = options.afterTimestamp;
+        }
+        if (options.beforeTimestamp) {
+          filter.timestamp.$lte = options.beforeTimestamp;
+        }
+      }
+
+      // Use relevance-based search if requested
+      const useRelevanceSearch = options.sortBy === 'relevance' && 
+                                options.relevanceEmbedding && 
+                                options.relevanceEmbedding.length > 0;
+      
+      // Select query vector based on search type
+      const queryVector = useRelevanceSearch 
+        ? options.relevanceEmbedding!
+        : ConversationContextService.PLACEHOLDER_VECTOR;
+      
+      // Increase topK to ensure we get enough results after filtering
+      const queryLimit = useRelevanceSearch ? limit * 3 : limit * 2;
+      
+      // Execute the query
       const result = await this.executeWithRetry(
         () =>
           this.pineconeService.queryVectors<RecordMetadata>(
             USER_CONTEXT_INDEX,
-            Array(3072).fill(0),
+            queryVector,
             {
-              topK: limit * 5,
+              topK: queryLimit,
               filter,
               includeValues: false,
               includeMetadata: options.includeMetadata !== false,
@@ -430,51 +582,30 @@ export class ConversationContextService extends BaseContextService {
         `getConversationHistory:${userId}:${conversationId}`,
       );
 
-      const turns = result.matches || [];
+      let turns = result.matches || [];
 
-      // If no turns are found, return empty array
-      if (turns.length === 0) {
-        return [];
-      }
-
-      // Filter for the specific conversation
-      let filteredTurns = turns.filter((turn) => {
-        const turnConversationId = turn.metadata?.conversationId;
-        return turnConversationId === conversationId;
-      });
-
-      // Apply additional in-memory filters
-      if (options.segmentId) {
-        filteredTurns = filteredTurns.filter((turn) => {
-          const segmentId = turn.metadata?.segmentId;
-          return segmentId === options.segmentId;
+      // Sort by timestamp (chronological) or maintain relevance order
+      if (!useRelevanceSearch) {
+        turns.sort((a, b) => {
+          const timestampA = (a.metadata?.timestamp as number) || 0;
+          const timestampB = (b.metadata?.timestamp as number) || 0;
+          return timestampA - timestampB;
         });
       }
 
-      if (options.agentId) {
-        filteredTurns = filteredTurns.filter((turn) => {
-          const agentId = turn.metadata?.agentId;
-          return agentId === options.agentId;
-        });
-      }
-
-      // Sort chronologically (default)
-      filteredTurns.sort((a, b) => {
-        const timestampA = (a.metadata?.timestamp as number) || 0;
-        const timestampB = (b.metadata?.timestamp as number) || 0;
-        return timestampA - timestampB;
-      });
-
-      // Limit to requested number
-      return filteredTurns.slice(0, limit);
+      // Apply limit after sorting
+      return turns.slice(0, limit);
     } catch (error) {
       // Log error to make debugging easier
       this.logger.error('Failed to retrieve conversation history', {
         userId,
         conversationId,
-        error,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
       });
-      throw error; // Rethrow to maintain original behavior
+      
+      // Return empty array instead of throwing to provide graceful degradation
+      return [];
     }
   }
 
@@ -498,7 +629,7 @@ export class ConversationContextService extends BaseContextService {
       () =>
         this.pineconeService.queryVectors<RecordMetadata>(
           USER_CONTEXT_INDEX,
-          Array(3072).fill(0),
+          ConversationContextService.PLACEHOLDER_VECTOR,
           {
             topK: 1000,
             filter: {
@@ -596,7 +727,7 @@ export class ConversationContextService extends BaseContextService {
       () =>
         this.pineconeService.queryVectors<RecordMetadata>(
           USER_CONTEXT_INDEX,
-          Array(3072).fill(0),
+          ConversationContextService.PLACEHOLDER_VECTOR,
           {
             topK: 1000,
             filter: {
@@ -694,12 +825,12 @@ export class ConversationContextService extends BaseContextService {
       () =>
         this.pineconeService.queryVectors<RecordMetadata>(
           USER_CONTEXT_INDEX,
-          Array(3072).fill(0),
+          ConversationContextService.PLACEHOLDER_VECTOR,
           {
             topK: 1000,
             filter,
-            includeValues: false,
-            includeMetadata: false,
+            includeValues: true, // We need the vector values for update
+            includeMetadata: true, // We need existing metadata to merge with updates
           },
           userId,
         ),
@@ -710,24 +841,76 @@ export class ConversationContextService extends BaseContextService {
       return 0;
     }
 
-    // Extract IDs of matching records
-    const recordIds = result.matches.map((match) => match.id);
+    try {
+      // Batch update records
+      const updateBatchSize = 100; // Reasonable batch size for updates
+      const recordsToUpdate = result.matches
+        .filter(match => match.values !== undefined) // Skip records without vector values
+        .map(match => {
+          const currentMetadata: Partial<BaseContextMetadata> = match.metadata || {};
+          
+          // Prepare updated metadata - type-safe with BaseContextMetadata
+          const updatedMetadata: Partial<BaseContextMetadata> = {
+            ...currentMetadata,
+            retentionPolicy: policy as string, // Store as string in metadata
+            expiresAt: expiresAt,
+            lastUpdated: Date.now(),
+          };
+          
+          // Add additional metadata if provided
+          if (options.retentionPriority !== undefined) {
+            updatedMetadata.retentionPriority = options.retentionPriority;
+          }
+          
+          if (options.retentionTags) {
+            updatedMetadata.retentionTags = options.retentionTags;
+          }
+          
+          if (options.isHighValue !== undefined) {
+            updatedMetadata.isHighValue = options.isHighValue;
+          }
+          
+          return {
+            id: match.id,
+            values: match.values as number[], // TypeScript needs explicit cast here
+            metadata: updatedMetadata as RecordMetadata, // Cast for Pinecone compatibility
+          };
+        });
+      
+      // Process updates in batches
+      for (let i = 0; i < recordsToUpdate.length; i += updateBatchSize) {
+        const batch = recordsToUpdate.slice(i, i + updateBatchSize);
+        await this.executeWithRetry(
+          () => this.pineconeService.upsertVectors(
+            USER_CONTEXT_INDEX,
+            batch,
+            userId
+          ),
+          `updateRetentionPolicy:${userId}:${conversationId}:batch${Math.floor(i/updateBatchSize)}`
+        );
+      }
 
-    // For real implementation, we would update these records in the vector DB
-    // This would require extending the Pinecone service with an update method
+      this.logger.info(
+        `Successfully updated retention policy for ${recordsToUpdate.length} records`,
+        {
+          userId,
+          conversationId,
+          policy,
+          expiresAt,
+          affectedRecords: recordsToUpdate.length,
+        }
+      );
 
-    // For now, log the operation
-    this.logger.info(
-      `Would update retention policy for ${recordIds.length} records`,
-      {
+      return recordsToUpdate.length;
+    } catch (error) {
+      this.logger.error('Failed to update retention policy', {
+        userId,
+        conversationId,
         policy,
-        expiresAt,
-        recordIds: recordIds.length,
-      },
-    );
-
-    // Return the number of records that would be updated
-    return recordIds.length;
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
   }
 
   /**
@@ -742,7 +925,7 @@ export class ConversationContextService extends BaseContextService {
       () =>
         this.pineconeService.queryVectors<RecordMetadata>(
           USER_CONTEXT_INDEX,
-          Array(3072).fill(0), // Placeholder vector filled with zeros - matching index dimension
+          ConversationContextService.PLACEHOLDER_VECTOR,
           {
             topK: 1000,
             filter: {
@@ -797,7 +980,7 @@ export class ConversationContextService extends BaseContextService {
       () =>
         this.pineconeService.queryVectors<RecordMetadata>(
           USER_CONTEXT_INDEX,
-          Array(3072).fill(0),
+          ConversationContextService.PLACEHOLDER_VECTOR,
           {
             topK: 10000, // Set a reasonable limit
             filter,
@@ -848,7 +1031,7 @@ export class ConversationContextService extends BaseContextService {
       () =>
         this.pineconeService.queryVectors<RecordMetadata>(
           USER_CONTEXT_INDEX,
-          Array(3072).fill(0), // Placeholder vector filled with zeros - matching index dimension
+          ConversationContextService.PLACEHOLDER_VECTOR,
           {
             topK: 10000,
             filter: {
@@ -1323,17 +1506,77 @@ export class ConversationContextService extends BaseContextService {
       return 'No conversation history available.';
     }
 
-    // In a real implementation, this would use an LLM to generate a summary
-    // For now, just return a basic contextual summary
-    const segments = await this.getConversationSegments(userId, conversationId);
-    const segment = segments.find((s) => s.segmentId === segmentId);
+    try {
+      // Get segment information
+      const segments = await this.getConversationSegments(userId, conversationId);
+      const segment = segments.find((s) => s.segmentId === segmentId);
 
-    const messageCount = messages.length;
-    const topic = segment?.segmentTopic || 'Unspecified topic';
-    const firstTimestamp = new Date(
-      segment?.firstTimestamp || Date.now(),
-    ).toLocaleString();
+      // Format the conversation for summarization
+      const formattedConversation = messages.map(message => {
+        const role = message.metadata?.role || 'unknown';
+        const content = message.metadata?.message || '';
+        return `${role}: ${content}`;
+      }).join('\n');
 
-    return `This conversation segment "${topic}" contains ${messageCount} messages starting from ${firstTimestamp}.`;
+      // Use a proper LLM service to generate the summary
+      // This requires an LLM connector to be passed to the service
+      // In a real implementation, this would be injected as a dependency
+      if (this.languageModelProvider) {
+        const prompt = `
+Please generate a concise summary of the following conversation segment.
+Focus on the key points, decisions made, questions asked, and any action items.
+Keep the summary informative but brief.
+
+CONVERSATION:
+${formattedConversation}
+`;
+
+        const response = await this.languageModelProvider.generateResponse(
+          [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          {
+            maxTokens: 250,
+            temperature: 0.3, // Lower temperature for more focused/factual summary
+          }
+        );
+
+        this.logger.info('Generated conversation summary using LLM', {
+          userId,
+          conversationId,
+          segmentId,
+          messageCount: messages.length,
+        });
+
+        return typeof response.content === 'string' 
+          ? response.content 
+          : JSON.stringify(response.content);
+      }
+
+      // Fallback if no LLM connector is available
+      const messageCount = messages.length;
+      const topic = segment?.segmentTopic || 'Unspecified topic';
+      const firstTimestamp = new Date(
+        segment?.firstTimestamp || Date.now(),
+      ).toLocaleString();
+      const lastTimestamp = new Date(
+        segment?.lastTimestamp || Date.now(),
+      ).toLocaleString();
+
+      return `This conversation segment "${topic}" contains ${messageCount} messages from ${firstTimestamp} to ${lastTimestamp}. The conversation involves ${new Set(messages.map(m => m.metadata?.role)).size} participants.`;
+    } catch (error) {
+      this.logger.error('Error generating context summary', {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        conversationId,
+        segmentId,
+      });
+      
+      // Return a basic summary in case of error
+      return `Conversation segment with ${messages.length} messages. Summary generation failed.`;
+    }
   }
 }

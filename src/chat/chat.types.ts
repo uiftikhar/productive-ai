@@ -83,7 +83,15 @@ export enum ChatErrorType {
   INVALID_REQUEST = 'INVALID_REQUEST',
   GENERATION_FAILED = 'GENERATION_FAILED',
   SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE',
-  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED'
+  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
+  CONTEXT_STORAGE_ERROR = 'CONTEXT_STORAGE_ERROR',
+  CONTEXT_RETRIEVAL_ERROR = 'CONTEXT_RETRIEVAL_ERROR',
+  CONTEXT_MANAGEMENT_ERROR = 'CONTEXT_MANAGEMENT_ERROR',
+  FILE_UPLOAD_ERROR = 'FILE_UPLOAD_ERROR',
+  FILE_PROCESSING_ERROR = 'FILE_PROCESSING_ERROR',
+  MULTI_AGENT_ERROR = 'MULTI_AGENT_ERROR',
+  PRESENCE_UPDATE_ERROR = 'PRESENCE_UPDATE_ERROR',
+  ANALYTICS_ERROR = 'ANALYTICS_ERROR'
 }
 
 /**
@@ -102,7 +110,43 @@ export class ChatServiceError extends Error {
 }
 
 /**
- * Options for StreamHandler when streaming responses
+ * Represents a user's presence status
+ */
+export interface UserPresence {
+  userId: string;
+  status: UserStatus;
+  lastActive: Date;
+  currentSessionId?: string;
+  metadata?: {
+    device?: string;
+    location?: string;
+    [key: string]: any;
+  };
+}
+
+/**
+ * User status options
+ */
+export enum UserStatus {
+  ONLINE = 'online',
+  OFFLINE = 'offline',
+  AWAY = 'away',
+  BUSY = 'busy',
+  TYPING = 'typing'
+}
+
+/**
+ * User presence update event
+ */
+export interface PresenceUpdateEvent {
+  userId: string;
+  status: UserStatus;
+  timestamp: Date;
+  sessionId?: string;
+}
+
+/**
+ * Stream options for StreamHandler when streaming responses
  */
 export interface StreamOptions {
   onToken: (token: string) => void;
