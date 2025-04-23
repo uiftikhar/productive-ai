@@ -290,4 +290,25 @@ export class AgentDiscoveryService {
   public resetMetrics(): void {
     this.agentMetrics.clear();
   }
+
+  /**
+   * Clean up resources used by the service.
+   * This should be called when the service is no longer needed.
+   */
+  public cleanup(): void {
+    // Clear metrics
+    this.agentMetrics.clear();
+    
+    this.logger.info('AgentDiscoveryService resources cleaned up');
+  }
+
+  /**
+   * Reset the singleton instance (for testing purposes)
+   */
+  public static resetInstance(): void {
+    if (AgentDiscoveryService.instance) {
+      AgentDiscoveryService.instance.cleanup();
+      AgentDiscoveryService.instance = undefined as any;
+    }
+  }
 }

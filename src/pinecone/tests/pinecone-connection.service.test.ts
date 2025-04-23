@@ -4,37 +4,13 @@ import { Index, RecordMetadata } from '@pinecone-database/pinecone';
 import { Logger } from '../../shared/logger/logger.interface';
 import { PineconeConnectionService } from '../pinecone-connection.service';
 import { PineconeIndexService } from '../pinecone-index.service';
+import { MockLogger } from '../../agents/tests/mocks/mock-logger';
 
 jest.unmock('../pinecone-connection.service.ts');
 jest.unmock('../pinecone-index.service.ts');
 jest.unmock('../../shared/logger/console-logger.ts');
 
-// Create a mock logger to capture logs
-class MockLogger implements Logger {
-  messages: Array<{
-    level: string;
-    message: string;
-    context?: Record<string, any>;
-  }> = [];
-
-  setLogLevel = jest.fn();
-
-  debug(message: string, context?: Record<string, any>): void {
-    this.messages.push({ level: 'debug', message, context });
-  }
-
-  info(message: string, context?: Record<string, any>): void {
-    this.messages.push({ level: 'info', message, context });
-  }
-
-  warn(message: string, context?: Record<string, any>): void {
-    this.messages.push({ level: 'warn', message, context });
-  }
-
-  error(message: string, context?: Record<string, any>): void {
-    this.messages.push({ level: 'error', message, context });
-  }
-}
+// Mock Logger implementation is replaced with import
 
 describe('PineconeConnectionService', () => {
   let service: PineconeConnectionService;

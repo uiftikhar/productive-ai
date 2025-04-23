@@ -78,22 +78,22 @@ export class AgentWorkflow<
       endTime: Annotation<number | undefined>(),
       errorCount: Annotation<number>({
         default: () => 0,
-        reducer: (curr, update) => (curr || 0) + (update || 0),
+        value: (curr, update) => (curr || 0) + (update || 0),
       }),
       errors: Annotation<any[]>({
         default: () => [],
-        reducer: (curr, update) => [
+        value: (curr, update) => [
           ...(curr || []),
           ...(Array.isArray(update) ? update : [update]),
         ],
       }),
       metrics: Annotation<any>({
         default: () => ({}),
-        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+        value: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
       }),
       metadata: Annotation<Record<string, any>>({
         default: () => ({}),
-        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+        value: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
       }),
 
       // Agent-specific fields
@@ -102,7 +102,7 @@ export class AgentWorkflow<
       // Messages and interactions - agent specific
       messages: Annotation<any[]>({
         default: () => [],
-        reducer: (curr, update) => [
+        value: (curr, update) => [
           ...(curr || []),
           ...(Array.isArray(update) ? update : [update]),
         ],

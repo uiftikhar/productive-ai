@@ -74,7 +74,7 @@ export interface GenerateSummaryResult {
 
 /**
  * SummaryGeneratorAdapter
- * 
+ *
  * This adapter specializes in generating summaries from various content types
  */
 export class SummaryGeneratorAdapter extends BaseLangGraphAdapter<
@@ -112,7 +112,9 @@ export class SummaryGeneratorAdapter extends BaseLangGraphAdapter<
   /**
    * Generate a summary from content
    */
-  async generateSummary(params: GenerateSummaryParams): Promise<GenerateSummaryResult> {
+  async generateSummary(
+    params: GenerateSummaryParams,
+  ): Promise<GenerateSummaryResult> {
     return this.execute(params);
   }
 
@@ -127,21 +129,24 @@ export class SummaryGeneratorAdapter extends BaseLangGraphAdapter<
       status: Annotation<string>(),
       startTime: Annotation<number>(),
       endTime: Annotation<number | undefined>(),
-      errorCount: Annotation<number>(),
+      errorCount: Annotation<number>({
+        default: () => 0,
+        value: (curr, update) => (curr || 0) + (update || 0),
+      }),
       errors: Annotation<any[]>({
         default: () => [],
-        reducer: (curr, update) => [
+        value: (curr, update) => [
           ...(curr || []),
           ...(Array.isArray(update) ? update : [update]),
         ],
       }),
       metrics: Annotation<any>({
         default: () => ({}),
-        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+        value: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
       }),
       metadata: Annotation<Record<string, any>>({
         default: () => ({}),
-        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+        value: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
       }),
 
       // Summary-specific fields
@@ -150,7 +155,7 @@ export class SummaryGeneratorAdapter extends BaseLangGraphAdapter<
       content: Annotation<string>(),
       contentType: Annotation<string>(),
       title: Annotation<string | undefined>(),
-      
+
       // Processing state
       chunks: Annotation<string[]>({
         default: () => [],
@@ -162,12 +167,12 @@ export class SummaryGeneratorAdapter extends BaseLangGraphAdapter<
       }),
       partialSummaries: Annotation<string[]>({
         default: () => [],
-        reducer: (curr, update) => [
+        value: (curr, update) => [
           ...(curr || []),
           ...(Array.isArray(update) ? update : [update]),
         ],
       }),
-      
+
       // Results
       generatedSummary: Annotation<string | undefined>(),
       keypoints: Annotation<string[] | undefined>({
@@ -265,7 +270,9 @@ export class SummaryGeneratorAdapter extends BaseLangGraphAdapter<
   /**
    * Create the initial state for summary generation
    */
-  protected createInitialState(input: GenerateSummaryParams): SummaryGenerationState {
+  protected createInitialState(
+    input: GenerateSummaryParams,
+  ): SummaryGenerationState {
     const baseState = super.createInitialState(input);
 
     const documentId = input.documentId || uuidv4();
@@ -294,7 +301,9 @@ export class SummaryGeneratorAdapter extends BaseLangGraphAdapter<
   /**
    * Process the final state to produce the output
    */
-  protected processResult(state: SummaryGenerationState): GenerateSummaryResult {
+  protected processResult(
+    state: SummaryGenerationState,
+  ): GenerateSummaryResult {
     const executionTimeMs =
       (state.endTime || Date.now()) - (state.startTime || Date.now());
 
@@ -370,21 +379,21 @@ export class SummaryGeneratorAdapter extends BaseLangGraphAdapter<
     return async (state: SummaryGenerationState) => {
       try {
         this.logger.debug(`Preparing content for summary generation`);
-        
+
         // Simple splitting logic - this would be enhanced with proper text splitting
         const chunks: string[] = [];
         let content = state.content;
-        
+
         while (content.length > 0) {
           const chunkSize = Math.min(this.maxChunkSize, content.length);
           const chunk = content.substring(0, chunkSize);
           chunks.push(chunk);
-          
+
           // Remove the processed chunk, considering overlap if any
           const nextStart = Math.max(0, chunkSize - this.chunkOverlap);
           content = content.substring(nextStart);
         }
-        
+
         return {
           ...state,
           chunks,
@@ -408,7 +417,7 @@ export class SummaryGeneratorAdapter extends BaseLangGraphAdapter<
       try {
         const chunkIndex = state.currentChunkIndex;
         const chunk = state.chunks[chunkIndex];
-        
+
         this.logger.debug(
           `Processing chunk ${chunkIndex + 1}/${state.chunks.length}`,
           {
@@ -522,7 +531,7 @@ export class SummaryGeneratorAdapter extends BaseLangGraphAdapter<
         let summary: string;
         let keypoints: string[] = [];
         let tags: string[] = [];
-        
+
         try {
           // First try to parse as JSON
           const responseText =
@@ -531,23 +540,24 @@ export class SummaryGeneratorAdapter extends BaseLangGraphAdapter<
               : typeof result.output.content === 'string'
                 ? result.output.content
                 : JSON.stringify(result.output.content);
-          
+
           const parsedResponse = JSON.parse(
             typeof responseText === 'string'
               ? responseText
               : JSON.stringify(responseText),
           );
-          
+
           summary = parsedResponse.summary || responseText;
           keypoints = parsedResponse.keypoints || [];
           tags = parsedResponse.tags || [];
         } catch (parseError) {
           // If parsing fails, use the raw text as summary
-          summary = typeof result.output === 'string'
-            ? result.output
-            : typeof result.output.content === 'string'
-              ? result.output.content
-              : JSON.stringify(result.output.content);
+          summary =
+            typeof result.output === 'string'
+              ? result.output
+              : typeof result.output.content === 'string'
+                ? result.output.content
+                : JSON.stringify(result.output.content);
         }
 
         const currentTokens = state.metrics?.tokensUsed || 0;
@@ -616,4 +626,4 @@ export class SummaryGeneratorAdapter extends BaseLangGraphAdapter<
       }
     };
   }
-} 
+}

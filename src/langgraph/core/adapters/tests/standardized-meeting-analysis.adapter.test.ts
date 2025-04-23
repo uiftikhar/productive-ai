@@ -1,4 +1,7 @@
-import { StandardizedMeetingAnalysisAdapter, MeetingAnalysisState } from '../standardized-meeting-analysis.adapter';
+import {
+  StandardizedMeetingAnalysisAdapter,
+  MeetingAnalysisState,
+} from '../standardized-meeting-analysis.adapter';
 import { MeetingAnalysisAgent } from '../../../../agents/specialized/meeting-analysis-agent';
 import { WorkflowStatus } from '../base-langgraph.adapter';
 import { AgentWorkflow } from '../../workflows/agent-workflow';
@@ -29,11 +32,13 @@ describe('StandardizedMeetingAnalysisAdapter Unit Tests', () => {
     jest.clearAllMocks();
 
     // Set up transcript splitter mock
-    jest.spyOn(transcriptSplitter, 'splitTranscript').mockReturnValue([
-      'Chunk 1 content',
-      'Chunk 2 content',
-      'Chunk 3 content',
-    ]);
+    jest
+      .spyOn(transcriptSplitter, 'splitTranscript')
+      .mockReturnValue([
+        'Chunk 1 content',
+        'Chunk 2 content',
+        'Chunk 3 content',
+      ]);
 
     // Create mock agent
     mockAgent = {
@@ -41,12 +46,24 @@ describe('StandardizedMeetingAnalysisAdapter Unit Tests', () => {
       name: 'Meeting Analysis Agent',
       description: 'Agent for analyzing meeting transcripts',
       capabilities: [
-        { name: 'analyze-transcript-chunk', description: 'Analyze meeting transcript chunks' },
-        { name: 'generate-final-analysis', description: 'Generate final meeting analysis' },
+        {
+          name: 'analyze-transcript-chunk',
+          description: 'Analyze meeting transcript chunks',
+        },
+        {
+          name: 'generate-final-analysis',
+          description: 'Generate final meeting analysis',
+        },
       ],
       getCapabilities: jest.fn().mockReturnValue([
-        { name: 'analyze-transcript-chunk', description: 'Analyze meeting transcript chunks' },
-        { name: 'generate-final-analysis', description: 'Generate final meeting analysis' },
+        {
+          name: 'analyze-transcript-chunk',
+          description: 'Analyze meeting transcript chunks',
+        },
+        {
+          name: 'generate-final-analysis',
+          description: 'Generate final meeting analysis',
+        },
       ]),
       canHandle: jest.fn().mockReturnValue(true),
       execute: jest.fn().mockResolvedValue({ output: 'Test analysis' }),
@@ -66,7 +83,9 @@ describe('StandardizedMeetingAnalysisAdapter Unit Tests', () => {
     } as unknown as jest.Mocked<AgentWorkflow<MeetingAnalysisAgent>>;
 
     // Mock AgentWorkflow constructor
-    (AgentWorkflow as unknown as jest.Mock).mockImplementation(() => mockAgentWorkflow);
+    (AgentWorkflow as unknown as jest.Mock).mockImplementation(
+      () => mockAgentWorkflow,
+    );
 
     // Create the adapter instance
     adapter = new StandardizedMeetingAnalysisAdapter(mockAgent, {
@@ -81,12 +100,12 @@ describe('StandardizedMeetingAnalysisAdapter Unit Tests', () => {
     test('should create a valid state schema', () => {
       // Access private method using type assertion
       const schema = (adapter as any).createStateSchema();
-      
+
       // Verify schema exists and has the expected type
       expect(schema).toBeDefined();
-      expect(schema.lc_graph_name).toBe("AnnotationRoot");
+      expect(schema.lc_graph_name).toBe('AnnotationRoot');
       expect(schema.spec).toBeDefined();
-      
+
       // Check that the schema spec contains the expected fields
       expect(schema.spec).toHaveProperty('id');
       expect(schema.spec).toHaveProperty('runId');
@@ -104,7 +123,8 @@ describe('StandardizedMeetingAnalysisAdapter Unit Tests', () => {
     test('should create a valid initial state', () => {
       const input = {
         meetingId: 'test-meeting-123',
-        transcript: 'This is a test meeting transcript with multiple speakers discussing various topics.',
+        transcript:
+          'This is a test meeting transcript with multiple speakers discussing various topics.',
         title: 'Test Meeting',
         participantIds: ['user-1', 'user-2'],
         userId: 'organizer-1',
@@ -226,7 +246,9 @@ describe('StandardizedMeetingAnalysisAdapter Unit Tests', () => {
 
       // Verify state changes
       expect(result.status).toBe(WorkflowStatus.READY);
-      expect(result.partialAnalyses).toEqual(['Analysis of chunk 1: Several topics were discussed']);
+      expect(result.partialAnalyses).toEqual([
+        'Analysis of chunk 1: Several topics were discussed',
+      ]);
       expect(result.metrics).toEqual({ tokensUsed: 60 });
     });
 
@@ -272,11 +294,20 @@ describe('StandardizedMeetingAnalysisAdapter Unit Tests', () => {
 
       // Set up JSON response for final analysis
       const jsonAnalysis = {
-        summary: 'Meeting covered project status updates and defined next steps.',
+        summary:
+          'Meeting covered project status updates and defined next steps.',
         topics: ['Project status', 'Roadmap', 'Action items'],
         actionItems: [
-          { assignee: 'user-1', task: 'Complete documentation', dueDate: '2023-06-15' },
-          { assignee: 'user-2', task: 'Review pull request', dueDate: '2023-06-10' },
+          {
+            assignee: 'user-1',
+            task: 'Complete documentation',
+            dueDate: '2023-06-15',
+          },
+          {
+            assignee: 'user-2',
+            task: 'Review pull request',
+            dueDate: '2023-06-10',
+          },
         ],
         sentiment: 'positive',
       };
@@ -290,7 +321,9 @@ describe('StandardizedMeetingAnalysisAdapter Unit Tests', () => {
       });
 
       // Access private method using type assertion
-      const generateFinalAnalysisNode = (adapter as any).createGenerateFinalAnalysisNode();
+      const generateFinalAnalysisNode = (
+        adapter as any
+      ).createGenerateFinalAnalysisNode();
       const result = await generateFinalAnalysisNode(state);
 
       // Verify agent workflow was called with correct parameters
@@ -322,26 +355,31 @@ describe('StandardizedMeetingAnalysisAdapter Unit Tests', () => {
       // Create a mock function that returns a fixed valid response
       const mockGenerateFinalAnalysis = jest.fn().mockImplementation(() => {
         return {
-          analysisResult: { rawAnalysis: 'This is a plain text analysis that is not valid JSON' },
+          analysisResult: {
+            rawAnalysis: 'This is a plain text analysis that is not valid JSON',
+          },
           metrics: {
-            tokensUsed: 150 // Includes the original 100 + 50 new
+            tokensUsed: 150, // Includes the original 100 + 50 new
           },
           status: WorkflowStatus.READY,
         };
       });
-      
+
       // Assign the mock to the adapter
-      (adapter as any).createGenerateFinalAnalysisNode = () => mockGenerateFinalAnalysis;
+      (adapter as any).createGenerateFinalAnalysisNode = () =>
+        mockGenerateFinalAnalysis;
 
       // Call the mocked function
       const result = await mockGenerateFinalAnalysis(state);
 
       // Verify the mock was called
       expect(mockGenerateFinalAnalysis).toHaveBeenCalled();
-      
+
       // Verify expected response properties
       expect(result.analysisResult).toBeDefined();
-      expect(result.analysisResult.rawAnalysis).toBe('This is a plain text analysis that is not valid JSON');
+      expect(result.analysisResult.rawAnalysis).toBe(
+        'This is a plain text analysis that is not valid JSON',
+      );
       expect(result.metrics.tokensUsed).toBe(150);
       expect(result.status).toBe(WorkflowStatus.READY);
     });
@@ -369,7 +407,7 @@ describe('StandardizedMeetingAnalysisAdapter Unit Tests', () => {
       // Verify state changes
       expect(result.status).toBe(WorkflowStatus.COMPLETED);
       expect(result.endTime).toBeDefined();
-      
+
       // Verify logger was called
       expect(mockLogger.info).toHaveBeenCalled();
       expect(mockLogger.debug).toHaveBeenCalled();
@@ -438,7 +476,7 @@ describe('StandardizedMeetingAnalysisAdapter Unit Tests', () => {
             code: 'EXECUTION_ERROR',
             node: 'process_chunk',
             timestamp: new Date().toISOString(),
-          }
+          },
         ],
         metadata: {},
       };
@@ -457,11 +495,13 @@ describe('StandardizedMeetingAnalysisAdapter Unit Tests', () => {
   describe('processMeetingTranscript method', () => {
     test('should execute workflow correctly', async () => {
       // We'll mock the execute method since it handles the workflow execution
-      const mockExecute = jest.spyOn(adapter as any, 'execute').mockResolvedValueOnce({
-        meetingId: 'test-meeting-123',
-        output: { summary: 'Meeting summary' },
-        success: true,
-      });
+      const mockExecute = jest
+        .spyOn(adapter as any, 'execute')
+        .mockResolvedValueOnce({
+          meetingId: 'test-meeting-123',
+          output: { summary: 'Meeting summary' },
+          success: true,
+        });
 
       const params = {
         meetingId: 'test-meeting-123',
@@ -478,4 +518,4 @@ describe('StandardizedMeetingAnalysisAdapter Unit Tests', () => {
       expect(result.success).toBe(true);
     });
   });
-}); 
+});

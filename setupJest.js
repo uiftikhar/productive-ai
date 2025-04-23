@@ -1,5 +1,6 @@
 // Global Jest setup
 // This file runs before your tests
+const { MockLogger } = require('./src/agents/tests/mocks/mock-logger');
 
 // Mock environment variables if needed
 process.env.PINECONE_API_KEY = 'test-pinecone-key';
@@ -8,58 +9,7 @@ process.env.PINECONE_INDEX = 'test-index';
 process.env.OPENAI_API_KEY = 'test-openai-key';
 process.env.NODE_ENV = 'test';
 
-// Create a global MockLogger class for tests to use
-class MockLogger {
-  constructor() {
-    this.messages = [];
-    this.currentLogLevel = 'info';
-  }
-
-  debug(message, meta) {
-    this.messages.push({ level: 'debug', message, meta });
-  }
-
-  info(message, meta) {
-    this.messages.push({ level: 'info', message, meta });
-  }
-
-  warn(message, meta) {
-    this.messages.push({ level: 'warn', message, meta });
-  }
-
-  error(message, meta) {
-    this.messages.push({ level: 'error', message, meta });
-  }
-
-  log(level, message, meta) {
-    this.messages.push({ level, message, meta });
-  }
-
-  setContext(context) {
-    // No-op for mock
-  }
-
-  clearContext() {
-    // No-op for mock
-  }
-
-  // Testing helper methods
-  clear() {
-    this.messages = [];
-  }
-
-  getLogsByLevel(level) {
-    return this.messages.filter((log) => log.level === level);
-  }
-
-  hasMessage(messageSubstring, level) {
-    return this.messages.some(
-      (log) =>
-        log.message.includes(messageSubstring) &&
-        (level === undefined || log.level === level),
-    );
-  }
-}
+// Using imported MockLogger instead of local implementation
 
 // Expose MockLogger globally for tests
 global.MockLogger = MockLogger;

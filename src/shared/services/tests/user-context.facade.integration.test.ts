@@ -191,7 +191,7 @@ describe('UserContextFacade Integration', () => {
     (BaseContextService as jest.Mock).mockImplementation(
       () => mockBaseContextService,
     );
-    (ConversationContextService as jest.Mock).mockImplementation(
+    ((ConversationContextService as unknown) as jest.Mock).mockImplementation(
       () => mockConversationContextService,
     );
     (DocumentContextService as jest.Mock).mockImplementation(
@@ -321,7 +321,7 @@ describe('UserContextFacade Integration', () => {
 
       expect(
         mockConversationContextService.getConversationHistory,
-      ).toHaveBeenCalledWith(testUserId, 'conv-123', 10, undefined);
+      ).toHaveBeenCalledWith(testUserId, 'conv-123', 10, {});
       expect(result).toHaveLength(2);
       expect(result[0].metadata?.role).toBe('user');
     });

@@ -132,21 +132,24 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
       status: Annotation<string>(),
       startTime: Annotation<number>(),
       endTime: Annotation<number | undefined>(),
-      errorCount: Annotation<number>(),
+      errorCount: Annotation<number>({
+        default: () => 0,
+        value: (curr, update) => (curr || 0) + (update || 0),
+      }),
       errors: Annotation<any[]>({
         default: () => [],
-        reducer: (curr, update) => [
+        value: (curr, update) => [
           ...(curr || []),
           ...(Array.isArray(update) ? update : [update]),
         ],
       }),
       metrics: Annotation<any>({
         default: () => ({}),
-        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+        value: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
       }),
       metadata: Annotation<Record<string, any>>({
         default: () => ({}),
-        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+        value: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
       }),
 
       // Conversation-specific fields
@@ -154,7 +157,7 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
       userId: Annotation<string>(),
       messages: Annotation<AgentMessage[]>({
         default: () => [],
-        reducer: (curr, update) => [
+        value: (curr, update) => [
           ...(curr || []),
           ...(Array.isArray(update) ? update : [update]),
         ],
@@ -171,7 +174,7 @@ export class ConversationAdapter extends BaseLangGraphAdapter<
       agentResponse: Annotation<string | undefined>(),
       context: Annotation<Record<string, any>>({
         default: () => ({}),
-        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
+        value: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
       }),
       totalExecutionTimeMs: Annotation<number | undefined>(),
     });

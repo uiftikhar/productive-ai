@@ -17,6 +17,21 @@ import {
   SemanticStructure,
   ProceduralSteps,
 } from './types/memory.types';
+import { ConsoleLogger } from '../../logger/console-logger';
+
+/**
+ * Configuration options for UserContextFacade
+ */
+export interface UserContextFacadeOptions {
+  pineconeService?: PineconeConnectionService;
+  logger?: Logger;
+  gracefulDegradation?: boolean;
+  retryOptions?: {
+    maxRetries: number;
+    retryDelayMs: number;
+  };
+  fallbackEnabled?: boolean;
+}
 
 /**
  * Facade service that provides a unified interface to all user context services
@@ -29,13 +44,27 @@ export class UserContextFacade {
   private memoryManagementService: MemoryManagementService;
   private metadataValidator: MetadataValidationService;
   private integrationService: IntegrationService;
+  private initialized: boolean = false;
+  private gracefulDegradation: boolean = false;
+  private retryOptions = {
+    maxRetries: 3,
+    retryDelayMs: 1000,
+  };
+  private fallbackEnabled: boolean = false;
+  private logger: Logger;
 
-  constructor(
-    options: {
-      pineconeService?: PineconeConnectionService;
-      logger?: Logger;
-    } = {},
-  ) {
+  constructor(options: UserContextFacadeOptions = {}) {
+    this.logger = options.logger || new ConsoleLogger();
+    this.gracefulDegradation = options.gracefulDegradation ?? true;
+    this.fallbackEnabled = options.fallbackEnabled ?? true;
+
+    if (options.retryOptions) {
+      this.retryOptions = {
+        ...this.retryOptions,
+        ...options.retryOptions,
+      };
+    }
+
     this.baseContextService = new BaseContextService(options);
     this.conversationContextService = new ConversationContextService(options);
     this.documentContextService = new DocumentContextService(options);
@@ -48,7 +77,95 @@ export class UserContextFacade {
    * Initialize all services
    */
   async initialize(): Promise<void> {
-    await this.baseContextService.initialize();
+    try {
+      await this.baseContextService.initialize();
+      this.initialized = true;
+      this.logger.info('UserContextFacade initialized successfully');
+    } catch (error) {
+      this.logger.error('Failed to initialize UserContextFacade', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      if (!this.gracefulDegradation) {
+        throw error;
+      }
+
+      // If graceful degradation is enabled, we'll continue with limited functionality
+      this.logger.warn(
+        'Continuing with limited functionality due to initialization failure',
+      );
+    }
+  }
+
+  /**
+   * Check if the facade is initialized
+   */
+  isInitialized(): boolean {
+    return this.initialized;
+  }
+
+  /**
+   * Helper method to run operations with retries
+   * @private
+   */
+  private async withRetry<T>(
+    operation: () => Promise<T>,
+    serviceName: string,
+    methodName: string,
+    fallbackValue?: T,
+  ): Promise<T> {
+    if (!this.initialized && !this.gracefulDegradation) {
+      throw new Error(
+        `UserContextFacade not initialized. Call initialize() first`,
+      );
+    }
+
+    let attempts = 0;
+    let lastError: Error | null = null;
+
+    while (attempts < this.retryOptions.maxRetries) {
+      try {
+        return await operation();
+      } catch (error) {
+        attempts++;
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        this.logger.warn(
+          `Operation failed (attempt ${attempts}/${this.retryOptions.maxRetries})`,
+          {
+            service: serviceName,
+            method: methodName,
+            error: lastError.message,
+          },
+        );
+
+        if (attempts < this.retryOptions.maxRetries) {
+          // Wait before retrying
+          await new Promise((resolve) =>
+            setTimeout(resolve, this.retryOptions.retryDelayMs),
+          );
+        }
+      }
+    }
+
+    // All attempts failed
+    this.logger.error(`Operation failed after maximum retry attempts`, {
+      service: serviceName,
+      method: methodName,
+      error: lastError?.message,
+    });
+
+    // If fallback is enabled and a fallback value was provided, return it
+    if (this.fallbackEnabled && fallbackValue !== undefined) {
+      this.logger.info(`Using fallback value for failed operation`, {
+        service: serviceName,
+        method: methodName,
+      });
+      return fallbackValue;
+    }
+
+    // Otherwise throw the error
+    throw lastError || new Error(`Operation failed with unknown error`);
   }
 
   // #region Base Context Operations
@@ -67,11 +184,17 @@ export class UserContextFacade {
     embeddings: number[],
     metadata: Partial<BaseContextMetadata> = {},
   ): Promise<string> {
-    return this.baseContextService.storeUserContext(
-      userId,
-      contextData,
-      embeddings,
-      metadata,
+    return this.withRetry(
+      () =>
+        this.baseContextService.storeUserContext(
+          userId,
+          contextData,
+          embeddings,
+          metadata,
+        ),
+      'baseContextService',
+      'storeUserContext',
+      // No fallback value for storing - we need the operation to succeed
     );
   }
 
@@ -108,10 +231,17 @@ export class UserContextFacade {
       includeEmbeddings?: boolean;
     } = {},
   ) {
-    return this.baseContextService.retrieveUserContext(
-      userId,
-      queryEmbedding,
-      options,
+    return this.withRetry(
+      () =>
+        this.baseContextService.retrieveUserContext(
+          userId,
+          queryEmbedding,
+          options,
+        ),
+      'baseContextService',
+      'retrieveUserContext',
+      // Fallback to empty array if retrieval fails and fallback is enabled
+      [],
     );
   }
 
@@ -136,50 +266,83 @@ export class UserContextFacade {
       includeEmbeddings?: boolean;
     } = {},
   ) {
-    // This is a more complex method that would need to be implemented
-    // For now, we'll use the retrieveUserContext with additional filtering
-    const filter: Record<string, any> = {};
+    // We'll try a more complex strategy here - try the method as implemented first,
+    // but if that fails, fall back to a simpler version of retrieveUserContext
+    try {
+      // Already using withRetry internally with complex filter construction
+      const filter: Record<string, any> = {};
 
-    // Filter by context types if specified
-    if (options.contextTypes && options.contextTypes.length > 0) {
-      filter.contextType = { $in: options.contextTypes };
-    }
-
-    // Filter by conversation if specified
-    if (options.conversationId) {
-      filter.conversationId = options.conversationId;
-    }
-
-    // Filter by documents if specified
-    if (options.documentIds && options.documentIds.length > 0) {
-      filter.documentId = { $in: options.documentIds };
-    }
-
-    // Filter by time range if specified
-    if (options.timeRangeStart || options.timeRangeEnd) {
-      filter.timestamp = {};
-      if (options.timeRangeStart) {
-        filter.timestamp.$gte = options.timeRangeStart;
+      // Filter by context types if specified
+      if (options.contextTypes && options.contextTypes.length > 0) {
+        filter.contextType = { $in: options.contextTypes };
       }
-      if (options.timeRangeEnd) {
-        filter.timestamp.$lte = options.timeRangeEnd;
+
+      // Filter by conversation if specified
+      if (options.conversationId) {
+        filter.conversationId = options.conversationId;
       }
+
+      // Filter by documents if specified
+      if (options.documentIds && options.documentIds.length > 0) {
+        filter.documentId = { $in: options.documentIds };
+      }
+
+      // Filter by time range if specified
+      if (options.timeRangeStart || options.timeRangeEnd) {
+        filter.timestamp = {};
+        if (options.timeRangeStart) {
+          filter.timestamp.$gte = options.timeRangeStart;
+        }
+        if (options.timeRangeEnd) {
+          filter.timestamp.$lte = options.timeRangeEnd;
+        }
+      }
+
+      const result = await this.retrieveUserContext(userId, queryEmbedding, {
+        topK: options.topK || 10,
+        filter: Object.keys(filter).length > 0 ? filter : undefined,
+        includeEmbeddings: options.includeEmbeddings || false,
+      });
+
+      // Filter by minimum score if specified
+      if (options.minScore) {
+        return result.filter(
+          (match) => match.score && match.score >= (options.minScore || 0),
+        );
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('Error in retrieveRagContext, attempting fallback', {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+      });
+
+      // If fallback is enabled, try a simpler retrieval
+      if (this.fallbackEnabled) {
+        try {
+          return await this.retrieveUserContext(userId, queryEmbedding, {
+            topK: options.topK || 5,
+          });
+        } catch (fallbackError) {
+          this.logger.error('Fallback retrieval also failed', {
+            error:
+              fallbackError instanceof Error
+                ? fallbackError.message
+                : String(fallbackError),
+          });
+          // If we're here and graceful degradation is enabled, return empty array
+          if (this.gracefulDegradation) {
+            return [];
+          }
+          // Otherwise re-throw the original error
+          throw error;
+        }
+      }
+
+      // If fallback is not enabled, re-throw the error
+      throw error;
     }
-
-    const result = await this.retrieveUserContext(userId, queryEmbedding, {
-      topK: options.topK || 10,
-      filter: Object.keys(filter).length > 0 ? filter : undefined,
-      includeEmbeddings: options.includeEmbeddings || false,
-    });
-
-    // Filter by minimum score if specified
-    if (options.minScore) {
-      return result.filter(
-        (match) => match.score && match.score >= (options.minScore || 0),
-      );
-    }
-
-    return result;
   }
 
   /**
@@ -266,29 +429,145 @@ export class UserContextFacade {
       embeddings,
       role,
       turnId,
-      additionalMetadata,
+      additionalMetadata as any,
     );
   }
 
   /**
-   * Retrieve conversation history for a specific conversation
+   * Store a conversation turn with agent-specific information
+   * @param userId User identifier
+   * @param conversationId Unique conversation identifier
+   * @param message The message text content
+   * @param embeddings Vector embeddings for the message
+   * @param role Who said the message (user, assistant, system)
+   * @param options Enhanced storage options including agent data and retention policy
+   * @returns The ID of the stored turn
+   */
+  async storeAgentConversationTurn(
+    userId: string,
+    conversationId: string,
+    message: string,
+    embeddings: number[],
+    role: 'user' | 'assistant' | 'system',
+    options: {
+      agentId?: string;
+      agentName?: string;
+      capability?: string;
+      retentionPolicy?: string;
+      segmentId?: string;
+      segmentTopic?: string;
+      isSegmentStart?: boolean;
+      [key: string]: any;
+    } = {},
+  ): Promise<string> {
+    const turnId = options.turnId || `turn-${Date.now()}`;
+    return this.conversationContextService.storeConversationTurn(
+      userId,
+      conversationId,
+      message,
+      embeddings,
+      role,
+      turnId,
+      options as any,
+    );
+  }
+
+  /**
+   * Retrieve conversation history for a specific conversation with enhanced filtering
    * @param userId User identifier
    * @param conversationId Conversation identifier
    * @param limit Maximum number of turns to retrieve
-   * @param beforeTimestamp Only retrieve turns before this timestamp
+   * @param options Additional options for filtering
    * @returns Conversation turns ordered chronologically
    */
   async getConversationHistory(
     userId: string,
     conversationId: string,
     limit: number = 20,
-    beforeTimestamp?: number,
-  ) {
-    return this.conversationContextService.getConversationHistory(
+    options: {
+      beforeTimestamp?: number;
+      afterTimestamp?: number;
+      segmentId?: string;
+      agentId?: string;
+      role?: 'user' | 'assistant' | 'system';
+      includeMetadata?: boolean;
+    } = {},
+  ): Promise<any[]> {
+    return this.withRetry(
+      () =>
+        this.conversationContextService.getConversationHistory(
+          userId,
+          conversationId,
+          limit,
+          options,
+        ),
+      'conversationContextService',
+      'getConversationHistory',
+      // Fallback to empty array if retrieval fails and fallback is enabled
+      [],
+    );
+  }
+
+  /**
+   * Get conversation segments
+   * @param userId User identifier
+   * @param conversationId Conversation identifier
+   * @returns Array of segments in the conversation
+   */
+  async getConversationSegments(
+    userId: string,
+    conversationId: string,
+  ): Promise<any[]> {
+    return this.conversationContextService.getConversationSegments(
       userId,
       conversationId,
+    );
+  }
+
+  /**
+   * Get conversations by agent
+   * @param userId User identifier
+   * @param agentId Agent identifier
+   * @param limit Maximum number of conversations to retrieve
+   * @returns Array of conversations handled by the agent
+   */
+  async getConversationsByAgent(
+    userId: string,
+    agentId: string,
+    limit: number = 10,
+  ): Promise<any[]> {
+    return this.conversationContextService.getConversationsByAgent(
+      userId,
+      agentId,
       limit,
-      beforeTimestamp,
+    );
+  }
+
+  /**
+   * Update the retention policy for a conversation or specific turns
+   * @param userId User identifier
+   * @param conversationId Conversation identifier
+   * @param policy Retention policy to apply
+   * @param options Additional options for filtering which turns to update
+   * @returns Number of turns updated
+   */
+  async updateRetentionPolicy(
+    userId: string,
+    conversationId: string,
+    policy: string,
+    options: {
+      turnIds?: string[];
+      segmentId?: string;
+      retentionPriority?: number;
+      retentionTags?: string[];
+      isHighValue?: boolean;
+    } = {},
+  ): Promise<number> {
+    return this.conversationContextService.updateRetentionPolicy(
+      userId,
+      conversationId,
+      policy as any,
+      options,
     );
   }
 
@@ -634,4 +913,50 @@ export class UserContextFacade {
   }
 
   // #endregion
+
+  /**
+   * Gracefully shut down all services
+   */
+  async shutdown(): Promise<void> {
+    try {
+      // Add shutdown logic for services if they support it
+      this.logger.info('Shutting down UserContextFacade');
+      this.initialized = false;
+    } catch (error) {
+      this.logger.error('Error during UserContextFacade shutdown', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Check the health of all underlying services
+   */
+  async healthCheck(): Promise<{
+    healthy: boolean;
+    services: Record<string, { healthy: boolean; message?: string }>;
+  }> {
+    const result = {
+      healthy: true,
+      services: {} as Record<string, { healthy: boolean; message?: string }>,
+    };
+
+    // Check each service
+    try {
+      // For example, check if we can retrieve basic stats
+      await this.baseContextService.getUserContextStats('health-check');
+      result.services.baseContextService = { healthy: true };
+    } catch (error) {
+      result.healthy = false;
+      result.services.baseContextService = {
+        healthy: false,
+        message: error instanceof Error ? error.message : String(error),
+      };
+    }
+
+    // Could add more service health checks here
+
+    return result;
+  }
 }

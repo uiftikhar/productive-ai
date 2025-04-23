@@ -6,8 +6,17 @@ import fs from 'fs';
 
 import { authRoutes } from './auth/index';
 import { passportClient } from './database/index';
-import { ticketGeneratorRoutes } from './jira-ticket-generator/jira-ticket-generator.routes';
-import { summaryRoutes } from './summary-generator/index';
+import { ticketGeneratorRoutes } from './api/routes/jira-ticket-generator.routes';
+import { initializeApi } from './api/index';
+
+// Import dependencies for API initialization
+import { ConsoleLogger } from './shared/logger/console-logger';
+import { UserContextFacade } from './shared/services/user-context/user-context.facade';
+import { AgentRegistryService } from './agents/services/agent-registry.service';
+import { OpenAIConnector } from './agents/integrations/openai-connector';
+import { securityHeaders } from './chat/middleware/security-headers';
+import { PerformanceMonitor } from './shared/services/monitoring/performance-monitor';
+import { summaryRoutes } from './api/routes/summary-generator.routes';
 
 dotenv.config();
 
@@ -26,6 +35,9 @@ app.use(
 
 app.use(passportClient.initialize());
 app.use(passportClient.session());
+
+// Serve static files from the public directory
+app.use(express.static(path.join(process.cwd(), 'public')));
 
 // Serve static files from the visualizations directory
 const visualizationsPath = path.join(process.cwd(), 'visualizations');
@@ -64,13 +76,47 @@ app.use(
   }),
 );
 
+// Initialize common services
+const logger = new ConsoleLogger();
+const userContextFacade = new UserContextFacade({
+  logger
+});
+const llmConnector = new OpenAIConnector({
+  modelConfig: {
+    model: process.env.OPENAI_MODEL || 'gpt-4o',
+  },
+  logger
+});
+const agentRegistry = AgentRegistryService.getInstance(logger);
+
+// Initialize and register all API routes
+const apiRouter = initializeApi(
+  userContextFacade,
+  llmConnector,
+  agentRegistry,
+  logger
+);
+
+// Register auth and existing routes
 app.use('/auth', authRoutes);
 app.use('/api/generate-summary', summaryRoutes);
 app.use('/api/generate-tickets', ticketGeneratorRoutes);
 
+// Register new API routes
+app.use('/api', apiRouter);
+
 app.get('/api/health', (_req: express.Request, res: express.Response) => {
   res.json({ status: 'OK' });
 });
+
+// Initialize performance monitoring
+const performanceMonitor = PerformanceMonitor.getInstance(logger);
+
+// Apply security headers to all responses
+app.use(securityHeaders());
+
+// Add performance monitoring middleware
+app.use(performanceMonitor.apiMonitoringMiddleware());
 
 app.use(
   (

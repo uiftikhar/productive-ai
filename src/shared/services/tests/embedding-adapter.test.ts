@@ -3,51 +3,13 @@ import { OpenAIConnector } from '../../../agents/integrations';
 import { Logger, LogLevel } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
 import { EmbeddingServiceFactory } from '../embedding.factory';
+import { MockLogger } from '../../../agents/tests/mocks/mock-logger';
 
 // Mock dependencies
 jest.mock('../../../agents/integrations/openai-connector');
 jest.mock('../embedding.factory');
 
-// Mock Logger
-class MockLogger implements Logger {
-  public messages: {
-    level: LogLevel;
-    message: string;
-    context?: Record<string, any>;
-  }[] = [];
-
-  setLogLevel(level: LogLevel): void {
-    // No-op for tests
-  }
-
-  debug(message: string, context?: Record<string, any>): void {
-    this.messages.push({ level: 'debug', message, context });
-  }
-
-  info(message: string, context?: Record<string, any>): void {
-    this.messages.push({ level: 'info', message, context });
-  }
-
-  warn(message: string, context?: Record<string, any>): void {
-    this.messages.push({ level: 'warn', message, context });
-  }
-
-  error(message: string, context?: Record<string, any>): void {
-    this.messages.push({ level: 'error', message, context });
-  }
-
-  log(level: LogLevel, message: string): void {
-    this.messages.push({ level, message });
-  }
-
-  hasMessage(searchText: string, level?: LogLevel): boolean {
-    return this.messages.some(
-      (msg) =>
-        msg.message.includes(searchText) &&
-        (level === undefined || msg.level === level),
-    );
-  }
-}
+// Mock Logger implementation is replaced with import
 
 // Mock implementation for EmbeddingService
 const mockGenerateEmbedding = jest.fn();
