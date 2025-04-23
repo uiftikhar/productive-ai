@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 
-import { getSummary } from './summary-generator.controller';
+import { getSummary } from '../controllers/summary-generator.controller';
 
 const upload = multer({ dest: 'uploads/' });
 const router = Router();

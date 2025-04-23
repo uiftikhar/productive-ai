@@ -323,4 +323,19 @@ export class SupervisorAdapter {
   getWorkflowId(): string {
     return this.workflow.id;
   }
+
+  /**
+   * Clean up resources used by this adapter
+   * This should be called when the adapter is no longer needed
+   */
+  cleanup(): void {
+    this.logger.info(`Cleaning up SupervisorAdapter resources for agent: ${this.agent.id}`);
+    
+    // Clean up the workflow
+    if (this.workflow) {
+      this.workflow.cleanup();
+    }
+    
+    this.logger.info(`SupervisorAdapter cleanup completed`);
+  }
 }

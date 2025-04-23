@@ -2,22 +2,22 @@ import { Request, Response } from 'express';
 import express from 'express';
 import { promises as fs } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import { MeetingAnalysisAgent } from '../agents/specialized/meeting-analysis-agent';
+import { MeetingAnalysisAgent } from '../../agents/specialized/meeting-analysis-agent';
 import 'reflect-metadata';
-import { StandardizedMeetingAnalysisAdapter } from '../langgraph/core/adapters/standardized-meeting-analysis.adapter';
-import { configureTracing } from '../langgraph/core/utils/tracing';
-import { AgentWorkflow } from '../langgraph/core/workflows/agent-workflow';
+import { StandardizedMeetingAnalysisAdapter } from '../../langgraph/core/adapters/standardized-meeting-analysis.adapter';
+import { configureTracing } from '../../langgraph/core/utils/tracing';
+import { AgentWorkflow } from '../../langgraph/core/workflows/agent-workflow';
 
-import { EmbeddingServiceFactory } from '../shared/services/embedding.factory';
-import { ConsoleLogger } from '../shared/logger/console-logger';
-import { OpenAIConnector } from '../agents/integrations/openai-connector';
-import { AgentFactory } from '../agents/factories/agent-factory';
+import { EmbeddingServiceFactory } from '../../shared/services/embedding.factory';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { OpenAIConnector } from '../../agents/integrations/openai-connector';
+import { AgentFactory } from '../../agents/factories/agent-factory';
 
 // Type imports to help with type casting
-import { AgentRequest } from '../agents/interfaces/base-agent.interface';
-import { AgentStatus } from '../agents/interfaces/base-agent.interface';
+import { AgentRequest } from '../../agents/interfaces/base-agent.interface';
+import { AgentStatus } from '../../agents/interfaces/base-agent.interface';
 import dotenv from 'dotenv';
-import { BaseContextService } from '../shared/services/user-context/base-context.service';
+import { BaseContextService } from '../../shared/services/user-context/base-context.service';
 
 dotenv.config();
 

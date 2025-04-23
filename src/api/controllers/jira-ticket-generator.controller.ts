@@ -1,8 +1,8 @@
 import type { Request, Response } from 'express';
 import express from 'express';
 import { promises as fs } from 'fs';
+import { generateJiraTickets } from '../../jira-ticket-generator/jira-ticket-generator';
 
-import { generateJiraTickets } from './jira-ticket-generator';
 
 export const getTickets = async (
   req: Request,

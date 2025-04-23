@@ -129,7 +129,7 @@ export class ClassifierConfigService {
       } catch (error) {
         this.logger.error('Failed to report fallback metrics', { error });
       }
-    }, 60 * 60 * 1000); // Every hour
+    }, 60 * 60 * 1000).unref(); // Every hour, with unref() to prevent keeping Node.js process alive
     
     // Store the interval ID
     this.intervals.set(classifierFactory, interval);
