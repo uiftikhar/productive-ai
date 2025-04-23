@@ -6,8 +6,7 @@ import fs from 'fs';
 
 import { authRoutes } from './auth/index';
 import { passportClient } from './database/index';
-import { ticketGeneratorRoutes } from './jira-ticket-generator/jira-ticket-generator.routes';
-import { summaryRoutes } from './summary-generator/index';
+import { ticketGeneratorRoutes } from './api/routes/jira-ticket-generator.routes';
 import { initializeApi } from './api/index';
 
 // Import dependencies for API initialization
@@ -17,6 +16,7 @@ import { AgentRegistryService } from './agents/services/agent-registry.service';
 import { OpenAIConnector } from './agents/integrations/openai-connector';
 import { securityHeaders } from './chat/middleware/security-headers';
 import { PerformanceMonitor } from './shared/services/monitoring/performance-monitor';
+import { summaryRoutes } from './api/routes/summary-generator.routes';
 
 dotenv.config();
 

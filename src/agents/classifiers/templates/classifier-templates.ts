@@ -1,6 +1,12 @@
 /**
  * Template collection for agent classifier prompts
+ * 
+ * NOTE: These templates have been moved to src/shared/prompts/instruction-templates.ts
+ * and should be imported from there. This file is kept for backwards compatibility
+ * but will be deprecated in future versions.
  */
+
+import { InstructionTemplates } from '../../../shared/prompts/instruction-templates';
 
 /**
  * Default prompt template for agent classification
@@ -8,7 +14,7 @@
  * This template is used to classify user queries to determine which specialized agent
  * is best suited to handle the request.
  */
-export const DEFAULT_CLASSIFIER_TEMPLATE = `
+export const DEFAULT_CLASSIFIER_TEMPLATE = InstructionTemplates.DEFAULT_CLASSIFIER.promptTemplate || `
 You are AgentMatcher, an intelligent assistant designed to analyze user queries and match them with the most suitable agent. Your task is to understand the user's request, identify key entities and intents, and determine which agent would be best equipped to handle the query.
 
 Important: The user's input may be a follow-up response to a previous interaction. The conversation history, including the name of the previously selected agent, is provided. If the user's input appears to be a continuation of the previous conversation (e.g., "yes", "ok", "I want to know more", "1"), select the same agent as before.
@@ -50,7 +56,7 @@ Skip any preamble and provide only the JSON response.
  * Specialized template focusing on detecting if the current message is a follow-up
  * to a previous conversation.
  */
-export const FOLLOWUP_CLASSIFIER_TEMPLATE = `
+export const FOLLOWUP_CLASSIFIER_TEMPLATE = InstructionTemplates.FOLLOWUP_CLASSIFIER.promptTemplate || `
 You are a Follow-up Detector, an expert at analyzing whether a user's message is a continuation of a previous conversation thread. Your job is to determine if the current message should be handled by the same agent that responded last.
 
 Analyze the following input and determine if it's a follow-up message. Consider these indicators of follow-ups:
@@ -85,7 +91,7 @@ Skip any preamble and provide only the JSON response.
  *
  * Used for classifying intents within a specific domain or for a specific agent's capabilities.
  */
-export const SPECIALIZED_CLASSIFIER_TEMPLATE = `
+export const SPECIALIZED_CLASSIFIER_TEMPLATE = InstructionTemplates.SPECIALIZED_CLASSIFIER.promptTemplate || `
 You are a specialized classifier focusing on correctly identifying the specific intent and entities within {{DOMAIN}} domain queries. 
 
 Analyze the user's input and determine the following:

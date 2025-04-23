@@ -38,8 +38,23 @@ export type MeetingSummaryFormat = {
   };
 };
 
-export type InstructionTemplate<T = TicketFormat | MeetingSummaryFormat> = {
+export type ClassifierFormat = {
+  requiredSections: string[];
+  outputFormat: 'json_object';
+  jsonSchema: {
+    properties: Record<
+      string,
+      {
+        type: string;
+        description: string;
+      }
+    >;
+  };
+};
+
+export type InstructionTemplate<T = TicketFormat | MeetingSummaryFormat | ClassifierFormat> = {
   format: T;
   rules: string[];
   outputRequirements?: string[];
+  promptTemplate?: string;
 };

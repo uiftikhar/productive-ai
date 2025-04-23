@@ -20,6 +20,7 @@ import {
   StreamHandler,
   ModelResponse,
 } from '../interfaces/language-model-provider.interface';
+import { ResourceManager } from '../../shared/utils/resource-manager';
 
 /**
  * Model configuration for OpenAI API calls
@@ -49,6 +50,7 @@ export class OpenAIConnector implements LanguageModelProvider {
   private chatModel: ChatOpenAI;
   private embeddings: OpenAIEmbeddings;
   private logger: Logger;
+  private resourceManager?: ResourceManager;
 
   constructor(
     options: {
@@ -58,6 +60,17 @@ export class OpenAIConnector implements LanguageModelProvider {
     } = {},
   ) {
     this.logger = options.logger || new ConsoleLogger();
+    this.resourceManager = ResourceManager.getInstance(this.logger);
+
+    // Register the cleanup method with the ResourceManager
+    this.resourceManager.register(
+      'OpenAIConnector',
+      () => this.cleanup(),
+      {
+        priority: 40,
+        description: 'Cleanup OpenAI connector resources',
+      }
+    );
 
     const modelConfig: OpenAIModelConfig = {
       model: options.modelConfig?.model || LangChainConfig.llm.model,
@@ -324,5 +337,15 @@ export class OpenAIConnector implements LanguageModelProvider {
     variables: Record<string, any>,
   ): Promise<BaseMessage[]> {
     return template.formatMessages(variables);
+  }
+
+  /**
+   * Cleanup method to release resources when the connector is no longer needed
+   */
+  public cleanup(): void {
+    // Abort any ongoing requests if applicable
+    // No active timers to clear in the current implementation
+    
+    this.logger.info('OpenAIConnector resources cleaned up');
   }
 }
