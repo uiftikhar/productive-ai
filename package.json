@@ -11,10 +11,12 @@
     "start": "ts-node src/index.ts",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
-    "format": "prettier --write .",
+    "format": "prettier --write \"src/**/*.ts\"",
     "test": "jest",
     "test:coverage": "jest --coverage",
-    "dev": "nodemon --watch src --ext ts,json --exec \"ts-node\" src/index.ts"
+    "dev": "nodemon src/index.ts",
+    "test:watch": "jest --watch",
+    "load-test": "ts-node src/chat/scripts/load-test.ts"
   },
   "dependencies": {
     "@aws-sdk/credential-provider-node": "^3.787.0",
@@ -47,6 +49,7 @@
     "socket.io": "^4.8.1",
     "tsconfig-paths": "^4.2.0",
     "uuid": "^11.1.0",
+    "xss": "^1.0.15",
     "zod": "^3.24.2"
   },
   "resolutions": {

@@ -15,6 +15,8 @@ import { ConsoleLogger } from './shared/logger/console-logger';
 import { UserContextFacade } from './shared/services/user-context/user-context.facade';
 import { AgentRegistryService } from './agents/services/agent-registry.service';
 import { OpenAIConnector } from './agents/integrations/openai-connector';
+import { securityHeaders } from './chat/middleware/security-headers';
+import { PerformanceMonitor } from './shared/services/monitoring/performance-monitor';
 
 dotenv.config();
 
@@ -106,6 +108,15 @@ app.use('/api', apiRouter);
 app.get('/api/health', (_req: express.Request, res: express.Response) => {
   res.json({ status: 'OK' });
 });
+
+// Initialize performance monitoring
+const performanceMonitor = PerformanceMonitor.getInstance(logger);
+
+// Apply security headers to all responses
+app.use(securityHeaders());
+
+// Add performance monitoring middleware
+app.use(performanceMonitor.apiMonitoringMiddleware());
 
 app.use(
   (

@@ -5,6 +5,7 @@ import { ConsoleLogger } from '../shared/logger/console-logger';
 import { ChatService } from '../chat/chat.service';
 import { ChatMessage, ChatServiceError, ChatErrorType } from '../chat/chat.types';
 import { isAuthenticated } from '../auth/middlewares/isAuthenticated';
+import { PerformanceMonitor } from '../shared/services/monitoring/performance-monitor';
 
 export interface SocketUser {
   id: string;
@@ -71,6 +72,10 @@ export class SocketService {
    * Set up Socket.IO middleware for authentication and rate limiting
    */
   private setupMiddleware(): void {
+    // Performance monitoring middleware
+    const performanceMonitor = PerformanceMonitor.getInstance(this.logger);
+    this.io.use(performanceMonitor.socketMonitoringMiddleware());
+    
     // Authentication middleware
     this.io.use((socket, next) => {
       // Use the same authentication mechanism as Express

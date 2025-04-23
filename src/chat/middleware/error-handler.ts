@@ -14,7 +14,15 @@ const ERROR_STATUS_MAP: Record<ChatErrorType, number> = {
   [ChatErrorType.INVALID_REQUEST]: 400,
   [ChatErrorType.GENERATION_FAILED]: 500,
   [ChatErrorType.SERVICE_UNAVAILABLE]: 503,
-  [ChatErrorType.RATE_LIMIT_EXCEEDED]: 429
+  [ChatErrorType.RATE_LIMIT_EXCEEDED]: 429,
+  [ChatErrorType.CONTEXT_STORAGE_ERROR]: 500,
+  [ChatErrorType.CONTEXT_RETRIEVAL_ERROR]: 500,
+  [ChatErrorType.CONTEXT_MANAGEMENT_ERROR]: 500,
+  [ChatErrorType.FILE_UPLOAD_ERROR]: 500,
+  [ChatErrorType.FILE_PROCESSING_ERROR]: 500,
+  [ChatErrorType.MULTI_AGENT_ERROR]: 500,
+  [ChatErrorType.PRESENCE_UPDATE_ERROR]: 500,
+  [ChatErrorType.ANALYTICS_ERROR]: 500
 };
 
 /**

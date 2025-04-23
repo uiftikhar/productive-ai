@@ -57,7 +57,7 @@ describe('RagPromptManager Advanced Features', () => {
       getDocumentChunks: jest.fn().mockResolvedValue([]),
     }));
 
-    (ConversationContextService as jest.Mock).mockImplementation(() => ({
+    ((ConversationContextService as unknown) as jest.Mock).mockImplementation(() => ({
       getConversationHistory: jest.fn().mockResolvedValue([]),
       storeConversationTurn: jest.fn().mockResolvedValue('turn-id'),
     }));

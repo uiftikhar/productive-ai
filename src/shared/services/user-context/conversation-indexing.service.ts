@@ -670,7 +670,7 @@ export class ConversationIndexingService {
 
     this.refreshTimer = setInterval(() => {
       this.refreshAllIndices();
-    }, this.config.indexRefreshIntervalMs);
+    }, this.config.indexRefreshIntervalMs).unref();
   }
 
   /**
@@ -701,5 +701,17 @@ export class ConversationIndexingService {
         }
       }
     }
+  }
+
+  /**
+   * Clean up resources used by the service
+   */
+  public cleanup(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = null;
+    }
+    
+    this.logger.info('Conversation indexing service resources cleaned up');
   }
 }

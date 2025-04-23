@@ -505,19 +505,51 @@ The topic should be concise and descriptive. Please provide only the topic name 
       options,
     });
 
-    // Check for required parameters
+    // Perform basic validation
     if (!userId || !conversationId) {
-      this.logger.warn(
-        'Missing userId or conversationId for getConversationHistory',
-        {
-          userId,
-          conversationId,
-        },
-      );
+      this.logger.warn('Missing userId or conversationId for conversation history', {
+        userId,
+        conversationId,
+      });
       return [];
     }
 
     try {
+      // Optimize query approach based on available parameters
+      const isSpecificTurnQuery = options.turnIds && options.turnIds.length > 0;
+      const isSpecificRoleQuery = !!options.role;
+      const isSpecificSegmentQuery = !!options.segmentId;
+      const isSpecificAgentQuery = !!options.agentId;
+      const isTimeRangeQuery = options.beforeTimestamp || options.afterTimestamp;
+      const isRelevanceSort = options.sortBy === 'relevance' && options.relevanceEmbedding;
+            
+      // Create optimized query plan
+      let queryPlan = 'standard';
+      let resultLimit = limit;
+      
+      // For relevance sort, increase limit to get enough data for sorting
+      if (isRelevanceSort) {
+        queryPlan = 'relevance';
+        resultLimit = limit * 3; // Get more results to sort by relevance
+      } 
+      // For specific turns, use a direct lookup approach
+      else if (isSpecificTurnQuery) {
+        queryPlan = 'direct_lookup';
+        resultLimit = options.turnIds?.length || 0;
+      }
+      // For time range and other filters, increase limit with 2x factor
+      else if (isTimeRangeQuery || isSpecificRoleQuery || 
+               isSpecificSegmentQuery || isSpecificAgentQuery) {
+        queryPlan = 'filtered';
+        resultLimit = limit * 2;
+      }
+      
+      this.logger.debug('Using query plan', { 
+        queryPlan, 
+        resultLimit,
+        originalLimit: limit
+      });
+      
       // Use a single, optimized query strategy with appropriate filters
       const filter: Record<string, any> = {
         contextType: ContextType.CONVERSATION,
@@ -565,10 +597,10 @@ The topic should be concise and descriptive. Please provide only the topic name 
       // Increase topK to ensure we get enough results after filtering
       const queryLimit = useRelevanceSearch ? limit * 3 : limit * 2;
       
-      // Execute the query
+      // Execute the query, retrying if needed
       const result = await this.executeWithRetry(
-        () =>
-          this.pineconeService.queryVectors<RecordMetadata>(
+        async () => {
+          return await this.pineconeService.queryVectors(
             USER_CONTEXT_INDEX,
             queryVector,
             {
@@ -578,33 +610,38 @@ The topic should be concise and descriptive. Please provide only the topic name 
               includeMetadata: options.includeMetadata !== false,
             },
             userId,
-          ),
-        `getConversationHistory:${userId}:${conversationId}`,
+          );
+        },
+        'getConversationHistory',
       );
+      
+      let matches = result.matches || [];
 
-      let turns = result.matches || [];
-
-      // Sort by timestamp (chronological) or maintain relevance order
-      if (!useRelevanceSearch) {
-        turns.sort((a, b) => {
-          const timestampA = (a.metadata?.timestamp as number) || 0;
-          const timestampB = (b.metadata?.timestamp as number) || 0;
-          return timestampA - timestampB;
+      // Sort results: first by relevance (if vector search), then chronologically
+      if (useRelevanceSearch) {
+        // Already sorted by relevance from vector search
+        // Just enforce limit
+        matches = matches.slice(0, limit);
+      } else {
+        // Sort chronologically
+        matches.sort((a, b) => {
+          const aTime = (a.metadata?.timestamp as number) || 0;
+          const bTime = (b.metadata?.timestamp as number) || 0;
+          return aTime - bTime;
         });
+        
+        // Apply limit after sorting
+        matches = matches.slice(0, limit);
       }
 
-      // Apply limit after sorting
-      return turns.slice(0, limit);
+      return matches;
     } catch (error) {
-      // Log error to make debugging easier
+      // Log error and return empty array
       this.logger.error('Failed to retrieve conversation history', {
+        error: error instanceof Error ? error.message : String(error),
         userId,
         conversationId,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
       });
-      
-      // Return empty array instead of throwing to provide graceful degradation
       return [];
     }
   }

@@ -96,7 +96,7 @@ export class ChatService {
     // Check for stale presence every minute
     this.presenceUpdateInterval = setInterval(() => {
       this.checkStalePresence();
-    }, 60 * 1000);
+    }, 60 * 1000).unref();
   }
   
   /**
@@ -1410,7 +1410,8 @@ export class ChatService {
         {
           conversationIds: options.conversationIds,
           role: options.role,
-          agentId: options.agentId,
+          // Pass agentId only if it's defined in the userContextFacade interface
+          ...(options.agentId ? { agentId: options.agentId } : {}),
           minRelevanceScore: options.minRelevanceScore,
           maxResults: options.maxResults,
           timeRangeStart: options.timeRangeStart,
@@ -1418,18 +1419,18 @@ export class ChatService {
         }
       );
       
-      // Map results to the expected format
+      // Map results to the expected format with explicit type conversions to avoid type errors
       const mappedResults = searchResults.map(result => ({
-        sessionId: undefined, // Will be populated below if requested
-        conversationId: result.conversationId,
-        turnId: result.turnId || result.id,
-        timestamp: result.timestamp,
-        message: result.message,
-        score: result.score,
-        role: result.role,
-        agentId: result.agentId,
-        segmentId: result.segmentId,
-        segmentTopic: result.segmentTopic
+        sessionId: undefined as string | undefined, // Will be populated below if requested
+        conversationId: String(result.conversationId || ''),
+        turnId: String(result.turnId || result.id || ''),
+        timestamp: Number(result.timestamp || Date.now()),
+        message: String(result.message || ''),
+        score: Number(result.score || 0),
+        role: String(result.role || ''),
+        agentId: result.agentId ? String(result.agentId) : undefined,
+        segmentId: result.segmentId ? String(result.segmentId) : undefined,
+        segmentTopic: result.segmentTopic ? String(result.segmentTopic) : undefined
       }));
       
       // If session data is requested, look up session IDs by conversation ID
@@ -1451,7 +1452,10 @@ export class ChatService {
         
         // Update the results with session IDs
         for (const result of mappedResults) {
-          result.sessionId = sessionMap.get(result.conversationId);
+          const sessionId = sessionMap.get(result.conversationId);
+          if (sessionId) {
+            result.sessionId = sessionId;
+          }
         }
       }
       
@@ -2063,7 +2067,9 @@ export class ChatService {
         
         // Look for a session with this ID in our historical logs
         for (const session of allSessions) {
-          if (session.metadata?.previousSessionIds?.includes(sessionId)) {
+          if (session.metadata && session.metadata.previousSessionIds && 
+              Array.isArray(session.metadata.previousSessionIds) &&
+              session.metadata.previousSessionIds.includes(sessionId)) {
             userId = session.userId;
             conversationId = session.conversationId;
             break;
@@ -2085,15 +2091,22 @@ export class ChatService {
             metadata: {
               recoveredFrom: sessionId,
               recoveryAttempt: attempts,
-              preserveHistory: options.preserveHistory
+              preserveHistory: options.preserveHistory,
+              previousSessionIds: [sessionId]
             }
           });
           
-          // Add the old session ID to the metadata
-          if (!newSession.metadata.previousSessionIds) {
-            newSession.metadata.previousSessionIds = [];
+          // Add the old session ID to the metadata if metadata exists
+          if (newSession.metadata) {
+            if (!newSession.metadata.previousSessionIds) {
+              newSession.metadata.previousSessionIds = [];
+            }
+            
+            // Only add if not already in the array
+            if (!newSession.metadata.previousSessionIds.includes(sessionId)) {
+              newSession.metadata.previousSessionIds.push(sessionId);
+            }
           }
-          newSession.metadata.previousSessionIds.push(sessionId);
           
           this.logger.info('Successfully recovered session by creating a new one', {
             oldSessionId: sessionId,
@@ -2293,5 +2306,18 @@ export class ChatService {
         { originalError: error instanceof Error ? error.message : String(error) }
       );
     }
+  }
+
+  /**
+   * Clean up resources used by the service
+   */
+  public cleanup(): void {
+    if (this.presenceUpdateInterval) {
+      clearInterval(this.presenceUpdateInterval);
+      this.presenceUpdateInterval = undefined;
+    }
+    
+    // Release any other resources
+    this.logger.info('Chat service resources cleaned up');
   }
 } 

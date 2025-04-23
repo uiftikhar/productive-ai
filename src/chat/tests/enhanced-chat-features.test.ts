@@ -10,13 +10,32 @@ import { ContextType } from '../../shared/services/user-context/types/context.ty
 // Mock dependencies
 jest.mock('../../shared/services/user-context/user-context.facade');
 jest.mock('../../agents/integrations/openai-connector');
-jest.mock('../../agents/services/agent-registry.service');
+jest.mock('../../agents/services/agent-registry.service', () => {
+  const mockAgentRegistry = {
+    getAgent: jest.fn(),
+    getAllAgents: jest.fn(),
+    registerAgent: jest.fn(),
+    unregisterAgent: jest.fn(),
+    listAgents: jest.fn(),
+    initializeAgents: jest.fn()
+  };
+  
+  return {
+    __esModule: true,
+    AgentRegistryService: {
+      getInstance: jest.fn().mockReturnValue(mockAgentRegistry)
+    },
+    default: {
+      getInstance: jest.fn().mockReturnValue(mockAgentRegistry)
+    }
+  };
+});
 
 describe('Enhanced Chat Features', () => {
   let chatService: ChatService;
   let userContextFacade: jest.Mocked<UserContextFacade>;
   let llmConnector: jest.Mocked<OpenAIConnector>;
-  let agentRegistry: jest.Mocked<AgentRegistryService>;
+  let agentRegistry: any;
   let logger: ConsoleLogger;
 
   beforeEach(() => {
@@ -43,8 +62,9 @@ describe('Enhanced Chat Features', () => {
       usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 }
     });
 
-    agentRegistry = new AgentRegistryService() as jest.Mocked<AgentRegistryService>;
-    agentRegistry.getAgent = jest.fn().mockReturnValue({
+    // Get the mocked agent registry
+    agentRegistry = AgentRegistryService.getInstance();
+    agentRegistry.getAgent.mockReturnValue({
       id: 'test-agent',
       name: 'Test Agent',
       processRequest: jest.fn().mockResolvedValue({
@@ -52,7 +72,7 @@ describe('Enhanced Chat Features', () => {
         executionTimeMs: 100
       })
     } as unknown as BaseAgent);
-    agentRegistry.getAllAgents = jest.fn().mockReturnValue([
+    agentRegistry.getAllAgents.mockReturnValue([
       { id: 'test-agent', name: 'Test Agent' },
       { id: 'helper-agent', name: 'Helper Agent' }
     ] as unknown as BaseAgent[]);
