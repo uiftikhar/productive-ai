@@ -1150,6 +1150,24 @@ Description: ${task.description}
   }
 
   /**
+   * Clean up resources used by the agent
+   * Override parent terminate to add cleanup for the task executor
+   */
+  async terminate(): Promise<void> {
+    // First call the parent terminate method
+    await super.terminate();
+    
+    // Clean up the agentTaskExecutor resources
+    this.agentTaskExecutor.cleanup();
+    
+    // Clear team and task maps
+    this.team.clear();
+    this.tasks.clear();
+    
+    this.logger.info(`SupervisorAgent resources cleaned up`);
+  }
+
+  /**
    * Convert internal tasks to task planning format
    */
   async convertToTaskPlan(

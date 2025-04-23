@@ -162,4 +162,26 @@ export class AgentRegistryService {
     
     return existed;
   }
+  
+  /**
+   * Clean up all resources used by this service
+   * Call this when the service is no longer needed
+   */
+  public cleanup(): void {
+    // Clear agents map
+    this.agents.clear();
+    this.defaultAgentId = undefined;
+    
+    this.logger.info('AgentRegistryService resources cleaned up');
+  }
+  
+  /**
+   * Reset the singleton instance (for testing purposes)
+   */
+  public static resetInstance(): void {
+    if (AgentRegistryService.instance) {
+      AgentRegistryService.instance.cleanup();
+      AgentRegistryService.instance = undefined as any;
+    }
+  }
 }

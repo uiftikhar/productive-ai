@@ -417,7 +417,7 @@ Respond with a JSON array where each object represents a subtask with these prop
           }
         }
 
-        // If no preferred agent found, use agent discovery service
+        // If no preferred agent found or no preferred agents specified, use agent discovery service
         if (!assignedAgentId) {
           const discoveryResult = this.agentDiscovery.discoverAgent({
             capability: task.requiredCapabilities[0],

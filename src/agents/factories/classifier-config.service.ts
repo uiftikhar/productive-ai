@@ -166,6 +166,27 @@ export class ClassifierConfigService {
   }
   
   /**
+   * Clean up all resources used by this service
+   * Call this when the service is no longer needed
+   */
+  public cleanup(): void {
+    // Clean up all metrics reporting intervals
+    this.cleanupAllMetricsReporting();
+    
+    this.logger.info('ClassifierConfigService resources cleaned up');
+  }
+  
+  /**
+   * Reset the singleton instance (for testing purposes)
+   */
+  public static resetInstance(): void {
+    if (ClassifierConfigService.instance) {
+      ClassifierConfigService.instance.cleanup();
+      ClassifierConfigService.instance = undefined as any;
+    }
+  }
+  
+  /**
    * Get the current default agent fallback metrics
    */
   getFallbackMetrics(classifierFactory: ClassifierFactory): any {

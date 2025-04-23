@@ -2317,7 +2317,28 @@ export class ChatService {
       this.presenceUpdateInterval = undefined;
     }
     
-    // Release any other resources
+    // Terminate all supervisor agents
+    for (const [sessionId, supervisor] of this.supervisors.entries()) {
+      try {
+        // Call cleanup on the supervisor
+        supervisor.cleanup();
+        this.logger.info('Cleaned up supervisor for session', { sessionId });
+      } catch (error) {
+        this.logger.error('Failed to clean up supervisor for session', {
+          sessionId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+    
+    // Clear collections
+    this.sessions.clear();
+    this.supervisors.clear();
+    this.userPresence.clear();
+    
+    // Remove all event listeners
+    this.presenceEvents.removeAllListeners();
+    
     this.logger.info('Chat service resources cleaned up');
   }
 } 

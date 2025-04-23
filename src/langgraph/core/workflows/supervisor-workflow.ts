@@ -80,6 +80,27 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
   }
 
   /**
+   * Cleanup resources used by this workflow.
+   * This should be called when the workflow is no longer needed.
+   */
+  public cleanup(): void {
+    this.logger.info(`Cleaning up SupervisorWorkflow resources: ${this.id}`);
+    
+    // Terminate the supervisor agent to clean up its resources
+    if (this.agent) {
+      // Using void to handle the promise without awaiting
+      void this.agent.terminate();
+    }
+    
+    // Clean up userContext if needed
+    if (this.userContext) {
+      // Any specific cleanup for the user context if applicable
+    }
+    
+    this.logger.info(`SupervisorWorkflow cleanup completed: ${this.id}`);
+  }
+
+  /**
    * Create the state schema for supervisor workflows
    * Extends the base agent schema with supervisor-specific fields
    */

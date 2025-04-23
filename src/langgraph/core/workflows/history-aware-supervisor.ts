@@ -948,4 +948,20 @@ ${userInput}
 
     return undefined;
   }
+
+  /**
+   * Clean up resources used by this supervisor.
+   * Should be called when the supervisor is no longer needed.
+   */
+  public cleanup(): void {
+    this.logger.info('Cleaning up HistoryAwareSupervisor resources');
+    
+    // Call the base workflow cleanup method
+    super.cleanup();
+    
+    // Clear registered agents
+    this.registeredAgents.clear();
+    
+    this.logger.info('HistoryAwareSupervisor resources cleaned up');
+  }
 }

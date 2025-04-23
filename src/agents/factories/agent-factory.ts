@@ -18,6 +18,7 @@ import { KnowledgeRetrievalAgent } from '../specialized/knowledge-retrieval-agen
 import { DocumentRetrievalAgent } from '../specialized/retrieval-agent';
 import { MeetingAnalysisAgent } from '../specialized/meeting-analysis-agent';
 import { DecisionTrackingAgent } from '../specialized/decision-tracking-agent';
+import { SupervisorAgent, SupervisorAgentConfig } from '../specialized/supervisor-agent';
 import { IEmbeddingService } from '../../shared/services/embedding.interface';
 import { EmbeddingServiceFactory } from '../../shared/services/embedding.factory';
 import { OpenAIConnector } from '../integrations/openai-connector';
@@ -230,6 +231,38 @@ export class AgentFactory {
   }
 
   /**
+   * Create a SupervisorAgent
+   */
+  createSupervisorAgent(
+    options: AgentFactoryOptions = {},
+  ): SupervisorAgent | AgentWorkflow<SupervisorAgent> {
+    const agent = new SupervisorAgent({
+      id: options.id,
+      name: options.name,
+      description: options.description,
+      logger: options.logger || this.logger,
+      llm: options.llm,
+      agentRegistry: options.registry || this.registry,
+      defaultTeamMembers: options.defaultTeamMembers,
+      priorityThreshold: options.priorityThreshold,
+      ...options,
+    });
+
+    if (options.autoRegister !== false) {
+      this.registerAgent(agent);
+    }
+
+    // Optionally wrap the agent in a workflow
+    if (options.wrapWithWorkflow) {
+      return this.createAgentWorkflow(agent, {
+        tracingEnabled: options.tracingEnabled,
+      });
+    }
+
+    return agent;
+  }
+
+  /**
    * Create and initialize all standard agents
    */
   async createStandardAgents(
@@ -251,6 +284,12 @@ export class AgentFactory {
     );
     agents.push(
       this.createMeetingAnalysisAgent(agentOptions) as MeetingAnalysisAgent,
+    );
+    agents.push(
+      this.createDecisionTrackingAgent(agentOptions) as DecisionTrackingAgent,
+    );
+    agents.push(
+      this.createSupervisorAgent(agentOptions) as SupervisorAgent,
     );
 
     await Promise.all(agents.map((agent) => agent.initialize()));
