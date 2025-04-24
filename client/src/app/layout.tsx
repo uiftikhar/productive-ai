@@ -3,6 +3,8 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { NextAuthProvider } from "@/providers/NextAuthProvider";
 import { ThemeProvider } from "@/providers/ThemeProvider";
+import { ReactQueryProvider } from "@/providers/ReactQueryProvider";
+import { TranscriptProvider } from "@/components/TranscriptProvider";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -30,14 +32,18 @@ export default function RootLayout({
         className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
       >
         <NextAuthProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
-            {children}
-          </ThemeProvider>
+          <ReactQueryProvider>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              <TranscriptProvider>
+                {children}
+              </TranscriptProvider>
+            </ThemeProvider>
+          </ReactQueryProvider>
         </NextAuthProvider>
       </body>
     </html>
