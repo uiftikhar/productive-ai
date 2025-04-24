@@ -122,13 +122,14 @@ export class ConversationContextService extends BaseContextService {
         ...options.retentionPeriods,
       };
     }
-    
+
     this.languageModelProvider = options.languageModelProvider;
-    
+
     // Initialize the rate limiter with defaults
-    const maxRequestsPerSecond = options.rateLimiter?.maxRequestsPerSecond || 10; // Default to 10 requests per second
+    const maxRequestsPerSecond =
+      options.rateLimiter?.maxRequestsPerSecond || 10; // Default to 10 requests per second
     const maxBurstRequests = options.rateLimiter?.maxBurstRequests || 20; // Default to 20 burst requests
-    
+
     this.rateLimiter = {
       tokens: maxBurstRequests, // Start with full tokens
       maxTokens: maxBurstRequests,
@@ -146,23 +147,27 @@ export class ConversationContextService extends BaseContextService {
     const now = Date.now();
     const elapsedMs = now - this.rateLimiter.lastRefill;
     const tokensToAdd = elapsedMs * this.rateLimiter.refillRate;
-    
+
     this.rateLimiter.tokens = Math.min(
       this.rateLimiter.maxTokens,
-      this.rateLimiter.tokens + tokensToAdd
+      this.rateLimiter.tokens + tokensToAdd,
     );
     this.rateLimiter.lastRefill = now;
-    
+
     if (this.rateLimiter.tokens < 1) {
       // Calculate wait time to get at least one token
-      const msToWait = Math.ceil((1 - this.rateLimiter.tokens) / this.rateLimiter.refillRate);
-      this.logger.debug('Rate limit reached, waiting before proceeding', { msToWait });
-      
+      const msToWait = Math.ceil(
+        (1 - this.rateLimiter.tokens) / this.rateLimiter.refillRate,
+      );
+      this.logger.debug('Rate limit reached, waiting before proceeding', {
+        msToWait,
+      });
+
       // Wait for enough tokens
-      await new Promise(resolve => setTimeout(resolve, msToWait));
+      await new Promise((resolve) => setTimeout(resolve, msToWait));
       return this.applyRateLimit(); // Retry after waiting
     }
-    
+
     // Consume one token
     this.rateLimiter.tokens -= 1;
   }
@@ -174,11 +179,11 @@ export class ConversationContextService extends BaseContextService {
   protected async executeWithRetry<T>(
     operation: () => Promise<T>,
     operationKey: string,
-    retries = 3
+    retries = 3,
   ): Promise<T> {
     // Apply rate limiting before proceeding
     await this.applyRateLimit();
-    
+
     // Call the parent's executeWithRetry method
     return super.executeWithRetry(operation, operationKey, retries);
   }
@@ -293,45 +298,55 @@ export class ConversationContextService extends BaseContextService {
           userId,
           conversationId,
         );
-        
+
         // Get recent conversation history
         const recentHistory = await this.getConversationHistory(
           userId,
           conversationId,
           this.segmentationConfig.minSegmentLength || 5,
         );
-        
+
         // If we don't have enough history, continue with current segment
-        if (recentHistory.length < (this.segmentationConfig.minSegmentLength || 5)) {
+        if (
+          recentHistory.length < (this.segmentationConfig.minSegmentLength || 5)
+        ) {
           return {
             segmentId: currentSegmentId,
             segmentTopic: options.segmentTopic,
             isSegmentStart: false,
           };
         }
-        
+
         // Extract recent messages for topic analysis
-        const recentMessages = recentHistory.map(
-          turn => turn.metadata?.message || ''
-        ).join(' ');
-        
+        const recentMessages = recentHistory
+          .map((turn) => turn.metadata?.message || '')
+          .join(' ');
+
         // Check for topic change using semantic similarity if we have an LLM provider
         if (this.languageModelProvider && recentMessages) {
           // Get embeddings for the current message and recent history
-          const messageEmbedding = await this.languageModelProvider.generateEmbedding(message);
-          const historyEmbedding = await this.languageModelProvider.generateEmbedding(recentMessages);
-          
+          const messageEmbedding =
+            await this.languageModelProvider.generateEmbedding(message);
+          const historyEmbedding =
+            await this.languageModelProvider.generateEmbedding(recentMessages);
+
           // Calculate semantic similarity (cosine similarity)
-          const similarity = this.calculateCosineSimilarity(messageEmbedding, historyEmbedding);
-          
+          const similarity = this.calculateCosineSimilarity(
+            messageEmbedding,
+            historyEmbedding,
+          );
+
           // If similarity is below threshold, create a new segment
           if (similarity < this.segmentationConfig.topicChangeThreshold!) {
             const newSegmentId = `segment-${uuidv4()}`;
-            
+
             // Generate a topic name if enabled
             let segmentTopic = options.segmentTopic || 'New Topic';
-            
-            if (this.segmentationConfig.assignTopicNames && this.languageModelProvider) {
+
+            if (
+              this.segmentationConfig.assignTopicNames &&
+              this.languageModelProvider
+            ) {
               try {
                 // Use LLM to generate a topic name based on the message
                 const topicPrompt = `
@@ -339,29 +354,34 @@ Generate a very short (2-4 words) topic name for this message:
 "${message}"
 The topic should be concise and descriptive. Please provide only the topic name without any explanation or punctuation.
 `;
-                
-                const topicResponse = await this.languageModelProvider.generateResponse(
-                  [{ role: 'user', content: topicPrompt }],
-                  { maxTokens: 20, temperature: 0.3 }
-                );
-                
+
+                const topicResponse =
+                  await this.languageModelProvider.generateResponse(
+                    [{ role: 'user', content: topicPrompt }],
+                    { maxTokens: 20, temperature: 0.3 },
+                  );
+
                 // Extract the topic name from the response
-                const generatedTopic = typeof topicResponse.content === 'string' 
-                  ? topicResponse.content.trim()
-                  : JSON.stringify(topicResponse.content);
-                
+                const generatedTopic =
+                  typeof topicResponse.content === 'string'
+                    ? topicResponse.content.trim()
+                    : JSON.stringify(topicResponse.content);
+
                 // Use the generated topic if it's not empty
                 if (generatedTopic && generatedTopic.length > 0) {
                   segmentTopic = generatedTopic;
                 }
               } catch (topicError) {
                 this.logger.warn('Failed to generate topic name', {
-                  error: topicError instanceof Error ? topicError.message : String(topicError),
+                  error:
+                    topicError instanceof Error
+                      ? topicError.message
+                      : String(topicError),
                 });
                 // Continue with default topic name
               }
             }
-            
+
             this.logger.info('Detected topic change, creating new segment', {
               userId,
               conversationId,
@@ -369,7 +389,7 @@ The topic should be concise and descriptive. Please provide only the topic name 
               threshold: this.segmentationConfig.topicChangeThreshold,
               segmentTopic,
             });
-            
+
             // Return new segment metadata
             return {
               segmentId: newSegmentId,
@@ -380,7 +400,7 @@ The topic should be concise and descriptive. Please provide only the topic name 
             };
           }
         }
-        
+
         // No topic change detected or no LLM provider available
         return {
           segmentId: currentSegmentId,
@@ -393,7 +413,7 @@ The topic should be concise and descriptive. Please provide only the topic name 
           userId,
           conversationId,
         });
-        
+
         // Fall back to continuing with current segment
         const currentSegmentId = await this.getCurrentSegmentId(
           userId,
@@ -416,7 +436,7 @@ The topic should be concise and descriptive. Please provide only the topic name 
       isSegmentStart: false,
     };
   }
-  
+
   /**
    * Calculate cosine similarity between two vectors
    * @protected
@@ -425,24 +445,24 @@ The topic should be concise and descriptive. Please provide only the topic name 
     if (vec1.length !== vec2.length) {
       throw new Error('Vectors must be of the same dimension');
     }
-    
+
     let dotProduct = 0;
     let mag1 = 0;
     let mag2 = 0;
-    
+
     for (let i = 0; i < vec1.length; i++) {
       dotProduct += vec1[i] * vec2[i];
       mag1 += vec1[i] * vec1[i];
       mag2 += vec2[i] * vec2[i];
     }
-    
+
     mag1 = Math.sqrt(mag1);
     mag2 = Math.sqrt(mag2);
-    
+
     if (mag1 === 0 || mag2 === 0) {
       return 0; // Avoid division by zero
     }
-    
+
     return dotProduct / (mag1 * mag2);
   }
 
@@ -507,10 +527,13 @@ The topic should be concise and descriptive. Please provide only the topic name 
 
     // Perform basic validation
     if (!userId || !conversationId) {
-      this.logger.warn('Missing userId or conversationId for conversation history', {
-        userId,
-        conversationId,
-      });
+      this.logger.warn(
+        'Missing userId or conversationId for conversation history',
+        {
+          userId,
+          conversationId,
+        },
+      );
       return [];
     }
 
@@ -520,36 +543,42 @@ The topic should be concise and descriptive. Please provide only the topic name 
       const isSpecificRoleQuery = !!options.role;
       const isSpecificSegmentQuery = !!options.segmentId;
       const isSpecificAgentQuery = !!options.agentId;
-      const isTimeRangeQuery = options.beforeTimestamp || options.afterTimestamp;
-      const isRelevanceSort = options.sortBy === 'relevance' && options.relevanceEmbedding;
-            
+      const isTimeRangeQuery =
+        options.beforeTimestamp || options.afterTimestamp;
+      const isRelevanceSort =
+        options.sortBy === 'relevance' && options.relevanceEmbedding;
+
       // Create optimized query plan
       let queryPlan = 'standard';
       let resultLimit = limit;
-      
+
       // For relevance sort, increase limit to get enough data for sorting
       if (isRelevanceSort) {
         queryPlan = 'relevance';
         resultLimit = limit * 3; // Get more results to sort by relevance
-      } 
+      }
       // For specific turns, use a direct lookup approach
       else if (isSpecificTurnQuery) {
         queryPlan = 'direct_lookup';
         resultLimit = options.turnIds?.length || 0;
       }
       // For time range and other filters, increase limit with 2x factor
-      else if (isTimeRangeQuery || isSpecificRoleQuery || 
-               isSpecificSegmentQuery || isSpecificAgentQuery) {
+      else if (
+        isTimeRangeQuery ||
+        isSpecificRoleQuery ||
+        isSpecificSegmentQuery ||
+        isSpecificAgentQuery
+      ) {
         queryPlan = 'filtered';
         resultLimit = limit * 2;
       }
-      
-      this.logger.debug('Using query plan', { 
-        queryPlan, 
+
+      this.logger.debug('Using query plan', {
+        queryPlan,
         resultLimit,
-        originalLimit: limit
+        originalLimit: limit,
       });
-      
+
       // Use a single, optimized query strategy with appropriate filters
       const filter: Record<string, any> = {
         contextType: ContextType.CONVERSATION,
@@ -585,36 +614,34 @@ The topic should be concise and descriptive. Please provide only the topic name 
       }
 
       // Use relevance-based search if requested
-      const useRelevanceSearch = options.sortBy === 'relevance' && 
-                                options.relevanceEmbedding && 
-                                options.relevanceEmbedding.length > 0;
-      
+      const useRelevanceSearch =
+        options.sortBy === 'relevance' &&
+        options.relevanceEmbedding &&
+        options.relevanceEmbedding.length > 0;
+
       // Select query vector based on search type
-      const queryVector = useRelevanceSearch 
+      const queryVector = useRelevanceSearch
         ? options.relevanceEmbedding!
         : ConversationContextService.PLACEHOLDER_VECTOR;
-      
+
       // Increase topK to ensure we get enough results after filtering
       const queryLimit = useRelevanceSearch ? limit * 3 : limit * 2;
-      
+
       // Execute the query, retrying if needed
-      const result = await this.executeWithRetry(
-        async () => {
-          return await this.pineconeService.queryVectors(
-            USER_CONTEXT_INDEX,
-            queryVector,
-            {
-              topK: queryLimit,
-              filter,
-              includeValues: false,
-              includeMetadata: options.includeMetadata !== false,
-            },
-            userId,
-          );
-        },
-        'getConversationHistory',
-      );
-      
+      const result = await this.executeWithRetry(async () => {
+        return await this.pineconeService.queryVectors(
+          USER_CONTEXT_INDEX,
+          queryVector,
+          {
+            topK: queryLimit,
+            filter,
+            includeValues: false,
+            includeMetadata: options.includeMetadata !== false,
+          },
+          userId,
+        );
+      }, 'getConversationHistory');
+
       let matches = result.matches || [];
 
       // Sort results: first by relevance (if vector search), then chronologically
@@ -629,7 +656,7 @@ The topic should be concise and descriptive. Please provide only the topic name 
           const bTime = (b.metadata?.timestamp as number) || 0;
           return aTime - bTime;
         });
-        
+
         // Apply limit after sorting
         matches = matches.slice(0, limit);
       }
@@ -882,10 +909,11 @@ The topic should be concise and descriptive. Please provide only the topic name 
       // Batch update records
       const updateBatchSize = 100; // Reasonable batch size for updates
       const recordsToUpdate = result.matches
-        .filter(match => match.values !== undefined) // Skip records without vector values
-        .map(match => {
-          const currentMetadata: Partial<BaseContextMetadata> = match.metadata || {};
-          
+        .filter((match) => match.values !== undefined) // Skip records without vector values
+        .map((match) => {
+          const currentMetadata: Partial<BaseContextMetadata> =
+            match.metadata || {};
+
           // Prepare updated metadata - type-safe with BaseContextMetadata
           const updatedMetadata: Partial<BaseContextMetadata> = {
             ...currentMetadata,
@@ -893,37 +921,38 @@ The topic should be concise and descriptive. Please provide only the topic name 
             expiresAt: expiresAt,
             lastUpdated: Date.now(),
           };
-          
+
           // Add additional metadata if provided
           if (options.retentionPriority !== undefined) {
             updatedMetadata.retentionPriority = options.retentionPriority;
           }
-          
+
           if (options.retentionTags) {
             updatedMetadata.retentionTags = options.retentionTags;
           }
-          
+
           if (options.isHighValue !== undefined) {
             updatedMetadata.isHighValue = options.isHighValue;
           }
-          
+
           return {
             id: match.id,
             values: match.values as number[], // TypeScript needs explicit cast here
             metadata: updatedMetadata as RecordMetadata, // Cast for Pinecone compatibility
           };
         });
-      
+
       // Process updates in batches
       for (let i = 0; i < recordsToUpdate.length; i += updateBatchSize) {
         const batch = recordsToUpdate.slice(i, i + updateBatchSize);
         await this.executeWithRetry(
-          () => this.pineconeService.upsertVectors(
-            USER_CONTEXT_INDEX,
-            batch,
-            userId
-          ),
-          `updateRetentionPolicy:${userId}:${conversationId}:batch${Math.floor(i/updateBatchSize)}`
+          () =>
+            this.pineconeService.upsertVectors(
+              USER_CONTEXT_INDEX,
+              batch,
+              userId,
+            ),
+          `updateRetentionPolicy:${userId}:${conversationId}:batch${Math.floor(i / updateBatchSize)}`,
         );
       }
 
@@ -935,7 +964,7 @@ The topic should be concise and descriptive. Please provide only the topic name 
           policy,
           expiresAt,
           affectedRecords: recordsToUpdate.length,
-        }
+        },
       );
 
       return recordsToUpdate.length;
@@ -1545,15 +1574,20 @@ The topic should be concise and descriptive. Please provide only the topic name 
 
     try {
       // Get segment information
-      const segments = await this.getConversationSegments(userId, conversationId);
+      const segments = await this.getConversationSegments(
+        userId,
+        conversationId,
+      );
       const segment = segments.find((s) => s.segmentId === segmentId);
 
       // Format the conversation for summarization
-      const formattedConversation = messages.map(message => {
-        const role = message.metadata?.role || 'unknown';
-        const content = message.metadata?.message || '';
-        return `${role}: ${content}`;
-      }).join('\n');
+      const formattedConversation = messages
+        .map((message) => {
+          const role = message.metadata?.role || 'unknown';
+          const content = message.metadata?.message || '';
+          return `${role}: ${content}`;
+        })
+        .join('\n');
 
       // Use a proper LLM service to generate the summary
       // This requires an LLM connector to be passed to the service
@@ -1572,13 +1606,13 @@ ${formattedConversation}
           [
             {
               role: 'user',
-              content: prompt
-            }
+              content: prompt,
+            },
           ],
           {
             maxTokens: 250,
             temperature: 0.3, // Lower temperature for more focused/factual summary
-          }
+          },
         );
 
         this.logger.info('Generated conversation summary using LLM', {
@@ -1588,8 +1622,8 @@ ${formattedConversation}
           messageCount: messages.length,
         });
 
-        return typeof response.content === 'string' 
-          ? response.content 
+        return typeof response.content === 'string'
+          ? response.content
           : JSON.stringify(response.content);
       }
 
@@ -1603,7 +1637,7 @@ ${formattedConversation}
         segment?.lastTimestamp || Date.now(),
       ).toLocaleString();
 
-      return `This conversation segment "${topic}" contains ${messageCount} messages from ${firstTimestamp} to ${lastTimestamp}. The conversation involves ${new Set(messages.map(m => m.metadata?.role)).size} participants.`;
+      return `This conversation segment "${topic}" contains ${messageCount} messages from ${firstTimestamp} to ${lastTimestamp}. The conversation involves ${new Set(messages.map((m) => m.metadata?.role)).size} participants.`;
     } catch (error) {
       this.logger.error('Error generating context summary', {
         error: error instanceof Error ? error.message : String(error),
@@ -1611,7 +1645,7 @@ ${formattedConversation}
         conversationId,
         segmentId,
       });
-      
+
       // Return a basic summary in case of error
       return `Conversation segment with ${messages.length} messages. Summary generation failed.`;
     }

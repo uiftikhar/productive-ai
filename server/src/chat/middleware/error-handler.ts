@@ -22,7 +22,7 @@ const ERROR_STATUS_MAP: Record<ChatErrorType, number> = {
   [ChatErrorType.FILE_PROCESSING_ERROR]: 500,
   [ChatErrorType.MULTI_AGENT_ERROR]: 500,
   [ChatErrorType.PRESENCE_UPDATE_ERROR]: 500,
-  [ChatErrorType.ANALYTICS_ERROR]: 500
+  [ChatErrorType.ANALYTICS_ERROR]: 500,
 };
 
 /**
@@ -33,33 +33,33 @@ export function chatErrorHandler(
   err: Error,
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): void {
   // If headers already sent, let Express default error handler deal with it
   if (res.headersSent) {
     return next(err);
   }
-  
+
   // Determine status code and format the error response
   if (err instanceof ChatServiceError) {
     const statusCode = ERROR_STATUS_MAP[err.type] || 500;
-    
+
     res.status(statusCode).json({
       error: {
         type: err.type,
         message: err.message,
-        details: err.details
-      }
+        details: err.details,
+      },
     });
   } else {
     // For unknown errors, return a generic response
     console.error('Unhandled error in chat service:', err);
-    
+
     res.status(500).json({
       error: {
         type: 'UNKNOWN_ERROR',
-        message: 'An unexpected error occurred'
-      }
+        message: 'An unexpected error occurred',
+      },
     });
   }
-} 
+}

@@ -15,6 +15,9 @@ import { MeetingAnalysisAgent } from '../../../agents/specialized/meeting-analys
 import { splitTranscript } from '../../../shared/utils/split-transcript';
 import { ContextType } from '../../../shared/services/user-context/types/context.types';
 import { AgentWorkflow } from '../workflows/agent-workflow';
+import { BaseAgent } from '../../../agents/base/base-agent';
+import { AgentStatus } from '../../../agents/interfaces/base-agent.interface';
+import { generateVisualization } from '../utils/visualization-generator';
 
 /**
  * Meeting analysis state interface
@@ -48,6 +51,7 @@ export interface ProcessMeetingTranscriptParams {
   includeTopics?: boolean;
   includeActionItems?: boolean;
   includeSentiment?: boolean;
+  visualization?: boolean;
 }
 
 /**
@@ -61,6 +65,7 @@ export interface ProcessMeetingTranscriptResult {
     executionTimeMs?: number;
     tokensUsed?: number;
   };
+  visualizationUrl?: string;
 }
 
 /**
@@ -78,6 +83,7 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
   protected maxChunkSize: number;
   protected chunkOverlap: number;
   protected agentWorkflow: AgentWorkflow<MeetingAnalysisAgent>;
+  protected visualizationsPath: string;
 
   /**
    * Creates a new instance of the StandardizedMeetingAnalysisAdapter
@@ -89,18 +95,21 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
       maxChunkSize?: number;
       chunkOverlap?: number;
       logger?: any;
+      visualizationsPath?: string;
     } = {},
   ) {
     super({
-      tracingEnabled: options.tracingEnabled,
-      logger: options.logger,
+      ...options,
     });
 
     this.maxChunkSize = options.maxChunkSize || 2000;
     this.chunkOverlap = options.chunkOverlap || 200;
+    this.visualizationsPath = options.visualizationsPath || 'visualizations';
 
     this.agentWorkflow = new AgentWorkflow(this.agent, {
       tracingEnabled: options.tracingEnabled,
+      visualizationsPath: this.visualizationsPath,
+      enableRealtimeUpdates: true,
     });
   }
 
@@ -279,6 +288,7 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
         includeTopics: input.includeTopics !== false, // Default to true
         includeActionItems: input.includeActionItems !== false, // Default to true
         includeSentiment: input.includeSentiment !== false, // Default to true
+        visualization: input.visualization || false,
       },
     };
   }
@@ -298,20 +308,44 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
 
       return {
         meetingId: state.meetingId,
-        output: {
-          error: errorMessage,
-          details: state.errors,
-        },
+        output: `Error: ${errorMessage}`,
         success: false,
-        metrics: this.getMetricsFromState(state),
+        metrics: {
+          executionTimeMs:
+            state.endTime && state.startTime
+              ? state.endTime - state.startTime
+              : undefined,
+        },
       };
     }
 
+    // Check if visualization was requested
+    let visualizationUrl: string | undefined = undefined;
+    if (state.metadata?.visualization) {
+      // Generate visualization
+      const visUrl = generateVisualization(state, {
+        visualizationsPath: this.visualizationsPath || 'visualizations',
+        logger: this.logger,
+      });
+
+      if (visUrl) {
+        visualizationUrl = visUrl;
+      }
+    }
+
+    // Return successful result
     return {
       meetingId: state.meetingId,
-      output: state.analysisResult,
+      output: state.analysisResult || {},
       success: true,
-      metrics: this.getMetricsFromState(state),
+      metrics: {
+        executionTimeMs:
+          state.endTime && state.startTime
+            ? state.endTime - state.startTime
+            : undefined,
+        tokensUsed: state.metrics?.tokensUsed,
+      },
+      visualizationUrl,
     };
   }
 
@@ -369,10 +403,11 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
         });
 
         // Extract response content
-        const analysis =
-          typeof result.output === 'string'
+        const analysis = !result.output
+          ? ''
+          : typeof result.output === 'string'
             ? result.output
-            : result.output.content;
+            : (result.output as any)?.content || '';
 
         const currentTokens = state.metrics?.tokensUsed || 0;
         const newTokens = result.metrics?.tokensUsed || 0;
@@ -460,24 +495,22 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
         // Parse the response as JSON if possible
         let analysisResult;
         try {
-          const responseText =
-            typeof result.output === 'string'
+          const responseText = !result.output
+            ? ''
+            : typeof result.output === 'string'
               ? result.output
-              : result.output.content;
+              : (result.output as any)?.content || '';
 
           // Try to parse as JSON
-          analysisResult = JSON.parse(
-            typeof responseText === 'string'
-              ? responseText
-              : JSON.stringify(responseText),
-          );
+          analysisResult = JSON.parse(responseText);
         } catch (parseError) {
           // If parsing fails, use the raw text
           analysisResult = {
-            rawAnalysis:
-              typeof result.output === 'string'
+            rawAnalysis: !result.output
+              ? ''
+              : typeof result.output === 'string'
                 ? result.output
-                : result.output.content,
+                : (result.output as any)?.content || '',
           };
         }
 

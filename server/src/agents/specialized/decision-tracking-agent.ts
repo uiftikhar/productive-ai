@@ -126,6 +126,7 @@ export class DecisionTrackingAgent extends BaseAgent {
 
       return {
         output: result,
+        success: true,
         metrics: {
           executionTimeMs: executionTime,
           tokensUsed: 0, // To be implemented

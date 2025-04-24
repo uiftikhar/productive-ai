@@ -297,6 +297,7 @@ export class MeetingAnalysisAgent extends BaseAgent {
 
           return {
             output: result,
+            success: true,
             metrics: {
               executionTimeMs: Date.now() - startTime,
             },
@@ -476,7 +477,8 @@ export class MeetingAnalysisAgent extends BaseAgent {
 
     // Format the response
     return {
-      output: response,
+      output: response.content.toString(),
+      success: true,
       artifacts: {
         capability: 'analyze-transcript-chunk',
         parameters: request.parameters,
@@ -565,7 +567,8 @@ export class MeetingAnalysisAgent extends BaseAgent {
 
     // Format the response
     return {
-      output: response,
+      output: response.content.toString(),
+      success: true,
       artifacts: {
         capability: 'generate-final-analysis',
         parameters: request.parameters,
@@ -666,7 +669,8 @@ export class MeetingAnalysisAgent extends BaseAgent {
 
     // Format the response
     return {
-      output: response,
+      output: response.content.toString(),
+      success: true,
       artifacts: {
         capability: 'extract-action-items',
         parameters: request.parameters,
@@ -758,7 +762,8 @@ export class MeetingAnalysisAgent extends BaseAgent {
 
     // Format the response
     return {
-      output: response,
+      output: response.content.toString(),
+      success: true,
       artifacts: {
         capability: 'generate-follow-up-questions',
         parameters: request.parameters,

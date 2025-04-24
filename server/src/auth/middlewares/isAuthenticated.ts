@@ -12,7 +12,7 @@ export function isAuthenticated(
   if (process.env.TEST_MODE === 'true') {
     return next();
   }
-  
+
   // Normal authentication flow
   if (req.isAuthenticated && req.isAuthenticated()) {
     return next();

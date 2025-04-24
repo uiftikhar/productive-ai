@@ -14,6 +14,23 @@ import {
   WorkflowStatus,
 } from './base-workflow';
 import { Logger } from '../../../shared/logger/logger.interface';
+import * as fs from 'fs';
+import * as path from 'path';
+import { generateVisualization } from '../utils/visualization-generator';
+// Import the broadcastStateUpdate function if available, otherwise handle gracefully
+let broadcastStateUpdate: ((runId: string, state: any) => void) | null = null;
+try {
+  // Use dynamic import to avoid circular dependencies
+  import('../../../api/controllers/visualization.controller')
+    .then((module) => {
+      broadcastStateUpdate = module.broadcastStateUpdate;
+    })
+    .catch((err) => {
+      // Silently ignore if the module isn't available
+    });
+} catch (err) {
+  // Silently handle any import errors
+}
 
 /**
  * Agent execution state interface
@@ -31,6 +48,9 @@ export interface AgentExecutionState extends BaseWorkflowState {
   output?: string;
   artifacts?: Record<string, any>;
   messages?: any[];
+
+  // Visualization
+  visualizationUrl?: string;
 }
 
 /**
@@ -49,6 +69,10 @@ function isWorkflowCompatible(agent: any): agent is WorkflowCompatibleAgent {
 export class AgentWorkflow<
   T extends BaseAgent = BaseAgent,
 > extends BaseWorkflow<AgentExecutionState, AgentRequest, AgentResponse> {
+  private visualizationsPath: string;
+  private enableVisualization: boolean;
+  private enableRealtimeUpdates: boolean;
+
   /**
    * Creates a new instance of the AgentWorkflow
    */
@@ -57,12 +81,26 @@ export class AgentWorkflow<
     options: {
       tracingEnabled?: boolean;
       includeStateInLogs?: boolean;
+      visualizationsPath?: string;
+      enableRealtimeUpdates?: boolean;
     } = {},
   ) {
     super({
       tracingEnabled: options.tracingEnabled,
       logger: options.includeStateInLogs ? undefined : undefined, // Use default logger for now
     });
+
+    this.visualizationsPath = options.visualizationsPath || 'visualizations';
+    this.enableVisualization = !!options.visualizationsPath || false;
+    this.enableRealtimeUpdates = options.enableRealtimeUpdates !== false;
+
+    // Ensure visualizations directory exists
+    if (this.enableVisualization) {
+      const dirPath = path.join(process.cwd(), this.visualizationsPath);
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+    }
   }
 
   /**
@@ -116,7 +154,87 @@ export class AgentWorkflow<
       // Response data
       output: Annotation<string | undefined>(),
       artifacts: Annotation<Record<string, any> | undefined>(),
+
+      // Visualization
+      visualizationUrl: Annotation<string | undefined>(),
     });
+  }
+
+  /**
+   * Broadcast state update to any connected clients
+   * This enables real-time visualization of the workflow execution
+   */
+  private broadcastState(state: AgentExecutionState): void {
+    if (!this.enableRealtimeUpdates || !broadcastStateUpdate || !state.runId) {
+      return;
+    }
+
+    try {
+      // Create a simplified version of the state suitable for visualization
+      const broadcastState = {
+        runId: state.runId,
+        id: state.id,
+        status: state.status,
+        startTime: state.startTime,
+        endTime: state.endTime,
+        agentId: state.agentId,
+        capability: state.capability,
+        errorCount: state.errorCount,
+        currentNode: state.metadata?.currentNode || 'unknown',
+        progressPercent: this.calculateProgress(state),
+        output:
+          typeof state.output === 'string' && state.output.length > 100
+            ? state.output.substring(0, 100) + '...'
+            : state.output,
+        timestamp: Date.now(),
+      };
+
+      // Broadcast the state update
+      broadcastStateUpdate(state.runId, broadcastState);
+    } catch (error) {
+      // Silently handle errors in broadcasting - this should not impact the workflow
+      this.logger?.warn('Failed to broadcast state update', {
+        error: error instanceof Error ? error.message : String(error),
+        runId: state.runId,
+      });
+    }
+  }
+
+  /**
+   * Calculate a progress percentage for visualization
+   */
+  private calculateProgress(state: AgentExecutionState): number {
+    if (state.status === WorkflowStatus.COMPLETED) {
+      return 100;
+    }
+
+    if (state.status === WorkflowStatus.ERROR) {
+      return 0;
+    }
+
+    // Get the current node from state metadata if available
+    const currentNode = state.metadata?.currentNode;
+
+    // Define progress values for different nodes
+    switch (currentNode) {
+      case 'initialize':
+        return 10;
+      case 'pre_execute':
+        return 30;
+      case 'execute':
+        return 60;
+      case 'post_execute':
+        return 90;
+      default:
+        // For unknown nodes, use a formula based on start time
+        if (state.startTime) {
+          const elapsed = Date.now() - state.startTime;
+          // Assume most executions take 3-5 seconds
+          const progress = Math.min(90, Math.floor((elapsed / 5000) * 100));
+          return progress;
+        }
+        return 50; // Default progress
+    }
   }
 
   /**
@@ -214,39 +332,213 @@ export class AgentWorkflow<
   }
 
   /**
-   * Process the final state to create an agent response
+   * Run the workflow with a given input and return the result
+   */
+  async execute(request: AgentRequest): Promise<AgentResponse> {
+    // Create initial state
+    const initialState = this.createInitialState(request);
+
+    // Create state graph
+    const graph = this.createStateGraph(this.createStateSchema());
+
+    // Compile the graph
+    const graphRunner = graph.compile();
+
+    // Broadcast initial state if real-time updates are enabled
+    this.broadcastState({
+      ...initialState,
+      metadata: {
+        ...initialState.metadata,
+        currentNode: 'initialize',
+      },
+    });
+
+    // Execute the graph
+    let finalState: AgentExecutionState;
+    try {
+      if (this.enableRealtimeUpdates && broadcastStateUpdate) {
+        const onStateChange = (
+          state: AgentExecutionState,
+          nodeName: string,
+        ) => {
+          this.broadcastState({
+            ...state,
+            metadata: {
+              ...state.metadata,
+              currentNode: nodeName,
+            },
+          });
+        };
+
+        // Execute the graph step by step, broadcasting updates at each node
+        let currentState = initialState;
+
+        // Define node execution order based on our graph definition
+        const nodeOrder = [
+          'initialize',
+          'pre_execute',
+          'execute',
+          'post_execute',
+          'complete',
+          'error_handler',
+        ];
+        const edgeMap: Record<string, string> = {
+          initialize: 'pre_execute',
+          pre_execute: 'execute',
+          execute: 'post_execute',
+          post_execute: 'complete',
+        };
+
+        let currentNode = 'initialize';
+
+        while (
+          currentNode &&
+          currentNode !== END &&
+          currentNode !== 'complete' &&
+          currentNode !== 'error_handler'
+        ) {
+          // Update metadata with current node and broadcast state
+          currentState = {
+            ...currentState,
+            metadata: {
+              ...currentState.metadata,
+              currentNode,
+            },
+          };
+
+          onStateChange(currentState, currentNode);
+
+          // Execute the current node
+          const nodeFunction = (graph as any).getNode(currentNode);
+          currentState = await nodeFunction(currentState);
+
+          // Find the next node based on state and our routing rules
+          if (currentState.status === WorkflowStatus.ERROR) {
+            currentNode = 'error_handler';
+          } else {
+            // Use the conditional routing functions we defined in createStateGraph
+            const conditionalEdges = (graph as any).getConditionalEdges(
+              currentNode,
+            );
+            if (conditionalEdges) {
+              currentNode = conditionalEdges(currentState);
+            } else {
+              // Use our predefined edge map
+              currentNode = edgeMap[currentNode] || END;
+            }
+          }
+        }
+
+        finalState = currentState;
+      } else {
+        // Standard execution without intercepting state changes
+        const result = await graphRunner.invoke(initialState);
+        finalState = result as unknown as AgentExecutionState;
+      }
+    } catch (error) {
+      this.logger.error('Error executing agent workflow', {
+        error: error instanceof Error ? error.message : String(error),
+        agentId: this.agent.id,
+        runId: initialState.runId,
+      });
+
+      // Create an error state
+      finalState = {
+        ...initialState,
+        status: WorkflowStatus.ERROR,
+        errors: [
+          ...(initialState.errors || []),
+          {
+            message: error instanceof Error ? error.message : String(error),
+            code: 'WORKFLOW_ERROR',
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        endTime: Date.now(),
+      };
+
+      // Broadcast final error state
+      this.broadcastState({
+        ...finalState,
+        metadata: {
+          ...finalState.metadata,
+          currentNode: 'error_handler',
+        },
+      });
+    }
+
+    // Broadcast final state
+    this.broadcastState({
+      ...finalState,
+      metadata: {
+        ...finalState.metadata,
+        currentNode:
+          finalState.status === WorkflowStatus.ERROR
+            ? 'error_handler'
+            : 'complete',
+      },
+    });
+
+    // Process the result
+    return this.processResult(finalState);
+  }
+
+  /**
+   * Process the final state into a response
    */
   protected processResult(state: AgentExecutionState): AgentResponse {
-    // If error occurred, generate an error response
+    // Generate HTML visualization if requested
+    let visualizationUrl: string | undefined = undefined;
+
+    if (
+      this.enableVisualization &&
+      state.metadata?.visualization &&
+      state.runId
+    ) {
+      // Use our custom visualization generator
+      const visUrl = generateVisualization(state, {
+        visualizationsPath: this.visualizationsPath,
+        logger: this.logger,
+      });
+
+      if (visUrl) {
+        visualizationUrl = visUrl;
+      }
+    }
+
     if (state.status === WorkflowStatus.ERROR) {
       const errorMessage =
         state.errors && state.errors.length > 0
           ? state.errors[state.errors.length - 1].message
-          : 'Unknown error occurred during execution';
+          : 'Unknown error during agent execution';
 
       return {
-        output: `Error: ${errorMessage}`,
-        metrics: {
-          executionTimeMs:
-            state.endTime && state.startTime
-              ? state.endTime - state.startTime
-              : 0,
-          tokensUsed: 0,
-        },
+        id: state.id,
+        agentId: state.agentId,
+        runId: state.runId,
+        success: false,
+        error: errorMessage,
+        executionTimeMs:
+          state.endTime && state.startTime
+            ? state.endTime - state.startTime
+            : undefined,
+        visualizationUrl,
       };
     }
 
     return {
-      output: state.output || 'Task completed successfully',
+      id: state.id,
+      agentId: state.agentId,
+      runId: state.runId,
+      success: true,
+      output: state.output || '',
       artifacts: state.artifacts,
-      metrics: {
-        executionTimeMs:
-          state.endTime && state.startTime
-            ? state.endTime - state.startTime
-            : 0,
-        tokensUsed: state.metrics?.tokensUsed,
-        stepCount: state.metrics?.stepCount,
-      },
+      executionTimeMs:
+        state.endTime && state.startTime
+          ? state.endTime - state.startTime
+          : undefined,
+      metrics: state.metrics,
+      visualizationUrl,
     };
   }
 
@@ -276,7 +568,6 @@ export class AgentWorkflow<
 
   /**
    * Create the execute node - this performs the actual agent execution
-   * This implementation is production-ready with proper type safety and circular execution prevention
    */
   private createExecuteNode() {
     return async (state: AgentExecutionState) => {
@@ -350,15 +641,19 @@ export class AgentWorkflow<
           response.metrics?.tokensUsed,
         );
 
-        // Parse the response, handling both string and object content
-        const output =
-          typeof response.output === 'string'
-            ? response.output
-            : response.output?.content || JSON.stringify(response.output);
+        // Parse the response output - handle both object and string formats safely
+        let outputStr = '';
+
+        if (typeof response.output === 'string') {
+          outputStr = response.output;
+        } else if (response.output) {
+          // Safely extract content or stringify
+          outputStr = JSON.stringify(response.output);
+        }
 
         return {
           ...state,
-          output,
+          output: outputStr,
           artifacts: response.artifacts || {},
           metrics: {
             ...(state.metrics || {}),

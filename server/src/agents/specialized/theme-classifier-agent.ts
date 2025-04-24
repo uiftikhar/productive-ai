@@ -34,14 +34,14 @@ export interface ThemeClassificationResult {
 export class ThemeClassifierAgent extends BaseAgent {
   private openAIConnector: OpenAIConnector;
   private themeDefinitions: Map<string, string> = new Map();
-  
+
   constructor(
     openAIConnector: OpenAIConnector,
     options: {
       logger?: Logger;
       id?: string;
       predefinedThemes?: Record<string, string>;
-    } = {}
+    } = {},
   ) {
     super(
       'Theme Classifier Agent',
@@ -49,18 +49,20 @@ export class ThemeClassifierAgent extends BaseAgent {
       {
         logger: options.logger,
         id: options.id || 'theme-classifier-agent',
-      }
+      },
     );
-    
+
     this.openAIConnector = openAIConnector;
-    
+
     // Initialize predefined themes if provided
     if (options.predefinedThemes) {
-      Object.entries(options.predefinedThemes).forEach(([theme, definition]) => {
-        this.themeDefinitions.set(theme, definition);
-      });
+      Object.entries(options.predefinedThemes).forEach(
+        ([theme, definition]) => {
+          this.themeDefinitions.set(theme, definition);
+        },
+      );
     }
-    
+
     this.registerCapabilities();
   }
 
@@ -71,22 +73,25 @@ export class ThemeClassifierAgent extends BaseAgent {
     // Classify themes capability
     this.registerCapability({
       name: 'classify-themes',
-      description: 'Analyze text to identify and classify themes, topics, and sentiment',
+      description:
+        'Analyze text to identify and classify themes, topics, and sentiment',
       parameters: {
         text: 'Text content to analyze',
-        minConfidence: 'Minimum confidence threshold for theme classification (0.0-1.0)',
+        minConfidence:
+          'Minimum confidence threshold for theme classification (0.0-1.0)',
       },
     });
-    
+
     // Define new themes capability
     this.registerCapability({
       name: 'define-themes',
-      description: 'Define new themes with descriptions for future classification',
+      description:
+        'Define new themes with descriptions for future classification',
       parameters: {
         themes: 'Object mapping theme names to their definitions',
       },
     });
-    
+
     // Extract key phrases with themes capability
     this.registerCapability({
       name: 'extract-themed-phrases',
@@ -96,7 +101,7 @@ export class ThemeClassifierAgent extends BaseAgent {
         maxPhrases: 'Maximum number of phrases to extract',
       },
     });
-    
+
     // Analyze sentiment by theme capability
     this.registerCapability({
       name: 'analyze-sentiment-by-theme',
@@ -123,108 +128,124 @@ export class ThemeClassifierAgent extends BaseAgent {
       switch (capability) {
         case 'classify-themes':
           const text = request.parameters?.text as string;
-          const minConfidence = parseFloat(request.parameters?.minConfidence as string || '0.6');
-          
+          const minConfidence = parseFloat(
+            (request.parameters?.minConfidence as string) || '0.6',
+          );
+
           if (!text) {
             throw new Error('Text content is required');
           }
-          
+
           const result = await this.classifyThemes(text, minConfidence);
           return {
             output: JSON.stringify(result),
-            metrics: this.processMetrics(startTime)
+            success: true,
+            metrics: this.processMetrics(startTime),
           };
-        
+
         case 'define-themes':
           const themes = request.parameters?.themes as Record<string, string>;
-          
+
           if (!themes || typeof themes !== 'object') {
             throw new Error('Themes object is required');
           }
-          
+
           const defineResult = this.defineThemes(themes);
           return {
             output: JSON.stringify(defineResult),
-            metrics: this.processMetrics(startTime)
+            success: true,
+            metrics: this.processMetrics(startTime),
           };
-        
+
         case 'extract-themed-phrases':
           const phraseText = request.parameters?.text as string;
-          const maxPhrases = parseInt(request.parameters?.maxPhrases as string || '10');
-          
+          const maxPhrases = parseInt(
+            (request.parameters?.maxPhrases as string) || '10',
+          );
+
           if (!phraseText) {
             throw new Error('Text content is required');
           }
-          
-          const phrasesResult = await this.extractThemedPhrases(phraseText, maxPhrases);
+
+          const phrasesResult = await this.extractThemedPhrases(
+            phraseText,
+            maxPhrases,
+          );
           return {
             output: JSON.stringify(phrasesResult),
-            metrics: this.processMetrics(startTime)
+            success: true,
+            metrics: this.processMetrics(startTime),
           };
-        
+
         case 'analyze-sentiment-by-theme':
           const sentimentText = request.parameters?.text as string;
           const themesToAnalyze = request.parameters?.themes as string[];
-          
+
           if (!sentimentText) {
             throw new Error('Text content is required');
           }
-          
+
           if (!themesToAnalyze || !Array.isArray(themesToAnalyze)) {
             throw new Error('Themes array is required');
           }
-          
-          const sentimentResult = await this.analyzeSentimentByTheme(sentimentText, themesToAnalyze);
+
+          const sentimentResult = await this.analyzeSentimentByTheme(
+            sentimentText,
+            themesToAnalyze,
+          );
           return {
             output: JSON.stringify(sentimentResult),
-            metrics: this.processMetrics(startTime)
+            success: true,
+            metrics: this.processMetrics(startTime),
           };
-        
+
         default:
           throw new Error(`Unsupported capability: ${capability}`);
       }
     } catch (error: any) {
       this.logger.error(`Error in ThemeClassifierAgent: ${error.message}`);
-      
+
       this.setState({
-        errorCount: this.getState().errorCount + 1
+        errorCount: this.getState().errorCount + 1,
       });
-      
+
       throw error;
     }
   }
-  
+
   /**
    * Define new themes with descriptions for future classification
    * @param themes Object mapping theme names to their definitions
    * @returns Object with operation status and counts
    */
-  public defineThemes(themes: Record<string, string>): { 
-    status: string; 
-    added: number; 
-    updated: number; 
-    themes: string[] 
+  public defineThemes(themes: Record<string, string>): {
+    status: string;
+    added: number;
+    updated: number;
+    themes: string[];
   } {
     let added = 0;
     let updated = 0;
-    
+
     Object.entries(themes).forEach(([theme, definition]) => {
       if (this.themeDefinitions.has(theme)) {
         updated++;
       } else {
         added++;
       }
-      
+
       this.themeDefinitions.set(theme, definition);
     });
-    
-    this.logger.info(`Defined ${added} new themes and updated ${updated} existing themes`);
-    
+
+    this.logger.info(
+      `Defined ${added} new themes and updated ${updated} existing themes`,
+    );
+
     return {
       status: 'success',
       added,
       updated,
-      themes: Array.from(this.themeDefinitions.keys())
+      themes: Array.from(this.themeDefinitions.keys()),
     };
   }
 
@@ -234,24 +255,31 @@ export class ThemeClassifierAgent extends BaseAgent {
    * @param minConfidence Minimum confidence threshold (0.0-1.0)
    * @returns Analysis with identified themes, confidence scores, and overall sentiment
    */
-  async classifyThemes(text: string, minConfidence: number = 0.6): Promise<any> {
+  async classifyThemes(
+    text: string,
+    minConfidence: number = 0.6,
+  ): Promise<any> {
     this.logger.info('Beginning theme classification');
-    
+
     try {
       // Create themes context for the prompt
       const themesContext = Array.from(this.themeDefinitions.entries())
         .map(([theme, definition]) => `"${theme}": "${definition}"`)
         .join(',\n');
-      
+
       // Create a system prompt for theme classification
       const systemPrompt = `
         You are a Theme Classification Expert. Your task is to analyze text content and classify it 
         according to themes, topics, and overall sentiment.
         
-        ${this.themeDefinitions.size > 0 ? `Use the following predefined themes as a reference:
+        ${
+          this.themeDefinitions.size > 0
+            ? `Use the following predefined themes as a reference:
         {
           ${themesContext}
-        }` : 'Identify themes organically from the content.'}
+        }`
+            : 'Identify themes organically from the content.'
+        }
         
         Analyze the text and identify:
         1. Main themes present in the content
@@ -276,56 +304,72 @@ export class ThemeClassifierAgent extends BaseAgent {
           "summary": "Brief thematic summary of the content"
         }
       `;
-      
+
       // Generate response using OpenAI connector
-      const response = await this.openAIConnector.generateChatCompletion([
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: text }
-      ], {
-        responseFormat: { type: 'json_object' }
-      });
-      
+      const response = await this.openAIConnector.generateChatCompletion(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: text },
+        ],
+        {
+          responseFormat: { type: 'json_object' },
+        },
+      );
+
       // Parse the response
       const parsedResponse = this.parseJsonResponse(response || '{}');
-      
-      this.logger.info(`Successfully classified ${parsedResponse.themes?.length || 0} themes`);
+
+      this.logger.info(
+        `Successfully classified ${parsedResponse.themes?.length || 0} themes`,
+      );
       return parsedResponse;
     } catch (error: any) {
       this.logger.error(`Error classifying themes: ${error.message}`);
       return {
         error: `Failed to classify themes: ${error.message}`,
         themes: [],
-        sentiment: { overall: 'neutral', score: 0.5, brief: 'Error in analysis' },
+        sentiment: {
+          overall: 'neutral',
+          score: 0.5,
+          brief: 'Error in analysis',
+        },
         topics: [],
-        summary: "Error occurred during analysis"
+        summary: 'Error occurred during analysis',
       };
     }
   }
-  
+
   /**
    * Extract key phrases from text and categorize them by theme
    * @param text Text content to analyze
    * @param maxPhrases Maximum number of phrases to extract
    * @returns Object with phrases categorized by theme
    */
-  async extractThemedPhrases(text: string, maxPhrases: number = 10): Promise<any> {
+  async extractThemedPhrases(
+    text: string,
+    maxPhrases: number = 10,
+  ): Promise<any> {
     this.logger.info(`Extracting up to ${maxPhrases} themed phrases`);
-    
+
     try {
       // Create themes context for the prompt
       const themesContext = Array.from(this.themeDefinitions.entries())
         .map(([theme, definition]) => `"${theme}": "${definition}"`)
         .join(',\n');
-      
+
       // Create a system prompt for phrase extraction
       const systemPrompt = `
         You are a Themed Phrase Extraction Expert. Your task is to extract key phrases from text content 
         and categorize them by theme.
         
-        ${this.themeDefinitions.size > 0 ? `Use the following predefined themes as a reference:
+        ${
+          this.themeDefinitions.size > 0
+            ? `Use the following predefined themes as a reference:
         {
           ${themesContext}
-        }` : 'Identify themes organically from the content.'}
+        }`
+            : 'Identify themes organically from the content.'
+        }
         
         Extract up to ${maxPhrases} key phrases from the text and categorize each by theme.
         Each phrase should be a direct quote from the text that represents a significant point, insight, or opinion.
@@ -347,18 +391,21 @@ export class ThemeClassifierAgent extends BaseAgent {
           }
         }
       `;
-      
+
       // Generate response using OpenAI connector
-      const response = await this.openAIConnector.generateChatCompletion([
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: text }
-      ], {
-        responseFormat: { type: 'json_object' }
-      });
-      
+      const response = await this.openAIConnector.generateChatCompletion(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: text },
+        ],
+        {
+          responseFormat: { type: 'json_object' },
+        },
+      );
+
       // Parse the response
       const parsedResponse = this.parseJsonResponse(response);
-      
+
       const phraseCount = parsedResponse.themesByPhrase?.length || 0;
       this.logger.info(`Successfully extracted ${phraseCount} themed phrases`);
       return parsedResponse;
@@ -367,11 +414,11 @@ export class ThemeClassifierAgent extends BaseAgent {
       return {
         error: `Failed to extract themed phrases: ${error.message}`,
         themesByPhrase: [],
-        phrasesByTheme: {}
+        phrasesByTheme: {},
       };
     }
   }
-  
+
   /**
    * Analyze sentiment for specific themes in the text
    * @param text Text content to analyze
@@ -380,26 +427,32 @@ export class ThemeClassifierAgent extends BaseAgent {
    */
   async analyzeSentimentByTheme(text: string, themes: string[]): Promise<any> {
     this.logger.info(`Analyzing sentiment for ${themes.length} themes`);
-    
+
     try {
       // Validate themes exist in definitions
-      const validThemes = themes.filter(theme => {
-        if (!this.themeDefinitions.has(theme) && this.themeDefinitions.size > 0) {
+      const validThemes = themes.filter((theme) => {
+        if (
+          !this.themeDefinitions.has(theme) &&
+          this.themeDefinitions.size > 0
+        ) {
           this.logger.warn(`Theme "${theme}" not found in predefined themes`);
           return false;
         }
         return true;
       });
-      
+
       if (validThemes.length === 0 && this.themeDefinitions.size > 0) {
         throw new Error('None of the provided themes are defined');
       }
-      
+
       // Create themes context for the prompt
-      const themesContext = validThemes.length > 0 && this.themeDefinitions.size > 0
-        ? validThemes.map(theme => `"${theme}": "${this.themeDefinitions.get(theme)}"`)
-        : themes.map(theme => `"${theme}": "Content related to ${theme}"`);
-      
+      const themesContext =
+        validThemes.length > 0 && this.themeDefinitions.size > 0
+          ? validThemes.map(
+              (theme) => `"${theme}": "${this.themeDefinitions.get(theme)}"`,
+            )
+          : themes.map((theme) => `"${theme}": "Content related to ${theme}"`);
+
       // Create a system prompt for sentiment analysis
       const systemPrompt = `
         You are a Thematic Sentiment Analysis Expert. Your task is to analyze the sentiment 
@@ -430,31 +483,38 @@ export class ThemeClassifierAgent extends BaseAgent {
           "analysis": "Brief overall analysis of sentiment across themes"
         }
       `;
-      
+
       // Generate response using OpenAI connector
-      const response = await this.openAIConnector.generateChatCompletion([
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: text }
-      ], {
-        responseFormat: { type: 'json_object' }
-      });
-      
+      const response = await this.openAIConnector.generateChatCompletion(
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: text },
+        ],
+        {
+          responseFormat: { type: 'json_object' },
+        },
+      );
+
       // Parse the response
       const parsedResponse = this.parseJsonResponse(response);
-      
-      const themeCount = Object.keys(parsedResponse.themeSentiments || {}).length;
-      this.logger.info(`Successfully analyzed sentiment for ${themeCount} themes`);
+
+      const themeCount = Object.keys(
+        parsedResponse.themeSentiments || {},
+      ).length;
+      this.logger.info(
+        `Successfully analyzed sentiment for ${themeCount} themes`,
+      );
       return parsedResponse;
     } catch (error: any) {
       this.logger.error(`Error analyzing sentiment by theme: ${error.message}`);
       return {
         error: `Failed to analyze sentiment by theme: ${error.message}`,
         themeSentiments: {},
-        analysis: "Error occurred during analysis"
+        analysis: 'Error occurred during analysis',
       };
     }
   }
-  
+
   /**
    * Parse JSON response with error handling
    * @param response String response from LLM
@@ -467,11 +527,11 @@ export class ThemeClassifierAgent extends BaseAgent {
       this.logger.error(`Error parsing JSON response: ${error.message}`);
       return {
         error: `Failed to parse response: ${error.message}`,
-        rawResponse: response
+        rawResponse: response,
       };
     }
   }
-  
+
   /**
    * Get all defined themes
    * @returns Map of themes and their definitions
@@ -479,7 +539,7 @@ export class ThemeClassifierAgent extends BaseAgent {
   public getDefinedThemes(): Map<string, string> {
     return new Map(this.themeDefinitions);
   }
-  
+
   /**
    * Clean up resources used by the agent
    */
@@ -493,13 +553,17 @@ export class ThemeClassifierAgent extends BaseAgent {
    * @returns Promise that resolves when cleanup is complete
    */
   public async cleanup(): Promise<void> {
-    this.logger.info(`Cleaning up resources for ThemeClassifierAgent ${this.id}`);
-    
+    this.logger.info(
+      `Cleaning up resources for ThemeClassifierAgent ${this.id}`,
+    );
+
     // Clear theme definitions to release memory
     this.themeDefinitions.clear();
-    
+
     // Any additional cleanup for OpenAI connector if needed
-    
-    this.logger.info(`ThemeClassifierAgent ${this.id} resources cleaned up successfully`);
+
+    this.logger.info(
+      `ThemeClassifierAgent ${this.id} resources cleaned up successfully`,
+    );
   }
-} 
+}

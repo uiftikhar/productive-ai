@@ -63,14 +63,10 @@ export class OpenAIConnector implements LanguageModelProvider {
     this.resourceManager = ResourceManager.getInstance(this.logger);
 
     // Register the cleanup method with the ResourceManager
-    this.resourceManager.register(
-      'OpenAIConnector',
-      () => this.cleanup(),
-      {
-        priority: 40,
-        description: 'Cleanup OpenAI connector resources',
-      }
-    );
+    this.resourceManager.register('OpenAIConnector', () => this.cleanup(), {
+      priority: 40,
+      description: 'Cleanup OpenAI connector resources',
+    });
 
     const modelConfig: OpenAIModelConfig = {
       model: options.modelConfig?.model || LangChainConfig.llm.model,
@@ -345,7 +341,7 @@ export class OpenAIConnector implements LanguageModelProvider {
   public cleanup(): void {
     // Abort any ongoing requests if applicable
     // No active timers to clear in the current implementation
-    
+
     this.logger.info('OpenAIConnector resources cleaned up');
   }
 }

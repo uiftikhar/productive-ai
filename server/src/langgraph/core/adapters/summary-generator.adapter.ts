@@ -442,10 +442,11 @@ export class SummaryGeneratorAdapter extends BaseLangGraphAdapter<
         });
 
         // Extract response content
-        const summary =
-          typeof result.output === 'string'
+        const summary = !result.output
+          ? ''
+          : typeof result.output === 'string'
             ? result.output
-            : result.output.content;
+            : (result.output as any)?.content || '';
 
         const currentTokens = state.metrics?.tokensUsed || 0;
         const newTokens = result.metrics?.tokensUsed || 0;
@@ -534,30 +535,28 @@ export class SummaryGeneratorAdapter extends BaseLangGraphAdapter<
 
         try {
           // First try to parse as JSON
-          const responseText =
-            typeof result.output === 'string'
+          const responseText = !result.output
+            ? ''
+            : typeof result.output === 'string'
               ? result.output
-              : typeof result.output.content === 'string'
-                ? result.output.content
-                : JSON.stringify(result.output.content);
+              : typeof (result.output as any)?.content === 'string'
+                ? (result.output as any).content
+                : JSON.stringify((result.output as any)?.content || '');
 
-          const parsedResponse = JSON.parse(
-            typeof responseText === 'string'
-              ? responseText
-              : JSON.stringify(responseText),
-          );
+          const parsedResponse = JSON.parse(responseText);
 
           summary = parsedResponse.summary || responseText;
           keypoints = parsedResponse.keypoints || [];
           tags = parsedResponse.tags || [];
         } catch (parseError) {
           // If parsing fails, use the raw text as summary
-          summary =
-            typeof result.output === 'string'
+          summary = !result.output
+            ? ''
+            : typeof result.output === 'string'
               ? result.output
-              : typeof result.output.content === 'string'
-                ? result.output.content
-                : JSON.stringify(result.output.content);
+              : typeof (result.output as any)?.content === 'string'
+                ? (result.output as any).content
+                : JSON.stringify((result.output as any)?.content || '');
         }
 
         const currentTokens = state.metrics?.tokensUsed || 0;

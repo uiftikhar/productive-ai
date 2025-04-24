@@ -49,28 +49,28 @@ async function processChunk(
 async function processChunksWithLimit<T>(
   concurrency: number,
   items: any[],
-  fn: (item: any, index: number) => Promise<T>
+  fn: (item: any, index: number) => Promise<T>,
 ): Promise<T[]> {
   const results: T[] = [];
   let running = 0;
   let index = 0;
-  
+
   return new Promise((resolve) => {
     function startNext() {
       if (index >= items.length && running === 0) {
         resolve(results);
         return;
       }
-      
+
       while (running < concurrency && index < items.length) {
         const i = index++;
         running++;
-        
+
         fn(items[i], i)
-          .then(result => {
+          .then((result) => {
             results[i] = result;
           })
-          .catch(err => {
+          .catch((err) => {
             console.error(`Error processing item ${i}:`, err);
             results[i] = null as any;
           })
@@ -80,7 +80,7 @@ async function processChunksWithLimit<T>(
           });
       }
     }
-    
+
     startNext();
   });
 }
@@ -103,7 +103,7 @@ export async function processAllChunks(
   otherParams?: any,
 ): Promise<string[]> {
   // Using 5 as the concurrency limit
-  return processChunksWithLimit(5, chunks, (chunk, index) => 
+  return processChunksWithLimit(5, chunks, (chunk, index) =>
     processChunk(
       index,
       client,
@@ -115,6 +115,6 @@ export async function processAllChunks(
       max_tokens,
       temperature,
       otherParams,
-    )
+    ),
   );
 }

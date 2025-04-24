@@ -63,7 +63,7 @@ export class TracingManager {
     initialState: Record<string, any>;
   }): string {
     const traceId = workflow.id;
-    
+
     this.traces.set(traceId, {
       id: traceId,
       name: workflow.name,
@@ -73,23 +73,26 @@ export class TracingManager {
       edges: [],
       stateTransitions: [workflow.initialState],
     });
-    
+
     return traceId;
   }
 
   /**
    * Record a node execution in a workflow
    */
-  public recordNodeExecution(traceId: string, node: {
-    id: string;
-    name: string;
-    data: Record<string, any>;
-  }): void {
+  public recordNodeExecution(
+    traceId: string,
+    node: {
+      id: string;
+      name: string;
+      data: Record<string, any>;
+    },
+  ): void {
     const trace = this.traces.get(traceId);
     if (!trace) return;
-    
+
     const nodeId = `${node.id}-${Date.now()}`;
-    
+
     trace.nodes.push({
       id: nodeId,
       name: node.name,
@@ -97,11 +100,11 @@ export class TracingManager {
       data: node.data,
       timestamp: Date.now(),
     });
-    
+
     // If this isn't the first node, add an edge from the previous node
     if (trace.nodes.length > 1) {
       const previousNode = trace.nodes[trace.nodes.length - 2];
-      
+
       trace.edges.push({
         id: `${previousNode.id}->${nodeId}`,
         source: previousNode.id,
@@ -109,17 +112,20 @@ export class TracingManager {
         label: `${previousNode.name} -> ${node.name}`,
       });
     }
-    
+
     this.notifyListeners(trace);
   }
 
   /**
    * Record a state transition in a workflow
    */
-  public recordStateTransition(traceId: string, state: Record<string, any>): void {
+  public recordStateTransition(
+    traceId: string,
+    state: Record<string, any>,
+  ): void {
     const trace = this.traces.get(traceId);
     if (!trace) return;
-    
+
     trace.stateTransitions.push(state);
     this.notifyListeners(trace);
   }
@@ -127,14 +133,18 @@ export class TracingManager {
   /**
    * Complete a workflow trace
    */
-  public completeWorkflow(traceId: string, state: Record<string, any>, status: 'completed' | 'failed' = 'completed'): void {
+  public completeWorkflow(
+    traceId: string,
+    state: Record<string, any>,
+    status: 'completed' | 'failed' = 'completed',
+  ): void {
     const trace = this.traces.get(traceId);
     if (!trace) return;
-    
+
     trace.endTime = Date.now();
     trace.status = status;
     trace.stateTransitions.push(state);
-    
+
     this.notifyListeners(trace);
   }
 
@@ -157,7 +167,7 @@ export class TracingManager {
    */
   public subscribe(listener: (trace: TracedWorkflow) => void): () => void {
     this.listeners.add(listener);
-    
+
     // Return unsubscribe function
     return () => {
       this.listeners.delete(listener);
@@ -168,7 +178,7 @@ export class TracingManager {
    * Notify all listeners of a trace update
    */
   private notifyListeners(trace: TracedWorkflow): void {
-    this.listeners.forEach(listener => {
+    this.listeners.forEach((listener) => {
       try {
         listener(trace);
       } catch (error) {
@@ -191,16 +201,16 @@ export class TracingManager {
     nodes: any[];
     edges: any[];
   } {
-    const traces = traceId 
-      ? [this.traces.get(traceId)].filter(Boolean) as TracedWorkflow[]
+    const traces = traceId
+      ? ([this.traces.get(traceId)].filter(Boolean) as TracedWorkflow[])
       : this.getTraces();
-    
+
     const nodes: any[] = [];
     const edges: any[] = [];
-    
-    traces.forEach(trace => {
+
+    traces.forEach((trace) => {
       // Add nodes with formatted data for visualization
-      trace.nodes.forEach(node => {
+      trace.nodes.forEach((node) => {
         nodes.push({
           id: node.id,
           type: 'custom',
@@ -213,9 +223,9 @@ export class TracingManager {
           position: { x: 0, y: 0 }, // Positions would be calculated by the layout algorithm
         });
       });
-      
+
       // Add edges
-      trace.edges.forEach(edge => {
+      trace.edges.forEach((edge) => {
         edges.push({
           id: edge.id,
           source: edge.source,
@@ -225,7 +235,7 @@ export class TracingManager {
         });
       });
     });
-    
+
     return { nodes, edges };
   }
-} 
+}

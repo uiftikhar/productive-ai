@@ -96,7 +96,8 @@ export class AgentTaskExecutorService {
   private taskPlanningService: TaskPlanningService;
   private eventEmitter: EventEmitter = new EventEmitter();
   private activeExecutions: Map<string, NodeJS.Timeout> = new Map();
-  private eventHandlers: Map<string, (event: TaskExecutionEvent) => void> = new Map();
+  private eventHandlers: Map<string, (event: TaskExecutionEvent) => void> =
+    new Map();
   private defaultParallelLimit: number = 3;
   private defaultTimeout: number = 5 * 60 * 1000; // 5 minutes
   private defaultRetryCount: number = 2;
@@ -494,7 +495,7 @@ export class AgentTaskExecutorService {
 
     // Store the handler with the subscription ID
     this.eventEmitter.on('task-event', handler);
-    
+
     // Save the handler reference so we can remove it later
     this.eventHandlers.set(subscriptionId, handler);
 
@@ -507,11 +508,11 @@ export class AgentTaskExecutorService {
   unsubscribe(subscriptionId: string): void {
     // Get the stored handler for this subscription
     const handler = this.eventHandlers.get(subscriptionId);
-    
+
     if (handler) {
       // Remove only this specific listener
       this.eventEmitter.off('task-event', handler);
-      
+
       // Clean up the reference
       this.eventHandlers.delete(subscriptionId);
     }
@@ -534,13 +535,13 @@ export class AgentTaskExecutorService {
       clearTimeout(timeoutId);
       this.activeExecutions.delete(executionId);
     }
-    
+
     // Remove all event listeners
     this.eventEmitter.removeAllListeners();
-    
+
     // Clear event handler references
     this.eventHandlers.clear();
-    
+
     this.logger.info('AgentTaskExecutorService resources cleaned up');
   }
 

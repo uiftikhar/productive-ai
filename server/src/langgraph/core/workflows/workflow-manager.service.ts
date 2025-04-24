@@ -44,10 +44,10 @@ export class WorkflowManagerService {
       includeStateInLogs?: boolean;
       userContext?: UserContextFacade;
       id?: string;
-    } = {}
+    } = {},
   ): SupervisorWorkflow {
     const workflowId = options.id || `supervisor-workflow-${uuidv4()}`;
-    
+
     const workflow = new SupervisorWorkflow(agent, {
       tracingEnabled: options.tracingEnabled,
       includeStateInLogs: options.includeStateInLogs,
@@ -55,10 +55,12 @@ export class WorkflowManagerService {
       userContext: options.userContext,
       id: workflowId,
     });
-    
+
     this.activeWorkflows.set(workflowId, workflow);
-    this.logger.info(`Created and registered SupervisorWorkflow: ${workflowId}`);
-    
+    this.logger.info(
+      `Created and registered SupervisorWorkflow: ${workflowId}`,
+    );
+
     return workflow;
   }
 
@@ -75,10 +77,10 @@ export class WorkflowManagerService {
       maxRecoveryAttempts?: number;
       retryDelayMs?: number;
       errorHandlingLevel?: 'basic' | 'advanced';
-    } = {}
+    } = {},
   ): SupervisorAdapter {
     const adapterId = `supervisor-adapter-${uuidv4()}`;
-    
+
     const adapter = new SupervisorAdapter(agent, {
       tracingEnabled: options.tracingEnabled,
       includeStateInLogs: options.includeStateInLogs,
@@ -89,10 +91,10 @@ export class WorkflowManagerService {
       retryDelayMs: options.retryDelayMs,
       errorHandlingLevel: options.errorHandlingLevel,
     });
-    
+
     this.activeAdapters.set(adapterId, adapter);
     this.logger.info(`Created and registered SupervisorAdapter: ${adapterId}`);
-    
+
     return adapter;
   }
 
@@ -108,14 +110,14 @@ export class WorkflowManagerService {
    */
   removeWorkflow(workflowId: string): boolean {
     const workflow = this.activeWorkflows.get(workflowId);
-    
+
     if (workflow) {
       workflow.cleanup();
       this.activeWorkflows.delete(workflowId);
       this.logger.info(`Removed and cleaned up workflow: ${workflowId}`);
       return true;
     }
-    
+
     return false;
   }
 
@@ -124,14 +126,14 @@ export class WorkflowManagerService {
    */
   removeAdapter(adapterId: string): boolean {
     const adapter = this.activeAdapters.get(adapterId);
-    
+
     if (adapter) {
       adapter.cleanup();
       this.activeAdapters.delete(adapterId);
       this.logger.info(`Removed and cleaned up adapter: ${adapterId}`);
       return true;
     }
-    
+
     return false;
   }
 
@@ -139,8 +141,10 @@ export class WorkflowManagerService {
    * Clean up all workflows and adapters
    */
   cleanup(): void {
-    this.logger.info(`Cleaning up all workflows and adapters. Active workflows: ${this.activeWorkflows.size}, Active adapters: ${this.activeAdapters.size}`);
-    
+    this.logger.info(
+      `Cleaning up all workflows and adapters. Active workflows: ${this.activeWorkflows.size}, Active adapters: ${this.activeAdapters.size}`,
+    );
+
     // Clean up all workflows
     for (const [id, workflow] of this.activeWorkflows.entries()) {
       try {
@@ -150,7 +154,7 @@ export class WorkflowManagerService {
         this.logger.error(`Error cleaning up workflow ${id}: ${error}`);
       }
     }
-    
+
     // Clean up all adapters
     for (const [id, adapter] of this.activeAdapters.entries()) {
       try {
@@ -160,11 +164,11 @@ export class WorkflowManagerService {
         this.logger.error(`Error cleaning up adapter ${id}: ${error}`);
       }
     }
-    
+
     // Clear maps
     this.activeWorkflows.clear();
     this.activeAdapters.clear();
-    
+
     this.logger.info('All workflows and adapters have been cleaned up');
   }
 
@@ -177,4 +181,4 @@ export class WorkflowManagerService {
       WorkflowManagerService.instance = undefined as any;
     }
   }
-} 
+}

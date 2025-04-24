@@ -1,6 +1,6 @@
 /**
  * Socket.IO Chat Client Example
- * 
+ *
  * This file demonstrates how to connect to the WebSocket server,
  * join sessions, send messages, and handle real-time events.
  */
@@ -39,7 +39,7 @@ const SocketEvents = {
   MESSAGE_TOKEN: 'message_token',
   TYPING_START: 'typing_start',
   TYPING_END: 'typing_end',
-  READ_RECEIPT: 'read_receipt'
+  READ_RECEIPT: 'read_receipt',
 };
 
 /**
@@ -54,13 +54,13 @@ function initChatClient() {
   sessionIdInput = document.getElementById('session-id');
   joinSessionButton = document.getElementById('join-session');
   typingIndicator = document.getElementById('typing-indicator');
-  
+
   // Add event listeners
   sendButton.addEventListener('click', sendMessage);
   joinSessionButton.addEventListener('click', joinSession);
   messageInput.addEventListener('keydown', handleTypingStart);
   messageInput.addEventListener('keyup', handleKeyUp);
-  
+
   // Connect to socket server
   connectSocket();
 }
@@ -70,20 +70,20 @@ function initChatClient() {
  */
 function connectSocket() {
   updateStatus('Connecting...');
-  
+
   // Get user ID from localStorage or generate a temporary one
   const userId = localStorage.getItem('userId') || `user-${Date.now()}`;
-  
+
   // Store user ID in localStorage for persistence
   localStorage.setItem('userId', userId);
-  
+
   // Connect to Socket.IO server with authentication
   socket = io({
     auth: {
-      userId
-    }
+      userId,
+    },
   });
-  
+
   // Set up event listeners
   socket.on('connect', handleConnect);
   socket.on('disconnect', handleDisconnect);
@@ -120,7 +120,7 @@ function handleDisconnect() {
  */
 function handleConnected(data) {
   updateStatus(`Connected as ${data.userId}`);
-  
+
   // Enable UI elements
   joinSessionButton.disabled = false;
 }
@@ -138,12 +138,12 @@ function handleError(error) {
  */
 function joinSession() {
   const sessionId = sessionIdInput.value.trim();
-  
+
   if (!sessionId) {
     updateStatus('Please enter a valid session ID');
     return;
   }
-  
+
   updateStatus(`Joining session ${sessionId}...`);
   socket.emit(SocketEvents.JOIN_SESSION, sessionId);
 }
@@ -154,14 +154,14 @@ function joinSession() {
 function handleSessionJoined(data) {
   currentSessionId = data.sessionId;
   updateStatus(`Joined session: ${currentSessionId}`);
-  
+
   // Enable chat UI
   messageInput.disabled = false;
   sendButton.disabled = false;
-  
+
   // Clear messages
   messagesContainer.innerHTML = '';
-  
+
   // Add a system message
   addSystemMessage(`Joined session ${currentSessionId}`);
 }
@@ -172,11 +172,11 @@ function handleSessionJoined(data) {
 function handleSessionLeft(data) {
   updateStatus(`Left session: ${data.sessionId}`);
   currentSessionId = null;
-  
+
   // Disable chat UI
   messageInput.disabled = true;
   sendButton.disabled = true;
-  
+
   // Add a system message
   addSystemMessage(`Left session ${data.sessionId}`);
 }
@@ -189,37 +189,37 @@ function sendMessage() {
     updateStatus('Please join a session first');
     return;
   }
-  
+
   const content = messageInput.value.trim();
-  
+
   if (!content) {
     return;
   }
-  
+
   // Prepare message payload
   const payload = {
     sessionId: currentSessionId,
     content,
     metadata: {
       source: 'web',
-      timestamp: new Date().toISOString()
-    }
+      timestamp: new Date().toISOString(),
+    },
   };
-  
+
   // Add message to UI
   addUserMessage(content);
-  
+
   // Clear input
   messageInput.value = '';
-  
+
   // Create streaming container for response
   const streamingId = Date.now().toString();
   streamingTokens.set(streamingId, '');
   addStreamingMessage(streamingId);
-  
+
   // Send the message
   socket.emit(SocketEvents.NEW_MESSAGE, payload);
-  
+
   // Stop typing indicator
   handleTypingEnd();
 }
@@ -236,14 +236,14 @@ function handleMessageReceived(data) {
  */
 function handleMessageToken(data) {
   const { token, sessionId } = data;
-  
+
   // Find the last streaming message container
   const streamingId = Array.from(streamingTokens.keys()).pop();
   if (!streamingId) return;
-  
+
   // Append token to accumulated response
   streamingTokens.set(streamingId, streamingTokens.get(streamingId) + token);
-  
+
   // Update the UI
   const streamingElement = document.getElementById(`streaming-${streamingId}`);
   if (streamingElement) {
@@ -256,21 +256,21 @@ function handleMessageToken(data) {
  */
 function handleMessageResponse(data) {
   const { message } = data;
-  
+
   // Clear streaming tokens for this response
   streamingTokens.clear();
-  
+
   // Remove the streaming message element
   const streamingElements = document.querySelectorAll('.streaming-message');
-  streamingElements.forEach(el => el.remove());
-  
+  streamingElements.forEach((el) => el.remove());
+
   // Add the complete message
   addAssistantMessage(message.content);
-  
+
   // Send read receipt
   socket.emit(SocketEvents.READ_RECEIPT, {
     sessionId: currentSessionId,
-    messageId: message.id
+    messageId: message.id,
   });
 }
 
@@ -279,7 +279,7 @@ function handleMessageResponse(data) {
  */
 function handleTypingStart(event) {
   if (!currentSessionId || !isConnected) return;
-  
+
   // Only emit if we're actually typing content
   if (event.key !== 'Enter' && event.key !== 'Escape' && event.key !== 'Tab') {
     socket.emit(SocketEvents.TYPING_START, currentSessionId);
@@ -303,7 +303,7 @@ function handleKeyUp(event) {
  */
 function handleTypingEnd() {
   if (!currentSessionId || !isConnected) return;
-  
+
   socket.emit(SocketEvents.TYPING_END, currentSessionId);
 }
 
@@ -326,7 +326,9 @@ function handleRemoteTypingEnd(data) {
  * Handle read receipt from another user
  */
 function handleReadReceipt(data) {
-  console.log(`${data.userId} read message ${data.messageId} at ${data.timestamp}`);
+  console.log(
+    `${data.userId} read message ${data.messageId} at ${data.timestamp}`,
+  );
   // You could update UI to show read status if needed
 }
 
@@ -389,4 +391,4 @@ function scrollToBottom() {
 }
 
 // Initialize chat client when the DOM is loaded
-document.addEventListener('DOMContentLoaded', initChatClient); 
+document.addEventListener('DOMContentLoaded', initChatClient);

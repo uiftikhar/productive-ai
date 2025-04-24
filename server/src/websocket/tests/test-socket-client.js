@@ -1,9 +1,9 @@
 /**
  * Socket.IO Client Test Script
- * 
+ *
  * This script connects to the Socket.IO server and tests various functions
  * like joining sessions, sending messages, and handling real-time events.
- * 
+ *
  * Run with: node test-socket-client.js
  */
 
@@ -17,7 +17,7 @@ const USER_ID = process.env.USER_ID || `test-user-${Date.now()}`;
 // Create interface for command line input
 const rl = readline.createInterface({
   input: process.stdin,
-  output: process.stdout
+  output: process.stdout,
 });
 
 // Current session ID
@@ -27,8 +27,8 @@ let currentSessionId = null;
 console.log(`Connecting to ${SERVER_URL} as ${USER_ID}...`);
 const socket = io(SERVER_URL, {
   auth: {
-    userId: USER_ID
-  }
+    userId: USER_ID,
+  },
 });
 
 // Handle connection events
@@ -83,45 +83,47 @@ socket.on('typing_end', () => {
 });
 
 socket.on('read_receipt', (data) => {
-  console.log(`${data.userId} read message ${data.messageId} at ${data.timestamp}`);
+  console.log(
+    `${data.userId} read message ${data.messageId} at ${data.timestamp}`,
+  );
 });
 
 // Process user commands
 function processCommand(input) {
   const [command, ...args] = input.trim().split(' ');
-  
+
   switch (command) {
     case 'help':
       showCommands();
       break;
-      
+
     case 'join':
       joinSession(args[0]);
       break;
-      
+
     case 'leave':
       leaveSession();
       break;
-      
+
     case 'send':
       sendMessage(args.join(' '));
       break;
-      
+
     case 'typing':
       sendTypingIndicator();
       break;
-      
+
     case 'read':
       sendReadReceipt(args[0]);
       break;
-      
+
     case 'exit':
       console.log('Exiting...');
       socket.disconnect();
       rl.close();
       process.exit(0);
       break;
-      
+
     default:
       console.log('Unknown command. Type "help" for available commands.');
       break;
@@ -147,7 +149,7 @@ function joinSession(sessionId) {
     console.log('Please provide a session ID');
     return;
   }
-  
+
   console.log(`Joining session ${sessionId}...`);
   socket.emit('join_session', sessionId);
 }
@@ -158,7 +160,7 @@ function leaveSession() {
     console.log('Not in a session');
     return;
   }
-  
+
   console.log(`Leaving session ${currentSessionId}...`);
   socket.emit('leave_session', currentSessionId);
 }
@@ -169,20 +171,20 @@ function sendMessage(message) {
     console.log('Please join a session first');
     return;
   }
-  
+
   if (!message) {
     console.log('Please provide a message');
     return;
   }
-  
+
   console.log('Sending message...');
   socket.emit('new_message', {
     sessionId: currentSessionId,
     content: message,
     metadata: {
       source: 'test-client',
-      timestamp: new Date().toISOString()
-    }
+      timestamp: new Date().toISOString(),
+    },
   });
 }
 
@@ -192,10 +194,10 @@ function sendTypingIndicator() {
     console.log('Please join a session first');
     return;
   }
-  
+
   console.log('Sending typing indicator...');
   socket.emit('typing_start', currentSessionId);
-  
+
   // Automatically stop typing after 3 seconds
   setTimeout(() => {
     socket.emit('typing_end', currentSessionId);
@@ -209,16 +211,16 @@ function sendReadReceipt(messageId) {
     console.log('Please join a session first');
     return;
   }
-  
+
   if (!messageId) {
     console.log('Please provide a message ID');
     return;
   }
-  
+
   console.log('Sending read receipt...');
   socket.emit('read_receipt', {
     sessionId: currentSessionId,
-    messageId
+    messageId,
   });
 }
 
@@ -231,4 +233,4 @@ rl.on('close', () => {
 
 // Print a welcome message
 console.log('Socket.IO Client Test Script');
-console.log('==========================='); 
+console.log('===========================');

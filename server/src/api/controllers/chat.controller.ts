@@ -1,6 +1,6 @@
 /**
  * Chat API Controller
- * 
+ *
  * Handles REST API endpoints for chat functionality
  */
 
@@ -18,7 +18,11 @@ export class ChatController {
   /**
    * Create a new chat session
    */
-  async createSession(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async createSession(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const { userId, conversationId, agentId, metadata } = req.body;
 
@@ -26,7 +30,7 @@ export class ChatController {
       if (!userId) {
         throw new ChatServiceError(
           'Missing required field: userId',
-          ChatErrorType.INVALID_REQUEST
+          ChatErrorType.INVALID_REQUEST,
         );
       }
 
@@ -34,12 +38,12 @@ export class ChatController {
         userId,
         conversationId,
         agentId,
-        metadata
+        metadata,
       });
 
       res.status(201).json({
         success: true,
-        session
+        session,
       });
     } catch (error) {
       next(error);
@@ -49,14 +53,18 @@ export class ChatController {
   /**
    * Get an existing session by ID
    */
-  async getSession(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getSession(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const sessionId = req.params.sessionId;
 
       if (!sessionId) {
         throw new ChatServiceError(
           'Session ID is required',
-          ChatErrorType.INVALID_REQUEST
+          ChatErrorType.INVALID_REQUEST,
         );
       }
 
@@ -64,7 +72,7 @@ export class ChatController {
 
       res.json({
         success: true,
-        session
+        session,
       });
     } catch (error) {
       next(error);
@@ -74,14 +82,18 @@ export class ChatController {
   /**
    * Delete a session
    */
-  async deleteSession(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async deleteSession(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const sessionId = req.params.sessionId;
 
       if (!sessionId) {
         throw new ChatServiceError(
           'Session ID is required',
-          ChatErrorType.INVALID_REQUEST
+          ChatErrorType.INVALID_REQUEST,
         );
       }
 
@@ -89,7 +101,9 @@ export class ChatController {
 
       res.json({
         success: result,
-        message: result ? 'Session deleted successfully' : 'Failed to delete session'
+        message: result
+          ? 'Session deleted successfully'
+          : 'Failed to delete session',
       });
     } catch (error) {
       next(error);
@@ -99,14 +113,18 @@ export class ChatController {
   /**
    * Get sessions for a user
    */
-  async getUserSessions(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getUserSessions(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const userId = req.params.userId;
 
       if (!userId) {
         throw new ChatServiceError(
           'User ID is required',
-          ChatErrorType.INVALID_REQUEST
+          ChatErrorType.INVALID_REQUEST,
         );
       }
 
@@ -114,7 +132,7 @@ export class ChatController {
 
       res.json({
         success: true,
-        sessions
+        sessions,
       });
     } catch (error) {
       next(error);
@@ -124,26 +142,30 @@ export class ChatController {
   /**
    * Send a message and get a response
    */
-  async sendMessage(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async sendMessage(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const { sessionId, content, metadata } = req.body;
 
       if (!sessionId || !content) {
         throw new ChatServiceError(
           'Session ID and content are required',
-          ChatErrorType.INVALID_REQUEST
+          ChatErrorType.INVALID_REQUEST,
         );
       }
 
       const result = await this.chatService.sendMessage({
         sessionId,
         content,
-        metadata
+        metadata,
       });
 
       res.json({
         success: true,
-        result
+        result,
       });
     } catch (error) {
       next(error);
@@ -153,17 +175,21 @@ export class ChatController {
   /**
    * Send a message and stream the response using Server-Sent Events
    */
-  async sendMessageStream(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async sendMessageStream(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       // Support both POST body and GET query parameters for EventSource compatibility
-      const sessionId = req.body.sessionId || req.query.sessionId as string;
-      const content = req.body.content || req.query.content as string;
+      const sessionId = req.body.sessionId || (req.query.sessionId as string);
+      const content = req.body.content || (req.query.content as string);
       const metadata = req.body.metadata || {};
 
       if (!sessionId || !content) {
         throw new ChatServiceError(
           'Session ID and content are required',
-          ChatErrorType.INVALID_REQUEST
+          ChatErrorType.INVALID_REQUEST,
         );
       }
 
@@ -187,36 +213,47 @@ export class ChatController {
       // Set up streaming options
       const streamOptions = {
         onToken: (token: string) => {
-          res.write(`data: ${JSON.stringify({ type: 'token', content: token })}\n\n`);
+          res.write(
+            `data: ${JSON.stringify({ type: 'token', content: token })}\n\n`,
+          );
         },
         onComplete: (message: any) => {
-          res.write(`data: ${JSON.stringify({ type: 'complete', message })}\n\n`);
+          res.write(
+            `data: ${JSON.stringify({ type: 'complete', message })}\n\n`,
+          );
           res.end();
           clearInterval(heartbeatInterval);
         },
         onError: (error: any) => {
-          res.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
+          res.write(
+            `data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`,
+          );
           res.end();
           clearInterval(heartbeatInterval);
-        }
+        },
       };
 
       // Start streaming
-      await this.chatService.sendMessageStream({
-        sessionId,
-        content,
-        metadata
-      }, streamOptions);
+      await this.chatService.sendMessageStream(
+        {
+          sessionId,
+          content,
+          metadata,
+        },
+        streamOptions,
+      );
     } catch (error) {
       // If we encounter an error before streaming begins
       if (!res.headersSent) {
         next(error);
       } else {
         // If headers are already sent, we need to end the stream with an error
-        res.write(`data: ${JSON.stringify({ 
-          type: 'error', 
-          error: error instanceof Error ? error.message : String(error) 
-        })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({
+            type: 'error',
+            error: error instanceof Error ? error.message : String(error),
+          })}\n\n`,
+        );
         res.end();
       }
     }
@@ -225,20 +262,26 @@ export class ChatController {
   /**
    * Get chat history for a session
    */
-  async getSessionHistory(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getSessionHistory(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const sessionId = req.params.sessionId;
-      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+      const limit = req.query.limit
+        ? parseInt(req.query.limit as string, 10)
+        : undefined;
       const includeMetadata = req.query.includeMetadata === 'true';
 
       // Parse date parameters if provided
       let beforeTimestamp: Date | undefined;
       let afterTimestamp: Date | undefined;
-      
+
       if (req.query.beforeTimestamp) {
         beforeTimestamp = new Date(req.query.beforeTimestamp as string);
       }
-      
+
       if (req.query.afterTimestamp) {
         afterTimestamp = new Date(req.query.afterTimestamp as string);
       }
@@ -246,7 +289,7 @@ export class ChatController {
       if (!sessionId) {
         throw new ChatServiceError(
           'Session ID is required',
-          ChatErrorType.INVALID_REQUEST
+          ChatErrorType.INVALID_REQUEST,
         );
       }
 
@@ -254,15 +297,15 @@ export class ChatController {
         limit,
         beforeTimestamp,
         afterTimestamp,
-        includeMetadata
+        includeMetadata,
       });
 
       res.json({
         success: true,
-        history
+        history,
       });
     } catch (error) {
       next(error);
     }
   }
-} 
+}

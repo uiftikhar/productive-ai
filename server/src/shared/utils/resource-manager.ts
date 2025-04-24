@@ -69,7 +69,7 @@ export class ResourceManager {
   public register(
     name: string,
     cleanupFn: CleanupFunction,
-    options: ResourceRegistrationOptions = {}
+    options: ResourceRegistrationOptions = {},
   ): void {
     if (this.isShuttingDown) {
       this.logger.warn(`Cannot register resource "${name}" during shutdown`);
@@ -80,10 +80,12 @@ export class ResourceManager {
       cleanup: cleanupFn,
       priority: options.priority || 0,
       name,
-      description: options.description
+      description: options.description,
     });
 
-    this.logger.debug(`Registered resource for cleanup: ${name}${options.description ? ` (${options.description})` : ''}`);
+    this.logger.debug(
+      `Registered resource for cleanup: ${name}${options.description ? ` (${options.description})` : ''}`,
+    );
   }
 
   /**
@@ -92,8 +94,10 @@ export class ResourceManager {
    */
   public unregister(name: string): void {
     const initialLength = this.resources.length;
-    this.resources = this.resources.filter(resource => resource.name !== name);
-    
+    this.resources = this.resources.filter(
+      (resource) => resource.name !== name,
+    );
+
     if (initialLength !== this.resources.length) {
       this.logger.debug(`Unregistered resource: ${name}`);
     }
@@ -109,11 +113,15 @@ export class ResourceManager {
     }
 
     this.isShuttingDown = true;
-    this.logger.info(`Starting shutdown of ${this.resources.length} registered resources`);
+    this.logger.info(
+      `Starting shutdown of ${this.resources.length} registered resources`,
+    );
 
     // Sort resources by priority (higher priority first)
-    const sortedResources = [...this.resources].sort((a, b) => b.priority - a.priority);
-    
+    const sortedResources = [...this.resources].sort(
+      (a, b) => b.priority - a.priority,
+    );
+
     const errors: Error[] = [];
 
     // Shut down resources one by one
@@ -121,16 +129,19 @@ export class ResourceManager {
       try {
         this.logger.debug(`Shutting down: ${resource.name}`);
         const result = resource.cleanup();
-        
+
         // Handle async cleanup functions
         if (result instanceof Promise) {
           await result;
         }
-        
+
         this.logger.debug(`Successfully shut down: ${resource.name}`);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        this.logger.error(`Error shutting down ${resource.name}: ${errorMessage}`);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        this.logger.error(
+          `Error shutting down ${resource.name}: ${errorMessage}`,
+        );
         errors.push(error instanceof Error ? error : new Error(String(error)));
       }
     }
@@ -151,4 +162,4 @@ export class ResourceManager {
   public getResourceCount(): number {
     return this.resources.length;
   }
-} 
+}

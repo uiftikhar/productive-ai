@@ -539,7 +539,9 @@ export class ClassifierFactory {
             return result;
           }
         } catch (fallbackError) {
-          this.logger.error('Fallback classifier also failed', { fallbackError });
+          this.logger.error('Fallback classifier also failed', {
+            fallbackError,
+          });
           // Continue with default agent fallback as last resort
         }
       }

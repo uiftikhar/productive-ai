@@ -1,8 +1,10 @@
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { Transcript, TranscriptStatus } from '@/types/transcript';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDateToLocal, formatBytes } from '@/lib/formatters';
+import { ActivitySquare, LineChart, BarChart4 } from 'lucide-react';
 
 const statusVariants = {
   [TranscriptStatus.UPLOADED]: 'info',
@@ -25,7 +27,12 @@ export interface TranscriptDetailProps {
 }
 
 export function TranscriptDetail({ transcript, onAnalyze, onBack }: TranscriptDetailProps) {
+  const router = useRouter();
   const isAnalyzeDisabled = transcript.status !== TranscriptStatus.UPLOADED;
+  
+  const handleVisualizeClick = () => {
+    router.push(`/transcripts/${transcript.id}/analyze`);
+  };
   
   return (
     <div className="space-y-6">
@@ -37,14 +44,38 @@ export function TranscriptDetail({ transcript, onAnalyze, onBack }: TranscriptDe
           Back
         </Button>
         
-        {onAnalyze && (
-          <Button 
-            onClick={() => onAnalyze(transcript.id)}
-            disabled={isAnalyzeDisabled}
-          >
-            {transcript.status === TranscriptStatus.PROCESSING ? 'Processing...' : 'Analyze Transcript'}
-          </Button>
-        )}
+        <div className="flex space-x-2">
+          {transcript.status !== TranscriptStatus.ERROR && (
+            <Button 
+              variant="outline"
+              onClick={handleVisualizeClick}
+              className="flex items-center"
+            >
+              <LineChart className="mr-2 h-4 w-4" />
+              {transcript.status === TranscriptStatus.ANALYZED ? 'View Analysis' : 'Visualize Analysis'}
+            </Button>
+          )}
+          
+          {onAnalyze && (
+            <Button 
+              onClick={() => onAnalyze(transcript.id)}
+              disabled={isAnalyzeDisabled}
+              className="flex items-center"
+            >
+              {transcript.status === TranscriptStatus.PROCESSING ? (
+                <>
+                  <ActivitySquare className="mr-2 h-4 w-4 animate-pulse" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <BarChart4 className="mr-2 h-4 w-4" />
+                  Analyze Transcript
+                </>
+              )}
+            </Button>
+          )}
+        </div>
       </div>
       
       <div className="space-y-1">

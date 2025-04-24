@@ -385,6 +385,7 @@ ${formattedResults
 
     return {
       output: response,
+      success: true,
       artifacts: {
         results: formattedResults,
         query,
@@ -434,6 +435,7 @@ ${formattedResults
 
     return {
       output: `Document "${title}" has been stored successfully.`,
+      success: true,
       artifacts: {
         documentId: id,
         title,

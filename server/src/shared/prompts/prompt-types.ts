@@ -52,7 +52,9 @@ export type ClassifierFormat = {
   };
 };
 
-export type InstructionTemplate<T = TicketFormat | MeetingSummaryFormat | ClassifierFormat> = {
+export type InstructionTemplate<
+  T = TicketFormat | MeetingSummaryFormat | ClassifierFormat,
+> = {
   format: T;
   rules: string[];
   outputRequirements?: string[];

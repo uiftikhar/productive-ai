@@ -167,6 +167,7 @@ export class SupervisorAdapter {
 
       return {
         output: `Error: ${errorMessage}`,
+        success: false,
         metrics: {
           executionTimeMs: 0,
           tokensUsed: 0,
@@ -288,6 +289,7 @@ export class SupervisorAdapter {
 
       return {
         output: `Error executing coordinated task: ${errorMessage}`,
+        success: false,
         metrics: {
           executionTimeMs: 0,
           tokensUsed: 0,
@@ -329,13 +331,15 @@ export class SupervisorAdapter {
    * This should be called when the adapter is no longer needed
    */
   cleanup(): void {
-    this.logger.info(`Cleaning up SupervisorAdapter resources for agent: ${this.agent.id}`);
-    
+    this.logger.info(
+      `Cleaning up SupervisorAdapter resources for agent: ${this.agent.id}`,
+    );
+
     // Clean up the workflow
     if (this.workflow) {
       this.workflow.cleanup();
     }
-    
+
     this.logger.info(`SupervisorAdapter cleanup completed`);
   }
 }

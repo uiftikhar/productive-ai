@@ -260,6 +260,7 @@ export abstract class BaseAgent implements WorkflowCompatibleAgent {
 
     return {
       output: `Error: ${error.message}`,
+      success: false,
       metrics: {
         executionTimeMs: 0,
       },

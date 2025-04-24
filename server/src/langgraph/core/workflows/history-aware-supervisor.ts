@@ -955,13 +955,13 @@ ${userInput}
    */
   public cleanup(): void {
     this.logger.info('Cleaning up HistoryAwareSupervisor resources');
-    
+
     // Call the base workflow cleanup method
     super.cleanup();
-    
+
     // Clear registered agents
     this.registeredAgents.clear();
-    
+
     this.logger.info('HistoryAwareSupervisor resources cleaned up');
   }
 }

@@ -2,7 +2,6 @@ import { Router } from 'express';
 import multer from 'multer';
 import { getTickets } from '../controllers/jira-ticket-generator.controller';
 
-
 const upload = multer({ dest: 'uploads/' });
 const router = Router();
 

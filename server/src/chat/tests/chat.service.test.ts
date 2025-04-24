@@ -11,7 +11,12 @@ import {
   SendMessageRequest,
 } from '../chat.types';
 import { HistoryAwareSupervisor } from '../../langgraph/core/workflows/history-aware-supervisor';
-import { AgentRequest, AgentResponse, BaseAgentInterface, WorkflowCompatibleAgent } from '../../agents/interfaces/base-agent.interface';
+import {
+  AgentRequest,
+  AgentResponse,
+  BaseAgentInterface,
+  WorkflowCompatibleAgent,
+} from '../../agents/interfaces/base-agent.interface';
 
 // Mock dependencies
 jest.mock('../../shared/services/user-context/user-context.facade');
@@ -31,7 +36,9 @@ const mockAgentRegistryInstance = {
   unregisterAgent: jest.fn(),
 };
 
-(AgentRegistryService as any).getInstance = jest.fn(() => mockAgentRegistryInstance);
+(AgentRegistryService as any).getInstance = jest.fn(
+  () => mockAgentRegistryInstance,
+);
 
 // Helper to create a mock agent
 function createMockAgent(id: string, name: string): BaseAgentInterface {
@@ -43,21 +50,25 @@ function createMockAgent(id: string, name: string): BaseAgentInterface {
     canHandle: jest.fn().mockReturnValue(true),
     getCapabilities: jest.fn().mockReturnValue([]),
     initialize: jest.fn().mockResolvedValue(undefined),
-    execute: jest.fn().mockImplementation(async (request: AgentRequest): Promise<AgentResponse> => {
-      return {
-        output: `Mock response from ${name} for: ${request.input}`,
-        metadata: {
-          executionTimeMs: 100,
-          agentId: id,
-        }
-      } as unknown as AgentResponse;
-    }),
+    execute: jest
+      .fn()
+      .mockImplementation(
+        async (request: AgentRequest): Promise<AgentResponse> => {
+          return {
+            output: `Mock response from ${name} for: ${request.input}`,
+            metadata: {
+              executionTimeMs: 100,
+              agentId: id,
+            },
+          } as unknown as AgentResponse;
+        },
+      ),
     getMetrics: jest.fn().mockReturnValue({ totalExecutions: 0 }),
     getState: jest.fn().mockReturnValue({ status: 'READY' }),
     getInitializationStatus: jest.fn().mockReturnValue(true),
     terminate: jest.fn().mockResolvedValue(undefined),
   };
-  
+
   // Add executeInternal method only if needed in the tests
   return agent;
 }
@@ -77,21 +88,26 @@ describe('ChatService', () => {
   let chatService: ChatService;
   let mockUserContextFacade: jest.Mocked<UserContextFacade>;
   let mockAgent: BaseAgentInterface;
-  
+
   beforeEach(() => {
     // Clear all mocks
     jest.clearAllMocks();
-    
+
     // Setup mocks
-    mockUserContextFacade = new UserContextFacade() as jest.Mocked<UserContextFacade>;
-    mockUserContextFacade.storeConversationTurn = jest.fn().mockResolvedValue('turn-123');
-    mockUserContextFacade.getConversationHistory = jest.fn().mockResolvedValue([]);
-    
+    mockUserContextFacade =
+      new UserContextFacade() as jest.Mocked<UserContextFacade>;
+    mockUserContextFacade.storeConversationTurn = jest
+      .fn()
+      .mockResolvedValue('turn-123');
+    mockUserContextFacade.getConversationHistory = jest
+      .fn()
+      .mockResolvedValue([]);
+
     // Create a test agent and set up the mock registry
     mockAgent = createMockAgent('test-agent-1', 'Test Agent');
     mockAgentRegistryInstance.getAllAgents.mockReturnValue([mockAgent]);
     mockAgentRegistryInstance.getAgent.mockReturnValue(mockAgent);
-    
+
     // Setup HistoryAwareSupervisor mock
     (HistoryAwareSupervisor as jest.Mock).mockImplementation(() => ({
       registerAgent: jest.fn(),
@@ -107,7 +123,7 @@ describe('ChatService', () => {
         createNewSegment: false,
       }),
     }));
-    
+
     // Create the service
     chatService = new ChatService({
       userContextFacade: mockUserContextFacade,
@@ -116,16 +132,16 @@ describe('ChatService', () => {
       logger: new ConsoleLogger(),
     });
   });
-  
+
   describe('createSession', () => {
     it('should create a new chat session', async () => {
       const request: CreateSessionRequest = {
         userId: 'user-123',
         metadata: { source: 'web' },
       };
-      
+
       const session = await chatService.createSession(request);
-      
+
       expect(session).toBeDefined();
       expect(session.userId).toBe('user-123');
       expect(session.metadata).toEqual({ source: 'web' });
@@ -133,35 +149,36 @@ describe('ChatService', () => {
       expect(session.conversationId).toBeDefined();
       expect(HistoryAwareSupervisor).toHaveBeenCalledTimes(1);
     });
-    
+
     it('should use provided conversationId if specified', async () => {
       const request: CreateSessionRequest = {
         userId: 'user-123',
         conversationId: 'existing-convo-123',
       };
-      
+
       const session = await chatService.createSession(request);
-      
+
       expect(session.conversationId).toBe('existing-convo-123');
     });
-    
+
     it('should register all agents from registry with supervisor', async () => {
       const request: CreateSessionRequest = {
         userId: 'user-123',
       };
-      
+
       await chatService.createSession(request);
-      
+
       // Get the mock instance of HistoryAwareSupervisor
-      const mockSupervisor = (HistoryAwareSupervisor as jest.Mock).mock.results[0].value;
+      const mockSupervisor = (HistoryAwareSupervisor as jest.Mock).mock
+        .results[0].value;
       expect(mockSupervisor.registerAgent).toHaveBeenCalled();
       expect(mockAgentRegistryInstance.getAllAgents).toHaveBeenCalled();
     });
   });
-  
+
   describe('sendMessage', () => {
     let sessionId: string;
-    
+
     beforeEach(async () => {
       // Create a session first
       const session = await chatService.createSession({
@@ -169,15 +186,15 @@ describe('ChatService', () => {
       });
       sessionId = session.sessionId;
     });
-    
+
     it('should send a message and get a response', async () => {
       const request: SendMessageRequest = {
         sessionId,
         content: 'Hello, AI!',
       };
-      
+
       const result = await chatService.sendMessage(request);
-      
+
       // Check user message was stored
       expect(mockUserContextFacade.storeConversationTurn).toHaveBeenCalledWith(
         'user-123',
@@ -186,40 +203,42 @@ describe('ChatService', () => {
         expect.any(Array), // embeddings - now we expect an array with values
         'user',
         expect.any(String), // message ID
-        {}
+        {},
       );
-      
+
       // Check response was generated and stored
       expect(result.message).toBeDefined();
       expect(result.message.content).toBe('Mock supervisor response');
-      expect(mockUserContextFacade.storeConversationTurn).toHaveBeenCalledTimes(2);
+      expect(mockUserContextFacade.storeConversationTurn).toHaveBeenCalledTimes(
+        2,
+      );
     });
-    
+
     it('should throw error when session is not found', async () => {
       const request: SendMessageRequest = {
         sessionId: 'non-existent-session',
         content: 'Hello?',
       };
-      
+
       await expect(chatService.sendMessage(request)).rejects.toThrow(
         new ChatServiceError(
           'Session not found: non-existent-session',
-          ChatErrorType.SESSION_NOT_FOUND
-        )
+          ChatErrorType.SESSION_NOT_FOUND,
+        ),
       );
     });
   });
-  
+
   describe('getSessionHistory', () => {
     let sessionId: string;
-    
+
     beforeEach(async () => {
       // Create a session first
       const session = await chatService.createSession({
         userId: 'user-123',
       });
       sessionId = session.sessionId;
-      
+
       // Mock conversation history
       mockUserContextFacade.getConversationHistory.mockResolvedValue([
         {
@@ -227,7 +246,7 @@ describe('ChatService', () => {
           content: 'Hello, AI!',
           role: 'user',
           timestamp: Date.now() - 1000,
-          metadata: {}
+          metadata: {},
         },
         {
           id: 'msg-2',
@@ -235,15 +254,15 @@ describe('ChatService', () => {
           role: 'assistant',
           timestamp: Date.now(),
           metadata: {
-            agentId: 'test-agent-1'
-          }
-        }
+            agentId: 'test-agent-1',
+          },
+        },
       ]);
     });
-    
+
     it('should retrieve session history', async () => {
       const history = await chatService.getSessionHistory(sessionId);
-      
+
       expect(history).toHaveLength(2);
       expect(history[0].role).toBe('user');
       expect(history[1].role).toBe('assistant');
@@ -252,46 +271,46 @@ describe('ChatService', () => {
         expect.any(String),
         15, // default limit
         expect.objectContaining({
-          includeMetadata: true
-        })
+          includeMetadata: true,
+        }),
       );
     });
-    
+
     it('should apply filtering options', async () => {
       const beforeDate = new Date();
-      
+
       await chatService.getSessionHistory(sessionId, {
         limit: 5,
         beforeTimestamp: beforeDate,
-        includeMetadata: false
+        includeMetadata: false,
       });
-      
+
       expect(mockUserContextFacade.getConversationHistory).toHaveBeenCalledWith(
         'user-123',
         expect.any(String),
         5,
         expect.objectContaining({
           beforeTimestamp: beforeDate.getTime(),
-          includeMetadata: false
-        })
+          includeMetadata: false,
+        }),
       );
     });
   });
-  
+
   describe('deleteSession', () => {
     it('should delete a session', async () => {
       // Create a session first
       const session = await chatService.createSession({
         userId: 'user-123',
       });
-      
+
       // Verify session exists before deletion
       expect(chatService.getSession(session.sessionId)).toBeDefined();
-      
+
       // Delete the session
       const result = await chatService.deleteSession(session.sessionId);
       expect(result).toBe(true);
-      
+
       // Verify the session was removed by checking if an error is thrown
       // when trying to get the deleted session
       try {
@@ -301,8 +320,10 @@ describe('ChatService', () => {
       } catch (error) {
         // Session should be deleted, so we expect an error
         expect(error).toBeInstanceOf(ChatServiceError);
-        expect((error as ChatServiceError).type).toBe(ChatErrorType.SESSION_NOT_FOUND);
+        expect((error as ChatServiceError).type).toBe(
+          ChatErrorType.SESSION_NOT_FOUND,
+        );
       }
     });
   });
-}); 
+});

@@ -71,12 +71,20 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
       logger?: Logger;
       userContext?: UserContextFacade;
       id?: string;
+      enableRealtimeUpdates?: boolean;
+      visualizationsPath?: string;
     } = {},
   ) {
-    super(agent, options);
+    super(agent, {
+      tracingEnabled: options.tracingEnabled,
+      includeStateInLogs: options.includeStateInLogs,
+      enableRealtimeUpdates: options.enableRealtimeUpdates !== false,
+      visualizationsPath: options.visualizationsPath,
+    });
+
     this.logger = options.logger || new ConsoleLogger();
     this.userContext = options.userContext;
-    this.id = options.id || uuidv4();
+    this.id = options.id || 'supervisor-workflow';
   }
 
   /**
@@ -85,18 +93,18 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
    */
   public cleanup(): void {
     this.logger.info(`Cleaning up SupervisorWorkflow resources: ${this.id}`);
-    
+
     // Terminate the supervisor agent to clean up its resources
     if (this.agent) {
       // Using void to handle the promise without awaiting
       void this.agent.terminate();
     }
-    
+
     // Clean up userContext if needed
     if (this.userContext) {
       // Any specific cleanup for the user context if applicable
     }
-    
+
     this.logger.info(`SupervisorWorkflow cleanup completed: ${this.id}`);
   }
 
@@ -807,7 +815,7 @@ export class SupervisorWorkflow extends AgentWorkflow<SupervisorAgent> {
               Object.entries(response.output || {}).filter(
                 ([k, v]) => typeof k === 'string' && typeof v === 'string',
               ),
-            );
+            ) as Record<string, string>;
           }
 
           this.logger.info('Tasks have been assigned to agents', {

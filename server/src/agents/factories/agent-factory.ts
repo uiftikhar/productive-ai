@@ -18,7 +18,10 @@ import { KnowledgeRetrievalAgent } from '../specialized/knowledge-retrieval-agen
 import { DocumentRetrievalAgent } from '../specialized/retrieval-agent';
 import { MeetingAnalysisAgent } from '../specialized/meeting-analysis-agent';
 import { DecisionTrackingAgent } from '../specialized/decision-tracking-agent';
-import { SupervisorAgent, SupervisorAgentConfig } from '../specialized/supervisor-agent';
+import {
+  SupervisorAgent,
+  SupervisorAgentConfig,
+} from '../specialized/supervisor-agent';
 import { IEmbeddingService } from '../../shared/services/embedding.interface';
 import { EmbeddingServiceFactory } from '../../shared/services/embedding.factory';
 import { OpenAIConnector } from '../integrations/openai-connector';
@@ -288,9 +291,7 @@ export class AgentFactory {
     agents.push(
       this.createDecisionTrackingAgent(agentOptions) as DecisionTrackingAgent,
     );
-    agents.push(
-      this.createSupervisorAgent(agentOptions) as SupervisorAgent,
-    );
+    agents.push(this.createSupervisorAgent(agentOptions) as SupervisorAgent);
 
     await Promise.all(agents.map((agent) => agent.initialize()));
 

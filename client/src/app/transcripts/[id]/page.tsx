@@ -34,9 +34,11 @@ export default function TranscriptDetailPage({ params }: TranscriptDetailPagePro
   const handleAnalyze = async (id: string) => {
     try {
       console.log('Analyzing transcript:', id);
-      await analyzeTranscript(id);
-      // Refresh the transcript after analysis
-      setTranscript(getTranscript(id));
+      // Start the analysis process but don't wait for it to complete
+      analyzeTranscript(id);
+      
+      // Redirect to the visualization page
+      router.push(`/transcripts/${id}/analyze`);
     } catch (error) {
       console.error('Error analyzing transcript:', error);
     }

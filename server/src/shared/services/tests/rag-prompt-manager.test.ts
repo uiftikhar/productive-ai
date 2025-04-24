@@ -81,11 +81,13 @@ describe('RagPromptManager', () => {
       getDocumentChunks: jest.fn().mockResolvedValue([]),
     }));
 
-    ((ConversationContextService as unknown) as jest.Mock).mockImplementation(() => ({
-      getConversationHistory: jest.fn().mockResolvedValue([]),
-      searchConversations: jest.fn().mockResolvedValue([]),
-      storeConversationTurn: jest.fn().mockResolvedValue('turn-id'),
-    }));
+    (ConversationContextService as unknown as jest.Mock).mockImplementation(
+      () => ({
+        getConversationHistory: jest.fn().mockResolvedValue([]),
+        searchConversations: jest.fn().mockResolvedValue([]),
+        storeConversationTurn: jest.fn().mockResolvedValue('turn-id'),
+      }),
+    );
 
     (RelevanceCalculationService as jest.Mock).mockImplementation(() => ({
       calculateRelevanceScore: jest.fn().mockReturnValue(0.9),

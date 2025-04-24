@@ -17,17 +17,17 @@ jest.mock('../../agents/services/agent-registry.service', () => {
     registerAgent: jest.fn(),
     unregisterAgent: jest.fn(),
     listAgents: jest.fn(),
-    initializeAgents: jest.fn()
+    initializeAgents: jest.fn(),
   };
-  
+
   return {
     __esModule: true,
     AgentRegistryService: {
-      getInstance: jest.fn().mockReturnValue(mockAgentRegistry)
+      getInstance: jest.fn().mockReturnValue(mockAgentRegistry),
     },
     default: {
-      getInstance: jest.fn().mockReturnValue(mockAgentRegistry)
-    }
+      getInstance: jest.fn().mockReturnValue(mockAgentRegistry),
+    },
   };
 });
 
@@ -40,10 +40,15 @@ describe('Enhanced Chat Features', () => {
 
   beforeEach(() => {
     // Set up mocks
-    userContextFacade = new UserContextFacade() as jest.Mocked<UserContextFacade>;
+    userContextFacade =
+      new UserContextFacade() as jest.Mocked<UserContextFacade>;
     userContextFacade.initialize = jest.fn().mockResolvedValue(undefined);
-    userContextFacade.storeConversationTurn = jest.fn().mockResolvedValue('turn-123');
-    userContextFacade.storeAgentConversationTurn = jest.fn().mockResolvedValue('turn-123');
+    userContextFacade.storeConversationTurn = jest
+      .fn()
+      .mockResolvedValue('turn-123');
+    userContextFacade.storeAgentConversationTurn = jest
+      .fn()
+      .mockResolvedValue('turn-123');
     userContextFacade.getConversationHistory = jest.fn().mockResolvedValue([]);
     userContextFacade.storeUserContext = jest.fn().mockResolvedValue('ctx-123');
     userContextFacade.searchConversations = jest.fn().mockResolvedValue([]);
@@ -51,15 +56,17 @@ describe('Enhanced Chat Features', () => {
     userContextFacade.getConversationSegments = jest.fn().mockResolvedValue([]);
 
     llmConnector = new OpenAIConnector({
-      modelConfig: { 
+      modelConfig: {
         model: 'gpt-4o',
-        temperature: 0.7
-      }
+        temperature: 0.7,
+      },
     }) as jest.Mocked<OpenAIConnector>;
-    llmConnector.generateEmbedding = jest.fn().mockResolvedValue([0.1, 0.2, 0.3]);
+    llmConnector.generateEmbedding = jest
+      .fn()
+      .mockResolvedValue([0.1, 0.2, 0.3]);
     llmConnector.generateResponse = jest.fn().mockResolvedValue({
-      content: "This is a mock response",
-      usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 }
+      content: 'This is a mock response',
+      usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
     });
 
     // Get the mocked agent registry
@@ -69,12 +76,12 @@ describe('Enhanced Chat Features', () => {
       name: 'Test Agent',
       processRequest: jest.fn().mockResolvedValue({
         response: 'Agent response',
-        executionTimeMs: 100
-      })
+        executionTimeMs: 100,
+      }),
     } as unknown as BaseAgent);
     agentRegistry.getAllAgents.mockReturnValue([
       { id: 'test-agent', name: 'Test Agent' },
-      { id: 'helper-agent', name: 'Helper Agent' }
+      { id: 'helper-agent', name: 'Helper Agent' },
     ] as unknown as BaseAgent[]);
 
     logger = new ConsoleLogger();
@@ -85,7 +92,7 @@ describe('Enhanced Chat Features', () => {
       llmConnector,
       agentRegistry,
       logger,
-      presenceTimeout: 1000
+      presenceTimeout: 1000,
     });
   });
 
@@ -94,7 +101,7 @@ describe('Enhanced Chat Features', () => {
       // Create a session first
       const createRequest: CreateSessionRequest = {
         userId: 'user123',
-        agentId: 'test-agent'
+        agentId: 'test-agent',
       };
       const session = await chatService.createSession(createRequest);
 
@@ -102,7 +109,7 @@ describe('Enhanced Chat Features', () => {
       await chatService.updateSessionContext(
         session.sessionId,
         { topic: 'Testing', priority: 'high' },
-        { persist: true }
+        { persist: true },
       );
 
       // Check session metadata was updated
@@ -118,7 +125,7 @@ describe('Enhanced Chat Features', () => {
       // Create a session first
       const session = await chatService.createSession({
         userId: 'user123',
-        agentId: 'test-agent'
+        agentId: 'test-agent',
       });
 
       // Mock implementation
@@ -128,7 +135,7 @@ describe('Enhanced Chat Features', () => {
       const updatedCount = await chatService.updateConversationRetention(
         session.sessionId,
         'permanent',
-        { isHighValue: true }
+        { isHighValue: true },
       );
 
       // Verify update was called with correct parameters
@@ -137,7 +144,7 @@ describe('Enhanced Chat Features', () => {
         'user123',
         session.conversationId,
         'permanent',
-        { isHighValue: true }
+        { isHighValue: true },
       );
     });
 
@@ -145,13 +152,17 @@ describe('Enhanced Chat Features', () => {
       // Create a session first
       const session = await chatService.createSession({
         userId: 'user123',
-        agentId: 'test-agent'
+        agentId: 'test-agent',
       });
 
       // Mock conversation history
       userContextFacade.getConversationHistory = jest.fn().mockResolvedValue([
         { role: 'user', content: 'Hello', metadata: { timestamp: Date.now() } },
-        { role: 'assistant', content: 'Hi there', metadata: { timestamp: Date.now(), agentId: 'test-agent' } }
+        {
+          role: 'assistant',
+          content: 'Hi there',
+          metadata: { timestamp: Date.now(), agentId: 'test-agent' },
+        },
       ]);
 
       // Mock conversation segments
@@ -161,8 +172,8 @@ describe('Enhanced Chat Features', () => {
           segmentTopic: 'Introduction',
           turnCount: 2,
           firstTimestamp: Date.now() - 1000,
-          lastTimestamp: Date.now()
-        }
+          lastTimestamp: Date.now(),
+        },
       ]);
 
       // Get context window
@@ -171,8 +182,8 @@ describe('Enhanced Chat Features', () => {
         {
           windowSize: 10,
           includeCurrentSegmentOnly: true,
-          includeAgentIds: ['test-agent']
-        }
+          includeAgentIds: ['test-agent'],
+        },
       );
 
       // Verify results
@@ -186,13 +197,13 @@ describe('Enhanced Chat Features', () => {
     test('should assign multiple agents to a session', async () => {
       // Create a session first
       const session = await chatService.createSession({
-        userId: 'user123'
+        userId: 'user123',
       });
 
       // Assign agents
       const result = await chatService.assignAgentsToSession(
         session.sessionId,
-        ['test-agent', 'helper-agent']
+        ['test-agent', 'helper-agent'],
       );
 
       // Verify agents were assigned
@@ -204,14 +215,14 @@ describe('Enhanced Chat Features', () => {
     test('should get agents assigned to a session', async () => {
       // Create a session first
       const session = await chatService.createSession({
-        userId: 'user123'
+        userId: 'user123',
       });
 
       // First assign some agents
-      await chatService.assignAgentsToSession(
-        session.sessionId,
-        ['test-agent', 'helper-agent']
-      );
+      await chatService.assignAgentsToSession(session.sessionId, [
+        'test-agent',
+        'helper-agent',
+      ]);
 
       // Now get them
       const agents = chatService.getSessionAgents(session.sessionId);
@@ -224,13 +235,13 @@ describe('Enhanced Chat Features', () => {
     test('should get agent recommendations for a message', async () => {
       // Create a session first
       const session = await chatService.createSession({
-        userId: 'user123'
+        userId: 'user123',
       });
 
       // Get recommendations
       const recommendations = await chatService.getAgentRecommendations(
         session.sessionId,
-        'Can you help me with a coding problem?'
+        'Can you help me with a coding problem?',
       );
 
       // Verify recommendations were returned
@@ -244,7 +255,7 @@ describe('Enhanced Chat Features', () => {
     test('should attach a file to a session', async () => {
       // Create a session first
       const session = await chatService.createSession({
-        userId: 'user123'
+        userId: 'user123',
       });
 
       // Create a mock file
@@ -252,19 +263,15 @@ describe('Enhanced Chat Features', () => {
         buffer: Buffer.from('This is a test file content'),
         originalname: 'test.txt',
         mimetype: 'text/plain',
-        size: 30
+        size: 30,
       };
 
       // Attach the file
-      const result = await chatService.attachFile(
-        session.sessionId,
-        file,
-        {
-          extractText: true,
-          generateEmbeddings: true,
-          storeReference: true
-        }
-      );
+      const result = await chatService.attachFile(session.sessionId, file, {
+        extractText: true,
+        generateEmbeddings: true,
+        storeReference: true,
+      });
 
       // Verify file was attached
       expect(result.attachmentId).toBeDefined();
@@ -283,15 +290,15 @@ describe('Enhanced Chat Features', () => {
         expect.any(Array),
         expect.objectContaining({
           contextType: ContextType.DOCUMENT,
-          fileName: 'test.txt'
-        })
+          fileName: 'test.txt',
+        }),
       );
     });
 
     test('should get files attached to a session', async () => {
       // Create a session first
       const session = await chatService.createSession({
-        userId: 'user123'
+        userId: 'user123',
       });
 
       // Attach a file first
@@ -299,7 +306,7 @@ describe('Enhanced Chat Features', () => {
         buffer: Buffer.from('This is a test file content'),
         originalname: 'test.txt',
         mimetype: 'text/plain',
-        size: 30
+        size: 30,
       };
       await chatService.attachFile(session.sessionId, file);
 
@@ -315,7 +322,7 @@ describe('Enhanced Chat Features', () => {
     test('should reference attachments in messages', async () => {
       // Create a session first
       const session = await chatService.createSession({
-        userId: 'user123'
+        userId: 'user123',
       });
 
       // Attach a file first
@@ -323,7 +330,7 @@ describe('Enhanced Chat Features', () => {
         buffer: Buffer.from('This is a test file content'),
         originalname: 'test.txt',
         mimetype: 'text/plain',
-        size: 30
+        size: 30,
       };
       const attachment = await chatService.attachFile(session.sessionId, file);
 
@@ -332,7 +339,7 @@ describe('Enhanced Chat Features', () => {
       const updatedMessage = chatService.referenceAttachment(
         session.sessionId,
         attachment.attachmentId,
-        message
+        message,
       );
 
       // Verify message was updated
@@ -354,8 +361,8 @@ describe('Enhanced Chat Features', () => {
           message: 'This is a test message',
           score: 0.95,
           timestamp: Date.now(),
-          agentId: 'test-agent'
-        }
+          agentId: 'test-agent',
+        },
       ]);
 
       // Search conversations
@@ -365,14 +372,14 @@ describe('Enhanced Chat Features', () => {
         {
           maxResults: 10,
           minRelevanceScore: 0.7,
-          includeSessionData: true
-        }
+          includeSessionData: true,
+        },
       );
 
       // Verify search was performed
       expect(llmConnector.generateEmbedding).toHaveBeenCalledWith('test query');
       expect(userContextFacade.searchConversations).toHaveBeenCalled();
-      
+
       // We expect an empty array since the mock data doesn't match the expected structure
       // In a real implementation, this would return the mapped results
       expect(results).toBeDefined();
@@ -381,7 +388,7 @@ describe('Enhanced Chat Features', () => {
     test('should find similar messages', async () => {
       // Create a session first
       const session = await chatService.createSession({
-        userId: 'user123'
+        userId: 'user123',
       });
 
       // Mock session history
@@ -391,8 +398,8 @@ describe('Enhanced Chat Features', () => {
           sessionId: session.sessionId,
           content: 'This is a message to search for',
           role: 'user',
-          timestamp: new Date()
-        }
+          timestamp: new Date(),
+        },
       ]);
 
       // Mock search results
@@ -405,8 +412,8 @@ describe('Enhanced Chat Features', () => {
           message: 'This is a similar message',
           score: 0.85,
           timestamp: Date.now(),
-          userId: 'user123'
-        }
+          userId: 'user123',
+        },
       ]);
 
       // Find similar messages
@@ -415,14 +422,14 @@ describe('Enhanced Chat Features', () => {
         'msg-123',
         {
           maxResults: 5,
-          minRelevanceScore: 0.7
-        }
+          minRelevanceScore: 0.7,
+        },
       );
 
       // Verify search was performed
       expect(llmConnector.generateEmbedding).toHaveBeenCalled();
       expect(userContextFacade.searchConversations).toHaveBeenCalled();
-      
+
       // Again, we expect an empty or transformed array based on the mocks
       expect(results).toBeDefined();
     });
@@ -431,7 +438,11 @@ describe('Enhanced Chat Features', () => {
   describe('Task 5.5: User Presence Indicators', () => {
     test('should update user presence', () => {
       // Update presence
-      chatService.updateUserPresence('user123', UserStatus.ONLINE, 'session-123');
+      chatService.updateUserPresence(
+        'user123',
+        UserStatus.ONLINE,
+        'session-123',
+      );
 
       // Get presence
       const presence = chatService.getUserPresence('user123');
@@ -461,19 +472,19 @@ describe('Enhanced Chat Features', () => {
     test('should update typing status', async () => {
       // Create a session first
       const session = await chatService.createSession({
-        userId: 'user123'
+        userId: 'user123',
       });
 
       // Update typing status to typing
       chatService.updateTypingStatus(session.sessionId, true);
-      
+
       // Check presence
       const typingPresence = chatService.getUserPresence('user123');
       expect(typingPresence?.status).toBe(UserStatus.TYPING);
 
       // Update typing status to not typing
       chatService.updateTypingStatus(session.sessionId, false);
-      
+
       // Check presence again
       const notTypingPresence = chatService.getUserPresence('user123');
       expect(notTypingPresence?.status).toBe(UserStatus.ONLINE);
@@ -481,11 +492,15 @@ describe('Enhanced Chat Features', () => {
 
     test('should handle user disconnect', () => {
       // Add online user
-      chatService.updateUserPresence('user123', UserStatus.ONLINE, 'session-123');
-      
+      chatService.updateUserPresence(
+        'user123',
+        UserStatus.ONLINE,
+        'session-123',
+      );
+
       // Disconnect user
       chatService.handleUserDisconnect('user123', 'session-123');
-      
+
       // Check presence
       const presence = chatService.getUserPresence('user123');
       expect(presence?.status).toBe(UserStatus.OFFLINE);
@@ -497,7 +512,7 @@ describe('Enhanced Chat Features', () => {
         // Verify event
         expect(event.userId).toBe('user123');
         expect(event.status).toBe(UserStatus.ONLINE);
-        
+
         // Clean up
         unsubscribe();
         done();
@@ -518,15 +533,15 @@ describe('Enhanced Chat Features', () => {
           firstTimestamp: Date.now() - 100000,
           lastTimestamp: Date.now(),
           agentIds: ['test-agent'],
-          segments: 2
-        }
+          segments: 2,
+        },
       ]);
 
       // Generate analytics
       const analytics = await chatService.generateAnalytics('user123', {
         includeUsageStatistics: true,
         includeAgentPerformance: true,
-        includeSegmentAnalytics: true
+        includeSegmentAnalytics: true,
       });
 
       // Verify analytics were generated
@@ -539,18 +554,17 @@ describe('Enhanced Chat Features', () => {
     test('should track events', async () => {
       // Create a session first
       const session = await chatService.createSession({
-        userId: 'user123'
+        userId: 'user123',
       });
 
       // Spy on logger
       const infoSpy = jest.spyOn(logger, 'info');
 
       // Track an event
-      chatService.trackEvent(
-        session.sessionId,
-        'message_viewed',
-        { messageId: 'msg-123', viewDuration: 5000 }
-      );
+      chatService.trackEvent(session.sessionId, 'message_viewed', {
+        messageId: 'msg-123',
+        viewDuration: 5000,
+      });
 
       // Verify event was logged
       expect(infoSpy).toHaveBeenCalledWith(
@@ -558,15 +572,15 @@ describe('Enhanced Chat Features', () => {
         expect.objectContaining({
           sessionId: session.sessionId,
           userId: 'user123',
-          messageId: 'msg-123'
-        })
+          messageId: 'msg-123',
+        }),
       );
     });
 
     test('should get session metrics', async () => {
       // Create a session first
       const session = await chatService.createSession({
-        userId: 'user123'
+        userId: 'user123',
       });
 
       // Mock getSessionHistory
@@ -576,15 +590,15 @@ describe('Enhanced Chat Features', () => {
           sessionId: session.sessionId,
           content: 'Hello',
           role: 'user',
-          timestamp: new Date(Date.now() - 10000)
+          timestamp: new Date(Date.now() - 10000),
         },
         {
           id: 'msg-2',
           sessionId: session.sessionId,
           content: 'Hi there',
           role: 'assistant',
-          timestamp: new Date(Date.now() - 9000)
-        }
+          timestamp: new Date(Date.now() - 9000),
+        },
       ]);
 
       // Get metrics
@@ -603,43 +617,47 @@ describe('Enhanced Chat Features', () => {
     test('should recover a session', async () => {
       // Create a session first
       const originalSession = await chatService.createSession({
-        userId: 'user123'
+        userId: 'user123',
       });
 
       // Clone the session to simulate recovery
       const sessionId = originalSession.sessionId;
-      
+
       // Remove the session
       chatService['sessions'].delete(sessionId);
-      
+
       // Create a new session that has the old session ID in metadata
       const newSession = await chatService.createSession({
         userId: 'user123',
         metadata: {
-          previousSessionIds: [sessionId]
-        }
+          previousSessionIds: [sessionId],
+        },
       });
 
       // Try to recover the session
-      const recoveredSession = await chatService.recoverSession(
-        sessionId,
-        { createNewIfNotFound: true }
-      );
+      const recoveredSession = await chatService.recoverSession(sessionId, {
+        createNewIfNotFound: true,
+      });
 
       // Verify the session was recovered
       expect(recoveredSession).toBeDefined();
       expect(recoveredSession.userId).toBe('user123');
-      expect(recoveredSession.metadata).toHaveProperty('recoveredFrom', sessionId);
+      expect(recoveredSession.metadata).toHaveProperty(
+        'recoveredFrom',
+        sessionId,
+      );
     });
 
     test('should clean up corrupted sessions', async () => {
       // Create a session first
       const session = await chatService.createSession({
-        userId: 'user123'
+        userId: 'user123',
       });
 
       // Corrupt the session (simulated by just cleaning it up)
-      const result = await chatService.cleanupCorruptedSession(session.sessionId);
+      const result = await chatService.cleanupCorruptedSession(
+        session.sessionId,
+      );
 
       // Verify the session was cleaned up
       expect(result).toBe(true);
@@ -651,10 +669,10 @@ describe('Enhanced Chat Features', () => {
       // Create a session first
       const createSession = async () => {
         return await chatService.createSession({
-          userId: 'user123'
+          userId: 'user123',
         });
       };
-      
+
       createSession();
 
       // Create snapshot
@@ -675,20 +693,20 @@ describe('Enhanced Chat Features', () => {
           content: 'Hello',
           role: 'user',
           timestamp: Date.now() - 1000,
-          metadata: { turnId: 'turn-1' }
+          metadata: { turnId: 'turn-1' },
         },
         {
           content: 'Hi there',
           role: 'assistant',
           timestamp: Date.now(),
-          metadata: { turnId: 'turn-2' }
-        }
+          metadata: { turnId: 'turn-2' },
+        },
       ]);
 
       // Recover history
       const messages = await chatService.recoverConversationHistory(
         'user123',
-        'conv-123'
+        'conv-123',
       );
 
       // Verify history was recovered
@@ -698,4 +716,4 @@ describe('Enhanced Chat Features', () => {
       expect(messages[0].metadata).toHaveProperty('recovered', true);
     });
   });
-}); 
+});

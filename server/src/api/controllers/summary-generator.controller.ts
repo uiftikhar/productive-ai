@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import express from 'express';
-import { promises as fs } from 'fs';
+import { promises as fsPromises } from 'fs';
+import fs from 'node:fs';
+import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { MeetingAnalysisAgent } from '../../agents/specialized/meeting-analysis-agent';
 import 'reflect-metadata';
@@ -56,6 +58,8 @@ const meetingAnalysisAgent = agentFactory.createMeetingAnalysisAgent({
 
 const meetingAnalysisWorkflow = new AgentWorkflow(meetingAnalysisAgent, {
   tracingEnabled: true,
+  enableRealtimeUpdates: true,
+  visualizationsPath: 'visualizations',
 });
 
 // Configure LangGraph tracing
@@ -123,8 +127,8 @@ async function extractTranscript(req: Request): Promise<string> {
   }
 
   const filePath = req.file.path;
-  const transcript = await fs.readFile(filePath, 'utf8');
-  await fs.unlink(filePath); // Clean up the file after reading
+  const transcript = await fsPromises.readFile(filePath, 'utf8');
+  await fsPromises.unlink(filePath); // Clean up the file after reading
   return transcript;
 }
 
@@ -145,6 +149,79 @@ function generateLangSmithUrl(meetingId: string): string | null {
 }
 
 /**
+ * Generate a URL for the visualization file
+ */
+function generateVisualizationUrl(
+  meetingId: string,
+  runId?: string,
+): string | null {
+  // First check if there's a visualization file with the meetingId
+  const visualizationsPath = 'visualizations';
+  const visualizationFile = `${meetingId}.html`;
+  const visualizationUrl = `/visualizations/${visualizationFile}`;
+
+  // Check if the visualization file exists with the meetingId
+  const filePath = path.join(
+    process.cwd(),
+    visualizationsPath,
+    visualizationFile,
+  );
+
+  if (fs.existsSync(filePath)) {
+    logger.info('Found visualization file with meetingId', { filePath });
+    return visualizationUrl;
+  }
+
+  // If provided, check for a runId-based file
+  if (runId) {
+    const runIdFile = `${runId}.html`;
+    const runIdPath = path.join(process.cwd(), visualizationsPath, runIdFile);
+    if (fs.existsSync(runIdPath)) {
+      logger.info('Found visualization file with runId', { runIdPath });
+      return `/visualizations/${runIdFile}`;
+    }
+  }
+
+  // If not found, look for any visualization files in the directory
+  // and return the most recent one (since visualization files are created with runIds)
+  try {
+    const files = fs
+      .readdirSync(path.join(process.cwd(), visualizationsPath))
+      .filter((file) => file.endsWith('.html'))
+      .map((file) => ({
+        name: file,
+        path: path.join(process.cwd(), visualizationsPath, file),
+        mtime: fs.statSync(path.join(process.cwd(), visualizationsPath, file))
+          .mtime,
+      }))
+      .sort((a, b) => b.mtime.getTime() - a.mtime.getTime()); // Sort by most recent
+
+    if (files.length > 0) {
+      logger.info('Found recent visualization file', { file: files[0].name });
+      return `/visualizations/${files[0].name}`;
+    }
+  } catch (err) {
+    logger.error('Error searching for visualization files', { error: err });
+  }
+
+  logger.warn('Visualization file not found', { meetingId, runId });
+  return null;
+}
+
+// Define or augment ProcessMeetingTranscriptParams interface if needed
+interface ProcessMeetingTranscriptParams {
+  meetingId: string;
+  transcript: string;
+  title: string;
+  participantIds: string[];
+  userId: string;
+  includeTopics: boolean;
+  includeActionItems: boolean;
+  includeSentiment: boolean;
+  visualization?: boolean;
+}
+
+/**
  * Process meeting transcript and generate analysis
  */
 async function processMeetingTranscript(params: {
@@ -154,7 +231,8 @@ async function processMeetingTranscript(params: {
   meetingTitle: string;
   participantIds: string[];
   includeSentiment: boolean;
-}): Promise<{ output: any }> {
+  visualization?: boolean;
+}): Promise<{ output: any; visualizationUrl?: string }> {
   const result = await meetingAnalysisAdapter.processMeetingTranscript({
     meetingId: params.meetingId,
     transcript: params.transcript,
@@ -164,9 +242,31 @@ async function processMeetingTranscript(params: {
     includeTopics: true,
     includeActionItems: true,
     includeSentiment: params.includeSentiment,
-  });
+    visualization: params.visualization,
+  } as ProcessMeetingTranscriptParams);
 
-  return { output: result.output };
+  let visualizationUrl: string | undefined = undefined;
+
+  // First, check if the result already has a visualization URL
+  if (result.visualizationUrl) {
+    visualizationUrl = result.visualizationUrl;
+    logger.info('Using visualization URL from result', { visualizationUrl });
+  }
+  // If not, try to generate one based on the meetingId
+  else if (params.visualization) {
+    // Wait a moment for visualization to be generated
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const generatedUrl = generateVisualizationUrl(params.meetingId);
+    if (generatedUrl) {
+      visualizationUrl = generatedUrl;
+      logger.info('Generated visualization URL', { visualizationUrl });
+    }
+  }
+
+  return {
+    output: result.output,
+    visualizationUrl,
+  };
 }
 
 /**
@@ -190,6 +290,7 @@ export const getSummary = async (
     // Generate meetingId and get userId
     const meetingId = uuidv4();
     const userId = req.body.userId || 'anonymous';
+    const visualization = req.body.visualization === 'true';
 
     // Extract transcript
     let transcript;
@@ -204,7 +305,10 @@ export const getSummary = async (
 
     let analysisResult;
     try {
-      logger.info('Using LangGraph for meeting analysis', { meetingId });
+      logger.info('Using LangGraph for meeting analysis', {
+        meetingId,
+        visualization,
+      });
       analysisResult = await processMeetingTranscript({
         meetingId,
         transcript,
@@ -212,6 +316,7 @@ export const getSummary = async (
         meetingTitle: req.body.meetingTitle || 'Untitled Meeting',
         participantIds: req.body.participantIds || [],
         includeSentiment: req.body.includeSentiment === 'true',
+        visualization,
       });
     } catch (error) {
       logger.error('Error in meeting analysis', { error });
@@ -228,14 +333,27 @@ export const getSummary = async (
     // Generate LangSmith URL
     const langSmithTraceUrl = generateLangSmithUrl(meetingId);
 
-    return res.json({
+    // Prepare response
+    const response: {
+      meetingId: string;
+      analysis: any;
+      langSmithUrl: string | null;
+      visualizationUrl?: string;
+    } = {
       meetingId,
       analysis:
         typeof analysisResult.output === 'string'
           ? JSON.parse(analysisResult.output)
           : analysisResult.output,
       langSmithUrl: langSmithTraceUrl,
-    });
+    };
+
+    // Add visualization URL if available
+    if (visualization && analysisResult.visualizationUrl) {
+      response.visualizationUrl = analysisResult.visualizationUrl;
+    }
+
+    return res.json(response);
   } catch (error) {
     logger.error('Error in getSummary', { error });
     next(error);

@@ -276,6 +276,7 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
 
     return {
       output: JSON.stringify(formattedResults),
+      success: true,
       artifacts: {
         query,
         strategy: parameters?.strategy,
@@ -344,6 +345,7 @@ export class KnowledgeRetrievalAgent extends BaseAgent {
 
     return {
       output: responseContent,
+      success: true,
       artifacts: {
         query,
         strategy,

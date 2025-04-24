@@ -191,7 +191,7 @@ describe('UserContextFacade Integration', () => {
     (BaseContextService as jest.Mock).mockImplementation(
       () => mockBaseContextService,
     );
-    ((ConversationContextService as unknown) as jest.Mock).mockImplementation(
+    (ConversationContextService as unknown as jest.Mock).mockImplementation(
       () => mockConversationContextService,
     );
     (DocumentContextService as jest.Mock).mockImplementation(

@@ -214,7 +214,14 @@ export const InstructionTemplates: Record<
   },
   DEFAULT_CLASSIFIER: {
     format: {
-      requiredSections: ['selectedAgentId', 'confidence', 'reasoning', 'isFollowUp', 'entities', 'intent'],
+      requiredSections: [
+        'selectedAgentId',
+        'confidence',
+        'reasoning',
+        'isFollowUp',
+        'entities',
+        'intent',
+      ],
       outputFormat: 'json_object',
       jsonSchema: {
         properties: {
@@ -232,7 +239,8 @@ export const InstructionTemplates: Record<
           },
           isFollowUp: {
             type: 'boolean',
-            description: 'Whether this is a follow-up to a previous conversation',
+            description:
+              'Whether this is a follow-up to a previous conversation',
           },
           entities: {
             type: 'array',
@@ -240,7 +248,7 @@ export const InstructionTemplates: Record<
           },
           intent: {
             type: 'string',
-            description: 'User\'s primary intent',
+            description: "User's primary intent",
           },
         },
       },
@@ -252,7 +260,7 @@ export const InstructionTemplates: Record<
       'Explain your decision process briefly',
       'Identify if the input appears to be a follow-up to a previous conversation',
       'Extract important entities mentioned in the query',
-      'Categorize the overall intent of the user\'s request',
+      "Categorize the overall intent of the user's request",
     ],
     outputRequirements: [
       'Valid JSON object with all required fields',
@@ -297,13 +305,19 @@ Skip any preamble and provide only the JSON response.
   },
   FOLLOWUP_CLASSIFIER: {
     format: {
-      requiredSections: ['isFollowUp', 'confidence', 'reasoning', 'selectedAgentId'],
+      requiredSections: [
+        'isFollowUp',
+        'confidence',
+        'reasoning',
+        'selectedAgentId',
+      ],
       outputFormat: 'json_object',
       jsonSchema: {
         properties: {
           isFollowUp: {
             type: 'boolean',
-            description: 'Whether this is a follow-up to a previous conversation',
+            description:
+              'Whether this is a follow-up to a previous conversation',
           },
           confidence: {
             type: 'number',
@@ -311,7 +325,8 @@ Skip any preamble and provide only the JSON response.
           },
           reasoning: {
             type: 'string',
-            description: 'Brief explanation of why this is or isn\'t a follow-up',
+            description:
+              "Brief explanation of why this is or isn't a follow-up",
           },
           selectedAgentId: {
             type: 'string',
@@ -363,7 +378,13 @@ Skip any preamble and provide only the JSON response.
   },
   SPECIALIZED_CLASSIFIER: {
     format: {
-      requiredSections: ['selectedCapability', 'confidence', 'reasoning', 'entities', 'intent'],
+      requiredSections: [
+        'selectedCapability',
+        'confidence',
+        'reasoning',
+        'entities',
+        'intent',
+      ],
       outputFormat: 'json_object',
       jsonSchema: {
         properties: {
@@ -393,7 +414,7 @@ Skip any preamble and provide only the JSON response.
     rules: [
       'Identify the exact specialized capability required',
       'Extract specific domain entities mentioned',
-      'Determine user\'s intent within the specialized domain',
+      "Determine user's intent within the specialized domain",
       'Provide a confidence score between 0-1',
       'Explain your decision process briefly',
     ],

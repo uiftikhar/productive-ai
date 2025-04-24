@@ -301,14 +301,14 @@ describe('ClassifierFactory', () => {
 
       // Execute the test with the actual classify method
       const result = await factory.classify('test', [], {
-        enableFallback: true
+        enableFallback: true,
       });
 
       // Verify the result - should have used the Bedrock classifier as fallback
       expect(result.selectedAgentId).toBe('bedrock-agent');
       expect(result.confidence).toBe(0.85);
       expect(result.reasoning).toBe('Bedrock classified this');
-      
+
       // Check that both classifiers were called - first OpenAI (which failed), then Bedrock
       expect(OpenAIClassifier.prototype.classify).toHaveBeenCalledTimes(1);
       expect(BedrockClassifier.prototype.classify).toHaveBeenCalledTimes(1);

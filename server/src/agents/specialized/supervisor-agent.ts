@@ -258,6 +258,7 @@ export class SupervisorAgent extends BaseAgent {
 
       return {
         output: result,
+        success: true,
         metrics: {
           executionTimeMs: executionTime,
           // Estimate token usage based on input and output size
@@ -1156,14 +1157,14 @@ Description: ${task.description}
   async terminate(): Promise<void> {
     // First call the parent terminate method
     await super.terminate();
-    
+
     // Clean up the agentTaskExecutor resources
     this.agentTaskExecutor.cleanup();
-    
+
     // Clear team and task maps
     this.team.clear();
     this.tasks.clear();
-    
+
     this.logger.info(`SupervisorAgent resources cleaned up`);
   }
 

@@ -711,7 +711,7 @@ export class ConversationIndexingService {
       clearInterval(this.refreshTimer);
       this.refreshTimer = null;
     }
-    
+
     this.logger.info('Conversation indexing service resources cleaned up');
   }
 }

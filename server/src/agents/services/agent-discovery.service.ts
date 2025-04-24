@@ -298,7 +298,7 @@ export class AgentDiscoveryService {
   public cleanup(): void {
     // Clear metrics
     this.agentMetrics.clear();
-    
+
     this.logger.info('AgentDiscoveryService resources cleaned up');
   }
 

@@ -1,6 +1,6 @@
 /**
  * API Module Entry Point
- * 
+ *
  * Initializes and exports all API routes
  */
 
@@ -20,25 +20,25 @@ export function initializeApi(
   userContextFacade: UserContextFacade,
   llmConnector: LanguageModelProvider,
   agentRegistry: AgentRegistryService,
-  logger: Logger
+  logger: Logger,
 ): Router {
   const apiRouter = Router();
-  
+
   // Initialize chat service
   const chatService = new ChatService({
     userContextFacade,
     llmConnector,
     agentRegistry,
-    logger
+    logger,
   });
-  
+
   // Initialize controllers
   const chatController = new ChatController(chatService);
-  
+
   // Register routes
   apiRouter.use('/chat', createChatRouter(chatController));
-  
+
   // Add more API routes here as needed
-  
+
   return apiRouter;
-} 
+}

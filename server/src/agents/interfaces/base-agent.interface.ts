@@ -34,13 +34,16 @@ export interface AgentRequest {
  * Agent execution response
  */
 export interface AgentResponse {
-  output: string | BaseMessage;
+  id?: string;
+  agentId?: string;
+  runId?: string;
+  success: boolean;
+  output?: string;
+  error?: string;
   artifacts?: Record<string, any>;
-  metrics?: {
-    tokensUsed?: number;
-    executionTimeMs?: number;
-    stepCount?: number;
-  };
+  executionTimeMs?: number;
+  metrics?: Record<string, any>;
+  visualizationUrl?: string;
 }
 
 /**

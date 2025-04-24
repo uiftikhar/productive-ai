@@ -1,6 +1,6 @@
 /**
  * Chat Service Type Definitions
- * 
+ *
  * Contains all interfaces and types used in the chat module
  */
 
@@ -24,7 +24,7 @@ export interface ChatMessage {
   id: string;
   sessionId: string;
   content: string;
-  role: "user" | "assistant" | "system";
+  role: 'user' | 'assistant' | 'system';
   timestamp: Date;
   metadata?: Record<string, any>;
 }
@@ -91,7 +91,7 @@ export enum ChatErrorType {
   FILE_PROCESSING_ERROR = 'FILE_PROCESSING_ERROR',
   MULTI_AGENT_ERROR = 'MULTI_AGENT_ERROR',
   PRESENCE_UPDATE_ERROR = 'PRESENCE_UPDATE_ERROR',
-  ANALYTICS_ERROR = 'ANALYTICS_ERROR'
+  ANALYTICS_ERROR = 'ANALYTICS_ERROR',
 }
 
 /**
@@ -101,7 +101,11 @@ export class ChatServiceError extends Error {
   type: ChatErrorType;
   details?: Record<string, any>;
 
-  constructor(message: string, type: ChatErrorType, details?: Record<string, any>) {
+  constructor(
+    message: string,
+    type: ChatErrorType,
+    details?: Record<string, any>,
+  ) {
     super(message);
     this.name = 'ChatServiceError';
     this.type = type;
@@ -132,7 +136,7 @@ export enum UserStatus {
   OFFLINE = 'offline',
   AWAY = 'away',
   BUSY = 'busy',
-  TYPING = 'typing'
+  TYPING = 'typing',
 }
 
 /**
@@ -152,4 +156,4 @@ export interface StreamOptions {
   onToken: (token: string) => void;
   onComplete: (fullMessage: ChatMessage) => void;
   onError: (error: Error) => void;
-} 
+}
