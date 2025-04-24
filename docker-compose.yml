@@ -1,0 +1,89 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      # MongoDB
+      - MONGO_DB_URI=${MONGO_DB_URI}
+      - MONGO_DB_USERNAME=${MONGO_DB_USERNAME}
+      - MONGO_DB_PASSWORD=${MONGO_DB_PASSWORD}
+      
+      # Server Config
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=3000
+      
+      # Mem0
+      - MEM0_API_KEY=${MEM0_API_KEY}
+      - MEM0_ORGANIZATION_NAME=${MEM0_ORGANIZATION_NAME}
+      - MEM0_ORGANIZATION_ID=${MEM0_ORGANIZATION_ID}
+      - MEM0_PROJECT_NAME=${MEM0_PROJECT_NAME}
+      - MEM0_PROJECT_ID=${MEM0_PROJECT_ID}
+      
+      # Pinecone
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_REGION=${PINECONE_REGION}
+      - PINECONE_CLOUD=${PINECONE_CLOUD}
+      - PINECONE_INDEX=${PINECONE_INDEX:-productive-ai}
+      - PINECONE_NAMESPACE=${PINECONE_NAMESPACE:-default}
+      
+      # OpenAI
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${DEFAULT_MODEL:-gpt-4-turbo}
+      - AGENT_TEMPERATURE=${AGENT_TEMPERATURE:-0.1}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-large}
+      
+      # Authentication
+      # - JWT_SECRET=${JWT_SECRET}
+      # - JWT_EXPIRATION=${JWT_EXPIRATION:-24h}
+      
+      # LangSmith Tracing
+      - LANGSMITH_API_KEY=${LANGSMITH_API_KEY}
+      - LANGSMITH_ENDPOINT=${LANGSMITH_ENDPOINT}
+      - LANGSMITH_TRACING=${LANGSMITH_TRACING:-false}
+      - LANGSMITH_PROJECT=${LANGSMITH_PROJECT:-default}
+      - LANGSMITH_ORG_ID=${LANGSMITH_ORG_ID}
+      - LANGSMITH_WORKSPACE_ID=${LANGSMITH_WORKSPACE_ID}
+      - LANGSMITH_PROJECT_ID=${LANGSMITH_PROJECT_ID}
+      
+      # Tracing
+      - ENABLE_TRACING=${ENABLE_TRACING:-true}
+      - TRACE_PROJECT_NAME=${TRACE_PROJECT_NAME:-followup}
+      - TRACE_LOG_TO_FILE=${TRACE_LOG_TO_FILE:-true}
+      - TRACE_LOG_DIRECTORY=${TRACE_LOG_DIRECTORY:-logs}
+      
+      # CORS
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:8080}
+    volumes:
+      - ./server:/app/server
+      - /app/server/node_modules
+      - ./logs:/app/server/logs
+    restart: unless-stopped
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    ports:
+      - "8080:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL:-ws://localhost:3000}
+      - NEXT_PUBLIC_AUTH_ENABLED=${NEXT_PUBLIC_AUTH_ENABLED:-true}
+    volumes:
+      - ./client:/app/client
+      - /app/client/node_modules
+    depends_on:
+      - server
+    restart: unless-stopped
+
+# Docker Compose will automatically use variables from .env file
+# All environment variables are defined in the .env file at the root level
+# The project includes a .env.example file that can be copied to .env
+
+networks:
+  default:
+    driver: bridge

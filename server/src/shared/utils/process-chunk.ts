@@ -1,5 +1,4 @@
 import OpenAI from 'openai';
-import pLimit from 'p-limit';
 
 import type { InstructionTemplateName } from '../prompts/instruction-templates';
 import type { SystemRole } from '../prompts/prompt-types';
@@ -45,6 +44,48 @@ async function processChunk(
 }
 
 /**
+ * Simple function to process chunks with concurrency limit
+ */
+async function processChunksWithLimit<T>(
+  concurrency: number,
+  items: any[],
+  fn: (item: any, index: number) => Promise<T>
+): Promise<T[]> {
+  const results: T[] = [];
+  let running = 0;
+  let index = 0;
+  
+  return new Promise((resolve) => {
+    function startNext() {
+      if (index >= items.length && running === 0) {
+        resolve(results);
+        return;
+      }
+      
+      while (running < concurrency && index < items.length) {
+        const i = index++;
+        running++;
+        
+        fn(items[i], i)
+          .then(result => {
+            results[i] = result;
+          })
+          .catch(err => {
+            console.error(`Error processing item ${i}:`, err);
+            results[i] = null as any;
+          })
+          .finally(() => {
+            running--;
+            startNext();
+          });
+      }
+    }
+    
+    startNext();
+  });
+}
+
+/**
  * Processes all transcript chunks concurrently.
  * @param chunks - Array of transcript chunks.
  * @param client - The OpenAI client instance.
@@ -61,24 +102,19 @@ export async function processAllChunks(
   temperature = 0,
   otherParams?: any,
 ): Promise<string[]> {
-  const limit = pLimit(5);
-
-  const promises = chunks.map((chunk, index) =>
-    limit(() =>
-      processChunk(
-        index,
-        client,
-        chunk,
-        role,
-        templateName,
-        userContext,
-        model,
-        max_tokens,
-        temperature,
-        otherParams,
-      ),
-    ),
+  // Using 5 as the concurrency limit
+  return processChunksWithLimit(5, chunks, (chunk, index) => 
+    processChunk(
+      index,
+      client,
+      chunk,
+      role,
+      templateName,
+      userContext,
+      model,
+      max_tokens,
+      temperature,
+      otherParams,
+    )
   );
-
-  return await Promise.all(promises);
 }

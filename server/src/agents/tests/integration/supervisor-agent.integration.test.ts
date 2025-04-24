@@ -6,17 +6,17 @@ import {
   expect,
   jest,
 } from '@jest/globals';
-import { SupervisorAgent } from '../../../agents/specialized/supervisor-agent';
-import { BaseAgent } from '../../../agents/base/base-agent';
-import { KnowledgeRetrievalAgent } from '../../../agents/specialized/knowledge-retrieval-agent';
-import { DecisionTrackingAgent } from '../../../agents/specialized/decision-tracking-agent';
+import { SupervisorAgent } from '../../specialized/supervisor-agent';
+import { BaseAgent } from '../../base/base-agent';
+import { KnowledgeRetrievalAgent } from '../../specialized/knowledge-retrieval-agent';
+import { DecisionTrackingAgent } from '../../specialized/decision-tracking-agent';
 import {
   AgentRequest,
   AgentResponse,
-} from '../../../agents/interfaces/base-agent.interface';
-import { TaskPlanningService } from '../../../agents/services/task-planning.service';
-import { AgentTaskExecutorService } from '../../../agents/services/agent-task-executor.service';
-import { AgentRegistryService } from '../../../agents/services/agent-registry.service';
+} from '../../interfaces/base-agent.interface';
+import { TaskPlanningService } from '../../services/task-planning.service';
+import { AgentTaskExecutorService } from '../../services/agent-task-executor.service';
+import { AgentRegistryService } from '../../services/agent-registry.service';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
 import { SupervisorAdapter } from '../../../langgraph/core/adapters/supervisor-adapter';
 import { IEmbeddingService } from '../../../shared/services/embedding.interface';

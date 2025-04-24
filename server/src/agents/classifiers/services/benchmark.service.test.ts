@@ -11,7 +11,7 @@ import {
   ConversationMessage,
   ParticipantRole,
 } from '../../types/conversation.types';
-import { MockLogger } from '../../../agents/tests/mocks/mock-logger';
+import { MockLogger } from '../../tests/mocks/mock-logger';
 import { BenchmarkItem } from '../tests/benchmark/benchmark-dataset';
 
 // Mock classifier for testing

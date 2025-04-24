@@ -17,8 +17,8 @@
 
 import { RecordMetadata } from '@pinecone-database/pinecone';
 import { BaseContextService } from './base-context.service';
-import { Logger } from '../../../shared/logger/logger.interface';
-import { ConsoleLogger } from '../../../shared/logger/console-logger';
+import { Logger } from '../../logger/logger.interface';
+import { ConsoleLogger } from '../../logger/console-logger';
 import {
   BaseContextMetadata,
   ContextType,
