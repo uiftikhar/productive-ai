@@ -409,22 +409,69 @@ export class AgentWorkflow<
           onStateChange(currentState, currentNode);
 
           // Execute the current node
-          const nodeFunction = (graph as any).getNode(currentNode);
-          currentState = await nodeFunction(currentState);
+          try {
+            // Extract the node object
+            const nodeObj = (graph.nodes as any)[currentNode];
+            if (!nodeObj) {
+              throw new Error(`Node "${currentNode}" not found in graph`);
+            }
+            
+            // Access the runnable function from the node object structure
+            if (!nodeObj.runnable || typeof nodeObj.runnable.func !== 'function') {
+              throw new Error(`No executable function found for node "${currentNode}"`);
+            }
+            
+            // Call the node's function with the current state
+            currentState = await nodeObj.runnable.func(currentState);
+          } catch (error) {
+            this.logger.error(`Error executing node ${currentNode}`, {
+              error: error instanceof Error ? error.message : String(error),
+            });
+            currentState = {
+              ...currentState,
+              status: WorkflowStatus.ERROR,
+              errors: [
+                ...(currentState.errors || []),
+                {
+                  message: error instanceof Error ? error.message : String(error),
+                  code: 'NODE_EXECUTION_ERROR',
+                  timestamp: new Date().toISOString(),
+                },
+              ],
+            };
+            currentNode = 'error_handler';
+            continue; // Skip the rest of the iteration
+          }
 
           // Find the next node based on state and our routing rules
           if (currentState.status === WorkflowStatus.ERROR) {
             currentNode = 'error_handler';
           } else {
-            // Use the conditional routing functions we defined in createStateGraph
-            const conditionalEdges = (graph as any).getConditionalEdges(
-              currentNode,
-            );
-            if (conditionalEdges) {
-              currentNode = conditionalEdges(currentState);
-            } else {
-              // Use our predefined edge map
-              currentNode = edgeMap[currentNode] || END;
+            try {
+              // Check for branches in graph (conditional edges)
+              const branches = (graph as any).branches || {};
+              const branch = branches[currentNode];
+
+              if (branch && branch.condition && typeof branch.condition.test === 'function') {
+                // Execute the branch condition to determine next node
+                try {
+                  currentNode = branch.condition.test(currentState);
+                  this.logger.debug(`Branch condition for ${currentNode} returned next node: ${currentNode}`);
+                } catch (error) {
+                  this.logger.error(`Error in branch condition from ${currentNode}`, {
+                    error: error instanceof Error ? error.message : String(error),
+                  });
+                  currentNode = 'error_handler';
+                }
+              } else {
+                // Use our predefined edge map
+                currentNode = edgeMap[currentNode] || END;
+              }
+            } catch (error) {
+              this.logger.error(`Error finding next node from ${currentNode}`, {
+                error: error instanceof Error ? error.message : String(error),
+              });
+              currentNode = 'error_handler';
             }
           }
         }
