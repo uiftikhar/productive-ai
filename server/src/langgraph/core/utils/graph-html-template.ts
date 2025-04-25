@@ -9,7 +9,9 @@ export function generateGraphHtml(
   const title = options.title || 'Workflow Visualization';
   const stateJSON = JSON.stringify(state);
 
-  return `<!DOCTYPE html>
+  // Using a string variable instead of direct template literals to avoid TypeScript
+  // trying to parse the embedded JavaScript in the template
+  const htmlTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -112,57 +114,97 @@ export function generateGraphHtml(
     th {
       font-weight: 600;
     }
+    
+    /* Node styling */
     .node {
       cursor: pointer;
     }
-    .node circle {
+    .node rect {
       stroke-width: 2px;
       stroke: #fff;
+      rx: 4;
+      ry: 4;
     }
     .node text {
       text-anchor: middle;
       font-size: 12px;
+      fill: white;
       pointer-events: none;
       user-select: none;
+      font-weight: bold;
     }
-    .node[data-type="workflow"] circle {
-      fill: #6f42c1;
+    
+    /* Node type styling */
+    .node[data-type="start"] rect {
+      fill: #9c59f0;
     }
-    .node[data-type="agent"] circle {
-      fill: #28a745;
+    .node[data-type="end"] rect {
+      fill: #9c59f0;
     }
-    .node[data-type="process"] circle {
-      fill: #007bff;
+    .node[data-type="agent"] rect {
+      fill: #ff7675;
     }
-    .node[data-status="error"] circle {
-      fill: #dc3545;
+    .node[data-type="process"] rect {
+      fill: #0984e3;
     }
+    .node[data-type="orchestrator"] rect {
+      fill: #00b894;
+    }
+    .node[data-type="intent"] rect {
+      fill: #fd79a8;
+    }
+    .node[data-type="retrieval"] rect {
+      fill: #00cec9;
+    }
+    .node[data-type="transform"] rect {
+      fill: #6c5ce7;
+    }
+    .node[data-status="error"] rect {
+      fill: #d63031;
+    }
+    
+    /* Edge styling */
     .link {
       fill: none;
-      stroke: #999;
-      stroke-opacity: 0.6;
-      stroke-width: 1.5px;
+      stroke: #55efc4;
+      stroke-opacity: 0.8;
+      stroke-width: 2px;
+      marker-end: url(#arrowhead);
     }
-    #tooltip {
+    
+    /* Tooltip styling */
+    .tooltip {
       position: absolute;
-      background-color: white;
-      border: 1px solid #ccc;
+      background-color: rgba(255, 255, 255, 0.95);
+      border: 1px solid #ddd;
       border-radius: 4px;
-      padding: 10px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      padding: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
       pointer-events: none;
-      display: none;
+      font-size: 12px;
       max-width: 300px;
+      transition: opacity 0.2s;
+      opacity: 0;
       z-index: 1000;
     }
-    #tooltip pre {
-      max-height: 200px;
-      overflow: auto;
-      margin: 5px 0;
-      background-color: #f6f8fa;
-      padding: 5px;
-      border-radius: 3px;
+    .tooltip h4 {
+      margin: 0 0 5px 0;
+      font-size: 14px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 3px;
     }
+    .tooltip p {
+      margin: 3px 0;
+    }
+    .tooltip .label {
+      font-weight: bold;
+      margin-right: 5px;
+    }
+    .tooltip .value {
+      word-break: break-word;
+    }
+    
+    /* Connection status */
     #connection-status {
       position: fixed;
       bottom: 10px;
@@ -183,6 +225,7 @@ export function generateGraphHtml(
       background-color: #dc3545;
       color: white;
     }
+    
     @media (min-width: 768px) {
       .content {
         flex-direction: row;
@@ -206,7 +249,6 @@ export function generateGraphHtml(
     <div class="content">
       <div class="graph-container">
         <div id="graph"></div>
-        <div id="tooltip"></div>
       </div>
       <div class="details-container">
         <div class="status">
@@ -248,486 +290,490 @@ export function generateGraphHtml(
     }
     
     // Render state details
-    function renderDetails(state) {
+    function renderDetails(data) {
       const container = document.getElementById('details');
-      let html = '<table>';
+      container.innerHTML = '';
       
-      // Add key state properties
-      html += '<tr><th>Run ID:</th><td>' + (state.runId || 'N/A') + '</td></tr>';
-      html += '<tr><th>Start Time:</th><td>' + formatTime(state.startTime) + '</td></tr>';
-      html += '<tr><th>Duration:</th><td>' + formatDurationStr(getDuration(state)) + '</td></tr>';
+      const entries = [];
       
-      if (state.meetingId) {
-        html += '<tr><th>Meeting ID:</th><td>' + state.meetingId + '</td></tr>';
+      if (data.runId) {
+        entries.push({ label: 'Run ID', value: data.runId });
       }
       
-      if (state.chunks) {
-        html += '<tr><th>Chunks:</th><td>' + state.chunks.length + '</td></tr>';
-        html += '<tr><th>Current Chunk:</th><td>' + (state.currentChunkIndex + 1) + ' / ' + state.chunks.length + '</td></tr>';
+      if (data.agentId) {
+        entries.push({ label: 'Agent', value: data.agentId });
       }
       
-      html += '</table>';
-      container.innerHTML = html;
+      if (data.capability) {
+        entries.push({ label: 'Capability', value: data.capability });
+      }
       
-      // Render metrics
-      renderMetrics(state);
+      if (data.metadata && data.metadata.currentNode) {
+        entries.push({ label: 'Current Node', value: data.metadata.currentNode });
+      }
+      
+      if (data.startTime) {
+        const startDate = new Date(data.startTime);
+        entries.push({ 
+          label: 'Start Time', 
+          value: startDate.toLocaleString() 
+        });
+      }
+      
+      if (data.endTime) {
+        const endDate = new Date(data.endTime);
+        entries.push({ 
+          label: 'End Time', 
+          value: endDate.toLocaleString() 
+        });
+        
+        if (data.startTime) {
+          const duration = Math.round((data.endTime - data.startTime) / 1000);
+          entries.push({ 
+            label: 'Duration', 
+            value: duration + ' seconds' 
+          });
+        }
+      }
+      
+      const table = document.createElement('table');
+      entries.forEach(entry => {
+        const row = document.createElement('tr');
+        
+        const labelCell = document.createElement('th');
+        labelCell.textContent = entry.label;
+        row.appendChild(labelCell);
+        
+        const valueCell = document.createElement('td');
+        valueCell.textContent = entry.value;
+        row.appendChild(valueCell);
+        
+        table.appendChild(row);
+      });
+      
+      container.appendChild(table);
     }
     
     // Render metrics
-    function renderMetrics(state) {
-      if (!state.metrics) return;
+    function renderMetrics(metrics) {
+      if (!metrics) return;
       
       const container = document.getElementById('metrics');
-      let html = '<h3>Metrics</h3><table>';
+      container.innerHTML = '<h3>Metrics</h3>';
       
-      if (state.metrics.executionTimeMs) {
-        html += '<tr><th>Execution Time:</th><td>' + formatDurationStr(state.metrics.executionTimeMs) + '</td></tr>';
-      }
+      const table = document.createElement('table');
       
-      if (state.metrics.tokensUsed) {
-        html += '<tr><th>Tokens Used:</th><td>' + state.metrics.tokensUsed.toLocaleString() + '</td></tr>';
-      }
-      
-      html += '</table>';
-      container.innerHTML = html;
-    }
-    
-    // Format timestamp
-    function formatTime(timestamp) {
-      if (!timestamp) return 'N/A';
-      return new Date(timestamp).toLocaleString();
-    }
-    
-    // Get duration from state
-    function getDuration(state) {
-      if (!state.startTime) return 0;
-      const endTime = state.endTime || Date.now();
-      return endTime - state.startTime;
-    }
-    
-    // Format duration string
-    function formatDurationStr(ms) {
-      if (!ms) return 'N/A';
-      
-      if (ms < 1000) {
-        return ms + 'ms';
-      } else if (ms < 60000) {
-        return (ms / 1000).toFixed(2) + 's';
-      } else {
-        const minutes = Math.floor(ms / 60000);
-        const seconds = ((ms % 60000) / 1000).toFixed(0);
-        return minutes + 'm ' + seconds + 's';
-      }
-    }
-    
-    // WebSocket connection for real-time updates
-    let wsConnection = null;
-    
-    // Function to initialize WebSocket connection for real-time updates
-    function initializeWebSocket() {
-      // WebSocket initialization logic
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = \`\${protocol}//\${window.location.host}/visualization/\${stateData.runId}\`;
-      
-      try {
-        wsConnection = new WebSocket(wsUrl);
+      Object.entries(metrics).forEach(([key, value]) => {
+        const row = document.createElement('tr');
         
-        wsConnection.onopen = () => {
-          console.log('WebSocket connection established');
-          updateConnectionStatus('connected');
-        };
+        const labelCell = document.createElement('th');
+        labelCell.textContent = key
+          .replace(/([A-Z])/g, ' $1')
+          .replace(/^./, str => str.toUpperCase());
+        row.appendChild(labelCell);
         
-        wsConnection.onmessage = (event) => {
-          try {
-            const updateData = JSON.parse(event.data);
-            if (updateData && updateData.runId === stateData.runId) {
-              // Update relevant parts of the state
-              Object.assign(stateData, updateData);
-              // Refresh the graph
-              createGraph();
-              // Update status and details
-              updateStatus(stateData.status);
-              renderDetails(stateData);
-            }
-          } catch (error) {
-            console.error('Error processing WebSocket message:', error);
-          }
-        };
+        const valueCell = document.createElement('td');
+        valueCell.textContent = value;
+        row.appendChild(valueCell);
         
-        wsConnection.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          updateConnectionStatus('disconnected');
-        };
-        
-        wsConnection.onclose = () => {
-          console.log('WebSocket connection closed');
-          updateConnectionStatus('disconnected');
-        };
-      } catch (e) {
-        console.error('Failed to initialize WebSocket:', e);
-        updateConnectionStatus('disconnected');
-      }
+        table.appendChild(row);
+      });
+      
+      container.appendChild(table);
     }
     
-    // Create the graph visualization
-    function createGraph() {
-      // Clear any existing SVG
-      d3.select('#graph').selectAll('svg').remove();
+    // Render the graph
+    function renderGraph(data) {
+      const width = document.getElementById('graph').offsetWidth;
+      const height = document.getElementById('graph').offsetHeight;
       
-      const container = document.getElementById('graph');
-      const width = container.clientWidth;
-      const height = container.clientHeight;
-      
+      // Create SVG
       const svg = d3.select('#graph')
         .append('svg')
         .attr('width', width)
-        .attr('height', height);
+        .attr('height', height)
+        .append('g')
+        .attr('transform', 'translate(50,50)');
+        
+      // Define arrow marker
+      svg.append('defs')
+        .append('marker')
+        .attr('id', 'arrowhead')
+        .attr('viewBox', '0 -5 10 10')
+        .attr('refX', 20)
+        .attr('refY', 0)
+        .attr('orient', 'auto')
+        .attr('markerWidth', 8)
+        .attr('markerHeight', 8)
+        .attr('xoverflow', 'visible')
+        .append('path')
+        .attr('d', 'M 0,-5 L 10,0 L 0,5')
+        .attr('fill', '#55efc4')
+        .attr('stroke', 'none');
+        
+      // Generate graph data
+      const graphData = generateGraphData(data);
       
-      // Create a group for the graph
-      const g = svg.append('g');
+      // Create hierarchical layout
+      const treeLayout = d3.tree()
+        .size([width - 100, height - 100])
+        .nodeSize([120, 100])
+        .separation((a, b) => a.parent === b.parent ? 1.5 : 2);
+        
+      // Apply layout to data
+      const root = d3.hierarchy(graphData.root);
+      treeLayout(root);
       
-      // Add zoom behavior
-      const zoom = d3.zoom()
-        .scaleExtent([0.3, 5])
-        .on('zoom', (event) => {
-          g.attr('transform', event.transform);
-        });
-      
-      svg.call(zoom);
-      
-      // Center the graph initially
-      svg.call(zoom.transform, d3.zoomIdentity.translate(width / 2, height / 2).scale(0.8));
-      
-      // Generate graph elements from the state data
-      const graphElements = generateGraphElements(stateData);
-      
-      // Create a force simulation
-      const simulation = d3.forceSimulation(graphElements.nodes)
-        .force('link', d3.forceLink(graphElements.links).id(d => d.id).distance(120))
-        .force('charge', d3.forceManyBody().strength(-800))
-        .force('x', d3.forceX(0))
-        .force('y', d3.forceY(0))
-        .on('tick', ticked);
-      
-      // Add links
-      const link = g.append('g')
-        .attr('class', 'links')
-        .selectAll('path')
-        .data(graphElements.links)
+      // Create tooltip
+      const tooltip = d3.select('body')
+        .append('div')
+        .attr('class', 'tooltip');
+        
+      // Create links
+      const link = svg.selectAll('.link')
+        .data(root.links())
         .enter()
         .append('path')
         .attr('class', 'link')
-        .attr('marker-end', 'url(#arrowhead)');
-      
-      // Define arrow marker
-      svg.append('defs').append('marker')
-        .attr('id', 'arrowhead')
-        .attr('viewBox', '0 -5 10 10')
-        .attr('refX', 22)
-        .attr('refY', 0)
-        .attr('markerWidth', 6)
-        .attr('markerHeight', 6)
-        .attr('orient', 'auto')
-        .append('path')
-        .attr('d', 'M0,-5L10,0L0,5');
-      
-      // Add nodes
-      const node = g.append('g')
-        .attr('class', 'nodes')
-        .selectAll('g')
-        .data(graphElements.nodes)
+        .attr('d', d3.linkVertical()
+          .x(d => d.x)
+          .y(d => d.y));
+          
+      // Create nodes
+      const node = svg.selectAll('.node')
+        .data(root.descendants())
         .enter()
         .append('g')
         .attr('class', 'node')
-        .attr('data-type', d => d.type || 'default')
-        .attr('data-status', d => d.status || 'normal')
-        .call(d3.drag()
-          .on('start', dragstarted)
-          .on('drag', dragged)
-          .on('end', dragended));
-      
-      // Add node circles
-      node.append('circle')
-        .attr('r', d => getNodeRadius(d))
-        .on('mouseover', showTooltip)
-        .on('mousemove', moveTooltip)
-        .on('mouseout', hideTooltip);
-      
-      // Add node labels
+        .attr('transform', d => \`translate(\${d.x},\${d.y})\`)
+        .attr('data-type', d => d.data.type)
+        .attr('data-status', d => d.data.status)
+        .on('mouseover', function(event, d) {
+          // Show tooltip with enhanced info
+          const nodeData = d.data;
+          const tooltipContent = \`
+            <h4>\${nodeData.label}</h4>
+            <p><span class="label">Type:</span> <span class="value">\${nodeData.type}</span></p>
+            \${nodeData.status ? \`<p><span class="label">Status:</span> <span class="value">\${nodeData.status}</span></p>\` : ''}
+            \${nodeData.description ? \`<p><span class="label">Description:</span> <span class="value">\${nodeData.description}</span></p>\` : ''}
+            \${nodeData.agentId ? \`<p><span class="label">Agent:</span> <span class="value">\${nodeData.agentId}</span></p>\` : ''}
+            \${nodeData.capability ? \`<p><span class="label">Capability:</span> <span class="value">\${nodeData.capability}</span></p>\` : ''}
+            \${nodeData.executionTime ? \`<p><span class="label">Execution Time:</span> <span class="value">\${nodeData.executionTime}ms</span></p>\` : ''}
+          \`;
+          
+          tooltip.html(tooltipContent)
+            .style('left', (event.pageX + 10) + 'px')
+            .style('top', (event.pageY - 28) + 'px')
+            .style('opacity', 1);
+            
+          // Highlight node
+          d3.select(this).select('rect')
+            .style('stroke', '#ffd166')
+            .style('stroke-width', '3px');
+        })
+        .on('mouseout', function() {
+          // Hide tooltip
+          tooltip.style('opacity', 0);
+          
+          // Reset highlight
+          d3.select(this).select('rect')
+            .style('stroke', '#fff')
+            .style('stroke-width', '2px');
+        });
+        
+      // Add rectangles to nodes
+      node.append('rect')
+        .attr('width', 100)
+        .attr('height', 40)
+        .attr('x', -50)
+        .attr('y', -20);
+        
+      // Add text to nodes
       node.append('text')
-        .text(d => d.label)
-        .attr('dy', 4)
-        .style('font-size', d => {
-          // Adjust font size based on node type
-          if (d.type === 'workflow') return '16px';
-          if (d.type === 'supervisor') return '14px';
-          return '13px';
-        });
-      
-      // Function to determine node radius based on type
-      function getNodeRadius(d) {
-        switch(d.type) {
-          case 'workflow': return 45;
-          case 'supervisor': return 40;
-          case 'specialized-agent': return 35;
-          case 'input-data': return 30;
-          case 'process': return 30;
-          case 'intermediate-result': return 30;
-          case 'final-result': return 35;
-          default: return 25;
-        }
-      }
-      
-      // Tooltip functions
-      function showTooltip(event, d) {
-        const tooltip = d3.select('#tooltip');
+        .attr('dy', '0.35em')
+        .text(d => d.data.label);
         
-        let content = '<strong>' + d.label + '</strong>';
-        if (d.description) {
-          content += '<br/>' + d.description;
-        }
-        if (d.status) {
-          content += '<br/><strong>Status:</strong> ' + d.status;
-        }
-        if (d.data) {
-          content += '<br/><pre>' + JSON.stringify(d.data, null, 2) + '</pre>';
-        }
-        
-        tooltip.html(content)
-          .style('display', 'block')
-          .style('left', (event.pageX + 10) + 'px')
-          .style('top', (event.pageY + 10) + 'px');
-      }
+      // Center the graph
+      const rootNode = root.descendants()[0];
+      svg.attr('transform', \`translate(\${width / 2 - rootNode.x},\${100})\`);
       
-      function moveTooltip(event) {
-        d3.select('#tooltip')
-          .style('left', (event.pageX + 10) + 'px')
-          .style('top', (event.pageY + 10) + 'px');
-      }
-      
-      function hideTooltip() {
-        d3.select('#tooltip').style('display', 'none');
-      }
-      
-      // Simulation functions
-      function ticked() {
-        link.attr('d', d => {
-          const dx = d.target.x - d.source.x;
-          const dy = d.target.y - d.source.y;
-          const dr = Math.sqrt(dx * dx + dy * dy);
-          
-          // Calculate the total radius (source radius + target radius)
-          const sourceRadius = getNodeRadius(d.source);
-          const targetRadius = getNodeRadius(d.target);
-          
-          // Calculate the start and end points adjusted by the node radii
-          const offsetX = dx * sourceRadius / dr;
-          const offsetY = dy * sourceRadius / dr;
-          const startX = d.source.x + offsetX;
-          const startY = d.source.y + offsetY;
-          
-          // Shorter path to target to account for arrow
-          const endOffsetX = dx * (targetRadius + 5) / dr;
-          const endOffsetY = dy * (targetRadius + 5) / dr;
-          const endX = d.target.x - endOffsetX;
-          const endY = d.target.y - endOffsetY;
-          
-          return 'M' + startX + ',' + startY + 'L' + endX + ',' + endY;
+      // Add zoom behavior
+      const zoom = d3.zoom()
+        .scaleExtent([0.5, 3])
+        .on('zoom', event => {
+          svg.attr('transform', event.transform);
         });
         
-        node.attr('transform', d => 'translate(' + d.x + ',' + d.y + ')');
-      }
-      
-      function dragstarted(event, d) {
-        if (!event.active) simulation.alphaTarget(0.3).restart();
-        d.fx = d.x;
-        d.fy = d.y;
-      }
-      
-      function dragged(event, d) {
-        d.fx = event.x;
-        d.fy = event.y;
-      }
-      
-      function dragended(event, d) {
-        if (!event.active) simulation.alphaTarget(0);
-        d.fx = null;
-        d.fy = null;
-      }
+      d3.select('#graph > svg').call(zoom);
     }
     
-    // Generate graph elements from the state data
-    function generateGraphElements(state) {
-      const nodes = [];
-      const links = [];
+    // Generate structured graph data from state
+    function generateGraphData(state) {
+      // Create the root node of the graph (workflow start)
+      const root = {
+        id: 'start',
+        label: '▶ Start',
+        type: 'start',
+        status: 'completed',
+        children: []
+      };
       
-      // Add workflow node
-      nodes.push({
-        id: 'workflow',
-        label: 'Workflow',
-        type: 'workflow',
-        status: state.status,
-        data: { type: 'workflow', runId: state.runId, status: state.status }
-      });
-      
-      // Add master orchestrator/supervisor node
-      nodes.push({
-        id: 'orchestrator',
+      // Create master orchestrator node
+      const orchestratorNode = {
+        id: 'master_orchestrator',
         label: 'Master Orchestrator',
-        type: 'agent',
-        data: { type: 'supervisor', phase: state.currentPhase || 'orchestration' }
-      });
+        type: 'orchestrator',
+        description: 'Coordinates the overall workflow execution',
+        status: state.status === 'ERROR' ? 'error' : 'completed',
+        children: []
+      };
+      root.children.push(orchestratorNode);
       
-      // Link workflow to orchestrator
-      links.push({
-        source: 'workflow',
-        target: 'orchestrator',
-        active: true
-      });
+      // First create intent detection node
+      const intentNode = {
+        id: 'detect_intent',
+        label: 'Detect Intent',
+        type: 'intent',
+        description: 'Identifies meeting analysis intent',
+        status: 'completed',
+        children: []
+      };
+      orchestratorNode.children.push(intentNode);
       
-      // Add meeting analysis agent node
-      nodes.push({
-        id: 'meeting-analysis',
+      // Create the agent selection node
+      const agentSelectionNode = {
+        id: 'agent_selection',
         label: 'Meeting Analysis Agent',
         type: 'agent',
-        data: { type: 'specialized-agent', specialty: 'meeting analysis' }
-      });
+        description: 'Specialized agent for analyzing meeting transcripts',
+        status: 'completed',
+        children: []
+      };
+      intentNode.children.push(agentSelectionNode);
       
-      // Link orchestrator to meeting analysis agent
-      links.push({
-        source: 'orchestrator',
-        target: 'meeting-analysis',
-        active: true
-      });
-      
-      // Add data flow nodes
-      nodes.push({
-        id: 'input-data',
-        label: 'Meeting Transcript',
+      // Create chunk splitting node
+      const splitNode = {
+        id: 'split_transcript',
+        label: 'Split Transcript',
         type: 'process',
-        status: 'active',
-        data: { type: 'input-data' }
-      });
+        description: 'Divides transcript into manageable chunks',
+        status: 'completed',
+        children: []
+      };
+      agentSelectionNode.children.push(splitNode);
       
-      // Link input data to workflow
-      links.push({
-        source: 'input-data',
-        target: 'workflow',
-        active: true
-      });
+      // Create processing pipeline for chunks
+      const processingNode = {
+        id: 'process_chunks',
+        label: 'Process Chunks',
+        type: 'process',
+        description: 'Processes each transcript chunk sequentially',
+        status: state.currentChunkIndex >= state.chunks?.length ? 'completed' : 'executing',
+        children: []
+      };
+      splitNode.children.push(processingNode);
       
-      // Add analysis tasks based on meeting chunks
-      if (state.chunks && state.chunks.length > 0) {
-        // Represent chunk processing
-        nodes.push({
-          id: 'chunk-processing',
-          label: 'Transcript Chunks',
+      // Create retrievalNode for RAG
+      const retrievalNode = {
+        id: 'retrieval',
+        label: 'Retrieve',
+        type: 'retrieval',
+        description: 'Fetches relevant context for analysis',
+        status: 'completed',
+        children: []
+      };
+      processingNode.children.push(retrievalNode);
+      
+      // Create transform node
+      const transformNode = {
+        id: 'transform',
+        label: 'Transform Docs',
+        type: 'transform',
+        description: 'Prepares data for LLM processing',
+        status: 'completed',
+        children: []
+      };
+      retrievalNode.children.push(transformNode);
+      
+      // Create LLM analysis node
+      const llmNode = {
+        id: 'llm_analysis',
+        label: 'LLM Answer',
+        type: 'agent',
+        description: 'Generates partial analysis using language model',
+        status: 'completed',
+        children: []
+      };
+      transformNode.children.push(llmNode);
+      
+      // Create chunk combining node
+      const combineNode = {
+        id: 'combine_analyses',
+        label: 'Combine Analyses',
+        type: 'transform',
+        description: 'Merges partial analyses from all chunks',
+        status: state.partialAnalyses?.length === state.chunks?.length ? 'completed' : 'ready',
+        children: []
+      };
+      llmNode.children.push(combineNode);
+      
+      // Create final analysis node
+      const finalAnalysisNode = {
+        id: 'final_analysis',
+        label: 'Final Analysis',
+        type: 'process',
+        description: 'Generates comprehensive meeting analysis',
+        status: state.analysisResult ? 'completed' : 'ready',
+        children: []
+      };
+      combineNode.children.push(finalAnalysisNode);
+      
+      // Create results node with branches for different analysis components
+      const resultsNode = {
+        id: 'format_results',
+        label: 'Format Results',
+        type: 'transform',
+        description: 'Prepares analysis for presentation',
+        status: state.analysisResult ? 'completed' : 'ready',
+        children: []
+      };
+      finalAnalysisNode.children.push(resultsNode);
+      
+      // Add specific result component nodes
+      const resultComponents = [
+        {
+          id: 'summary',
+          label: 'Summary',
           type: 'process',
-          status: state.currentChunkIndex < state.chunks.length ? 'active' : 'complete',
-          data: { 
-            type: 'process', 
-            currentChunk: state.currentChunkIndex, 
-            totalChunks: state.chunks.length 
-          }
-        });
-        
-        // Link orchestrator to chunk processing
-        links.push({
-          source: 'orchestrator',
-          target: 'chunk-processing',
-          active: true
-        });
-        
-        // Link chunk processing to meeting analysis agent
-        links.push({
-          source: 'chunk-processing',
-          target: 'meeting-analysis',
-          active: true
-        });
-      }
-      
-      // Add response node if we have partial analyses
-      if (state.partialAnalyses && state.partialAnalyses.length > 0) {
-        nodes.push({
-          id: 'partial-analyses',
-          label: 'Partial Analyses',
+          description: 'Meeting summary and key points',
+          status: state.status === 'COMPLETED' ? 'completed' : 'ready'
+        },
+        {
+          id: 'action_items',
+          label: 'Action Items',
+          type: 'process', 
+          description: 'Tasks and follow-ups from meeting',
+          status: state.status === 'COMPLETED' ? 'completed' : 'ready'
+        },
+        {
+          id: 'topics',
+          label: 'Topics',
           type: 'process',
-          status: state.analysisResult ? 'complete' : 'active',
-          data: { 
-            type: 'intermediate-result', 
-            count: state.partialAnalyses.length 
-          }
-        });
-        
-        // Link meeting analysis agent to partial analyses
-        links.push({
-          source: 'meeting-analysis',
-          target: 'partial-analyses',
-          active: true
-        });
-      }
-      
-      // Add final result node if available
-      if (state.analysisResult) {
-        nodes.push({
-          id: 'final-result',
-          label: 'Final Analysis',
-          type: 'process',
-          status: 'complete',
-          data: { type: 'final-result' }
-        });
-        
-        // Link partial analyses to final result
-        if (state.partialAnalyses && state.partialAnalyses.length > 0) {
-          links.push({
-            source: 'partial-analyses',
-            target: 'final-result',
-            active: true
-          });
-        } else {
-          // Direct link from meeting analysis agent if no partial analyses
-          links.push({
-            source: 'meeting-analysis',
-            target: 'final-result',
-            active: true
-          });
+          description: 'Main discussion topics from meeting',
+          status: state.status === 'COMPLETED' ? 'completed' : 'ready'
         }
+      ];
+      
+      // Add each result component as a child of the results node
+      resultComponents.forEach(component => {
+        component.children = [];
+        resultsNode.children.push(component);
+      });
+      
+      // Add end node
+      const endNode = {
+        id: 'end',
+        label: '◼ End',
+        type: 'end',
+        status: state.status === 'COMPLETED' ? 'completed' : 'ready'
+      };
+      
+      // Connect all result components to the end node
+      resultComponents.forEach(component => {
+        component.children = [endNode];
+      });
+      
+      // Add error node if there are errors
+      if (state.status === 'ERROR' || (state.errors && state.errors.length > 0)) {
+        const errorNode = {
+          id: 'error',
+          label: 'Error',
+          type: 'error',
+          status: 'error',
+          description: state.errors && state.errors.length > 0 ? 
+            state.errors[state.errors.length - 1].message : 'An error occurred',
+          children: [endNode]
+        };
         
-        // Link back to orchestrator
-        links.push({
-          source: 'final-result',
-          target: 'orchestrator',
-          active: true
-        });
+        // Add error node as a child of the appropriate node based on where the error occurred
+        if (state.metadata && state.metadata.currentNode) {
+          const currentNode = state.metadata.currentNode;
+          if (currentNode === 'process_chunk') {
+            processingNode.children = [errorNode];
+          } else if (currentNode === 'generate_final_analysis') {
+            combineNode.children = [errorNode];
+          } else {
+            orchestratorNode.children.push(errorNode);
+          }
+        } else {
+          orchestratorNode.children.push(errorNode);
+        }
       }
       
-      return { nodes, links };
+      return { root };
     }
     
-    // Initialize the page
-    function initialize() {
-      createGraph();
-      initializeWebSocket();
+    // Initialize the visualization
+    function init() {
+      // Render the initial graph
+      renderGraph(stateData);
       
-      // Update status and details initially
+      // Update status and details
       updateStatus(stateData.status);
       renderDetails(stateData);
+      renderMetrics(stateData.metrics);
       
-      // Check if visualization is still in progress and enable auto-refresh
-      if (stateData.status === 'executing' || stateData.status === 'ready') {
-        // Only use auto-refresh as fallback if WebSocket isn't working
-        setTimeout(() => {
-          if (wsConnection?.readyState !== 1) { // Not OPEN
-            console.log('WebSocket not connected, falling back to page refresh');
-            window.location.reload();
-          }
-        }, 5000);
-      }
+      // Attempt to connect to real-time updates
+      connectToWebSocket();
     }
     
-    // Call initialize when the page loads
-    initialize();
+    // Connect to WebSocket for real-time updates
+    function connectToWebSocket() {
+      if (!stateData.runId) return;
+      
+      updateConnectionStatus('connecting');
+      
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.host;
+      const ws = new WebSocket(\`\${protocol}//\${host}/ws/visualization/\${stateData.runId}\`);
+      
+      ws.onopen = function() {
+        updateConnectionStatus('connected');
+      };
+      
+      ws.onmessage = function(event) {
+        try {
+          const data = JSON.parse(event.data);
+          
+          // Update the visualization with new data
+          updateStatus(data.status);
+          renderDetails(data);
+          renderMetrics(data.metrics);
+          
+          // Update node status in the graph
+          if (data.metadata && data.metadata.currentNode) {
+            // You could implement graph updates here
+          }
+        } catch (error) {
+          console.error('Error processing WebSocket message:', error);
+        }
+      };
+      
+      ws.onclose = function() {
+        updateConnectionStatus('disconnected');
+        setTimeout(connectToWebSocket, 5000); // Retry connection after 5 seconds
+      };
+      
+      ws.onerror = function() {
+        updateConnectionStatus('disconnected');
+      };
+    }
+    
+    // Start the visualization
+    init();
   </script>
 </body>
 </html>`;
+
+  return htmlTemplate;
 }
