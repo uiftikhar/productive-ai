@@ -11,7 +11,7 @@ import { Logger } from '../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { PineconeConnectionService } from '../../pinecone/pinecone-connection.service';
 import { UserContextFacade } from '../../shared/services/user-context/user-context.facade';
-import { SupervisorAgent } from '../../agents/specialized/supervisor-agent';
+import { SupervisorAgent } from '../../agents/specialized/facilitator-supervisor-agent';
 import { SupervisorWorkflow } from '../core/workflows/supervisor-workflow';
 import { AgentRequest } from '../../agents/interfaces/base-agent.interface';
 import { v4 as uuidv4 } from 'uuid';

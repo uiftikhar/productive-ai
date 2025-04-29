@@ -24,7 +24,7 @@ import { DecisionTrackingAgent } from '../specialized/decision-tracking-agent';
 import {
   SupervisorAgent,
   SupervisorAgentConfig,
-} from '../specialized/supervisor-agent';
+} from '../specialized/facilitator-supervisor-agent';
 import { IEmbeddingService } from '../../shared/services/embedding.interface';
 import { EmbeddingServiceFactory } from '../../shared/services/embedding.factory';
 import { OpenAIConnector } from '../integrations/openai-connector';

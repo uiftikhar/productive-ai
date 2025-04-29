@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { SupervisorAgent, TeamMember, Task } from '../supervisor-agent';
+import { SupervisorAgent, TeamMember, Task } from '../facilitator-supervisor-agent';
 import { mock } from 'jest-mock-extended';
 import {
   AgentCapability,

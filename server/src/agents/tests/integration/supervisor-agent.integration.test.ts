@@ -6,7 +6,7 @@ import {
   expect,
   jest,
 } from '@jest/globals';
-import { SupervisorAgent } from '../../specialized/supervisor-agent';
+import { SupervisorAgent } from '../../specialized/facilitator-supervisor-agent';
 import { BaseAgent } from '../../base/base-agent';
 import { KnowledgeRetrievalAgent } from '../../specialized/knowledge-retrieval-agent';
 import { DecisionTrackingAgent } from '../../specialized/decision-tracking-agent';

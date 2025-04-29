@@ -7,7 +7,7 @@ import {
   jest,
 } from '@jest/globals';
 import { v4 as uuidv4 } from 'uuid';
-import { SupervisorAgent } from '../../agents/specialized/supervisor-agent';
+import { SupervisorAgent } from '../../agents/specialized/facilitator-supervisor-agent';
 import { SupervisorWorkflow } from '../core/workflows/supervisor-workflow';
 import { SupervisorAdapter } from '../core/adapters/supervisor-adapter';
 import { BaseAgent } from '../../agents/base/base-agent';

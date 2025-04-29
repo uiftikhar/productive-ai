@@ -42,7 +42,7 @@ import { AgentCapabilities } from '../../types/agent-capabilities.enum';
 import {
   SupervisorAgent,
   SupervisorAgentConfig,
-} from '../../../agents/specialized/supervisor-agent';
+} from '../../../agents/specialized/facilitator-supervisor-agent';
 import { WorkflowStatus } from './base-workflow';
 
 /**

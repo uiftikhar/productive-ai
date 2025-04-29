@@ -1,587 +1,393 @@
 /**
  * Team Assembly Service
  * 
- * Creates dynamic teams based on task requirements, capability matching,
- * and agent performance history
+ * Implements capability-aware team formation for collaborative task execution
+ * Part of the Supervisor Transformation in Milestone 2
  */
 
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
-import { BaseAgentInterface } from '../interfaces/base-agent.interface';
+import { BaseAgentInterface, AgentCapability } from '../interfaces/base-agent.interface';
 import { AgentRegistryService } from './agent-registry.service';
-import { AgentDiscoveryService } from './agent-discovery.service';
-import { TaskPlanningService, PlannedTask } from './task-planning.service';
+import { 
+  TeamFormationResult, 
+  CapabilityComposition 
+} from '../interfaces/collaboration.interface';
 
-/**
- * Team structure
- */
-export interface Team {
-  id: string;
-  name: string;
-  description: string;
-  members: TeamMember[];
-  taskId?: string;
-  formationStrategy: string;
-  formationTimestamp: number;
-  metadata?: Record<string, any>;
-}
-
-/**
- * Team member structure
- */
-export interface TeamMember {
-  agentId: string;
-  agentName: string;
-  role: string;
-  capabilities: string[];
-  compatibilityScore: number; // 0-1 score of how well agent fits requirements
-  performanceHistory?: {
-    successRate: number;
-    taskCount: number;
-    averageCompletionTime: number;
-  };
-  metadata?: Record<string, any>;
-}
-
-/**
- * Team formation options
- */
-export interface TeamFormationOptions {
-  taskId?: string;
-  taskDescription?: string;
-  requiredCapabilities?: string[];
-  preferredAgentIds?: string[];
-  excludedAgentIds?: string[];
+export interface TeamAssemblyOptions {
   teamSize?: number;
+  strategy?: 'specialist' | 'generalist' | 'balanced';
   prioritizePerformance?: boolean;
-  considerCompatibility?: boolean;
-  diversityWeight?: number; // 0-1 weight for encouraging diverse capabilities
-  strategy?: 'specialist' | 'generalist' | 'balanced' | 'performance';
-  metadata?: Record<string, any>;
+  diversityWeight?: number;
+  requiredRoles?: string[];
+  taskComplexity?: number;
 }
 
 /**
- * Configuration for the TeamAssemblyService
- */
-export interface TeamAssemblyConfig {
-  logger?: Logger;
-  agentRegistry?: AgentRegistryService;
-  agentDiscovery?: AgentDiscoveryService;
-  taskPlanningService?: TaskPlanningService;
-}
-
-/**
- * Service for assembling teams of agents based on task requirements
- * @deprecated Will be replaced by agentic self-organizing behavior
+ * TeamAssemblyService - Responsible for forming effective teams based on capability composition
  */
 export class TeamAssemblyService {
   private static instance: TeamAssemblyService;
   private logger: Logger;
   private agentRegistry: AgentRegistryService;
-  private agentDiscovery: AgentDiscoveryService;
-  private taskPlanningService: TaskPlanningService;
-  
-  // Store created teams
-  private teams: Map<string, Team> = new Map();
-  
-  // Performance history cache
-  private agentPerformance: Map<string, {
+  private agentPerformanceCache: Map<string, {
     successRate: number;
-    taskCount: number;
-    averageCompletionTime: number;
-    lastUpdated: number;
+    averageExecutionTime: number;
+    completedTasks: number;
+    lastEvaluatedAt: number;
   }> = new Map();
 
-  /**
-   * Private constructor for singleton pattern
-   */
-  private constructor(config: TeamAssemblyConfig = {}) {
-    this.logger = config.logger || new ConsoleLogger();
+  private constructor(
+    options: {
+      logger?: Logger;
+      agentRegistry?: AgentRegistryService;
+    } = {}
+  ) {
+    this.logger = options.logger || new ConsoleLogger();
+    this.agentRegistry = options.agentRegistry || AgentRegistryService.getInstance();
     
-    this.agentRegistry = config.agentRegistry || AgentRegistryService.getInstance();
-    this.agentDiscovery = config.agentDiscovery || AgentDiscoveryService.getInstance();
-    this.taskPlanningService = config.taskPlanningService || TaskPlanningService.getInstance();
-    
-    this.logger.info('Initialized TeamAssemblyService');
+    this.logger.info('TeamAssemblyService initialized');
   }
 
   /**
    * Get the singleton instance
    */
   public static getInstance(
-    config: TeamAssemblyConfig = {},
+    options: {
+      logger?: Logger;
+      agentRegistry?: AgentRegistryService;
+    } = {}
   ): TeamAssemblyService {
     if (!TeamAssemblyService.instance) {
-      TeamAssemblyService.instance = new TeamAssemblyService(config);
+      TeamAssemblyService.instance = new TeamAssemblyService(options);
     }
     return TeamAssemblyService.instance;
   }
 
   /**
-   * Form a team based on task requirements
+   * Form a team for a specific task based on capability requirements
    */
-  async formTeam(options: TeamFormationOptions = {}): Promise<Team> {
-    this.logger.info('Forming team', options);
-    
-    // Determine the formation strategy
-    const strategy = options.strategy || 'balanced';
-    
-    let task: PlannedTask | undefined;
-    if (options.taskId) {
-      // Find the task details if taskId is provided
-      const allTaskPlans = this.taskPlanningService.listTaskPlans();
-      for (const plan of allTaskPlans) {
-        task = plan.tasks.find(t => t.id === options.taskId);
-        if (task) break;
-      }
-    }
-    
-    // Get required capabilities
-    let requiredCapabilities: string[] = options.requiredCapabilities || [];
-    if (task && task.requiredCapabilities) {
-      requiredCapabilities = [...requiredCapabilities, ...task.requiredCapabilities];
-    }
-    
-    // Get task description
-    const taskDescription = options.taskDescription || (task ? task.description : '');
-    
-    // Find candidate agents
-    let candidateAgents: BaseAgentInterface[] = [];
-    
-    if (requiredCapabilities.length > 0) {
-      // Use capability-based agent selection
-      candidateAgents = await this.findAgentsByCapabilities(requiredCapabilities);
-    } else if (taskDescription) {
-      // Use task description to find relevant agents
-      candidateAgents = await this.findAgentsForTask(taskDescription);
-    } else {
-      // Use all available agents as candidates
-      candidateAgents = this.agentRegistry.listAgents();
-    }
-    
-    // Filter out excluded agents
-    if (options.excludedAgentIds && options.excludedAgentIds.length > 0) {
-      const excludedSet = new Set(options.excludedAgentIds);
-      candidateAgents = candidateAgents.filter(agent => !excludedSet.has(agent.id));
-    }
-    
-    // Calculate compatibility scores for candidates
-    const agentScores = await this.calculateAgentScores(
-      candidateAgents,
-      requiredCapabilities,
-      taskDescription,
-      options,
-    );
-    
-    // Select team members based on strategy
-    const selectedMembers = this.selectTeamMembers(
-      agentScores,
-      options,
-      strategy,
-    );
-    
-    // Create team structure
-    const team: Team = {
-      id: uuidv4(),
-      name: `Team-${new Date().toISOString().substring(0, 10)}`,
-      description: `Team formed for ${task ? task.name : 'unnamed task'} using ${strategy} strategy`,
-      members: selectedMembers,
-      taskId: options.taskId,
-      formationStrategy: strategy,
-      formationTimestamp: Date.now(),
-      metadata: options.metadata,
-    };
-    
-    // Store the team
-    this.teams.set(team.id, team);
-    
-    this.logger.info(`Formed team ${team.id} with ${team.members.length} members`);
-    
-    return team;
-  }
+  public async formTaskTeam(
+    taskId: string,
+    requiredCapabilities: string[] = [],
+    taskDescription: string = '',
+    options: TeamAssemblyOptions = {}
+  ): Promise<TeamFormationResult> {
+    const {
+      teamSize = 3,
+      strategy = 'balanced',
+      prioritizePerformance = true,
+      diversityWeight = 0.3,
+    } = options;
 
-  /**
-   * Find agents by capabilities
-   */
-  private async findAgentsByCapabilities(capabilities: string[]): Promise<BaseAgentInterface[]> {
-    // This could be improved with a weighted matching algorithm
-    const agents = this.agentRegistry.listAgents();
+    this.logger.info(`Forming team for task ${taskId} using strategy: ${strategy}`);
     
-    return agents.filter(agent => {
+    // Get all available agents
+    const availableAgents = this.agentRegistry.listAgents();
+    
+    if (availableAgents.length === 0) {
+      this.logger.warn('No agents available for team formation');
+      return {
+        taskId,
+        teamMembers: []
+      };
+    }
+    
+    // Calculate scores for each agent
+    const scoredAgents = availableAgents.map(agent => {
       const agentCapabilities = agent.getCapabilities().map(c => c.name);
-      // Check if agent has at least one of the required capabilities
-      return capabilities.some(cap => agentCapabilities.includes(cap));
-    });
-  }
-
-  /**
-   * Find agents most suitable for a task based on its description
-   */
-  private async findAgentsForTask(taskDescription: string): Promise<BaseAgentInterface[]> {
-    try {
-      return await this.agentDiscovery.findAgentsForTask(taskDescription);
-    } catch (error) {
-      this.logger.warn('Error using agent discovery, falling back to all agents', { error });
-      return this.agentRegistry.listAgents();
-    }
-  }
-
-  /**
-   * Calculate compatibility scores for candidate agents
-   */
-  private async calculateAgentScores(
-    candidates: BaseAgentInterface[],
-    requiredCapabilities: string[],
-    taskDescription: string,
-    options: TeamFormationOptions,
-  ): Promise<Array<TeamMember & { agent: BaseAgentInterface; score: number }>> {
-    const scores: Array<TeamMember & { agent: BaseAgentInterface; score: number }> = [];
-    
-    for (const agent of candidates) {
-      // Get agent capabilities
-      const capabilities = agent.getCapabilities().map(c => c.name);
       
-      // Calculate capability match score (0-1)
-      let capabilityScore = 0;
-      if (requiredCapabilities.length > 0) {
-        const matchedCapabilities = requiredCapabilities.filter(cap => 
-          capabilities.includes(cap)
-        );
-        capabilityScore = matchedCapabilities.length / requiredCapabilities.length;
-      } else {
-        // If no specific capabilities required, give neutral score
-        capabilityScore = 0.5;
-      }
+      // Calculate capability match
+      const matchedCapabilities = requiredCapabilities.filter(rc => 
+        agentCapabilities.includes(rc)
+      );
       
-      // Get performance history
+      // Base capability score (0-1)
+      const capabilityScore = requiredCapabilities.length > 0
+        ? matchedCapabilities.length / requiredCapabilities.length
+        : 0.5;
+      
+      // Performance score based on history (0-1)
       let performanceScore = 0.5; // Default neutral score
-      const performance = this.getAgentPerformance(agent.id);
-      if (performance && options.prioritizePerformance) {
-        performanceScore = performance.successRate;
+      const performance = this.agentPerformanceCache.get(agent.id);
+      if (performance && prioritizePerformance) {
+        performanceScore = Math.min(
+          performance.successRate * 0.7 + 
+          (1 - Math.min(performance.averageExecutionTime / 10000, 1)) * 0.3,
+          1
+        );
       }
       
-      // Calculate overall compatibility score
-      let compatibilityScore = 0.5; // Default neutral score
-      if (options.considerCompatibility) {
-        // This would be enhanced with a more sophisticated compatibility algorithm
-        compatibilityScore = 0.5;
+      // Strategy-specific scoring
+      let strategyScore = 0;
+      switch (strategy) {
+        case 'specialist':
+          // Specialists should have high match on specific capabilities
+          strategyScore = matchedCapabilities.length > 0 ? 0.3 : 0;
+          break;
+        case 'generalist':
+          // Generalists should have many capabilities
+          strategyScore = agentCapabilities.length > 5 ? 0.3 : 0;
+          break;
+        case 'balanced':
+          // Balanced approach - some matching, some diversity
+          strategyScore = 
+            (capabilityScore * 0.5) + 
+            (agentCapabilities.length / 10) * 0.5;
+          break;
       }
       
       // Calculate final score
-      // Weight the different factors according to the strategy
-      let finalScore = 0;
+      const finalScore = 
+        (capabilityScore * 0.5) + 
+        (performanceScore * 0.3) + 
+        (strategyScore * 0.2);
       
-      switch (options.strategy) {
-        case 'specialist':
-          finalScore = capabilityScore * 0.7 + performanceScore * 0.2 + compatibilityScore * 0.1;
-          break;
-        case 'performance':
-          finalScore = performanceScore * 0.7 + capabilityScore * 0.2 + compatibilityScore * 0.1;
-          break;
-        case 'generalist':
-          // For generalist strategy, value agents with more capabilities
-          finalScore = (capabilities.length / 10) * 0.5 + performanceScore * 0.3 + compatibilityScore * 0.2;
-          break;
-        case 'balanced':
-        default:
-          finalScore = capabilityScore * 0.4 + performanceScore * 0.4 + compatibilityScore * 0.2;
-          break;
+      // Determine role based on capabilities and strategy
+      let role = 'contributor';
+      if (matchedCapabilities.length === requiredCapabilities.length && 
+          requiredCapabilities.length > 0) {
+        role = 'specialist';
+      } else if (agentCapabilities.includes('task-planning') || 
+                 agentCapabilities.includes('work-coordination')) {
+        role = 'coordinator';
       }
       
-      // Boost score for preferred agents
-      if (options.preferredAgentIds && options.preferredAgentIds.includes(agent.id)) {
-        finalScore = Math.min(1, finalScore * 1.2);
-      }
+      // Generate reason for suggestion
+      const suggestedReason = matchedCapabilities.length > 0
+        ? `Matched ${matchedCapabilities.length} required capabilities: ${matchedCapabilities.join(', ')}`
+        : `Selected as ${role} based on general capability fit and ${performance?.completedTasks || 0} completed tasks`;
       
-      scores.push({
+      return {
         agent,
         agentId: agent.id,
-        agentName: agent.name,
-        role: this.determineRole(agent, requiredCapabilities),
-        capabilities,
-        compatibilityScore,
-        performanceHistory: performance,
+        name: agent.name,
         score: finalScore,
+        matchedCapabilities,
+        agentCapabilities,
+        role,
+        suggestedReason
+      };
+    }).sort((a, b) => b.score - a.score);
+    
+    // Select initial members based on highest scores
+    const selectedMembers: Set<string> = new Set();
+    const teamMembers: Array<{
+      agentId: string;
+      name: string;
+      role: string;
+      score: number;
+      suggestedReason: string;
+    }> = [];
+    
+    // Always include the top scoring member if available
+    if (scoredAgents.length > 0) {
+      const topMember = scoredAgents[0];
+      selectedMembers.add(topMember.agentId);
+      teamMembers.push({
+        agentId: topMember.agentId,
+        name: topMember.name,
+        role: topMember.role,
+        score: topMember.score,
+        suggestedReason: topMember.suggestedReason
       });
     }
     
-    // Sort by score descending
-    return scores.sort((a, b) => b.score - a.score);
-  }
-
-  /**
-   * Determine a role for an agent based on capabilities
-   */
-  private determineRole(agent: BaseAgentInterface, requiredCapabilities: string[]): string {
-    const agentCapabilities = agent.getCapabilities().map(c => c.name);
-    
-    // Check if agent is a specialist (matches one specific capability very well)
-    if (requiredCapabilities.length > 0) {
-      for (const cap of requiredCapabilities) {
-        if (agentCapabilities.includes(cap)) {
-          return `${cap} specialist`;
+    // Select remaining members to maximize team diversity and complementary capabilities
+    while (teamMembers.length < teamSize && teamMembers.length < scoredAgents.length) {
+      // Get the capabilities already covered by selected team members
+      const coveredCapabilities = new Set<string>();
+      
+      for (const memberId of selectedMembers) {
+        const member = scoredAgents.find(a => a.agentId === memberId);
+        if (member) {
+          member.agentCapabilities.forEach(cap => coveredCapabilities.add(cap));
         }
       }
-    }
-    
-    // Check for known capability patterns and assign roles
-    if (agentCapabilities.includes('planning')) {
-      return 'Planner';
-    } else if (agentCapabilities.includes('research')) {
-      return 'Researcher';
-    } else if (agentCapabilities.includes('coding')) {
-      return 'Developer';
-    } else if (agentCapabilities.includes('writing')) {
-      return 'Content Creator';
-    } else if (agentCapabilities.includes('data-analysis')) {
-      return 'Analyst';
-    }
-    
-    // Default role
-    return 'Team Member';
-  }
-
-  /**
-   * Select team members based on scores and strategy
-   */
-  private selectTeamMembers(
-    scoredCandidates: Array<TeamMember & { agent: BaseAgentInterface; score: number }>,
-    options: TeamFormationOptions,
-    strategy: string,
-  ): TeamMember[] {
-    // Determine team size
-    const targetSize = options.teamSize || this.calculateOptimalTeamSize(
-      options.requiredCapabilities?.length || 0,
-      strategy,
-    );
-    
-    const selected: TeamMember[] = [];
-    const selectedCapabilities = new Set<string>();
-    const selectedAgentIds = new Set<string>();
-    
-    // First pass: select agents based on strategy
-    for (const candidate of scoredCandidates) {
-      // Stop if we've reached the target size
-      if (selected.length >= targetSize) break;
       
-      // Skip if already selected
-      if (selectedAgentIds.has(candidate.agentId)) continue;
+      // Find the agent with the best complementary score
+      let bestComplementaryAgent = null;
+      let bestComplementaryScore = -1;
       
-      let shouldSelect = false;
-      
-      switch (strategy) {
-        case 'specialist':
-          // Select if agent has high capability match and we don't have good coverage yet
-          shouldSelect = candidate.score > 0.7 && !this.hasCapabilityOverlap(candidate.capabilities, selectedCapabilities);
-          break;
+      for (const agent of scoredAgents) {
+        // Skip if already selected
+        if (selectedMembers.has(agent.agentId)) continue;
         
-        case 'performance':
-          // Select highest performing agents regardless of capability overlap
-          shouldSelect = candidate.score > 0.6;
-          break;
+        // Calculate new capabilities this agent would bring
+        const newCapabilities = agent.agentCapabilities.filter(
+          cap => !coveredCapabilities.has(cap)
+        );
         
-        case 'generalist':
-          // Select agents with broader capability sets
-          shouldSelect = candidate.capabilities.length > 3 && candidate.score > 0.5;
-          break;
+        // Calculate complementary score
+        const diversityBonus = newCapabilities.length * 0.1;
+        const roleBonus = !teamMembers.some(m => m.role === agent.role) ? 0.2 : 0;
         
-        case 'balanced':
-        default:
-          // Balance capability coverage and performance
-          shouldSelect = candidate.score > 0.6 && this.hasCapabilityOverlap(candidate.capabilities, selectedCapabilities) < 0.5;
-          break;
-      }
-      
-      if (shouldSelect) {
-        selected.push(this.createTeamMember(candidate));
-        selectedAgentIds.add(candidate.agentId);
-        candidate.capabilities.forEach(cap => selectedCapabilities.add(cap));
-      }
-    }
-    
-    // Second pass: fill remaining spots if needed
-    while (selected.length < targetSize && scoredCandidates.length > selected.length) {
-      // Find the best remaining candidate
-      for (const candidate of scoredCandidates) {
-        if (!selectedAgentIds.has(candidate.agentId)) {
-          selected.push(this.createTeamMember(candidate));
-          selectedAgentIds.add(candidate.agentId);
-          break;
+        // Balance between individual score and complementary value
+        const complementaryScore = 
+          (agent.score * (1 - diversityWeight)) + 
+          ((diversityBonus + roleBonus) * diversityWeight);
+        
+        if (complementaryScore > bestComplementaryScore) {
+          bestComplementaryScore = complementaryScore;
+          bestComplementaryAgent = agent;
         }
       }
-    }
-    
-    return selected;
-  }
-
-  /**
-   * Create a team member object from a scored candidate
-   */
-  private createTeamMember(
-    candidate: TeamMember & { agent: BaseAgentInterface; score: number }
-  ): TeamMember {
-    const { agent, score, ...memberData } = candidate;
-    return memberData;
-  }
-
-  /**
-   * Calculate the optimal team size based on task complexity
-   */
-  private calculateOptimalTeamSize(requiredCapabilitiesCount: number, strategy: string): number {
-    // Base size on the number of required capabilities
-    let baseSize = Math.max(2, requiredCapabilitiesCount);
-    
-    // Adjust based on strategy
-    switch (strategy) {
-      case 'specialist':
-        // One specialist per capability, plus one coordinator
-        return requiredCapabilitiesCount + 1;
       
-      case 'generalist':
-        // Fewer generalists can cover more capabilities
-        return Math.max(2, Math.ceil(requiredCapabilitiesCount / 2));
-      
-      case 'performance':
-        // Focus on a smaller, high-performing team
-        return Math.max(2, Math.ceil(baseSize * 0.7));
-      
-      case 'balanced':
-      default:
-        // Balanced approach
-        return baseSize;
-    }
-  }
-
-  /**
-   * Calculate what percentage of an agent's capabilities overlap with already selected capabilities
-   * Returns a value between 0 (no overlap) and 1 (complete overlap)
-   */
-  private hasCapabilityOverlap(
-    capabilities: string[],
-    selectedCapabilities: Set<string>,
-  ): number {
-    if (capabilities.length === 0) return 0;
-    if (selectedCapabilities.size === 0) return 0;
-    
-    let overlapCount = 0;
-    for (const cap of capabilities) {
-      if (selectedCapabilities.has(cap)) {
-        overlapCount++;
+      // Add the best complementary agent to the team
+      if (bestComplementaryAgent) {
+        selectedMembers.add(bestComplementaryAgent.agentId);
+        
+        // Generate enhanced reason that highlights complementary value
+        let enhancedReason = bestComplementaryAgent.suggestedReason;
+        const newCapabilities = bestComplementaryAgent.agentCapabilities.filter(
+          cap => !coveredCapabilities.has(cap)
+        );
+        
+        if (newCapabilities.length > 0) {
+          enhancedReason += `. Adds ${newCapabilities.length} complementary capabilities to the team.`;
+        }
+        
+        if (!teamMembers.some(m => m.role === bestComplementaryAgent.role)) {
+          enhancedReason += ` Adds ${bestComplementaryAgent.role} role diversity.`;
+        }
+        
+        teamMembers.push({
+          agentId: bestComplementaryAgent.agentId,
+          name: bestComplementaryAgent.name,
+          role: bestComplementaryAgent.role,
+          score: bestComplementaryScore,
+          suggestedReason: enhancedReason
+        });
+      } else {
+        // No more complementary agents available
+        break;
       }
     }
     
-    return overlapCount / capabilities.length;
-  }
-
-  /**
-   * Get performance history for an agent
-   */
-  private getAgentPerformance(agentId: string): {
-    successRate: number;
-    taskCount: number;
-    averageCompletionTime: number;
-  } | undefined {
-    const cached = this.agentPerformance.get(agentId);
-    
-    if (cached) {
-      // Return cached data if it's recent (less than 1 hour old)
-      const cacheAge = Date.now() - cached.lastUpdated;
-      if (cacheAge < 60 * 60 * 1000) {
-        return {
-          successRate: cached.successRate,
-          taskCount: cached.taskCount,
-          averageCompletionTime: cached.averageCompletionTime,
-        };
-      }
-    }
-    
-    // For now, we'll just return placeholder data
-    // This would be replaced with actual performance tracking
-    const performance = {
-      successRate: Math.random() * 0.3 + 0.7, // Random value between 0.7 and 1.0
-      taskCount: Math.floor(Math.random() * 20) + 1,
-      averageCompletionTime: Math.floor(Math.random() * 60000) + 10000,
-      lastUpdated: Date.now(),
-    };
-    
-    // Cache the data
-    this.agentPerformance.set(agentId, performance);
+    this.logger.info(`Formed team with ${teamMembers.length} members for task ${taskId}`);
     
     return {
-      successRate: performance.successRate,
-      taskCount: performance.taskCount,
-      averageCompletionTime: performance.averageCompletionTime,
+      taskId,
+      teamMembers
     };
   }
-
+  
   /**
-   * Get a team by ID
+   * Update agent performance metrics
    */
-  getTeam(teamId: string): Team | undefined {
-    return this.teams.get(teamId);
-  }
-
-  /**
-   * List all teams
-   */
-  listTeams(): Team[] {
-    return Array.from(this.teams.values());
-  }
-
-  /**
-   * Update a team's metadata
-   */
-  updateTeamMetadata(teamId: string, metadata: Record<string, any>): boolean {
-    const team = this.teams.get(teamId);
-    if (!team) return false;
+  public updateAgentPerformance(
+    agentId: string, 
+    metrics: {
+      success: boolean;
+      executionTimeMs: number;
+    }
+  ): void {
+    // Get existing performance or create new entry
+    const existingPerformance = this.agentPerformanceCache.get(agentId) || {
+      successRate: 0.5,
+      averageExecutionTime: 5000,
+      completedTasks: 0,
+      lastEvaluatedAt: Date.now()
+    };
     
-    team.metadata = { ...(team.metadata || {}), ...metadata };
-    this.teams.set(teamId, team);
+    // Update with exponential moving average (give more weight to recent performance)
+    const weight = Math.min(1 / (existingPerformance.completedTasks + 1), 0.3);
     
-    return true;
+    existingPerformance.successRate = 
+      existingPerformance.successRate * (1 - weight) + 
+      (metrics.success ? 1 : 0) * weight;
+      
+    existingPerformance.averageExecutionTime = 
+      existingPerformance.averageExecutionTime * (1 - weight) + 
+      metrics.executionTimeMs * weight;
+      
+    existingPerformance.completedTasks += 1;
+    existingPerformance.lastEvaluatedAt = Date.now();
+    
+    this.agentPerformanceCache.set(agentId, existingPerformance);
   }
-
+  
   /**
-   * Add a member to an existing team
+   * Get capability composition analysis for a task
    */
-  addTeamMember(teamId: string, member: TeamMember): boolean {
-    const team = this.teams.get(teamId);
-    if (!team) return false;
+  public analyzeCapabilityComposition(
+    taskId: string,
+    requiredCapabilities: string[],
+    taskDescription: string = ''
+  ): CapabilityComposition {
+    // Analyze required capabilities and their importance
+    const analyzedCapabilities = requiredCapabilities.map(capability => {
+      // Default values - in a real implementation, this would use more
+      // sophisticated analysis of the task description and capability
+      return {
+        name: capability,
+        importance: 0.8,
+        specializationLevel: 0.7
+      };
+    });
     
-    // Check if agent is already a member
-    if (team.members.some(m => m.agentId === member.agentId)) {
-      return false;
+    // Recommend team size based on capability count and specialization
+    const specializationSum = analyzedCapabilities.reduce(
+      (sum, cap) => sum + cap.specializationLevel, 0
+    );
+    
+    const recommendedTeamSize = Math.max(
+      2,
+      Math.min(
+        5,
+        Math.ceil(analyzedCapabilities.length / 2)
+      )
+    );
+    
+    // Determine recommended balance based on specialization levels
+    const avgSpecialization = 
+      analyzedCapabilities.length > 0 
+        ? specializationSum / analyzedCapabilities.length 
+        : 0.5;
+        
+    let recommendedTeamBalance: 'specialist' | 'generalist' | 'balanced';
+    
+    if (avgSpecialization > 0.7) {
+      recommendedTeamBalance = 'specialist';
+    } else if (avgSpecialization < 0.4) {
+      recommendedTeamBalance = 'generalist';
+    } else {
+      recommendedTeamBalance = 'balanced';
     }
     
-    team.members.push(member);
-    this.teams.set(teamId, team);
-    
-    return true;
-  }
-
-  /**
-   * Remove a member from a team
-   */
-  removeTeamMember(teamId: string, agentId: string): boolean {
-    const team = this.teams.get(teamId);
-    if (!team) return false;
-    
-    const initialLength = team.members.length;
-    team.members = team.members.filter(m => m.agentId !== agentId);
-    
-    if (team.members.length !== initialLength) {
-      this.teams.set(teamId, team);
-      return true;
-    }
-    
-    return false;
-  }
-
-  /**
-   * Delete a team
-   */
-  deleteTeam(teamId: string): boolean {
-    return this.teams.delete(teamId);
+    // Get agent recommendations
+    const availableAgents = this.agentRegistry.listAgents();
+    const agentRecommendations = availableAgents
+      .map(agent => {
+        const agentCapabilities = agent.getCapabilities().map(c => c.name);
+        
+        // Calculate match score based on required capabilities
+        const matchedCapabilities = requiredCapabilities.filter(rc => 
+          agentCapabilities.includes(rc)
+        );
+        
+        const matchScore = requiredCapabilities.length > 0
+          ? matchedCapabilities.length / requiredCapabilities.length
+          : 0.5;
+          
+        return {
+          agentId: agent.id,
+          name: agent.name,
+          matchScore,
+          keyCapabilities: matchedCapabilities
+        };
+      })
+      .filter(agent => agent.matchScore > 0)
+      .sort((a, b) => b.matchScore - a.matchScore)
+      .slice(0, 5); // Top 5 recommendations
+      
+    return {
+      taskId,
+      requiredCapabilities: analyzedCapabilities,
+      recommendedTeamSize,
+      recommendedTeamBalance,
+      agentRecommendations
+    };
   }
 } 

@@ -1,4 +1,4 @@
-import { SupervisorAgent } from '../../agents/specialized/supervisor-agent';
+import { SupervisorAgent } from '../../agents/specialized/facilitator-supervisor-agent';
 import { SupervisorAdapter } from '../core/adapters/supervisor-adapter';
 import { BaseAgent } from '../../agents/base/base-agent';
 import { ConsoleLogger } from '../../shared/logger/console-logger';

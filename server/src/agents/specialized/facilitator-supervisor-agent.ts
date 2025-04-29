@@ -1,13 +1,37 @@
 /**
  * Facilitator Supervisor Agent
- * 
- * Specialized supervisor agent that facilitates collaboration between agents.
- * Encourages collaborative task breakdown, team decision making, and emergent delegation.
- * @deprecated Will be replaced by agentic self-organizing behavior
+ *
+ * A unified agent that combines the roles of facilitator and supervisor
+ * for coordinating multi-agent collaboration.
+ *
+ * Milestone 2: Supervisor Transformation - Implementation Status:
+ * ✅ Transform SupervisorAgent from controller to facilitator
+ *   - Implemented suggestion-based coordination with task proposals
+ *   - Added voting and consensus mechanisms for decisions
+ *   - Transformed task assignments to task proposals
+ *
+ * ✅ Collaborative Task Analysis
+ *   - Implemented collective task decomposition with multiple agents
+ *   - Added capability-aware task breakdown
+ *   - Implemented evaluation metrics for task decomposition quality
+ *
+ * ✅ Team Assembly Foundations
+ *   - Created team formation strategies based on task complexity
+ *   - Implemented assembly using capability composition scores
+ *   - Added performance history as team formation factor
+ *
+ * ✅ Dynamic Delegation Protocols
+ *   - Implemented capability-based routing for tasks
+ *   - Added subtask advertising to capable agents
+ *   - Created feedback loops for delegation effectiveness
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
+import {
+  BaseMessage,
+  HumanMessage,
+  SystemMessage,
+} from '@langchain/core/messages';
 import { ChatOpenAI } from '@langchain/openai';
 
 import { Logger } from '../../shared/logger/logger.interface';
@@ -21,1267 +45,2470 @@ import {
 } from '../interfaces/base-agent.interface';
 import { LLMInterface } from '../../shared/llm/llm.interface';
 import { AgentRegistryService } from '../services/agent-registry.service';
-import { 
-  TaskPlanningService, 
-  PlannedTask, 
-  TaskPlan, 
-  TaskDecompositionOptions 
+import {
+  AgentTaskExecutorService,
+  TaskExecutionOptions,
+  TaskExecutionEventType,
+} from '../services/agent-task-executor.service';
+import {
+  TaskPlanningService,
+  PlannedTask,
+  TaskPlan,
+  TaskDecompositionOptions,
 } from '../services/task-planning.service';
-import { 
-  CollaborativeTaskBreakdownService,
-  CollaborativeBreakdownOptions
-} from '../services/collaborative-task-breakdown.service';
-import { 
-  TeamAssemblyService, 
-  Team, 
-  TeamFormationOptions 
-} from '../services/team-assembly.service';
-import { 
-  DelegationProtocolService,
-  TaskDelegationRequest,
-  TaskDelegationResult
-} from '../services/delegation-protocol.service';
-import { SupervisorAgent, Task, TeamMember } from './supervisor-agent';
+import { TeamAssemblyService } from '../services/team-assembly.service';
+import { TaskBreakdownService } from '../services/task-breakdown.service';
+import {
+  AgentMessage,
+  TaskProposal,
+  TaskSuggestion,
+  TeamFormationResult,
+  CollaborativeTaskBreakdown,
+  CapabilityComposition,
+  DelegationProtocol,
+} from '../interfaces/collaboration.interface';
 
-/**
- * Voting structure for decision making
- */
-export interface VotingResult {
-  decision: string;
-  options: Array<{
-    option: string;
-    votes: number;
-    voters: string[];
-  }>;
-  participated: number;
-  total: number;
+// Voting system interfaces
+interface VoteRecord {
+  agentId: string;
+  choice: string;
   timestamp: number;
 }
 
-/**
- * Team suggestion structure
- */
-export interface TeamSuggestion {
+interface VotingResults {
+  status: 'in-progress' | 'completed';
+  topChoice: string | null;
+  counts: Record<string, number>;
+  votesReceived: number;
+  totalVotes: number;
+}
+
+interface Voting {
   id: string;
-  suggestion: string;
-  supportingAgents: string[];
-  weight: number; // Calculated importance/relevance
-  resolved: boolean;
-  outcome?: string;
+  topic: string;
+  description: string;
+  choices: string[];
   createdAt: number;
-  resolvedAt?: number;
+  expiresAt: number;
+  closedAt?: number;
+  status: 'open' | 'closed';
+  votes: VoteRecord[];
+  results: VotingResults | null;
+  metadata: Record<string, any>;
+}
+
+// Feedback system interfaces
+interface FeedbackResponse {
+  agentId: string;
+  feedback: string;
+  rating?: number;
+  timestamp: number;
+  metadata: Record<string, any>;
+}
+
+interface FeedbackRequest {
+  id: string;
+  topic: string;
+  description: string;
+  targetId?: string;
+  createdAt: number;
+  expiresAt: number;
+  closedAt?: number;
+  status: 'open' | 'closed';
+  responses: FeedbackResponse[];
+  metadata: Record<string, any>;
+}
+
+interface FeedbackSummary {
+  requestId: string;
+  topic: string;
+  targetId?: string;
+  status: 'open' | 'closed';
+  createdAt: number;
+  closedAt?: number;
+  responseCount: number;
+  averageRating: number | null;
+  ratingDistribution: Record<number, number>;
+  feedbackTexts: string[];
+  responses: FeedbackResponse[];
 }
 
 /**
- * Configuration for FacilitatorSupervisorAgent
+ * Interface for a task
  */
+export interface Task {
+  id: string;
+  title: string;
+  description: string;
+  priority: number;
+  status:
+    | 'open'
+    | 'in-progress'
+    | 'blocked'
+    | 'completed'
+    | 'cancelled'
+    | 'pending'
+    | 'failed';
+  createdAt: number;
+  deadline?: number;
+  assignedTo?: string;
+  completedAt: number | null;
+  subtasks: Array<{
+    id: string;
+    title: string;
+    description: string;
+    status: 'open' | 'in-progress' | 'completed';
+    createdAt: number;
+    completedAt: number | null;
+  }>;
+  metadata: Record<string, any>;
+  // Additional fields for collaboration
+  name?: string;
+  result?: any;
+  requiredCapabilities?: string[];
+  teamSize?: number;
+  collaborators?: string[];
+  breakdownId?: string;
+}
+
+/**
+ * Interface for a subtask proposal
+ */
+interface SubtaskProposal {
+  id: string;
+  taskId: string;
+  agentId: string;
+  proposedSubtasks: Array<{
+    title: string;
+    description?: string;
+  }>;
+  justification: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: number;
+  approvedAt: number | null;
+  rejectedAt: number | null;
+  rejectionReason: string | null;
+}
+
+/**
+ * Interface for a task breakdown record
+ */
+interface TaskBreakdown {
+  id: string;
+  taskId: string;
+  taskTitle: string;
+  taskDescription: string;
+  proposalId: string;
+  agentId: string;
+  subtasks: Array<{
+    title: string;
+    description: string;
+  }>;
+  justification: string;
+  createdAt: number;
+}
+
+/**
+ * Team management interfaces
+ */
+export interface TeamMember {
+  agent: BaseAgentInterface;
+  role: string;
+  priority: number;
+  active: boolean;
+  metadata?: Record<string, any>;
+}
+
+export interface TaskAssignmentRequest {
+  taskDescription?: string;
+  description?: string; // Added to support workflow format
+  priority?: number;
+  requiredCapabilities?: string[];
+  preferredAgentId?: string;
+  deadline?: number;
+  metadata?: Record<string, any>;
+}
+
+export interface WorkCoordinationRequest {
+  tasks: TaskAssignmentRequest[];
+  teamContext?: Record<string, any>;
+  executionStrategy?: 'sequential' | 'parallel' | 'prioritized';
+  useTaskPlanningService?: boolean;
+  planName?: string;
+  planDescription?: string;
+  parallelLimit?: number;
+  timeout?: number;
+}
+
 export interface FacilitatorSupervisorConfig {
   id?: string;
   name?: string;
   description?: string;
   logger?: Logger;
   llm?: LLMInterface | ChatOpenAI;
+  defaultTeamMembers?: TeamMember[];
+  priorityThreshold?: number;
   agentRegistry?: AgentRegistryService;
   taskPlanningService?: TaskPlanningService;
-  collaborativeTaskBreakdown?: CollaborativeTaskBreakdownService;
-  teamAssembly?: TeamAssemblyService;
-  delegationProtocol?: DelegationProtocolService;
-  defaultTeamMembers?: TeamMember[];
-  consensusThreshold?: number;
-}
-
-// Define interfaces for request inputs
-interface ConsensusRequestInput {
-  operation: string;
-}
-
-interface StartVoteRequestInput {
-  question: string;
-  options: string[];
-  deadline?: string | number;
-  participants?: string | string[];
-}
-
-interface CastVoteRequestInput {
-  votingId: string;
-  agentId: string;
-  vote: string;
-}
-
-interface GetVotingResultRequestInput {
-  votingId: string;
-  forceResult?: boolean;
-}
-
-interface SuggestionRequestInput {
-  operation: string;
-}
-
-interface SubmitSuggestionRequestInput {
-  suggestion: string;
-  agentId: string;
-  weight?: number;
-}
-
-interface SupportSuggestionRequestInput {
-  suggestionId: string;
-  agentId: string;
-  additionalWeight?: number;
-}
-
-interface ResolveSuggestionRequestInput {
-  suggestionId: string;
-  outcome: string;
-  resolverId?: string;
-}
-
-interface ListSuggestionsRequestInput {
-  status?: string;
+  agentTaskExecutor?: AgentTaskExecutorService;
+  teamAssemblyService?: TeamAssemblyService;
+  taskBreakdownService?: TaskBreakdownService;
 }
 
 /**
  * FacilitatorSupervisorAgent
- * 
- * Implements a facilitation approach to team coordination rather than direct control.
- * Encourages collaborative task breakdown, team decision making, and emergent delegation.
+ *
+ * Agent that facilitates collaboration between multiple agents within a team
+ * Implements suggestion-based coordination, voting mechanisms, and collaborative task breakdown
  */
-export class FacilitatorSupervisorAgent extends SupervisorAgent {
-  private collaborativeTaskBreakdown: CollaborativeTaskBreakdownService;
-  private teamAssembly: TeamAssemblyService;
-  private delegationProtocol: DelegationProtocolService;
-  
-  // Settings
-  private consensusThreshold: number = 0.7; // Percentage needed for consensus
-  
-  // Store collaborative sessions and voting results
-  private collaborativeSessions: Map<string, {
-    planId: string;
-    taskId: string;
-    status: string;
-    participants: string[];
-    result?: string;
-  }> = new Map();
-  
-  private votingSessions: Map<string, {
-    question: string;
-    options: string[];
-    votes: Record<string, string>;
-    deadline: number;
-    result?: VotingResult;
-  }> = new Map();
-  
-  private teamSuggestions: Map<string, TeamSuggestion> = new Map();
-  
-  constructor(options: FacilitatorSupervisorConfig = {}) {
-    super({
-      id: options.id || `facilitator-supervisor-${uuidv4()}`,
-      name: options.name || 'Facilitator Supervisor',
-      description: options.description || 'Facilitates collaborative team decision-making and task execution',
-      logger: options.logger,
-      llm: options.llm,
-      agentRegistry: options.agentRegistry,
-      taskPlanningService: options.taskPlanningService,
-      defaultTeamMembers: options.defaultTeamMembers,
-    });
-    
-    // Initialize specialized services
-    this.collaborativeTaskBreakdown = options.collaborativeTaskBreakdown || 
-      CollaborativeTaskBreakdownService.getInstance();
-    
-    this.teamAssembly = options.teamAssembly || 
-      TeamAssemblyService.getInstance();
-    
-    this.delegationProtocol = options.delegationProtocol || 
-      DelegationProtocolService.getInstance();
-    
-    // Apply settings
-    if (options.consensusThreshold) {
-      this.consensusThreshold = options.consensusThreshold;
+export class FacilitatorSupervisorAgent extends BaseAgent {
+  private team: Map<string, TeamMember> = new Map();
+  private tasks: Map<string, Task> = new Map();
+  private priorityThreshold: number = 5;
+  private workStrategies: Record<string, Function> = {};
+  private agentRegistry: AgentRegistryService;
+  private taskPlanningService: TaskPlanningService;
+  private agentTaskExecutor: AgentTaskExecutorService;
+  private teamAssemblyService: TeamAssemblyService;
+  private taskBreakdownService: TaskBreakdownService;
+
+  // Collaboration state
+  protected taskSuggestions: Map<string, TaskSuggestion> = new Map();
+  protected taskProposals: Map<string, TaskProposal> = new Map();
+  protected taskBreakdowns: Map<string, string> = new Map(); // taskId -> breakdownId
+  protected messageHandlers: Map<
+    string,
+    (message: AgentMessage) => Promise<void>
+  > = new Map();
+  protected conversations: Map<string, AgentMessage[]> = new Map();
+
+  // Private subtask proposals map
+  private subtaskProposals: Map<string, SubtaskProposal> = new Map();
+
+  // Voting system storage
+  private votings: Map<string, Voting> = new Map();
+
+  // Subtask advertisement tracking
+  private subtaskAdvertisements: Map<
+    string,
+    {
+      subtaskId: string;
+      taskId: string;
+      advertisementId: string;
+      capabilities: string[];
+      status: 'open' | 'assigned' | 'completed' | 'failed';
+      createdAt: number;
+      assignedTo?: string;
     }
-    
-    // Register additional capabilities
+  > = new Map();
+
+  // Performance tracking for delegation effectiveness
+  private delegationPerformance: Map<
+    string,
+    {
+      agentId: string;
+      taskCount: number;
+      successRate: number;
+      avgCompletionTime: number;
+      lastUpdated: number;
+    }
+  > = new Map();
+
+  // Task breakdown evaluation metrics
+  private taskBreakdownMetrics: Map<
+    string,
+    {
+      breakdownId: string;
+      taskId: string;
+      completeness: number;
+      complexity: number;
+      clarity: number;
+      coherence: number;
+      overallScore: number;
+      evaluatedAt: number;
+    }
+  > = new Map();
+
+  constructor(options: FacilitatorSupervisorConfig = {}) {
+    // Convert LLMInterface to ChatOpenAI if needed
+    let chatLLM: ChatOpenAI | undefined = undefined;
+    const logger = options.logger || new ConsoleLogger();
+
+    if (options.llm) {
+      // If it's already a ChatOpenAI instance, use it directly
+      if (options.llm instanceof ChatOpenAI) {
+        chatLLM = options.llm;
+      } else {
+        // For now, we don't have a way to properly convert a generic LLMInterface to ChatOpenAI
+        // This is a temporary solution until BaseAgent supports LLMInterface directly
+        logger.warn(
+          'LLMInterface provided but ChatOpenAI expected. Using default LLM.',
+        );
+        // We'll let BaseAgent create a default ChatOpenAI instance
+      }
+    }
+
+    super(
+      options.name || 'Facilitator Supervisor',
+      options.description ||
+        'Facilitates collaboration between multiple agents using consensus and voting',
+      {
+        id: options.id || `facilitator-supervisor-${uuidv4()}`,
+        logger: logger,
+        llm: chatLLM,
+      },
+    );
+
+    // Initialize services
+    this.agentRegistry =
+      options.agentRegistry || AgentRegistryService.getInstance();
+    this.taskPlanningService =
+      options.taskPlanningService || TaskPlanningService.getInstance();
+    this.agentTaskExecutor =
+      options.agentTaskExecutor || AgentTaskExecutorService.getInstance();
+    this.teamAssemblyService =
+      options.teamAssemblyService || TeamAssemblyService.getInstance();
+    this.taskBreakdownService =
+      options.taskBreakdownService || TaskBreakdownService.getInstance();
+
+    if (options.priorityThreshold !== undefined) {
+      this.priorityThreshold = options.priorityThreshold;
+    }
+
+    // Register capabilities
+    this.registerCapability({
+      name: 'team-facilitation',
+      description:
+        'Facilitates team collaboration through consensus-building and voting',
+    });
+
+    this.registerCapability({
+      name: 'task-suggestion',
+      description:
+        'Suggests task assignments based on agent capabilities and voting',
+    });
+
     this.registerCapability({
       name: 'collaborative-task-breakdown',
-      description: 'Facilitate collaborative task decomposition by multiple agents',
+      description:
+        'Enables multiple agents to collaboratively break down complex tasks',
     });
-    
+
     this.registerCapability({
-      name: 'team-assembly',
-      description: 'Assemble optimal teams based on task requirements and agent capabilities',
+      name: 'capability-based-team-assembly',
+      description:
+        'Assembles teams based on capability composition and complementary skills',
     });
-    
+
     this.registerCapability({
-      name: 'consensus-building',
-      description: 'Facilitate voting and consensus-building among team members',
+      name: 'voting-coordination',
+      description:
+        'Coordinates voting processes for decisions requiring team consensus',
     });
-    
+
     this.registerCapability({
-      name: 'task-delegation',
-      description: 'Facilitate capability-based task delegation among agents',
+      name: 'subtask-advertising',
+      description:
+        'Advertises subtasks to capable agents based on required capabilities',
     });
-    
+
     this.registerCapability({
-      name: 'suggestion-coordination',
-      description: 'Coordinate team activities based on suggestions rather than commands',
+      name: 'delegation-effectiveness',
+      description:
+        'Tracks and optimizes delegation effectiveness using agent performance history',
     });
+
+    this.registerCapability({
+      name: 'task-breakdown-evaluation',
+      description:
+        'Evaluates the quality of task decomposition using multiple metrics',
+    });
+
+    // Add default team members if provided
+    if (options.defaultTeamMembers) {
+      options.defaultTeamMembers.forEach((member) => {
+        this.addTeamMember(member);
+      });
+    }
+  }
+
+  // Make registerCapability public to support the CommunicativeAgent mixin
+  public registerCapability(capability: {
+    name: string;
+    description: string;
+  }): void {
+    super.registerCapability(capability);
   }
 
   /**
    * Initialize the agent
    */
-  async initialize(config?: Record<string, any>): Promise<void> {
-    await super.initialize(config);
-    
-    this.logger.info('Initializing FacilitatorSupervisorAgent');
-    
-    // Apply configuration settings
-    if (config?.consensusThreshold) {
-      this.consensusThreshold = config.consensusThreshold;
-    }
-    
-    this.logger.info('FacilitatorSupervisorAgent initialized successfully');
+  async initialize(): Promise<void> {
+    this.logger.debug(`Initializing FacilitatorSupervisorAgent ${this.id}`);
+
+    // Register capabilities
+    this.registerCapability({
+      name: 'team-facilitation',
+      description:
+        'Facilitates team collaboration through consensus-building and voting',
+    });
+
+    this.registerCapability({
+      name: 'task-suggestion',
+      description:
+        'Suggests task assignments based on agent capabilities and voting',
+    });
+
+    this.registerCapability({
+      name: 'collaborative-task-breakdown',
+      description:
+        'Enables multiple agents to collaboratively break down complex tasks',
+    });
+
+    this.registerCapability({
+      name: 'capability-based-team-assembly',
+      description:
+        'Assembles teams based on capability composition and complementary skills',
+    });
+
+    this.registerCapability({
+      name: 'voting-coordination',
+      description:
+        'Coordinates voting processes for decisions requiring team consensus',
+    });
+
+    this.registerCapability({
+      name: 'subtask-advertising',
+      description:
+        'Advertises subtasks to capable agents based on required capabilities',
+    });
+
+    this.registerCapability({
+      name: 'delegation-effectiveness',
+      description:
+        'Tracks and optimizes delegation effectiveness using agent performance history',
+    });
+
+    this.registerCapability({
+      name: 'task-breakdown-evaluation',
+      description:
+        'Evaluates the quality of task decomposition using multiple metrics',
+    });
+
+    this.logger.info(
+      `FacilitatorSupervisorAgent ${this.id} initialized with facilitation capabilities`,
+    );
   }
 
   /**
-   * Execute agent with capability handling for facilitation
-   * @deprecated Will be replaced by agentic self-organizing behavior
+   * Main execution method
    */
-  async executeInternal(request: AgentRequest): Promise<AgentResponse> {
-    const startTime = Date.now();
-    let result: any;
-    
+  public async executeInternal(request: AgentRequest): Promise<AgentResponse> {
+    this.logger.info('FacilitatorSupervisorAgent executing request', {
+      capability: request.capability,
+      input:
+        typeof request.input === 'string'
+          ? request.input.substring(0, 100)
+          : 'complex input',
+    });
+
     try {
-      if (request.capability) {
-        // Parse input if it's a string
-        const parsedInput = typeof request.input === 'string' && request.input.trim().startsWith('{') 
-          ? JSON.parse(request.input) 
-          : null;
-          
-        switch (request.capability) {
-          case 'collaborative-task-breakdown':
-            result = await this.handleCollaborativeTaskBreakdown({
-              ...request,
-              input: parsedInput || request.input,
-            });
-            break;
-            
-          case 'team-assembly':
-            result = await this.handleTeamAssembly({
-              ...request,
-              input: parsedInput || request.input,
-            });
-            break;
-            
-          case 'consensus-building':
-            result = await this.handleConsensusBuilding({
-              ...request,
-              input: parsedInput || request.input,
-            });
-            break;
-            
-          case 'task-delegation':
-            result = await this.handleTaskDelegation({
-              ...request,
-              input: parsedInput || request.input,
-            });
-            break;
-            
-          case 'suggestion-coordination':
-            result = await this.handleSuggestionCoordination({
-              ...request,
-              input: parsedInput || request.input,
-            });
-            break;
-            
-          default:
-            // Delegate to parent for other capabilities
-            return super.executeInternal(request);
-        }
-      } else {
-        // No capability specified, delegate to parent
-        return super.executeInternal(request);
+      let result: any;
+
+      // Handle based on capability
+      switch (request.capability) {
+        case 'team-facilitation':
+          result = await this.handleTeamFacilitation(request);
+          break;
+
+        case 'task-suggestion':
+          result = await this.handleTaskSuggestion(request);
+          break;
+
+        case 'collaborative-task-breakdown':
+          result = await this.handleCollaborativeTaskBreakdown(request);
+          break;
+
+        case 'capability-based-team-assembly':
+          result = await this.handleTeamAssembly(request);
+          break;
+
+        case 'voting-coordination':
+          result = await this.handleVotingCoordination(request);
+          break;
+
+        case 'subtask-advertising':
+          result = await this.handleSubtaskAdvertising(request);
+          break;
+
+        case 'delegation-effectiveness':
+          result = await this.handleDelegationEffectiveness(request);
+          break;
+
+        case 'task-breakdown-evaluation':
+          result = await this.handleTaskBreakdownEvaluation(request);
+          break;
+
+        default:
+          this.logger.warn(`Unknown capability: ${request.capability}`);
+          return {
+            output: `I don't know how to handle ${request.capability}`,
+            error: `Unknown capability: ${request.capability}`,
+            success: false,
+          };
       }
-      
-      const executionTime = Date.now() - startTime;
-      
+
       return {
-        success: true,
         output: result,
-        executionTimeMs: executionTime,
-        metrics: {
-          executionTimeMs: executionTime,
-          tokenUsage: this._estimateTokenUsage(request, result),
-        }
+        error: undefined,
+        success: true,
       };
     } catch (error) {
-      const executionTime = Date.now() - startTime;
-      this.logger.error('Error in FacilitatorSupervisorAgent execution', {
+      this.logger.error('Error executing FacilitatorSupervisorAgent request', {
         error,
         capability: request.capability,
       });
-      
+
       return {
-        success: false,
+        output: '',
         error: error instanceof Error ? error.message : String(error),
-        executionTimeMs: executionTime,
+        success: false,
       };
     }
   }
-  
+
   /**
-   * Estimate token usage for tracking
-   * @private Internal use - renamed to avoid collision with parent class
+   * Handle team facilitation capability
    */
-  private _estimateTokenUsage(request: AgentRequest, result: any): number {
-    // Implement a simple estimation based on request and result size
-    const requestStr = typeof request.input === 'string' 
-      ? request.input 
-      : JSON.stringify(request.input);
-      
-    const resultStr = typeof result === 'string'
-      ? result
-      : JSON.stringify(result);
-      
-    // Rough estimate: 1 token per 4 characters
-    return Math.ceil((requestStr.length + resultStr.length) / 4);
+  private async handleTeamFacilitation(request: AgentRequest): Promise<any> {
+    try {
+      const facilitation = this.parseInput<{
+        operation: string;
+        taskId?: string;
+        agentId?: string;
+        message?: any;
+      }>(request.input);
+
+      switch (facilitation.operation) {
+        case 'list-team':
+          return this.listTeamMembers();
+
+        case 'add-member':
+          if (!facilitation.agentId) {
+            throw new Error('Agent ID required to add team member');
+          }
+
+          const agent = this.agentRegistry.getAgent(facilitation.agentId);
+          if (!agent) {
+            throw new Error(`Agent not found: ${facilitation.agentId}`);
+          }
+
+          const newMember: TeamMember = {
+            agent,
+            role: facilitation.message?.role || 'team-member',
+            priority: facilitation.message?.priority || 5,
+            active: true,
+            metadata: facilitation.message?.metadata || {},
+          };
+
+          this.addTeamMember(newMember);
+          return { success: true, message: `Added ${agent.name} to team` };
+
+        case 'remove-member':
+          if (!facilitation.agentId) {
+            throw new Error('Agent ID required to remove team member');
+          }
+
+          const removed = this.removeTeamMember(facilitation.agentId);
+          return {
+            success: removed,
+            message: removed
+              ? `Removed agent from team`
+              : `Agent not found in team`,
+          };
+
+        case 'broadcast':
+          if (!facilitation.message) {
+            throw new Error('Message required for broadcast operation');
+          }
+
+          const messageIds = await this.broadcastMessage({
+            type: facilitation.message.type || 'notification',
+            content: facilitation.message.content || facilitation.message,
+          });
+
+          return {
+            success: true,
+            messageIds,
+            recipientCount: messageIds.length,
+          };
+
+        default:
+          throw new Error(
+            `Unknown facilitation operation: ${facilitation.operation}`,
+          );
+      }
+    } catch (error) {
+      this.logger.error('Error handling team facilitation', { error });
+      throw error;
+    }
   }
 
   /**
-   * Handle collaborative task breakdown
-   * @deprecated Will be replaced by agentic self-organizing behavior
+   * Handle task suggestion capability
+   */
+  private async handleTaskSuggestion(request: AgentRequest): Promise<any> {
+    try {
+      const suggestion = this.parseInput<{
+        operation: string;
+        taskId?: string;
+        agentId?: string;
+        reason?: string;
+        taskDescription?: string;
+      }>(request.input);
+
+      switch (suggestion.operation) {
+        case 'suggest-assignment':
+          if (!suggestion.taskId || !suggestion.agentId) {
+            throw new Error(
+              'Task ID and Agent ID required for assignment suggestion',
+            );
+          }
+
+          const proposal = await this.createTaskProposal({
+            taskId: suggestion.taskId,
+            proposerId: this.id,
+            suggestedAgentId: suggestion.agentId,
+            reason: suggestion.reason,
+          });
+
+          return {
+            success: true,
+            proposalId: proposal.id,
+            message: `Created proposal for task ${suggestion.taskId}`,
+          };
+
+        case 'create-task':
+          if (!suggestion.taskDescription) {
+            throw new Error('Task description required to create task');
+          }
+
+          const taskId = `task-${uuidv4()}`;
+          const task: Task = {
+            id: taskId,
+            title: suggestion.taskDescription.substring(0, 50),
+            name: suggestion.taskDescription.substring(0, 50),
+            description: suggestion.taskDescription,
+            status: 'pending',
+            priority: 5,
+            createdAt: Date.now(),
+            completedAt: null,
+            subtasks: [],
+            metadata: {},
+            requiredCapabilities:
+              suggestion.operation === 'create-task' &&
+              suggestion.taskDescription.includes('capability-requirements')
+                ? ['analysis', 'planning'] // Example capabilities
+                : undefined,
+          };
+
+          this.tasks.set(taskId, task);
+
+          return { success: true, taskId, message: `Created task ${taskId}` };
+
+        case 'list-tasks':
+          return Array.from(this.tasks.values()).map((task) => ({
+            id: task.id,
+            title: task.title,
+            name: task.name || task.title,
+            status: task.status,
+            assignedTo: task.assignedTo,
+          }));
+
+        default:
+          throw new Error(
+            `Unknown task suggestion operation: ${suggestion.operation}`,
+          );
+      }
+    } catch (error) {
+      this.logger.error('Error handling task suggestion', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Handle collaborative task breakdown capability
    */
   private async handleCollaborativeTaskBreakdown(
     request: AgentRequest,
   ): Promise<any> {
-    this.logger.info('Handling collaborative task breakdown');
-
-    // Safely extract data from input
-    let planId = '';
-    let taskId = '';
-    let contributingAgentIds: string[] = [];
-    let minContributors = 2;
-    let maxContributors = 5;
-    let evaluationCriteria: string[] = [];
-    let consensusThreshold = 0.7;
-    let timeLimit = 0;
-    
-    // Extract parameters from input if it's an object
-    const input = request.input;
-    if (typeof input === 'object' && input !== null) {
-      if ('planId' in input) planId = String(input.planId);
-      if ('taskId' in input) taskId = String(input.taskId);
-      if ('contributingAgentIds' in input && Array.isArray(input.contributingAgentIds)) 
-        contributingAgentIds = input.contributingAgentIds;
-      if ('minContributors' in input) minContributors = Number(input.minContributors);
-      if ('maxContributors' in input) maxContributors = Number(input.maxContributors);
-      if ('evaluationCriteria' in input && Array.isArray(input.evaluationCriteria)) 
-        evaluationCriteria = input.evaluationCriteria;
-      if ('consensusThreshold' in input) consensusThreshold = Number(input.consensusThreshold);
-      if ('timeLimit' in input) timeLimit = Number(input.timeLimit);
-    }
-    
-    if (!planId || !taskId) {
-      throw new Error('Missing required parameters: planId and taskId');
-    }
-    
-    // Request collaborative breakdown
-    const sessionId = await this.collaborativeTaskBreakdown.startCollaborativeBreakdown(
-      planId,
-      taskId,
-      {
-        contributingAgentIds,
-        minContributors,
-        maxContributors,
-        evaluationCriteria,
-        consensusThreshold,
-        timeLimit,
-        facilitatorId: this.id,
-      },
-    );
-    
-    if (!sessionId) {
-      throw new Error('Failed to start collaborative breakdown session');
-    }
-    
-    // Wait for result
-    let result: any;
-    let tries = 0;
-    let maxTries = 10;
-    
-    while (tries < maxTries) {
-      try {
-        result = this.collaborativeTaskBreakdown.getSessionResult(sessionId);
-        
-        if (result?.status === 'completed') {
-          // Apply the winning proposal
-          const subtasks = await this.collaborativeTaskBreakdown.applyWinningProposal(
-            sessionId,
-          );
-          
-          return {
-            sessionId,
-            status: 'completed',
-            subtasks,
-            winningProposal: result.winningProposal,
-          };
-        } else if (result?.status === 'failed') {
-          throw new Error('Collaborative session failed');
-        }
-        
-        // Wait before checking again
-        await new Promise(r => setTimeout(r, 1000));
-        tries++;
-      } catch (error) {
-        this.logger.error('Error checking session status', { error, sessionId });
-        tries++;
-        await new Promise(r => setTimeout(r, 1000));
-      }
-    }
-    
-    return {
-      sessionId,
-      status: 'pending',
-      message: 'Collaborative session is still in progress',
-    };
-  }
-
-  /**
-   * Handle team assembly
-   * @deprecated Will be replaced by agentic self-organizing behavior
-   */
-  private async handleTeamAssembly(
-    request: AgentRequest,
-  ): Promise<any> {
-    this.logger.info('Handling team assembly');
-    
-    // Safely extract data from input
-    let taskId = '';
-    let taskDescription = '';
-    let requiredCapabilities: string[] = [];
-    let preferredAgentIds: string[] = [];
-    let excludedAgentIds: string[] = [];
-    let teamSize = 0;
-    let strategy = 'balanced';
-    let addToSupervisorTeam = false;
-    
-    // Extract parameters from input if it's an object
-    const input = request.input;
-    if (typeof input === 'object' && input !== null) {
-      if ('taskId' in input) taskId = String(input.taskId);
-      if ('taskDescription' in input) taskDescription = String(input.taskDescription);
-      if ('requiredCapabilities' in input && Array.isArray(input.requiredCapabilities)) 
-        requiredCapabilities = input.requiredCapabilities;
-      if ('preferredAgentIds' in input && Array.isArray(input.preferredAgentIds)) 
-        preferredAgentIds = input.preferredAgentIds;
-      if ('excludedAgentIds' in input && Array.isArray(input.excludedAgentIds)) 
-        excludedAgentIds = input.excludedAgentIds;
-      if ('teamSize' in input) teamSize = Number(input.teamSize);
-      if ('strategy' in input) strategy = String(input.strategy);
-      if ('addToSupervisorTeam' in input) addToSupervisorTeam = Boolean(input.addToSupervisorTeam);
-    }
-    
-    // Form team
-    const team = await this.teamAssembly.formTeam({
-      taskId,
-      taskDescription,
-      requiredCapabilities,
-      preferredAgentIds,
-      excludedAgentIds,
-      teamSize,
-      strategy: strategy as any,
-    });
-    
-    // Add team members to supervisor team if requested
-    if (addToSupervisorTeam) {
-      for (const member of team.members) {
-        // Access agent via collaborative service to avoid private property access
-        const agent = this.collaborativeTaskBreakdown.getAgent(member.agentId);
-        if (agent) {
-          this.addTeamMember({
-            agent,
-            role: member.role,
-            priority: 5, // Default priority
-            active: true, // Default active status
-          });
-        }
-      }
-    }
-    
-    return {
-      teamId: team.id,
-      name: team.name,
-      description: team.description,
-      members: team.members.map(m => ({
-        agentId: m.agentId,
-        agentName: m.agentName,
-        role: m.role,
-        capabilities: m.capabilities,
-        compatibilityScore: m.compatibilityScore,
-      })),
-      formationStrategy: team.formationStrategy,
-    };
-  }
-
-  /**
-   * Helper function to safely extract input data from AgentRequest input which can be string or BaseMessage[]
-   */
-  private getInputData<T>(input: string | BaseMessage[]): T {
     try {
-      if (typeof input === 'string') {
-        return JSON.parse(input) as T;
-      } else if (Array.isArray(input)) {
-        // Try to extract JSON from the BaseMessage array
-        const lastMessage = input[input.length - 1];
-        const content = typeof lastMessage === 'string' ? lastMessage : 
-          (lastMessage as any)?.content || '{}';
-        return (typeof content === 'string' ? JSON.parse(content) : content) as T;
-      }
-      return input as unknown as T;
-    } catch (error) {
-      this.logger.error(`Failed to parse input: ${error}`);
-      return {} as T;
-    }
-  }
+      const breakdown = this.parseInput<{
+        operation: string;
+        taskId?: string;
+        collaboratorIds?: string[];
+        subtasks?: any[];
+        breakdownId?: string;
+      }>(request.input);
 
-  /**
-   * Handle consensus building activities
-   */
-  private async handleConsensusBuilding(
-    request: AgentRequest,
-  ): Promise<any> {
-    this.logger.info('Handling consensus building');
-    
-    const input = this.getInputData<ConsensusRequestInput>(request.input);
-    const operation = input.operation;
-    
-    switch (operation) {
-      case 'start-vote':
-        return await this.startVotingSession(request);
-      
-      case 'cast-vote':
-        return await this.castVote(request);
-      
-      case 'get-result':
-        return await this.getVotingResult(request);
-      
-      default:
-        throw new Error(`Unknown consensus operation: ${operation}`);
-    }
-  }
+      switch (breakdown.operation) {
+        case 'initiate-breakdown':
+          if (!breakdown.taskId) {
+            throw new Error('Task ID required to initiate breakdown');
+          }
 
-  /**
-   * Start a voting session
-   */
-  private async startVotingSession(request: AgentRequest): Promise<any> {
-    const input = this.getInputData<StartVoteRequestInput>(request.input);
-    
-    const { 
-      question, 
-      options, 
-      deadline, 
-      participants 
-    } = input;
-    
-    if (!question || !options || !Array.isArray(options)) {
-      throw new Error('Missing required parameters: question and options array');
-    }
-    
-    const votingId = uuidv4();
-    const deadlineTimestamp = deadline 
-      ? new Date(deadline).getTime() 
-      : Date.now() + 5 * 60 * 1000; // Default 5 min deadline
-    
-    this.votingSessions.set(votingId, {
-      question,
-      options,
-      votes: {},
-      deadline: deadlineTimestamp,
-    });
-    
-    // Notify participants (team members) about the vote if specified
-    if (participants === 'team') {
-      const teamMembers = this.listTeamMembers();
-      
-      for (const member of teamMembers) {
-        try {
-          const agentRequest: AgentRequest = {
-            capability: 'voting',
-            input: JSON.stringify({
-              votingId,
-              question,
-              options,
-              deadline: deadlineTimestamp,
-            }),
-            parameters: {
-              facilitatorId: this.id,
-              isVotingRequest: true,
-            }
+          const task = this.tasks.get(breakdown.taskId);
+          if (!task) {
+            throw new Error(`Task not found: ${breakdown.taskId}`);
+          }
+
+          const newBreakdown =
+            await this.taskBreakdownService.initiateTaskBreakdown(
+              breakdown.taskId,
+              task,
+              this.id,
+              breakdown.collaboratorIds || [],
+            );
+
+          // Update task with breakdown ID
+          task.breakdownId = newBreakdown.breakdownId;
+          this.tasks.set(breakdown.taskId, task);
+
+          // Track the breakdown
+          this.taskBreakdowns.set(breakdown.taskId, newBreakdown.breakdownId);
+
+          return {
+            success: true,
+            breakdownId: newBreakdown.breakdownId,
+            message: `Initiated breakdown for task ${breakdown.taskId}`,
           };
-          
-          await member.agent.execute(agentRequest);
-        } catch (error) {
-          this.logger.warn(`Failed to notify team member ${member.agent.id} about voting`, {
-            error,
-          });
-        }
+
+        case 'update-subtasks':
+          if (!breakdown.breakdownId || !breakdown.subtasks) {
+            throw new Error('Breakdown ID and subtasks required for update');
+          }
+
+          // Implementation of update-subtasks operation
+          break;
+
+        default:
+          throw new Error(
+            `Unknown breakdown operation: ${breakdown.operation}`,
+          );
       }
-    }
-    
-    return {
-      votingId,
-      question,
-      options,
-      deadline: new Date(deadlineTimestamp).toISOString(),
-      status: 'open',
-    };
-  }
-
-  /**
-   * Cast a vote in a voting session
-   */
-  private async castVote(request: AgentRequest): Promise<any> {
-    const input = this.getInputData<CastVoteRequestInput>(request.input);
-    
-    const { votingId, agentId, vote } = input;
-    
-    if (!votingId || !agentId || !vote) {
-      throw new Error('Missing required parameters: votingId, agentId, and vote');
-    }
-    
-    const session = this.votingSessions.get(votingId);
-    if (!session) {
-      throw new Error(`Voting session not found: ${votingId}`);
-    }
-    
-    // Check if voting is still open
-    if (Date.now() > session.deadline) {
-      throw new Error(`Voting session ${votingId} is closed`);
-    }
-    
-    // Check if vote is valid
-    if (!session.options.includes(vote)) {
-      throw new Error(`Invalid vote option: ${vote}`);
-    }
-    
-    // Record the vote
-    session.votes[agentId] = vote;
-    this.votingSessions.set(votingId, session);
-    
-    return {
-      votingId,
-      status: 'vote-recorded',
-      agent: agentId,
-      vote,
-    };
-  }
-
-  /**
-   * Get the result of a voting session
-   */
-  private async getVotingResult(request: AgentRequest): Promise<any> {
-    const input = this.getInputData<GetVotingResultRequestInput>(request.input);
-    
-    const { votingId, forceResult } = input;
-    
-    if (!votingId) {
-      throw new Error('Missing required parameter: votingId');
-    }
-    
-    const session = this.votingSessions.get(votingId);
-    if (!session) {
-      throw new Error(`Voting session not found: ${votingId}`);
-    }
-    
-    // Check if session has ended or forceResult is true
-    if (Date.now() <= session.deadline && !forceResult) {
-      return {
-        votingId,
-        status: 'in-progress',
-        deadline: new Date(session.deadline).toISOString(),
-        votesCast: Object.keys(session.votes).length,
-      };
-    }
-    
-    // Calculate results if not already calculated
-    if (!session.result) {
-      const voteCounts: Record<string, string[]> = {};
-      
-      // Initialize with all options
-      for (const option of session.options) {
-        voteCounts[option] = [];
-      }
-      
-      // Count votes
-      for (const [agentId, vote] of Object.entries(session.votes)) {
-        voteCounts[vote].push(agentId);
-      }
-      
-      // Determine the winning option
-      let maxVotes = 0;
-      let winningOption = '';
-      
-      for (const [option, voters] of Object.entries(voteCounts)) {
-        if (voters.length > maxVotes) {
-          maxVotes = voters.length;
-          winningOption = option;
-        }
-      }
-      
-      // Create result
-      const result: VotingResult = {
-        decision: winningOption,
-        options: session.options.map(option => ({
-          option,
-          votes: voteCounts[option].length,
-          voters: voteCounts[option],
-        })),
-        participated: Object.keys(session.votes).length,
-        total: this.listTeamMembers().length,
-        timestamp: Date.now(),
-      };
-      
-      session.result = result;
-      this.votingSessions.set(votingId, session);
-    }
-    
-    return {
-      votingId,
-      status: 'completed',
-      result: session.result,
-    };
-  }
-
-  /**
-   * Handle task delegation to capable agents
-   */
-  private async handleTaskDelegation(
-    request: AgentRequest,
-  ): Promise<any> {
-    this.logger.info('Handling task delegation');
-    
-    // Parse request with safe type handling
-    const delegationRequest = this.getInputData<TaskDelegationRequest & { advertiserId?: string }>(request.input);
-    
-    // Default to self as advertiser if not specified
-    const advertiserId = delegationRequest.advertiserId || this.id;
-    
-    // Delegate the task
-    const result = await this.delegationProtocol.delegateTask(
-      advertiserId,
-      delegationRequest,
-    );
-    
-    return {
-      advertisementId: result.advertisementId,
-      status: result.status,
-      assignedAgent: result.assignedAgentId 
-        ? { id: result.assignedAgentId, name: result.assignedAgentName }
-        : undefined,
-      responseCount: result.responses.length,
-      topResponders: result.responses
-        .sort((a, b) => b.confidence - a.confidence)
-        .slice(0, 3)
-        .map(r => ({
-          agentId: r.agentId,
-          agentName: r.agentName,
-          confidence: r.confidence,
-        })),
-    };
-  }
-
-  /**
-   * Handle suggestion-based coordination
-   */
-  private async handleSuggestionCoordination(
-    request: AgentRequest,
-  ): Promise<any> {
-    this.logger.info('Handling suggestion coordination');
-    
-    const input = this.getInputData<SuggestionRequestInput>(request.input);
-    const operation = input.operation;
-    
-    switch (operation) {
-      case 'submit-suggestion':
-        return await this.handleSubmitSuggestion(request);
-      
-      case 'support-suggestion':
-        return await this.handleSupportSuggestion(request);
-      
-      case 'resolve-suggestion':
-        return await this.handleResolveSuggestion(request);
-      
-      case 'list-suggestions':
-        return await this.handleListSuggestions(request);
-      
-      default:
-        throw new Error(`Unknown suggestion operation: ${operation}`);
+    } catch (error) {
+      this.logger.error('Error handling collaborative task breakdown', {
+        error,
+      });
+      throw error;
     }
   }
 
   /**
-   * Handle submission of a team suggestion
+   * Create a new task
+   * @param title The title of the task
+   * @param description A description of the task
+   * @param priority The priority of the task (1-5, where 5 is highest)
+   * @param deadline Optional deadline for the task
+   * @param assignedTo Optional ID of the agent assigned to the task
+   * @param metadata Additional metadata for the task
+   * @returns The ID of the created task
    */
-  private async handleSubmitSuggestion(request: AgentRequest): Promise<any> {
-    const input = this.getInputData<SubmitSuggestionRequestInput>(request.input);
-    const { suggestion, agentId, weight } = input;
-    
-    if (!suggestion || !agentId) {
-      throw new Error('Missing required parameters: suggestion and agentId');
+  public createTask(
+    title: string,
+    description: string,
+    priority: number = 3,
+    deadline?: number,
+    assignedTo?: string,
+    metadata: Record<string, any> = {},
+  ): string {
+    if (!title || title.trim() === '') {
+      throw new Error('Task title cannot be empty');
     }
-    
-    const suggestionId = uuidv4();
-    
-    this.teamSuggestions.set(suggestionId, {
-      id: suggestionId,
-      suggestion,
-      supportingAgents: [agentId],
-      weight: weight || 1.0,
-      resolved: false,
-      createdAt: Date.now(),
-    });
-    
-    return {
-      suggestionId,
-      status: 'submitted',
-      suggester: agentId,
-    };
-  }
 
-  /**
-   * Handle support for an existing suggestion
-   */
-  private async handleSupportSuggestion(request: AgentRequest): Promise<any> {
-    const input = this.getInputData<SupportSuggestionRequestInput>(request.input);
-    const { suggestionId, agentId, additionalWeight } = input;
-    
-    if (!suggestionId || !agentId) {
-      throw new Error('Missing required parameters: suggestionId and agentId');
+    if (priority < 1 || priority > 5) {
+      throw new Error('Priority must be between 1 and 5');
     }
-    
-    const suggestion = this.teamSuggestions.get(suggestionId);
-    if (!suggestion) {
-      throw new Error(`Suggestion not found: ${suggestionId}`);
-    }
-    
-    if (suggestion.resolved) {
-      return {
-        suggestionId,
-        status: 'already-resolved',
-        outcome: suggestion.outcome,
-      };
-    }
-    
-    // Add support if not already supporting
-    if (!suggestion.supportingAgents.includes(agentId)) {
-      suggestion.supportingAgents.push(agentId);
-      
-      // Add weight if specified
-      if (additionalWeight) {
-        suggestion.weight += additionalWeight;
-      } else {
-        // Default to increasing weight by 1.0
-        suggestion.weight += 1.0;
-      }
-      
-      this.teamSuggestions.set(suggestionId, suggestion);
-    }
-    
-    return {
-      suggestionId,
-      status: 'supported',
-      supporters: suggestion.supportingAgents.length,
-      weight: suggestion.weight,
-    };
-  }
 
-  /**
-   * Handle resolving a suggestion
-   */
-  private async handleResolveSuggestion(request: AgentRequest): Promise<any> {
-    const input = this.getInputData<ResolveSuggestionRequestInput>(request.input);
-    const { suggestionId, outcome, resolverId } = input;
-    
-    if (!suggestionId || !outcome) {
-      throw new Error('Missing required parameters: suggestionId and outcome');
-    }
-    
-    const suggestion = this.teamSuggestions.get(suggestionId);
-    if (!suggestion) {
-      throw new Error(`Suggestion not found: ${suggestionId}`);
-    }
-    
-    if (suggestion.resolved) {
-      return {
-        suggestionId,
-        status: 'already-resolved',
-        outcome: suggestion.outcome,
-      };
-    }
-    
-    // Resolve the suggestion
-    suggestion.resolved = true;
-    suggestion.outcome = outcome;
-    suggestion.resolvedAt = Date.now();
-    
-    this.teamSuggestions.set(suggestionId, suggestion);
-    
-    return {
-      suggestionId,
-      status: 'resolved',
-      outcome,
-      resolvedBy: resolverId || this.id,
-      supporters: suggestion.supportingAgents.length,
-    };
-  }
+    const taskId = uuidv4();
+    const now = Date.now();
 
-  /**
-   * Handle listing of team suggestions
-   */
-  private async handleListSuggestions(request: AgentRequest): Promise<any> {
-    const input = this.getInputData<ListSuggestionsRequestInput>(request.input);
-    const { status } = input;
-    
-    let suggestions = Array.from(this.teamSuggestions.values());
-    
-    // Filter by status if specified
-    if (status === 'active') {
-      suggestions = suggestions.filter(s => !s.resolved);
-    } else if (status === 'resolved') {
-      suggestions = suggestions.filter(s => s.resolved);
-    }
-    
-    // Sort by weight (descending)
-    suggestions.sort((a, b) => b.weight - a.weight);
-    
-    return {
-      suggestions: suggestions.map(s => ({
-        id: s.id,
-        suggestion: s.suggestion,
-        supporters: s.supportingAgents.length,
-        weight: s.weight,
-        resolved: s.resolved,
-        outcome: s.outcome,
-        createdAt: new Date(s.createdAt).toISOString(),
-        resolvedAt: s.resolvedAt ? new Date(s.resolvedAt).toISOString() : undefined,
-      })),
-    };
-  }
-
-  /**
-   * Override the standard task assignment to use suggestion-based approach
-   */
-  async assignTask(taskDescription: string, options: any = {}): Promise<Task> {
-    this.logger.info(`Suggesting task assignment: ${taskDescription}`);
-    
-    // Create a standard task object
     const task: Task = {
-      id: options.id || uuidv4(),
-      name: options.name || taskDescription.substring(0, 50),
-      description: taskDescription,
-      status: 'pending',
-      priority: options.priority || 5,
-      createdAt: Date.now(),
-      metadata: options.metadata || {},
+      id: taskId,
+      title,
+      description,
+      priority,
+      status: 'open',
+      createdAt: now,
+      deadline,
+      assignedTo,
+      completedAt: null,
+      subtasks: [],
+      metadata,
     };
-    
-    // Store the task using the helper method rather than direct access
-    this.storeTask(task);
-    
-    // Use team assembly to find suitable agents
-    const team = await this.teamAssembly.formTeam({
-      taskDescription,
-      requiredCapabilities: options.requiredCapabilities,
-      preferredAgentIds: options.preferredAgentIds,
-      teamSize: 1, // Just need one agent
-      strategy: 'specialist',
-    });
-    
-    if (team.members.length > 0) {
-      const bestMember = team.members[0];
-      
-      // Suggest rather than assign directly
-      const suggestion = {
-        id: uuidv4(),
-        suggestion: `Agent ${bestMember.agentName} should handle task: ${task.name}`,
-        supportingAgents: [this.id],
-        weight: bestMember.compatibilityScore * 10,
-        resolved: false,
-        createdAt: Date.now(),
-        metadata: {
-          taskId: task.id,
-          agentId: bestMember.agentId,
-          compatibilityScore: bestMember.compatibilityScore,
-        },
-      };
-      
-      this.teamSuggestions.set(suggestion.id, suggestion);
-      
-      // Store the suggestion ID in the task metadata
-      if (task.metadata) {
-        task.metadata.suggestionId = suggestion.id;
-        this.storeTask(task);
-      }
-      
-      this.logger.info(`Created task suggestion: ${suggestion.suggestion}`);
+
+    this.tasks.set(taskId, task);
+
+    this.logger.info(`Created task "${title}" with ID ${taskId}`);
+
+    // Notify assigned agent if any
+    if (assignedTo) {
+      this.notifyTaskAssignment(task);
     }
-    
+
+    return taskId;
+  }
+
+  /**
+   * Update an existing task
+   * @param taskId The ID of the task to update
+   * @param updates The fields to update
+   * @returns The updated task
+   */
+  public updateTask(
+    taskId: string,
+    updates: Partial<Omit<Task, 'id' | 'createdAt'>>,
+  ): Task {
+    const task = this.tasks.get(taskId);
+
+    if (!task) {
+      throw new Error(`Task with ID ${taskId} not found`);
+    }
+
+    // Validate priority if provided
+    if (
+      updates.priority !== undefined &&
+      (updates.priority < 1 || updates.priority > 5)
+    ) {
+      throw new Error('Priority must be between 1 and 5');
+    }
+
+    // Handle assignment changes
+    const wasAssigned = task.assignedTo;
+    const newAssignment = updates.assignedTo;
+
+    // Update task properties
+    Object.assign(task, updates);
+
+    // If status is changed to completed, set completedAt
+    if (updates.status === 'completed' && task.completedAt === null) {
+      task.completedAt = Date.now();
+    }
+
+    // If status is changed from completed, clear completedAt
+    if (
+      updates.status &&
+      updates.status !== 'completed' &&
+      task.completedAt !== null
+    ) {
+      task.completedAt = null;
+    }
+
+    this.logger.info(`Updated task "${task.title}" (ID: ${taskId})`);
+
+    // Notify agent if assignment changed
+    if (newAssignment && newAssignment !== wasAssigned) {
+      this.notifyTaskAssignment(task);
+    }
+
     return task;
   }
 
   /**
-   * Clean up resources when terminating the agent
+   * Get a task by ID
+   * @param taskId The ID of the task to retrieve
+   * @returns The task
    */
-  async terminate(): Promise<void> {
-    // Clean up any active voting sessions
-    for (const [id, session] of this.votingSessions.entries()) {
-      if (!session.result) {
-        this.logger.info(`Cleaning up unfinished voting session ${id}`);
-        // Force calculate results
-        const result: VotingResult = {
-          decision: '',
-          options: [],
-          participated: 0,
-          total: 0,
-          timestamp: Date.now(),
-        };
-        session.result = result;
-      }
+  public getTask(taskId: string): Task {
+    const task = this.tasks.get(taskId);
+
+    if (!task) {
+      throw new Error(`Task with ID ${taskId} not found`);
     }
-    
-    await super.terminate();
+
+    return task;
   }
 
   /**
-   * Handle access to team members with workaround for private property access
-   * @deprecated Will be replaced by agentic self-organizing behavior 
+   * Get all tasks, optionally filtered by status
+   * @param status Optional status to filter by
+   * @returns Array of tasks
    */
-  private getAgentById(agentId: string): BaseAgentInterface | undefined {
-    // Since agentRegistry is private in parent class, we use our own reference
-    return this.collaborativeTaskBreakdown?.getAgent?.(agentId) || undefined;
-  }
-  
-  /**
-   * Store task with workaround for private property access
-   * @deprecated Will be replaced by agentic self-organizing behavior
-   */
-  private storeTask(task: Task): void {
-    // Workaround to store task in a way that doesn't access private properties
-    if (this.collaborativeTaskBreakdown?.storeTask) {
-      this.collaborativeTaskBreakdown.storeTask(task);
-    } else {
-      this.logger.warn(`Failed to store task ${task.id} due to missing access method`);
+  public getAllTasks(status?: Task['status']): Task[] {
+    const tasks = Array.from(this.tasks.values());
+
+    if (status) {
+      return tasks.filter((task) => task.status === status);
     }
+
+    return tasks;
   }
 
   /**
-   * Handle consensus voting for decisions
-   * @deprecated Will be replaced by agentic self-organizing behavior
+   * Delete a task
+   * @param taskId The ID of the task to delete
+   * @returns True if the task was successfully deleted
    */
-  async handleConsensusVoting(input: string | BaseMessage[]): Promise<any> {
-    // Safely extract properties from input which may be a string or BaseMessage[]
-    const inputObj = this.getInputData<any>(input);
+  public deleteTask(taskId: string): boolean {
+    const task = this.tasks.get(taskId);
 
-    const operation = inputObj.operation || 'unknown';
-    
-    if (operation === 'start-voting') {
-      // Extract properties with type safety
-      const question = inputObj.question || '';
-      const options = Array.isArray(inputObj.options) ? inputObj.options : [];
-      const deadline = inputObj.deadline || Date.now() + 60000; // Default: 1 minute
-      const participants = Array.isArray(inputObj.participants) ? inputObj.participants : [];
-      
-      if (!question || options.length === 0) {
-        return { status: 'error', message: 'Missing required fields' };
-      }
-      
-      // Call the helper method
-      try {
-        const votingId = this.startVotingProcessWithParams(question, options, deadline, participants);
-        return {
-          status: 'success',
-          votingId,
-          message: `Voting session started with ID: ${votingId}`
-        };
-      } catch (error) {
-        return { status: 'error', message: `Failed to start voting: ${error}` };
-      }
+    if (!task) {
+      throw new Error(`Task with ID ${taskId} not found`);
     }
-    
-    if (operation === 'submit-vote') {
-      // Extract properties with type safety
-      const votingId = inputObj.votingId || '';
-      const agentId = inputObj.agentId || '';
-      const vote = inputObj.vote || '';
-      
-      if (!votingId || !agentId || !vote) {
-        return { status: 'error', message: 'Missing required fields for vote submission' };
-      }
-      
-      const result = this.submitVote(votingId, agentId, vote);
-      return {
-        status: result ? 'success' : 'error',
-        message: result ? 'Vote submitted successfully' : 'Failed to submit vote'
-      };
-    }
-    
-    if (operation === 'get-results') {
-      // Extract votingId with type safety
-      const votingId = inputObj.votingId || '';
-      
-      if (!votingId) {
-        return { status: 'error', message: 'Missing voting ID' };
-      }
-      
-      const result = this.getVotingResults(votingId);
-      if (!result) {
-        return { status: 'error', message: 'Voting not found or still in progress' };
-      }
-      
-      return {
-        status: 'success',
-        result
-      };
-    }
-    
-    return { status: 'error', message: `Unknown operation: ${operation}` };
+
+    this.logger.info(`Deleted task "${task.title}" (ID: ${taskId})`);
+
+    return this.tasks.delete(taskId);
   }
 
   /**
-   * Submit a vote for a voting session
-   * @param votingId The ID of the voting session
-   * @param agentId The ID of the agent casting the vote
-   * @param vote The vote option
-   * @returns boolean indicating success
+   * Add a subtask to an existing task
+   * @param taskId The ID of the parent task
+   * @param subtaskTitle The title of the subtask
+   * @param subtaskDescription Optional description of the subtask
+   * @returns The updated task
    */
-  private submitVote(votingId: string, agentId: string, vote: string): boolean {
-    try {
-      const session = this.votingSessions.get(votingId);
-      if (!session) {
-        this.logger.warn(`Voting session not found: ${votingId}`);
-        return false;
-      }
-      
-      // Check if voting is still open
-      if (session.result || Date.now() > session.deadline) {
-        this.logger.warn(`Voting session ${votingId} is closed`);
-        return false;
-      }
-      
-      // Check if vote is valid
-      if (!session.options.includes(vote)) {
-        this.logger.warn(`Invalid vote option: ${vote}`);
-        return false;
-      }
-      
-      // Record the vote
-      session.votes[agentId] = vote;
-      this.votingSessions.set(votingId, session);
-      
-      // Check if all eligible voters have voted and auto-close
-      if (Object.keys(session.votes).length >= this.listTeamMembers().length) {
-        this.getVotingResults(votingId, true);
-      }
-      
-      return true;
-    } catch (error) {
-      this.logger.error(`Error submitting vote: ${error}`);
-      return false;
+  public addSubtask(
+    taskId: string,
+    subtaskTitle: string,
+    subtaskDescription?: string,
+  ): Task {
+    const task = this.tasks.get(taskId);
+
+    if (!task) {
+      throw new Error(`Task with ID ${taskId} not found`);
     }
+
+    if (!subtaskTitle || subtaskTitle.trim() === '') {
+      throw new Error('Subtask title cannot be empty');
+    }
+
+    const subtaskId = uuidv4();
+
+    const subtask = {
+      id: subtaskId,
+      title: subtaskTitle,
+      description: subtaskDescription || '',
+      status: 'open' as const, // Use a const assertion to ensure correct type
+      createdAt: Date.now(),
+      completedAt: null,
+    };
+
+    task.subtasks.push(subtask);
+
+    this.logger.info(
+      `Added subtask "${subtaskTitle}" to task "${task.title}" (ID: ${taskId})`,
+    );
+
+    return task;
   }
 
   /**
-   * Get the results of a voting session
-   * @param votingId The ID of the voting session
-   * @param forceCalculation Whether to force calculation of results even if session is still open
-   * @returns The voting result or undefined if not available
+   * Update a subtask
+   * @param taskId The ID of the parent task
+   * @param subtaskId The ID of the subtask to update
+   * @param updates The fields to update
+   * @returns The updated task
    */
-  private getVotingResults(votingId: string, forceCalculation: boolean = false): VotingResult | undefined {
-    try {
-      const session = this.votingSessions.get(votingId);
-      if (!session) {
-        this.logger.warn(`Voting session not found: ${votingId}`);
-        return undefined;
-      }
-      
-      // If results already exist, return them
-      if (session.result) {
-        return session.result;
-      }
-      
-      // If voting is not closed and not forcing calculation, return undefined
-      if (Date.now() <= session.deadline && !forceCalculation) {
-        return undefined;
-      }
-      
-      // Calculate results
-      const voteCounts: Record<string, string[]> = {};
-      
-      // Initialize with all options
-      for (const option of session.options) {
-        voteCounts[option] = [];
-      }
-      
-      // Count votes
-      for (const [agentId, vote] of Object.entries(session.votes)) {
-        voteCounts[vote].push(agentId);
-      }
-      
-      // Determine the winning option
-      let maxVotes = 0;
-      let winningOption = '';
-      
-      for (const [option, voters] of Object.entries(voteCounts)) {
-        if (voters.length > maxVotes) {
-          maxVotes = voters.length;
-          winningOption = option;
-        }
-      }
-      
-      // Create result
-      const result: VotingResult = {
-        decision: winningOption,
-        options: session.options.map(option => ({
-          option,
-          votes: voteCounts[option].length,
-          voters: voteCounts[option],
-        })),
-        participated: Object.keys(session.votes).length,
-        total: this.listTeamMembers().length,
-        timestamp: Date.now(),
-      };
-      
-      // Store result
-      session.result = result;
-      this.votingSessions.set(votingId, session);
-      
-      return result;
-    } catch (error) {
-      this.logger.error(`Error getting voting results: ${error}`);
-      return undefined;
+  public updateSubtask(
+    taskId: string,
+    subtaskId: string,
+    updates: Partial<Omit<Task['subtasks'][0], 'id' | 'createdAt'>>,
+  ): Task {
+    const task = this.tasks.get(taskId);
+
+    if (!task) {
+      throw new Error(`Task with ID ${taskId} not found`);
     }
+
+    const subtaskIndex = task.subtasks.findIndex((st) => st.id === subtaskId);
+
+    if (subtaskIndex === -1) {
+      throw new Error(
+        `Subtask with ID ${subtaskId} not found in task ${taskId}`,
+      );
+    }
+
+    // Update subtask properties
+    Object.assign(task.subtasks[subtaskIndex], updates);
+
+    // If status is changed to completed, set completedAt
+    if (
+      updates.status === 'completed' &&
+      task.subtasks[subtaskIndex].completedAt === null
+    ) {
+      task.subtasks[subtaskIndex].completedAt = Date.now();
+    }
+
+    // If status is changed from completed, clear completedAt
+    if (
+      updates.status &&
+      updates.status !== 'completed' &&
+      task.subtasks[subtaskIndex].completedAt !== null
+    ) {
+      task.subtasks[subtaskIndex].completedAt = null;
+    }
+
+    this.logger.info(
+      `Updated subtask "${task.subtasks[subtaskIndex].title}" in task "${task.title}"`,
+    );
+
+    return task;
   }
 
   /**
-   * Helper method to start a voting process with parameters
+   * Create a proposal to break down a task into subtasks
+   * @param taskId The ID of the task to break down
+   * @param agentId The ID of the agent making the proposal
+   * @param proposedSubtasks The proposed subtasks
+   * @param justification The justification for this breakdown
+   * @returns The ID of the created proposal
    */
-  private startVotingProcessWithParams(
-    question: string, 
-    options: string[], 
-    deadline: number | string, 
-    participants: string[] | string
+  public createSubtaskProposal(
+    taskId: string,
+    agentId: string,
+    proposedSubtasks: Array<{ title: string; description?: string }>,
+    justification: string,
   ): string {
-    const votingId = uuidv4();
-    const deadlineTimestamp = typeof deadline === 'string' 
-      ? new Date(deadline).getTime() 
-      : (typeof deadline === 'number' ? deadline : Date.now() + 5 * 60 * 1000);
+    const task = this.tasks.get(taskId);
 
-    this.votingSessions.set(votingId, {
-      question,
-      options,
-      votes: {},
-      deadline: deadlineTimestamp,
+    if (!task) {
+      throw new Error(`Task with ID ${taskId} not found`);
+    }
+
+    if (!proposedSubtasks || proposedSubtasks.length === 0) {
+      throw new Error('Proposed subtasks cannot be empty');
+    }
+
+    const proposalId = uuidv4();
+    const now = Date.now();
+
+    const proposal: SubtaskProposal = {
+      id: proposalId,
+      taskId,
+      agentId,
+      proposedSubtasks,
+      justification,
+      status: 'pending',
+      createdAt: now,
+      approvedAt: null,
+      rejectedAt: null,
+      rejectionReason: null,
+    };
+
+    this.subtaskProposals.set(proposalId, proposal);
+
+    this.logger.info(
+      `Created subtask proposal for task "${task.title}" by agent ${agentId}`,
+    );
+
+    // Create a voting for this proposal
+    this.createVoting(
+      `Subtask Proposal for Task: ${task.title}`,
+      `Agent ${agentId} has proposed a breakdown of task "${task.title}" into ${proposedSubtasks.length} subtasks.\n\nJustification: ${justification}`,
+      ['Approve', 'Reject'],
+      { proposalId, taskId },
+      10 * 60 * 1000, // 10 minutes
+    );
+
+    return proposalId;
+  }
+
+  /**
+   * Approve a subtask proposal and apply it to the task
+   * @param proposalId The ID of the proposal to approve
+   * @returns The updated task
+   */
+  public approveSubtaskProposal(proposalId: string): Task {
+    const proposal = this.subtaskProposals.get(proposalId);
+
+    if (!proposal) {
+      throw new Error(`Proposal with ID ${proposalId} not found`);
+    }
+
+    if (proposal.status !== 'pending') {
+      throw new Error(`Proposal with ID ${proposalId} is not pending`);
+    }
+
+    const task = this.tasks.get(proposal.taskId);
+
+    if (!task) {
+      throw new Error(`Task with ID ${proposal.taskId} not found`);
+    }
+
+    // Update proposal status
+    proposal.status = 'approved';
+    proposal.approvedAt = Date.now();
+
+    // Add proposed subtasks to the task
+    for (const subtaskData of proposal.proposedSubtasks) {
+      this.addSubtask(
+        proposal.taskId,
+        subtaskData.title,
+        subtaskData.description,
+      );
+    }
+
+    this.logger.info(
+      `Approved subtask proposal for task "${task.title}" by agent ${proposal.agentId}`,
+    );
+
+    // Create a task breakdown record for later analysis
+    this.createTaskBreakdown(task, proposal);
+
+    return task;
+  }
+
+  /**
+   * Reject a subtask proposal
+   * @param proposalId The ID of the proposal to reject
+   * @param reason The reason for rejection
+   * @returns The updated proposal
+   */
+  public rejectSubtaskProposal(
+    proposalId: string,
+    reason: string,
+  ): SubtaskProposal {
+    const proposal = this.subtaskProposals.get(proposalId);
+
+    if (!proposal) {
+      throw new Error(`Proposal with ID ${proposalId} not found`);
+    }
+
+    if (proposal.status !== 'pending') {
+      throw new Error(`Proposal with ID ${proposalId} is not pending`);
+    }
+
+    // Update proposal status
+    proposal.status = 'rejected';
+    proposal.rejectedAt = Date.now();
+    proposal.rejectionReason = reason;
+
+    this.logger.info(
+      `Rejected subtask proposal ${proposalId} for task ${proposal.taskId}`,
+    );
+
+    return proposal;
+  }
+
+  /**
+   * Create a task breakdown record for analysis
+   * @param task The parent task
+   * @param proposal The approved subtask proposal
+   * @returns The ID of the created task breakdown
+   */
+  private createTaskBreakdown(task: Task, proposal: SubtaskProposal): string {
+    const breakdownId = uuidv4();
+
+    const breakdown: TaskBreakdown = {
+      id: breakdownId,
+      taskId: task.id,
+      taskTitle: task.title,
+      taskDescription: task.description,
+      proposalId: proposal.id,
+      agentId: proposal.agentId,
+      subtasks: proposal.proposedSubtasks.map((st) => ({
+        title: st.title,
+        description: st.description || '',
+      })),
+      justification: proposal.justification,
+      createdAt: Date.now(),
+    };
+
+    // Store the breakdown record directly with ID as key
+    this.taskBreakdownRecords.set(breakdownId, breakdown);
+
+    // Also update the task breakdowns map that maps task ID to breakdown ID
+    this.taskBreakdowns.set(task.id, breakdownId);
+
+    return breakdownId;
+  }
+
+  /**
+   * Notify an agent about a task assignment
+   * @param task The task that was assigned
+   */
+  private notifyTaskAssignment(task: Task): void {
+    if (!task.assignedTo) return;
+
+    // This would usually send a notification to the assigned agent
+    this.logger.info(
+      `[NOTIFICATION] Agent ${task.assignedTo} has been assigned task "${task.title}" (ID: ${task.id})`,
+    );
+
+    // In a real implementation, this would call a notification service or messaging system
+    // to inform the assigned agent about the task
+  }
+
+  /**
+   * Parse input data
+   */
+  private parseInput<T>(input: any): T {
+    if (typeof input === 'string') {
+      try {
+        return JSON.parse(input) as T;
+      } catch (e) {
+        // If not valid JSON, return as is wrapped in an object
+        return { value: input } as unknown as T;
+      }
+    }
+    return input as T;
+  }
+
+  /**
+   * Add a team member
+   */
+  private addTeamMember(member: TeamMember): void {
+    this.team.set(member.agent.id, member);
+    this.logger.info(
+      `Added team member: ${member.agent.name} (${member.agent.id})`,
+    );
+  }
+
+  /**
+   * Remove a team member
+   */
+  private removeTeamMember(agentId: string): boolean {
+    const removed = this.team.delete(agentId);
+    if (removed) {
+      this.logger.info(`Removed team member: ${agentId}`);
+    }
+    return removed;
+  }
+
+  /**
+   * List all team members
+   */
+  private listTeamMembers(): TeamMember[] {
+    return Array.from(this.team.values());
+  }
+
+  /**
+   * Handle team assembly capability
+   */
+  private async handleTeamAssembly(request: AgentRequest): Promise<any> {
+    try {
+      const assembly = this.parseInput<{
+        operation: string;
+        taskId?: string;
+        requiredCapabilities?: string[];
+        teamSize?: number;
+        strategy?: 'specialist' | 'generalist' | 'balanced';
+        prioritizePerformance?: boolean;
+        taskDescription?: string;
+      }>(request.input);
+
+      switch (assembly.operation) {
+        case 'form-team':
+          if (!assembly.taskId) {
+            throw new Error('Task ID required for team formation');
+          }
+
+          // Get the task
+          const task = this.tasks.get(assembly.taskId);
+          if (!task) {
+            throw new Error(`Task with ID ${assembly.taskId} not found`);
+          }
+
+          // Get required capabilities
+          const requiredCapabilities =
+            assembly.requiredCapabilities || task.requiredCapabilities || [];
+
+          // Assemble team options
+          const teamOptions = {
+            teamSize: assembly.teamSize || task.teamSize || 3,
+            strategy: assembly.strategy || 'balanced',
+            prioritizePerformance: assembly.prioritizePerformance !== false, // Default to true
+            taskComplexity: this.estimateTaskComplexity(task),
+          };
+
+          // Use the team assembly service to form a team
+          const teamResult = await this.teamAssemblyService.formTaskTeam(
+            assembly.taskId,
+            requiredCapabilities,
+            assembly.taskDescription || task.description,
+            teamOptions,
+          );
+
+          // If we have delegation performance data, use it to refine team selection
+          if (this.delegationPerformance.size > 0) {
+            // Get performance scores for all agents
+            const performanceScores = new Map<string, number>();
+
+            Array.from(this.delegationPerformance.entries()).forEach(
+              ([agentId, metrics]) => {
+                // Calculate performance score (weighted combination of success rate and speed)
+                const performanceScore =
+                  metrics.successRate * 0.7 +
+                  (1 - Math.min(metrics.avgCompletionTime / 60000, 1)) * 0.3;
+
+                performanceScores.set(agentId, performanceScore);
+              },
+            );
+
+            // Sort team members by performance score
+            const teamMembers = teamResult.teamMembers
+              .map((member) => {
+                const performanceScore =
+                  performanceScores.get(member.agentId) || 0.5; // Default for agents without history
+                return {
+                  ...member,
+                  performanceScore,
+                  enhancedScore: member.score * 0.6 + performanceScore * 0.4, // Combine capability and performance
+                };
+              })
+              .sort((a, b) => b.enhancedScore - a.enhancedScore);
+
+            // Return team with performance-adjusted scores
+            return {
+              success: true,
+              taskId: assembly.taskId,
+              teamMembers: teamMembers.map((member) => ({
+                agentId: member.agentId,
+                name: member.name,
+                role: member.role,
+                score: member.enhancedScore,
+                performanceScore: member.performanceScore,
+                suggestedReason:
+                  member.suggestedReason +
+                  (member.performanceScore > 0.7
+                    ? ` Has excellent performance history (${Math.round(member.performanceScore * 100)}% effectiveness).`
+                    : ''),
+              })),
+            };
+          }
+
+          // Return the standard team result if no performance data
+          return {
+            success: true,
+            taskId: assembly.taskId,
+            teamMembers: teamResult.teamMembers,
+          };
+
+        case 'analyze-capabilities':
+          if (!assembly.taskId) {
+            throw new Error('Task ID required for capability analysis');
+          }
+
+          // Get the task
+          const taskForAnalysis = this.tasks.get(assembly.taskId);
+          if (!taskForAnalysis) {
+            throw new Error(`Task with ID ${assembly.taskId} not found`);
+          }
+
+          // Get required capabilities
+          const capsForAnalysis =
+            assembly.requiredCapabilities ||
+            taskForAnalysis.requiredCapabilities ||
+            [];
+
+          // Analyze capability composition
+          const capabilityAnalysis =
+            this.teamAssemblyService.analyzeCapabilityComposition(
+              assembly.taskId,
+              capsForAnalysis,
+              assembly.taskDescription || taskForAnalysis.description,
+            );
+
+          return {
+            success: true,
+            taskId: assembly.taskId,
+            capabilityAnalysis,
+          };
+
+        default:
+          throw new Error(
+            `Unknown team assembly operation: ${assembly.operation}`,
+          );
+      }
+    } catch (error) {
+      this.logger.error('Error handling team assembly', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Estimate task complexity based on description and requirements
+   * This is a simplified implementation
+   * @param task The task to analyze
+   * @returns A complexity score from 1-10
+   */
+  private estimateTaskComplexity(task: Task): number {
+    // Start with base complexity
+    let complexity = 5;
+
+    // Adjust based on description length
+    const descriptionLength = task.description.length;
+    if (descriptionLength > 1000) complexity += 2;
+    else if (descriptionLength > 500) complexity += 1;
+    else if (descriptionLength < 100) complexity -= 1;
+
+    // Adjust based on required capabilities
+    if (task.requiredCapabilities) {
+      complexity += Math.min(task.requiredCapabilities.length, 3);
+    }
+
+    // Adjust based on priority
+    if (task.priority >= 4) complexity += 1;
+
+    // Cap between 1-10
+    return Math.max(1, Math.min(10, complexity));
+  }
+
+  /**
+   * Handle voting coordination capability
+   */
+  private async handleVotingCoordination(request: AgentRequest): Promise<any> {
+    try {
+      const voting = this.parseInput<{
+        operation: string;
+        votingId?: string;
+        topic?: string;
+        description?: string;
+        choices?: string[];
+        metadata?: Record<string, any>;
+        agentId?: string;
+        choice?: string;
+        expireIn?: number;
+      }>(request.input);
+
+      switch (voting.operation) {
+        case 'create-voting':
+          if (!voting.topic || !voting.choices || voting.choices.length < 2) {
+            throw new Error(
+              'Topic and at least two choices are required for voting',
+            );
+          }
+
+          const votingId = this.createVoting(
+            voting.topic,
+            voting.description || voting.topic,
+            voting.choices,
+            voting.metadata || {},
+            voting.expireIn,
+          );
+
+          // Announce the voting to team members
+          this.broadcastMessage({
+            type: 'voting-created',
+            content: {
+              votingId,
+              topic: voting.topic,
+              description: voting.description || voting.topic,
+              choices: voting.choices,
+              expiresIn: voting.expireIn || 3600000, // 1 hour by default
+            },
+          });
+
+          return {
+            success: true,
+            votingId,
+            message: `Created voting "${voting.topic}" with ID ${votingId}`,
+          };
+
+        case 'cast-vote':
+          if (!voting.votingId || !voting.agentId || !voting.choice) {
+            throw new Error(
+              'Voting ID, Agent ID, and Choice are required to cast a vote',
+            );
+          }
+
+          // Get the voting
+          const votingRecord = this.votings.get(voting.votingId);
+          if (!votingRecord) {
+            throw new Error(`Voting with ID ${voting.votingId} not found`);
+          }
+
+          // Check if voting is open
+          if (votingRecord.status !== 'open') {
+            throw new Error(`Voting ${voting.votingId} is not open for votes`);
+          }
+
+          // Check if choice is valid
+          if (!votingRecord.choices.includes(voting.choice)) {
+            throw new Error(
+              `Invalid choice: ${voting.choice}. Valid choices are: ${votingRecord.choices.join(', ')}`,
+            );
+          }
+
+          // Check if agent has already voted
+          const existingVoteIndex = votingRecord.votes.findIndex(
+            (v) => v.agentId === voting.agentId,
+          );
+
+          if (existingVoteIndex >= 0) {
+            // Update existing vote
+            votingRecord.votes[existingVoteIndex] = {
+              agentId: voting.agentId,
+              choice: voting.choice,
+              timestamp: Date.now(),
+            };
+          } else {
+            // Add new vote
+            votingRecord.votes.push({
+              agentId: voting.agentId,
+              choice: voting.choice,
+              timestamp: Date.now(),
+            });
+          }
+
+          // Update the voting
+          this.votings.set(voting.votingId, votingRecord);
+
+          // Check if all team members have voted or if there's a clear majority
+          this.checkVotingStatus(voting.votingId);
+
+          return {
+            success: true,
+            message: `Recorded vote from agent ${voting.agentId} for "${voting.choice}"`,
+          };
+
+        case 'get-voting':
+          if (!voting.votingId) {
+            throw new Error('Voting ID required');
+          }
+
+          // Get the voting
+          const requestedVoting = this.votings.get(voting.votingId);
+          if (!requestedVoting) {
+            throw new Error(`Voting with ID ${voting.votingId} not found`);
+          }
+
+          return {
+            success: true,
+            voting: requestedVoting,
+          };
+
+        case 'close-voting':
+          if (!voting.votingId) {
+            throw new Error('Voting ID required');
+          }
+
+          // Get the voting
+          const votingToClose = this.votings.get(voting.votingId);
+          if (!votingToClose) {
+            throw new Error(`Voting with ID ${voting.votingId} not found`);
+          }
+
+          // Check if voting is already closed
+          if (votingToClose.status === 'closed') {
+            return {
+              success: true,
+              message: `Voting ${voting.votingId} is already closed`,
+              results: votingToClose.results,
+            };
+          }
+
+          // Close the voting and calculate results
+          const results = this.closeVoting(voting.votingId);
+
+          return {
+            success: true,
+            message: `Closed voting ${voting.votingId}`,
+            results,
+          };
+
+        case 'list-votings':
+          // Filter votings by status if provided
+          const status = voting.metadata?.status as
+            | 'open'
+            | 'closed'
+            | undefined;
+
+          const votingsList = Array.from(this.votings.values())
+            .filter((v) => !status || v.status === status)
+            .map((v) => ({
+              id: v.id,
+              topic: v.topic,
+              status: v.status,
+              choices: v.choices,
+              voteCount: v.votes.length,
+              createdAt: v.createdAt,
+              expiresAt: v.expiresAt,
+              results: v.results,
+            }));
+
+          return {
+            success: true,
+            votings: votingsList,
+          };
+
+        default:
+          throw new Error(`Unknown voting operation: ${voting.operation}`);
+      }
+    } catch (error) {
+      this.logger.error('Error handling voting coordination', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Check voting status and close if conditions are met
+   */
+  private checkVotingStatus(votingId: string): void {
+    const voting = this.votings.get(votingId);
+    if (!voting || voting.status !== 'open') return;
+
+    // Get team size for quorum calculation
+    const teamSize = this.team.size;
+
+    // Check if expiration has been reached
+    const now = Date.now();
+    if (now > voting.expiresAt) {
+      this.closeVoting(votingId);
+      return;
+    }
+
+    // Check if all team members have voted
+    if (teamSize > 0 && voting.votes.length >= teamSize) {
+      this.closeVoting(votingId);
+      return;
+    }
+
+    // Check if there's a clear majority (over 2/3 of team has voted and one choice has >50%)
+    if (teamSize > 0 && voting.votes.length >= Math.ceil(teamSize * 0.66)) {
+      // Count votes
+      const counts: Record<string, number> = {};
+      voting.votes.forEach((vote) => {
+        counts[vote.choice] = (counts[vote.choice] || 0) + 1;
+      });
+
+      // Check if any choice has >50% of votes
+      const topChoice = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .shift();
+
+      if (topChoice && topChoice[1] > voting.votes.length / 2) {
+        this.closeVoting(votingId);
+        return;
+      }
+    }
+  }
+
+  /**
+   * Close a voting and calculate results
+   */
+  private closeVoting(votingId: string): VotingResults | null {
+    const voting = this.votings.get(votingId);
+    if (!voting) return null;
+
+    // Mark as closed
+    voting.status = 'closed';
+    voting.closedAt = Date.now();
+
+    // Count votes
+    const counts: Record<string, number> = {};
+    voting.choices.forEach((choice) => {
+      counts[choice] = 0;
     });
 
+    voting.votes.forEach((vote) => {
+      counts[vote.choice] = (counts[vote.choice] || 0) + 1;
+    });
+
+    // Find top choice
+    let topChoice: string | null = null;
+    let topCount = 0;
+
+    Object.entries(counts).forEach(([choice, count]) => {
+      if (count > topCount) {
+        topChoice = choice;
+        topCount = count;
+      }
+    });
+
+    // Create results
+    const results: VotingResults = {
+      status: 'completed',
+      topChoice,
+      counts,
+      votesReceived: voting.votes.length,
+      totalVotes: this.team.size,
+    };
+
+    // Save results
+    voting.results = results;
+    this.votings.set(votingId, voting);
+
+    // Announce results to team
+    this.broadcastMessage({
+      type: 'voting-closed',
+      content: {
+        votingId,
+        topic: voting.topic,
+        results,
+      },
+    });
+
+    // Handle special voting types based on metadata
+    this.processVotingResults(voting);
+
+    return results;
+  }
+
+  /**
+   * Process special voting results based on metadata
+   */
+  private processVotingResults(voting: Voting): void {
+    // Check if this is a subtask proposal voting
+    if (voting.metadata && voting.metadata.proposalId) {
+      const proposalId = voting.metadata.proposalId as string;
+      const taskId = voting.metadata.taskId as string;
+
+      // Get the top choice
+      const topChoice = voting.results?.topChoice;
+
+      if (topChoice === 'Approve') {
+        // Approve the subtask proposal
+        try {
+          this.approveSubtaskProposal(proposalId);
+          this.logger.info(
+            `Automatically approved subtask proposal ${proposalId} based on voting results`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Error auto-approving subtask proposal ${proposalId}`,
+            { error },
+          );
+        }
+      } else if (topChoice === 'Reject') {
+        // Reject the subtask proposal
+        try {
+          this.rejectSubtaskProposal(
+            proposalId,
+            `Rejected by team vote (Voting ID: ${voting.id})`,
+          );
+          this.logger.info(
+            `Automatically rejected subtask proposal ${proposalId} based on voting results`,
+          );
+        } catch (error) {
+          this.logger.error(
+            `Error auto-rejecting subtask proposal ${proposalId}`,
+            { error },
+          );
+        }
+      }
+    }
+
+    // Process task assignment proposal voting
+    if (voting.metadata && voting.metadata.taskProposalId) {
+      // Implementation for task assignment proposals
+      // This would make the actual assignment based on voting results
+    }
+  }
+
+  /**
+   * Broadcast a message to all team members
+   */
+  private async broadcastMessage(message: {
+    type: string;
+    content: any;
+  }): Promise<string[]> {
+    const messageIds: string[] = [];
+
+    for (const member of this.listTeamMembers()) {
+      try {
+        // Logic to send message to team member
+        messageIds.push(`msg-${uuidv4().substring(0, 8)}`);
+      } catch (error) {
+        this.logger.warn(`Failed to broadcast message to ${member.agent.id}`, {
+          error,
+        });
+      }
+    }
+
+    return messageIds;
+  }
+
+  /**
+   * Create a task proposal for task assignment
+   */
+  private async createTaskProposal(params: {
+    taskId: string;
+    proposerId: string;
+    suggestedAgentId: string;
+    reason?: string;
+  }): Promise<{ id: string; taskId: string; suggestedAgentId: string }> {
+    const { taskId, proposerId, suggestedAgentId, reason } = params;
+
+    const proposalId = `proposal-${uuidv4().substring(0, 8)}`;
+
+    // Get the proposer agent name
+    const proposerAgent = this.agentRegistry.getAgent(proposerId);
+    const proposerName = proposerAgent?.name || 'Unknown Agent';
+
+    const proposal: TaskProposal = {
+      id: proposalId,
+      taskId,
+      proposerId,
+      proposerName,
+      suggestedAgentId,
+      reason: reason || 'No reason provided',
+      status: 'pending',
+      votes: [],
+      timestamp: Date.now(),
+    };
+
+    this.taskProposals.set(proposalId, proposal);
+    this.logger.info(`Created task proposal ${proposalId} for task ${taskId}`);
+
+    return { id: proposalId, taskId, suggestedAgentId };
+  }
+
+  /**
+   * Create a voting for decision making
+   */
+  private createVoting(
+    topic: string,
+    description: string,
+    choices: string[],
+    metadata: Record<string, any> = {},
+    expireIn: number = 3600000, // 1 hour by default
+  ): string {
+    const votingId = `voting-${uuidv4().substring(0, 8)}`;
+
+    const voting: Voting = {
+      id: votingId,
+      topic,
+      description,
+      choices,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + expireIn,
+      status: 'open',
+      votes: [],
+      results: null,
+      metadata,
+    };
+
+    // Store the voting
+    this.votings = this.votings || new Map<string, Voting>();
+    this.votings.set(votingId, voting);
+
+    this.logger.info(`Created voting: ${votingId} on topic "${topic}"`);
+
     return votingId;
+  }
+
+  /**
+   * Private map for task breakdowns
+   */
+  private taskBreakdownRecords: Map<string, TaskBreakdown> = new Map();
+
+  /**
+   * Handle subtask advertising capability
+   */
+  private async handleSubtaskAdvertising(request: AgentRequest): Promise<any> {
+    try {
+      const advertising = this.parseInput<{
+        operation: string;
+        taskId?: string;
+        subtaskId?: string;
+        capabilities?: string[];
+        agentId?: string;
+      }>(request.input);
+
+      switch (advertising.operation) {
+        case 'advertise-subtask':
+          if (!advertising.taskId || !advertising.subtaskId) {
+            throw new Error('Task ID and Subtask ID required for advertising');
+          }
+
+          // Get the task
+          const task = this.tasks.get(advertising.taskId);
+          if (!task) {
+            throw new Error(`Task with ID ${advertising.taskId} not found`);
+          }
+
+          // Find the subtask
+          const subtask = task.subtasks.find(
+            (st) => st.id === advertising.subtaskId,
+          );
+          if (!subtask) {
+            throw new Error(
+              `Subtask with ID ${advertising.subtaskId} not found in task ${advertising.taskId}`,
+            );
+          }
+
+          // Get required capabilities from the request or from task metadata
+          const capabilities =
+            advertising.capabilities ||
+            task.metadata?.subtaskCapabilities?.[advertising.subtaskId] ||
+            [];
+
+          // Advertise the subtask using the delegation protocol service
+          const delegationService = await this.getDelegationProtocolService();
+
+          const delegationRequest = {
+            title: subtask.title,
+            description: subtask.description,
+            requiredCapabilities: capabilities,
+            priority: task.priority,
+            waitForResponses: 5000, // 5 seconds
+            autoAssign: true,
+            context: {
+              taskId: advertising.taskId,
+              subtaskId: advertising.subtaskId,
+              parentTaskTitle: task.title,
+            },
+          };
+
+          const delegationResult = await delegationService.delegateTask(
+            this.id,
+            delegationRequest,
+          );
+
+          // Store the advertisement
+          if (delegationResult.advertisementId) {
+            this.subtaskAdvertisements.set(advertising.subtaskId, {
+              subtaskId: advertising.subtaskId,
+              taskId: advertising.taskId,
+              advertisementId: delegationResult.advertisementId,
+              capabilities,
+              status:
+                delegationResult.status === 'assigned' ? 'assigned' : 'open',
+              createdAt: Date.now(),
+              assignedTo: delegationResult.assignedAgentId,
+            });
+
+            // If assigned, update the subtask
+            if (
+              delegationResult.status === 'assigned' &&
+              delegationResult.assignedAgentId
+            ) {
+              this.updateSubtask(advertising.taskId, advertising.subtaskId, {
+                status: 'in-progress',
+              });
+
+              // Update task metadata
+              if (!task.metadata.assignedSubtasks) {
+                task.metadata.assignedSubtasks = {};
+              }
+              task.metadata.assignedSubtasks[advertising.subtaskId] =
+                delegationResult.assignedAgentId;
+              this.tasks.set(advertising.taskId, task);
+            }
+          }
+
+          return {
+            success: true,
+            advertisementId: delegationResult.advertisementId,
+            status: delegationResult.status,
+            assignedTo: delegationResult.assignedAgentId,
+            message:
+              delegationResult.status === 'assigned'
+                ? `Subtask assigned to ${delegationResult.assignedAgentName}`
+                : `Subtask advertised to ${delegationResult.responses.length} agents`,
+          };
+
+        case 'complete-subtask':
+          if (
+            !advertising.taskId ||
+            !advertising.subtaskId ||
+            !advertising.agentId
+          ) {
+            throw new Error(
+              'Task ID, Subtask ID, and Agent ID required for completion',
+            );
+          }
+
+          // Get the task
+          const taskToUpdate = this.tasks.get(advertising.taskId);
+          if (!taskToUpdate) {
+            throw new Error(`Task with ID ${advertising.taskId} not found`);
+          }
+
+          // Find the subtask
+          const subtaskToUpdate = taskToUpdate.subtasks.find(
+            (st) => st.id === advertising.subtaskId,
+          );
+          if (!subtaskToUpdate) {
+            throw new Error(
+              `Subtask with ID ${advertising.subtaskId} not found in task ${advertising.taskId}`,
+            );
+          }
+
+          // Check if the agent is assigned to this subtask
+          const advertisementRecord = this.subtaskAdvertisements.get(
+            advertising.subtaskId,
+          );
+          if (
+            !advertisementRecord ||
+            advertisementRecord.assignedTo !== advertising.agentId
+          ) {
+            throw new Error(
+              `Subtask ${advertising.subtaskId} is not assigned to agent ${advertising.agentId}`,
+            );
+          }
+
+          // Update the subtask
+          this.updateSubtask(advertising.taskId, advertising.subtaskId, {
+            status: 'completed',
+          });
+
+          // Update advertisement status
+          advertisementRecord.status = 'completed';
+          this.subtaskAdvertisements.set(
+            advertising.subtaskId,
+            advertisementRecord,
+          );
+
+          // Update delegation performance metrics
+          this.updateDelegationPerformance(
+            advertising.agentId,
+            true,
+            Date.now() - advertisementRecord.createdAt,
+          );
+
+          return {
+            success: true,
+            message: `Subtask ${advertising.subtaskId} marked as completed by agent ${advertising.agentId}`,
+          };
+
+        case 'fail-subtask':
+          if (
+            !advertising.taskId ||
+            !advertising.subtaskId ||
+            !advertising.agentId
+          ) {
+            throw new Error(
+              'Task ID, Subtask ID, and Agent ID required for failure reporting',
+            );
+          }
+
+          // Get the advertisement
+          const failedAdvertisementRecord = this.subtaskAdvertisements.get(
+            advertising.subtaskId,
+          );
+          if (
+            !failedAdvertisementRecord ||
+            failedAdvertisementRecord.assignedTo !== advertising.agentId
+          ) {
+            throw new Error(
+              `Subtask ${advertising.subtaskId} is not assigned to agent ${advertising.agentId}`,
+            );
+          }
+
+          // Update advertisement status
+          failedAdvertisementRecord.status = 'failed';
+          this.subtaskAdvertisements.set(
+            advertising.subtaskId,
+            failedAdvertisementRecord,
+          );
+
+          // Update delegation performance metrics
+          this.updateDelegationPerformance(
+            advertising.agentId,
+            false,
+            Date.now() - failedAdvertisementRecord.createdAt,
+          );
+
+          return {
+            success: true,
+            message: `Subtask ${advertising.subtaskId} marked as failed by agent ${advertising.agentId}`,
+          };
+
+        case 'list-advertisements':
+          // Return all active advertisements
+          const activeAdvertisements = Array.from(
+            this.subtaskAdvertisements.values(),
+          ).filter((ad) => ad.status === 'open' || ad.status === 'assigned');
+
+          return {
+            success: true,
+            advertisements: activeAdvertisements,
+          };
+
+        default:
+          throw new Error(
+            `Unknown subtask advertising operation: ${advertising.operation}`,
+          );
+      }
+    } catch (error) {
+      this.logger.error('Error handling subtask advertising', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Get the delegation protocol service
+   * Helper method to avoid direct dependency on specific implementation
+   */
+  private async getDelegationProtocolService(): Promise<any> {
+    try {
+      // Import dynamically to avoid circular dependencies
+      const { DelegationProtocolService } = await import(
+        '../services/delegation-protocol.service'
+      );
+      return DelegationProtocolService.getInstance();
+    } catch (error) {
+      this.logger.error('Error getting delegation protocol service', { error });
+      throw new Error('Delegation protocol service not available');
+    }
+  }
+
+  /**
+   * Handle task breakdown evaluation capability
+   */
+  private async handleTaskBreakdownEvaluation(
+    request: AgentRequest,
+  ): Promise<any> {
+    try {
+      const evaluation = this.parseInput<{
+        operation: string;
+        breakdownId?: string;
+        taskId?: string;
+        metrics?: {
+          completeness: number;
+          complexity: number;
+          clarity: number;
+          coherence: number;
+          overallScore: number;
+        };
+      }>(request.input);
+
+      switch (evaluation.operation) {
+        case 'evaluate-breakdown':
+          if (!evaluation.breakdownId && !evaluation.taskId) {
+            throw new Error(
+              'Either breakdown ID or task ID is required for evaluation',
+            );
+          }
+
+          let breakdownId = evaluation.breakdownId;
+
+          // If task ID is provided but not breakdown ID, look it up
+          if (!breakdownId && evaluation.taskId) {
+            breakdownId = this.taskBreakdowns.get(evaluation.taskId);
+            if (!breakdownId) {
+              throw new Error(
+                `No breakdown found for task ${evaluation.taskId}`,
+              );
+            }
+          }
+
+          // Get the breakdown record
+          const breakdown = this.taskBreakdownRecords.get(breakdownId!);
+          if (!breakdown) {
+            throw new Error(`Breakdown with ID ${breakdownId} not found`);
+          }
+
+          // Get the task
+          const task = this.tasks.get(breakdown.taskId);
+          if (!task) {
+            throw new Error(`Task with ID ${breakdown.taskId} not found`);
+          }
+
+          // Calculate metrics if not provided
+          const metrics =
+            evaluation.metrics ||
+            this.calculateBreakdownMetrics(breakdown, task);
+
+          // Store the evaluation
+          const evaluationRecord = {
+            breakdownId: breakdown.id,
+            taskId: breakdown.taskId,
+            completeness: metrics.completeness,
+            complexity: metrics.complexity,
+            clarity: metrics.clarity,
+            coherence: metrics.coherence,
+            overallScore: metrics.overallScore,
+            evaluatedAt: Date.now(),
+          };
+
+          this.taskBreakdownMetrics.set(breakdown.id, evaluationRecord);
+
+          return {
+            success: true,
+            evaluation: evaluationRecord,
+          };
+
+        case 'get-evaluation':
+          if (!evaluation.breakdownId && !evaluation.taskId) {
+            throw new Error('Either breakdown ID or task ID is required');
+          }
+
+          let evalBreakdownId = evaluation.breakdownId;
+
+          // If task ID is provided but not breakdown ID, look it up
+          if (!evalBreakdownId && evaluation.taskId) {
+            evalBreakdownId = this.taskBreakdowns.get(evaluation.taskId);
+            if (!evalBreakdownId) {
+              throw new Error(
+                `No breakdown found for task ${evaluation.taskId}`,
+              );
+            }
+          }
+
+          // Get the stored evaluation
+          const storedEvaluation = this.taskBreakdownMetrics.get(
+            evalBreakdownId!,
+          );
+          if (!storedEvaluation) {
+            throw new Error(
+              `No evaluation found for breakdown ${evalBreakdownId}`,
+            );
+          }
+
+          return {
+            success: true,
+            evaluation: storedEvaluation,
+          };
+
+        case 'list-evaluations':
+          // Return all evaluations
+          return {
+            success: true,
+            evaluations: Array.from(this.taskBreakdownMetrics.values()),
+          };
+
+        default:
+          throw new Error(
+            `Unknown task breakdown evaluation operation: ${evaluation.operation}`,
+          );
+      }
+    } catch (error) {
+      this.logger.error('Error handling task breakdown evaluation', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Calculate metrics for a task breakdown
+   * This implements evaluation metrics for task decomposition quality
+   */
+  private calculateBreakdownMetrics(
+    breakdown: TaskBreakdown,
+    task: Task,
+  ): {
+    completeness: number;
+    complexity: number;
+    clarity: number;
+    coherence: number;
+    overallScore: number;
+  } {
+    // 1. Completeness - does the breakdown cover all aspects of the original task?
+    // Calculate based on word coverage and key concept matching
+    const taskWords = new Set(
+      (task.description || '').toLowerCase().split(/\s+/),
+    );
+    let coveredWords = new Set<string>();
+
+    // Collect words from all subtask descriptions
+    breakdown.subtasks.forEach((subtask) => {
+      (subtask.description || '')
+        .toLowerCase()
+        .split(/\s+/)
+        .forEach((word) => {
+          coveredWords.add(word);
+        });
+    });
+
+    // Calculate word overlap
+    let wordOverlap = 0;
+    coveredWords.forEach((word) => {
+      if (taskWords.has(word)) {
+        wordOverlap++;
+      }
+    });
+
+    const completeness =
+      Math.min(wordOverlap / Math.max(taskWords.size, 1), 1) * 0.8 + 0.2; // Scale from 0.2-1.0
+
+    // 2. Complexity - Is the breakdown appropriate in terms of subtask count?
+    // We assume a good breakdown has 3-7 subtasks
+    const subtaskCount = breakdown.subtasks.length;
+    let complexity = 1.0;
+
+    if (subtaskCount < 2) {
+      complexity = 0.3; // Too few subtasks
+    } else if (subtaskCount < 3) {
+      complexity = 0.7; // Slightly few
+    } else if (subtaskCount > 10) {
+      complexity = 0.4; // Too many subtasks
+    } else if (subtaskCount > 7) {
+      complexity = 0.8; // Slightly many
+    }
+
+    // 3. Clarity - Are the subtasks clearly defined?
+    // Calculate based on average subtask description length
+    const avgDescriptionLength =
+      breakdown.subtasks.reduce(
+        (sum, subtask) => sum + (subtask.description || '').length,
+        0,
+      ) / Math.max(breakdown.subtasks.length, 1);
+
+    // We assume a good description is 20-200 characters
+    let clarity = 1.0;
+    if (avgDescriptionLength < 10) {
+      clarity = 0.3; // Too short
+    } else if (avgDescriptionLength < 20) {
+      clarity = 0.7; // Slightly short
+    } else if (avgDescriptionLength > 500) {
+      clarity = 0.5; // Too long
+    } else if (avgDescriptionLength > 200) {
+      clarity = 0.8; // Slightly long
+    }
+
+    // 4. Coherence - Do the subtasks form a logical whole?
+    // This is a simplified implementation - in practice, this would use more sophisticated NLP
+    // For now, we'll assume coherence correlates with having sequential subtasks
+    // with clear names that relate to each other
+    const subtaskTitles = breakdown.subtasks.map((st) => st.title || '');
+    let coherence = 0.7; // Default moderate coherence
+
+    // Look for ordered subtasks (Step 1, Step 2, etc.)
+    const orderedPattern = /^(step|phase|part|stage)\s*(\d+|[a-z])/i;
+    const hasOrderedSubtasks = subtaskTitles.some((title) =>
+      orderedPattern.test(title),
+    );
+
+    if (hasOrderedSubtasks) {
+      coherence += 0.2; // Bonus for ordered subtasks
+    }
+
+    // Calculate overall score (weighted average)
+    const overallScore =
+      completeness * 0.35 + complexity * 0.2 + clarity * 0.25 + coherence * 0.2;
+
+    return {
+      completeness,
+      complexity,
+      clarity,
+      coherence,
+      overallScore,
+    };
+  }
+
+  /**
+   * Handle delegation effectiveness capability
+   */
+  private async handleDelegationEffectiveness(
+    request: AgentRequest,
+  ): Promise<any> {
+    try {
+      const delegation = this.parseInput<{
+        operation: string;
+        agentId?: string;
+      }>(request.input);
+
+      switch (delegation.operation) {
+        case 'get-performance':
+          if (!delegation.agentId) {
+            // Return all agent performance metrics
+            return {
+              success: true,
+              metrics: Array.from(this.delegationPerformance.values()),
+            };
+          }
+
+          // Return performance for a specific agent
+          const agentPerformance = this.delegationPerformance.get(
+            delegation.agentId,
+          );
+          if (!agentPerformance) {
+            return {
+              success: false,
+              message: `No performance data available for agent ${delegation.agentId}`,
+            };
+          }
+
+          return {
+            success: true,
+            metrics: agentPerformance,
+          };
+
+        case 'get-recommendation':
+          // Get the top performing agents
+          const performanceEntries = Array.from(
+            this.delegationPerformance.entries(),
+          )
+            .map(([id, metrics]) => ({
+              id,
+              taskCount: metrics.taskCount,
+              successRate: metrics.successRate,
+              avgCompletionTime: metrics.avgCompletionTime,
+              lastUpdated: metrics.lastUpdated,
+            }))
+            .filter((entry) => entry.taskCount >= 3) // Only consider agents with enough data
+            .sort((a, b) => {
+              // Score based on success rate and completion time
+              const scoreA =
+                a.successRate * 0.7 +
+                (1 - Math.min(a.avgCompletionTime / 60000, 1)) * 0.3;
+              const scoreB =
+                b.successRate * 0.7 +
+                (1 - Math.min(b.avgCompletionTime / 60000, 1)) * 0.3;
+              return scoreB - scoreA;
+            });
+
+          return {
+            success: true,
+            recommendations: performanceEntries.slice(0, 3), // Top 3 agents
+          };
+
+        default:
+          throw new Error(
+            `Unknown delegation effectiveness operation: ${delegation.operation}`,
+          );
+      }
+    } catch (error) {
+      this.logger.error('Error handling delegation effectiveness', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Update delegation performance metrics for an agent
+   */
+  private updateDelegationPerformance(
+    agentId: string,
+    success: boolean,
+    completionTimeMs: number,
+  ): void {
+    // Get existing record or create new one
+    const existingRecord = this.delegationPerformance.get(agentId) || {
+      agentId,
+      taskCount: 0,
+      successRate: 0,
+      avgCompletionTime: 0,
+      lastUpdated: 0,
+    };
+
+    // Update metrics
+    const newTaskCount = existingRecord.taskCount + 1;
+    const newSuccessCount =
+      existingRecord.successRate * existingRecord.taskCount + (success ? 1 : 0);
+    const newSuccessRate = newSuccessCount / newTaskCount;
+
+    // Update average completion time (only for successful tasks)
+    let newAvgCompletionTime = existingRecord.avgCompletionTime;
+    if (success) {
+      newAvgCompletionTime =
+        (existingRecord.avgCompletionTime * existingRecord.taskCount +
+          completionTimeMs) /
+        newTaskCount;
+    }
+
+    // Store updated record
+    this.delegationPerformance.set(agentId, {
+      agentId,
+      taskCount: newTaskCount,
+      successRate: newSuccessRate,
+      avgCompletionTime: newAvgCompletionTime,
+      lastUpdated: Date.now(),
+    });
+
+    // Also update team assembly service agent performance cache
+    try {
+      this.teamAssemblyService.updateAgentPerformance(agentId, {
+        success,
+        executionTimeMs: completionTimeMs,
+      });
+    } catch (err) {
+      const error = err as Error;
+      this.logger.warn(
+        `Failed to update team assembly service performance metrics: ${error.message}`,
+      );
+    }
   }
 }

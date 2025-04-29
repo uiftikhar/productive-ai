@@ -3,7 +3,7 @@ import { ConsoleLogger } from '../../shared/logger/console-logger';
 import {
   SupervisorAgent,
   Task,
-} from '../../agents/specialized/supervisor-agent';
+} from '../../agents/specialized/facilitator-supervisor-agent';
 import { SupervisorWorkflow } from '../core/workflows/supervisor-workflow';
 import { AgentRegistryService } from '../../agents/services/agent-registry.service';
 import { TaskPlanningService } from '../../agents/services/task-planning.service';

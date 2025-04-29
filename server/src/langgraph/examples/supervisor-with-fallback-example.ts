@@ -2,7 +2,7 @@ import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { ClassifierFactory } from '../../agents/factories/classifier-factory';
 import { ClassifierConfigService } from '../../agents/factories/classifier-config.service';
 import { SupervisorWorkflow } from '../core/workflows/supervisor-workflow';
-import { SupervisorAgent } from '../../agents/specialized/supervisor-agent';
+import { SupervisorAgent } from '../../agents/specialized/facilitator-supervisor-agent';
 import { AgentRegistryService } from '../../agents/services/agent-registry.service';
 import { initializeDefaultAgentSystem } from '../../agents/services/initialize-default-agent';
 import { v4 as uuidv4 } from 'uuid';

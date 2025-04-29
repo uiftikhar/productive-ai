@@ -2,7 +2,7 @@ import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
 import { SupervisorAdapter } from '../adapters/supervisor-adapter';
 import { SupervisorWorkflow } from './supervisor-workflow';
-import { SupervisorAgent } from '../../../agents/specialized/supervisor-agent';
+import { SupervisorAgent } from '../../../agents/specialized/facilitator-supervisor-agent';
 import { v4 as uuidv4 } from 'uuid';
 import { UserContextFacade } from '../../../shared/services/user-context/user-context.facade';
 

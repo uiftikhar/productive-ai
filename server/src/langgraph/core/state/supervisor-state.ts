@@ -1,6 +1,6 @@
 import { BaseAgentState, AgentMessage } from './base-agent-state';
 import { AgentStatus } from '../../../agents/interfaces/base-agent.interface';
-import { Task } from '../../../agents/specialized/supervisor-agent';
+import { Task } from '../../../agents/specialized/facilitator-supervisor-agent';
 
 /**
  * Status of a supervised task

@@ -1,7 +1,7 @@
 import {
   SupervisorAgent,
   Task,
-} from '../../../agents/specialized/supervisor-agent';
+} from '../../../agents/specialized/facilitator-supervisor-agent';
 import { SupervisorWorkflow } from '../workflows/supervisor-workflow';
 import {
   AgentRequest,

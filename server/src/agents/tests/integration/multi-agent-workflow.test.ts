@@ -12,7 +12,7 @@ import { DocumentRetrievalAgent } from '../../specialized/retrieval-agent';
 import { KnowledgeRetrievalAgent } from '../../specialized/knowledge-retrieval-agent';
 import { DecisionTrackingAgent } from '../../specialized/decision-tracking-agent';
 import { MeetingAnalysisAgent } from '../../specialized/meeting-analysis-agent';
-import { SupervisorAgent } from '../../specialized/supervisor-agent';
+import { SupervisorAgent } from '../../specialized/facilitator-supervisor-agent';
 import { WorkflowStatus } from '../../../langgraph/core/workflows/base-workflow';
 import { BaseAgent } from '../../base/base-agent';
 

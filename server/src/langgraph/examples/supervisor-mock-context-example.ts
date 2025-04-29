@@ -9,7 +9,7 @@
 
 import { Logger } from '../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
-import { SupervisorAgent } from '../../agents/specialized/supervisor-agent';
+import { SupervisorAgent } from '../../agents/specialized/facilitator-supervisor-agent';
 import { SupervisorWorkflow } from '../core/workflows/supervisor-workflow';
 import {
   AgentRequest,

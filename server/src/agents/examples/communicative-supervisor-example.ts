@@ -1,5 +1,5 @@
 import { CommunicativeAgent } from '../communication/communicative-agent.mixin';
-import { SupervisorAgent } from '../specialized/supervisor-agent';
+import { SupervisorAgent } from '../specialized/facilitator-supervisor-agent';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { MessageType, MessagePriority } from '../communication/types';
 import { BaseAgent } from '../base/base-agent';

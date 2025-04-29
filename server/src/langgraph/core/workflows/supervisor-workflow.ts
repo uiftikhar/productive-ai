@@ -2,7 +2,7 @@ import { StateGraph, Annotation } from '@langchain/langgraph';
 import { END, START } from '@langchain/langgraph';
 import { AgentWorkflow } from './agent-workflow';
 import { WorkflowStatus } from './base-workflow';
-import { SupervisorAgent } from '../../../agents/specialized/supervisor-agent';
+import { SupervisorAgent } from '../../../agents/specialized/facilitator-supervisor-agent';
 import {
   AgentRequest,
   AgentResponse,
@@ -10,7 +10,7 @@ import {
 } from '../../../agents/interfaces/base-agent.interface';
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
-import { Task } from '../../../agents/specialized/supervisor-agent';
+import { Task } from '../../../agents/specialized/facilitator-supervisor-agent';
 import { AgentExecutionState } from './agent-workflow';
 import { v4 as uuidv4 } from 'uuid';
 import { UserContextFacade } from '../../../shared/services/user-context/user-context.facade';
