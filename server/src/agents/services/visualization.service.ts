@@ -40,6 +40,7 @@ interface StrategyRevisionData {
 
 /**
  * Visualization service for generating agent execution visualizations
+ * @deprecated Will be replaced by agentic self-organizing behavior
  */
 export class VisualizationService {
   private static instance: VisualizationService;

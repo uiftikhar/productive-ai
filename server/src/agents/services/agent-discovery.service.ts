@@ -694,5 +694,67 @@ export class AgentDiscoveryService {
    */
   public resetMetrics(): void {
     this.agentMetrics.clear();
+    this.logger.info('Agent discovery metrics reset');
+  }
+
+  /**
+   * Find agents most suitable for a task based on its description
+   * @deprecated Will be replaced by agentic self-organizing behavior
+   */
+  public async findAgentsForTask(taskDescription: string): Promise<BaseAgentInterface[]> {
+    this.logger.info('Finding agents for task description', {
+      description: taskDescription.substring(0, 100) + (taskDescription.length > 100 ? '...' : '')
+    });
+    
+    // Get all available agents
+    const allAgents = this.registry.getAllAgents();
+    
+    // For now, use a basic approach to find agents - later versions will use semantic matching
+    const relevantAgents: Array<{agent: BaseAgentInterface, score: number}> = [];
+    
+    // Extract key terms from task description
+    const terms = taskDescription.toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter(term => term.length > 3);
+    
+    for (const agent of allAgents) {
+      let score = 0;
+      const capabilities = agent.getCapabilities();
+      
+      // Check for capability match
+      for (const capability of capabilities) {
+        // Check capability name against task terms
+        for (const term of terms) {
+          if (capability.name.includes(term) || capability.description.toLowerCase().includes(term)) {
+            score += 0.5;
+          }
+        }
+        
+        // Check agent name and description for relevance
+        const agentName = agent.name.toLowerCase();
+        const agentDescription = agent.description.toLowerCase();
+        
+        for (const term of terms) {
+          if (agentName.includes(term)) {
+            score += 0.3;
+          }
+          if (agentDescription.includes(term)) {
+            score += 0.2;
+          }
+        }
+      }
+      
+      // Add agent with score if it has any relevance
+      if (score > 0) {
+        relevantAgents.push({ agent, score });
+      }
+    }
+    
+    // Sort by score descending
+    relevantAgents.sort((a, b) => b.score - a.score);
+    
+    // Return the agents, prioritizing those with higher scores
+    return relevantAgents.map(item => item.agent);
   }
 }
