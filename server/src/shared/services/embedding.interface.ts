@@ -38,7 +38,7 @@ export interface IEmbeddingService {
   combineEmbeddings(embeddings: number[][]): number[];
 
   // Alternative interface methods (for backward compatibility)
-  embedText?(text: string): Promise<number[]>;
+  embedText(text: string): Promise<number[]>;
   embedBatch?(texts: string[]): Promise<number[][]>;
   getModelName?(): string;
   getDimensions?(): number;

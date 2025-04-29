@@ -13,11 +13,16 @@ import {
 } from './base-langgraph.adapter';
 import { MeetingAnalysisAgent } from '../../../agents/specialized/meeting-analysis-agent';
 import { splitTranscript } from '../../../shared/utils/split-transcript';
+import {
+  chunkTranscriptAdaptively,
+  AdaptiveChunkingConfig,
+} from '../../../shared/utils/adaptive-chunking';
 import { ContextType } from '../../../shared/services/user-context/types/context.types';
 import { AgentWorkflow } from '../workflows/agent-workflow';
 import { BaseAgent } from '../../../agents/base/base-agent';
 import { AgentStatus } from '../../../agents/interfaces/base-agent.interface';
 import { generateVisualization } from '../utils/visualization-generator';
+import { identifyContentSegments } from '../../../shared/utils/identify-content-segments';
 
 /**
  * Meeting analysis state interface
@@ -34,6 +39,7 @@ export interface MeetingAnalysisState extends BaseLangGraphState {
   chunks: string[];
   currentChunkIndex: number;
   partialAnalyses: string[];
+  chunkImportance?: Record<number, number>; // Tracks importance of each chunk
 
   // Results
   analysisResult?: any;
@@ -52,6 +58,8 @@ export interface ProcessMeetingTranscriptParams {
   includeActionItems?: boolean;
   includeSentiment?: boolean;
   visualization?: boolean;
+  adaptiveChunking?: boolean; // Whether to use adaptive chunking
+  chunkingConfig?: Partial<AdaptiveChunkingConfig>; // Custom chunking configuration
 }
 
 /**
@@ -73,6 +81,7 @@ export interface ProcessMeetingTranscriptResult {
  *
  * A refined implementation of the meeting analysis adapter using
  * the standardized BaseLangGraphAdapter pattern.
+ * Enhanced with adaptive chunking strategies.
  */
 export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
   MeetingAnalysisState,
@@ -84,6 +93,8 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
   protected chunkOverlap: number;
   protected agentWorkflow: AgentWorkflow<MeetingAnalysisAgent>;
   protected visualizationsPath: string;
+  protected useAdaptiveChunking: boolean;
+  protected adaptiveChunkingConfig: Partial<AdaptiveChunkingConfig>;
 
   /**
    * Creates a new instance of the StandardizedMeetingAnalysisAdapter
@@ -96,6 +107,8 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
       chunkOverlap?: number;
       logger?: any;
       visualizationsPath?: string;
+      useAdaptiveChunking?: boolean;
+      adaptiveChunkingConfig?: Partial<AdaptiveChunkingConfig>;
     } = {},
   ) {
     super({
@@ -105,6 +118,8 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
     this.maxChunkSize = options.maxChunkSize || 2000;
     this.chunkOverlap = options.chunkOverlap || 200;
     this.visualizationsPath = options.visualizationsPath || 'visualizations';
+    this.useAdaptiveChunking = options.useAdaptiveChunking || false;
+    this.adaptiveChunkingConfig = options.adaptiveChunkingConfig || {};
 
     this.agentWorkflow = new AgentWorkflow(this.agent, {
       tracingEnabled: options.tracingEnabled,
@@ -176,6 +191,10 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
           ...(curr || []),
           ...(Array.isArray(update) ? update : [update]),
         ],
+      }),
+      chunkImportance: Annotation<Record<number, number>>({
+        default: () => ({}),
+        reducer: (curr, update) => ({ ...(curr || {}), ...(update || {}) }),
       }),
 
       // Results
@@ -266,12 +285,106 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
   ): MeetingAnalysisState {
     const baseState = super.createInitialState(input);
 
-    // Split the transcript into chunks
-    const chunks = splitTranscript(
-      input.transcript,
-      this.maxChunkSize,
-      this.chunkOverlap,
-    );
+    // Determine whether to use adaptive chunking
+    const useAdaptiveChunking =
+      input.adaptiveChunking !== undefined
+        ? input.adaptiveChunking
+        : this.useAdaptiveChunking;
+
+    // Split the transcript into chunks using appropriate strategy
+    let chunks: string[] = [];
+    let chunkImportance: Record<number, number> = {};
+
+    if (useAdaptiveChunking) {
+      // Use advanced adaptive chunking for better content boundary detection
+      const chunkingConfig = {
+        ...this.adaptiveChunkingConfig,
+        ...(input.chunkingConfig || {}),
+        baseChunkSize: this.maxChunkSize,
+        overlapSize: this.chunkOverlap,
+      };
+
+      // First, identify segments by content type to create importance map
+      const segments = identifyContentSegments(input.transcript);
+
+      // Get the chunked transcript
+      chunks = chunkTranscriptAdaptively(input.transcript, chunkingConfig);
+
+      // Track importance of each chunk based on the segments it contains
+      const chunkSizes = chunks.map((chunk) => chunk.length);
+      let cumulativeLength = 0;
+
+      // Map each chunk to its importance based on overlapping segments
+      chunks.forEach((chunk, index) => {
+        const chunkStart = cumulativeLength;
+        const chunkEnd = chunkStart + chunk.length;
+
+        // Find segments that overlap with this chunk
+        const overlappingSegments = segments.filter((segment) => {
+          return segment.startIndex < chunkEnd && segment.endIndex > chunkStart;
+        });
+
+        // Calculate overall importance as weighted average of segment importances
+        if (overlappingSegments.length > 0) {
+          const totalOverlapLength = overlappingSegments.reduce(
+            (sum, segment) => {
+              const overlapStart = Math.max(chunkStart, segment.startIndex);
+              const overlapEnd = Math.min(chunkEnd, segment.endIndex);
+              return sum + (overlapEnd - overlapStart);
+            },
+            0,
+          );
+
+          const weightedImportance = overlappingSegments.reduce(
+            (sum, segment) => {
+              const overlapStart = Math.max(chunkStart, segment.startIndex);
+              const overlapEnd = Math.min(chunkEnd, segment.endIndex);
+              const overlapLength = overlapEnd - overlapStart;
+              return sum + segment.importance * overlapLength;
+            },
+            0,
+          );
+
+          chunkImportance[index] =
+            totalOverlapLength > 0
+              ? weightedImportance / totalOverlapLength
+              : 0.5;
+        } else {
+          chunkImportance[index] = 0.5; // Default importance
+        }
+
+        cumulativeLength += chunk.length;
+      });
+
+      this.logger.info(
+        `Using adaptive chunking strategy for meeting ${input.meetingId}`,
+        {
+          chunkCount: chunks.length,
+          useAdaptiveChunking: true,
+          importanceTracking: true,
+        },
+      );
+    } else {
+      // Use basic transcript splitting if adaptive chunking is disabled
+      chunks = splitTranscript(
+        input.transcript,
+        this.maxChunkSize,
+        this.chunkOverlap,
+      );
+
+      // For standard chunking, assign uniform importance
+      chunks.forEach((_, index) => {
+        chunkImportance[index] = 0.5;
+      });
+
+      this.logger.info(
+        `Using standard chunking strategy for meeting ${input.meetingId}`,
+        {
+          chunkCount: chunks.length,
+          useAdaptiveChunking: false,
+        },
+      );
+    }
 
     return {
       ...baseState,
@@ -281,6 +394,7 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
       participantIds: input.participantIds || [],
       userId: input.userId || 'anonymous',
       chunks,
+      chunkImportance,
       currentChunkIndex: 0,
       partialAnalyses: [],
       metadata: {
@@ -289,6 +403,7 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
         includeActionItems: input.includeActionItems !== false, // Default to true
         includeSentiment: input.includeSentiment !== false, // Default to true
         visualization: input.visualization || false,
+        useAdaptiveChunking,
       },
     };
   }
@@ -469,8 +584,159 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
           },
         );
 
-        // Combine the partial analyses and generate a final analysis
-        const combinedAnalyses = state.partialAnalyses.join('\n\n');
+        // First, detect if we need to merge partial analyses intelligently
+        let combinedAnalyses = '';
+        if (state.partialAnalyses.length > 1) {
+          this.logger.info(
+            'Performing intelligent merging of partial analyses',
+          );
+
+          // Step 1: Try to parse each partial analysis as JSON
+          const parsedAnalyses: any[] = [];
+          const unparsedAnalyses: string[] = [];
+
+          for (const analysis of state.partialAnalyses) {
+            try {
+              // Extract JSON content if wrapped in text
+              const jsonMatch =
+                analysis.match(/```json\s*([\s\S]*?)\s*```/) ||
+                analysis.match(/{[\s\S]*}/);
+
+              const jsonContent = jsonMatch ? jsonMatch[0] : analysis;
+              const parsed = JSON.parse(
+                jsonContent.replace(/```json|```/g, '').trim(),
+              );
+              parsedAnalyses.push(parsed);
+            } catch (error) {
+              // If parsing fails, keep as text
+              unparsedAnalyses.push(analysis);
+            }
+          }
+
+          // Step 2: If we have parsed analyses, merge them intelligently
+          if (parsedAnalyses.length > 0) {
+            // Create a consolidated analysis by merging specific sections
+            const mergedAnalysis: any = {
+              summary: '',
+              topics: [],
+              actionItems: [],
+              decisions: [],
+              sentimentAnalysis: {},
+              keyPoints: [],
+            };
+
+            // Merge summaries with weights favoring analyses of important segments
+            let summaryText = '';
+            parsedAnalyses.forEach((analysis, index) => {
+              if (analysis.summary) {
+                const importance = state.chunkImportance?.[index] || 1;
+                summaryText += `${analysis.summary} `;
+              }
+            });
+            mergedAnalysis.summary = summaryText.trim();
+
+            // Collect and deduplicate topics
+            const topicMap = new Map<
+              string,
+              { title: string; description: string; confidence: number }
+            >();
+            parsedAnalyses.forEach((analysis) => {
+              if (Array.isArray(analysis.topics)) {
+                analysis.topics.forEach((topic: any) => {
+                  if (topic.title && !topicMap.has(topic.title.toLowerCase())) {
+                    topicMap.set(topic.title.toLowerCase(), topic);
+                  }
+                });
+              }
+            });
+            mergedAnalysis.topics = Array.from(topicMap.values());
+
+            // Collect and deduplicate action items
+            const actionItemMap = new Map<string, any>();
+            parsedAnalyses.forEach((analysis) => {
+              if (Array.isArray(analysis.actionItems)) {
+                analysis.actionItems.forEach((item: any) => {
+                  const key = `${item.action}-${item.assignee || 'unassigned'}`;
+                  if (!actionItemMap.has(key)) {
+                    actionItemMap.set(key, item);
+                  }
+                });
+              }
+            });
+            mergedAnalysis.actionItems = Array.from(actionItemMap.values());
+
+            // Collect and deduplicate decisions
+            const decisionMap = new Map<string, any>();
+            parsedAnalyses.forEach((analysis) => {
+              if (Array.isArray(analysis.decisions)) {
+                analysis.decisions.forEach((decision: any) => {
+                  if (
+                    decision.decision &&
+                    !decisionMap.has(decision.decision)
+                  ) {
+                    decisionMap.set(decision.decision, decision);
+                  }
+                });
+              }
+            });
+            mergedAnalysis.decisions = Array.from(decisionMap.values());
+
+            // For sentiment, take the average across all analyses
+            let sentimentCount = 0;
+            const sentimentTotals: Record<string, number> = {
+              overall: 0,
+              positive: 0,
+              negative: 0,
+              neutral: 0,
+            };
+
+            parsedAnalyses.forEach((analysis) => {
+              if (analysis.sentimentAnalysis) {
+                sentimentCount++;
+                const sentiment = analysis.sentimentAnalysis;
+
+                sentimentTotals.overall += sentiment.overall || 0;
+                sentimentTotals.positive += sentiment.positive || 0;
+                sentimentTotals.negative += sentiment.negative || 0;
+                sentimentTotals.neutral += sentiment.neutral || 0;
+              }
+            });
+
+            if (sentimentCount > 0) {
+              mergedAnalysis.sentimentAnalysis = {
+                overall: sentimentTotals.overall / sentimentCount,
+                positive: sentimentTotals.positive / sentimentCount,
+                negative: sentimentTotals.negative / sentimentCount,
+                neutral: sentimentTotals.neutral / sentimentCount,
+              };
+            }
+
+            // Include any unparsed analysis content for completeness
+            if (unparsedAnalyses.length > 0) {
+              mergedAnalysis.additionalAnalysis = unparsedAnalyses.join('\n\n');
+            }
+
+            // Convert merged analysis back to a combined string for processing
+            combinedAnalyses = JSON.stringify(mergedAnalysis, null, 2);
+
+            this.logger.info(
+              'Successfully merged analyses with smart deduplication',
+              {
+                topicCount: mergedAnalysis.topics.length,
+                actionItemCount: mergedAnalysis.actionItems.length,
+                decisionCount: mergedAnalysis.decisions.length,
+              },
+            );
+          } else {
+            // If we couldn't parse as JSON, concatenate with separators
+            combinedAnalyses = state.partialAnalyses.join(
+              '\n\n--- Analysis Segment ---\n\n',
+            );
+          }
+        } else {
+          // Default fallback to simple concatenation if we only have one analysis or intelligent merging fails
+          combinedAnalyses = state.partialAnalyses.join('\n\n');
+        }
 
         // Use the workflow instead of direct agent execution
         const result = await this.agentWorkflow.execute({
@@ -495,43 +761,44 @@ export class StandardizedMeetingAnalysisAdapter extends BaseLangGraphAdapter<
         // Parse the response as JSON if possible
         let analysisResult;
         try {
-          const responseText = !result.output
-            ? ''
-            : typeof result.output === 'string'
-              ? result.output
-              : (result.output as any)?.content || '';
+          if (typeof result.output === 'string') {
+            // Try to extract JSON content if wrapped in text
+            const jsonMatch =
+              result.output.match(/```json\s*([\s\S]*?)\s*```/) ||
+              result.output.match(/{[\s\S]*}/);
 
-          // Try to parse as JSON
-          analysisResult = JSON.parse(responseText);
+            const jsonContent = jsonMatch ? jsonMatch[0] : result.output;
+            analysisResult = JSON.parse(
+              jsonContent.replace(/```json|```/g, '').trim(),
+            );
+          } else {
+            analysisResult = result.output;
+          }
         } catch (parseError) {
-          // If parsing fails, use the raw text
+          this.logger.warn('Failed to parse analysis result as JSON', {
+            error: parseError,
+          });
           analysisResult = {
-            rawAnalysis: !result.output
-              ? ''
-              : typeof result.output === 'string'
-                ? result.output
-                : (result.output as any)?.content || '',
+            rawOutput: result.output,
+            error: 'Failed to parse analysis result as structured data',
           };
         }
-
-        const currentTokens = state.metrics?.tokensUsed || 0;
-        const newTokens = result.metrics?.tokensUsed || 0;
 
         return {
           ...state,
           analysisResult,
+          status: WorkflowStatus.READY,
           metrics: {
             ...state.metrics,
-            tokensUsed: currentTokens + newTokens,
+            tokensUsed:
+              (state.metrics?.tokensUsed || 0) +
+              (result.metrics?.tokensUsed || 0),
           },
-          status: WorkflowStatus.READY,
         };
-      } catch (error) {
-        return this.addErrorToState(
-          state,
-          error instanceof Error ? error : String(error),
-          'generate_final_analysis',
-        );
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        this.logger.error('Error generating final analysis', { error });
+        return this.addErrorToState(state, error, 'generate_final_analysis');
       }
     };
   }

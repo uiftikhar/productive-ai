@@ -2,7 +2,10 @@
  * Graph renderer for visualizing LangGraph workflows
  */
 
-export function generateGraphRenderer(graphData: any, containerId: string): string {
+export function generateGraphRenderer(
+  graphData: any,
+  containerId: string,
+): string {
   return `
     // Global graph data variable will be defined in a separate script tag
     // or use the data directly provided to this function
@@ -11,7 +14,7 @@ export function generateGraphRenderer(graphData: any, containerId: string): stri
     // Initialize D3 graph renderer
     function initializeGraph() {
       try {
-        const container = document.getElementById('${containerId || "graph-content"}');
+        const container = document.getElementById('${containerId || 'graph-content'}');
         if (!container) {
           console.error('Container element not found');
           return;
@@ -574,7 +577,7 @@ export function generateGraphRenderer(graphData: any, containerId: string): stri
 export function generateGraphDataScript(graphData: any): string {
   try {
     const data = transformGraphData(graphData);
-    
+
     // Create a script that sets a global variable with the data
     return `
     window.LG_GRAPH_DATA = ${JSON.stringify(data, null, 2)};
@@ -588,46 +591,51 @@ export function generateGraphDataScript(graphData: any): string {
 /**
  * Transform the graph data from the server format to the D3 visualization format
  */
-function transformGraphData(data: any): { nodes: any[], edges: any[] } {
+function transformGraphData(data: any): { nodes: any[]; edges: any[] } {
   // Default empty graph
   const defaultGraph = { nodes: [], edges: [] };
-  
+
   try {
     // Handle empty data
     if (!data) return defaultGraph;
-    
+
     // If the data is a string, parse it first
     const stateData = typeof data === 'string' ? JSON.parse(data) : data;
-    
+
     // If the data already has nodes and edges in the expected format
-    if (stateData.nodes && Array.isArray(stateData.nodes) && stateData.edges && Array.isArray(stateData.edges)) {
+    if (
+      stateData.nodes &&
+      Array.isArray(stateData.nodes) &&
+      stateData.edges &&
+      Array.isArray(stateData.edges)
+    ) {
       // Check if this is a meeting analysis workflow
       const isMeetingAnalysis = isMeetingAnalysisWorkflow(stateData);
-      
+
       if (isMeetingAnalysis) {
         return transformMeetingAnalysisGraph(stateData);
       }
-      
+
       return stateData;
     }
-    
+
     const nodes: any[] = [];
     const edges: any[] = [];
     const nodeMap: Record<string, boolean> = {};
-    
+
     // Extract state information
     const state = stateData.state || stateData;
-    
+
     // Process nodes
     if (typeof state === 'object') {
       // First pass: create nodes
       Object.entries(state).forEach(([nodeId, nodeData]: [string, any]) => {
         // Skip if not an object
         if (typeof nodeData !== 'object' || nodeData === null) return;
-        
+
         // Determine node type
         let nodeType = nodeData.type || 'process';
-        
+
         // Special handling for certain node IDs
         if (/start|init|begin/i.test(nodeId)) nodeType = 'start';
         if (/end|final|complete/i.test(nodeId)) nodeType = 'end';
@@ -635,65 +643,65 @@ function transformGraphData(data: any): { nodes: any[], edges: any[] } {
         if (/transform|convert|format/i.test(nodeId)) nodeType = 'transform';
         if (/retriev|rag|search|lookup/i.test(nodeId)) nodeType = 'retrieval';
         if (/intent|detect|classify/i.test(nodeId)) nodeType = 'intent';
-        
+
         // Determine node status
         const nodeStatus = nodeData.status || 'pending';
-        
+
         // Create node object with improved title
         const node = {
           id: nodeId,
           title: nodeData.name || formatNodeName(nodeId),
           type: nodeType,
           status: nodeStatus,
-          data: nodeData
+          data: nodeData,
         };
-        
+
         nodes.push(node);
         nodeMap[nodeId] = true;
       });
-      
+
       // Second pass: create edges
       Object.entries(state).forEach(([nodeId, nodeData]: [string, any]) => {
         if (typeof nodeData !== 'object' || nodeData === null) return;
-        
+
         // Process edges based on inputs
         if (Array.isArray(nodeData.inputs)) {
           nodeData.inputs.forEach((input: string) => {
             if (input && nodeMap[input]) {
               edges.push({
                 source: input,
-                target: nodeId
+                target: nodeId,
               });
             }
           });
         }
       });
-      
+
       // Create implicit edges if no edges defined but nodes are related by ID patterns
       if (edges.length === 0 && nodes.length > 1) {
         createImplicitEdges(nodes, edges);
       }
     }
-    
+
     // Check if this is a meeting analysis workflow based on node names
-    const meetingAnalysisNodes = nodes.filter(node => 
-      /chunks|analysis|partial|metadata|participant|transcript/i.test(node.id)
+    const meetingAnalysisNodes = nodes.filter((node) =>
+      /chunks|analysis|partial|metadata|participant|transcript/i.test(node.id),
     );
-    
+
     if (meetingAnalysisNodes.length > 3) {
       return transformMeetingAnalysisNodesEdges(nodes, edges);
     }
-    
+
     // Fallback for empty graph
     if (nodes.length === 0) {
       nodes.push({
         id: 'no-data',
         title: 'No Data Available',
         type: 'process',
-        status: 'pending'
+        status: 'pending',
       });
     }
-    
+
     return { nodes, edges };
   } catch (error) {
     console.error('Error transforming graph data:', error);
@@ -706,194 +714,205 @@ function transformGraphData(data: any): { nodes: any[], edges: any[] } {
  */
 function isMeetingAnalysisWorkflow(data: any): boolean {
   if (!data.nodes || !Array.isArray(data.nodes)) return false;
-  
+
   // Check for key meeting analysis node types
   const hasChunks = data.nodes.some((node: any) => /chunks/i.test(node.id));
-  const hasAnalysis = data.nodes.some((node: any) => /analysis|result/i.test(node.id));
+  const hasAnalysis = data.nodes.some((node: any) =>
+    /analysis|result/i.test(node.id),
+  );
   const hasPartial = data.nodes.some((node: any) => /partial/i.test(node.id));
-  
+
   return hasChunks && hasAnalysis && hasPartial;
 }
 
 /**
  * Transform a meeting analysis graph into a more detailed representation
  */
-function transformMeetingAnalysisGraph(data: any): { nodes: any[], edges: any[] } {
+function transformMeetingAnalysisGraph(data: any): {
+  nodes: any[];
+  edges: any[];
+} {
   const { nodes: originalNodes, edges: originalEdges } = data;
-  
+
   // Create new arrays for the enhanced graph
   const nodes: any[] = [];
   const edges: any[] = [];
-  
+
   // Add a start node if not present
   if (!originalNodes.some((node: any) => node.type === 'start')) {
     nodes.push({
       id: 'start_node',
       title: '▶ Start',
       type: 'start',
-      status: 'completed'
+      status: 'completed',
     });
   }
-  
+
   // Create Meeting Analysis Agent node as the core processor
   const meetingAgentNode = {
     id: 'meeting_analysis_agent',
     title: 'Meeting Analysis Agent',
     type: 'agent',
-    status: 'completed'
+    status: 'completed',
   };
   nodes.push(meetingAgentNode);
-  
+
   // Process the original nodes and categorize them
-  const metadataNodes = originalNodes.filter((node: any) => /metadata|participant|errors|metrics/i.test(node.id));
+  const metadataNodes = originalNodes.filter((node: any) =>
+    /metadata|participant|errors|metrics/i.test(node.id),
+  );
   const chunksNode = originalNodes.find((node: any) => /chunks/i.test(node.id));
-  const partialAnalysesNode = originalNodes.find((node: any) => /partial/i.test(node.id));
-  const analysisResultNode = originalNodes.find((node: any) => /analysisResult|result/i.test(node.id));
-  
+  const partialAnalysesNode = originalNodes.find((node: any) =>
+    /partial/i.test(node.id),
+  );
+  const analysisResultNode = originalNodes.find((node: any) =>
+    /analysisResult|result/i.test(node.id),
+  );
+
   // Add metadata processing node if metadata exists
   if (metadataNodes.length > 0) {
     const metadataProcessNode = {
       id: 'process_metadata',
       title: 'Process Metadata',
       type: 'process',
-      status: 'completed'
+      status: 'completed',
     };
     nodes.push(metadataProcessNode);
-    
+
     // Connect start to meeting agent
     edges.push({
       source: 'start_node',
-      target: 'meeting_analysis_agent'
+      target: 'meeting_analysis_agent',
     });
-    
+
     // Connect meeting agent to metadata process
     edges.push({
       source: 'meeting_analysis_agent',
-      target: 'process_metadata'
+      target: 'process_metadata',
     });
-    
+
     // Add the actual metadata nodes
     metadataNodes.forEach((node: any) => {
       nodes.push(node);
       edges.push({
         source: 'process_metadata',
-        target: node.id
+        target: node.id,
       });
     });
   }
-  
+
   // Add chunk splitting node if chunks exist
   if (chunksNode) {
     const chunkSplitterNode = {
       id: 'split_transcript',
       title: 'Split Transcript',
       type: 'transform',
-      status: 'completed'
+      status: 'completed',
     };
     nodes.push(chunkSplitterNode);
     nodes.push(chunksNode);
-    
+
     // Connect meeting agent to chunk splitter
     edges.push({
       source: 'meeting_analysis_agent',
-      target: 'split_transcript'
+      target: 'split_transcript',
     });
-    
+
     // Connect chunk splitter to chunks
     edges.push({
       source: 'split_transcript',
-      target: chunksNode.id
+      target: chunksNode.id,
     });
-    
+
     // Add chunk processing node
     const chunkProcessorNode = {
       id: 'process_chunks',
       title: 'Process Chunks',
       type: 'process',
-      status: 'completed'
+      status: 'completed',
     };
     nodes.push(chunkProcessorNode);
-    
+
     // Connect chunks to processor
     edges.push({
       source: chunksNode.id,
-      target: 'process_chunks'
+      target: 'process_chunks',
     });
-    
+
     // Add LLM for chunk analysis
     const chunkAnalyzerNode = {
       id: 'chunk_analyzer',
       title: 'LLM Analyzer',
       type: 'agent',
-      status: 'completed'
+      status: 'completed',
     };
     nodes.push(chunkAnalyzerNode);
-    
+
     // Connect processor to LLM analyzer
     edges.push({
       source: 'process_chunks',
-      target: 'chunk_analyzer'
+      target: 'chunk_analyzer',
     });
-    
+
     // Add partial analyses if they exist
     if (partialAnalysesNode) {
       nodes.push(partialAnalysesNode);
-      
+
       // Connect analyzer to partial results
       edges.push({
         source: 'chunk_analyzer',
-        target: partialAnalysesNode.id
+        target: partialAnalysesNode.id,
       });
-      
+
       // Add a combiner node
       const combinerNode = {
         id: 'combine_analyses',
         title: 'Combine Analyses',
         type: 'transform',
-        status: 'completed'
+        status: 'completed',
       };
       nodes.push(combinerNode);
-      
+
       // Connect partial results to combiner
       edges.push({
         source: partialAnalysesNode.id,
-        target: 'combine_analyses'
+        target: 'combine_analyses',
       });
-      
+
       // Connect combiner back to meeting agent for final processing
       edges.push({
         source: 'combine_analyses',
-        target: 'meeting_analysis_agent'
+        target: 'meeting_analysis_agent',
       });
     }
   }
-  
+
   // Add the final analysis result if it exists
   if (analysisResultNode) {
     nodes.push(analysisResultNode);
-    
+
     // Connect meeting agent to analysis result
     edges.push({
       source: 'meeting_analysis_agent',
-      target: analysisResultNode.id
+      target: analysisResultNode.id,
     });
-    
+
     // Add an end node
     const endNode = {
       id: 'end_node',
       title: '■ End',
       type: 'end',
-      status: 'completed'
+      status: 'completed',
     };
     nodes.push(endNode);
-    
+
     // Connect result to end
     edges.push({
       source: analysisResultNode.id,
-      target: 'end_node'
+      target: 'end_node',
     });
   }
-  
+
   return { nodes, edges };
 }
 
@@ -901,185 +920,196 @@ function transformMeetingAnalysisGraph(data: any): { nodes: any[], edges: any[] 
  * Transform meeting analysis nodes and edges into a more detailed representation
  * when we only have the raw nodes/edges without metadata
  */
-function transformMeetingAnalysisNodesEdges(originalNodes: any[], originalEdges: any[]): { nodes: any[], edges: any[] } {
+function transformMeetingAnalysisNodesEdges(
+  originalNodes: any[],
+  originalEdges: any[],
+): { nodes: any[]; edges: any[] } {
   // Create new arrays for the enhanced graph
   const nodes: any[] = [];
   const edges: any[] = [];
-  
+
   // Add a start node
   const startNode = {
     id: 'start_node',
     title: '▶ Start',
     type: 'start',
-    status: 'completed'
+    status: 'completed',
   };
   nodes.push(startNode);
-  
+
   // Create Meeting Analysis Agent node as the core processor
   const meetingAgentNode = {
     id: 'meeting_analysis_agent',
     title: 'Meeting Analysis Agent',
     type: 'agent',
-    status: 'completed'
+    status: 'completed',
   };
   nodes.push(meetingAgentNode);
-  
+
   // Connect start to agent
   edges.push({
     source: 'start_node',
-    target: 'meeting_analysis_agent'
+    target: 'meeting_analysis_agent',
   });
-  
+
   // Process the original nodes and categorize them
-  const metadataNodes = originalNodes.filter((node: any) => /metadata|participant|errors|metrics/i.test(node.id));
+  const metadataNodes = originalNodes.filter((node: any) =>
+    /metadata|participant|errors|metrics/i.test(node.id),
+  );
   const chunksNode = originalNodes.find((node: any) => /chunks/i.test(node.id));
-  const partialAnalysesNode = originalNodes.find((node: any) => /partial/i.test(node.id));
-  const analysisResultNode = originalNodes.find((node: any) => /analysisResult|result/i.test(node.id));
-  
+  const partialAnalysesNode = originalNodes.find((node: any) =>
+    /partial/i.test(node.id),
+  );
+  const analysisResultNode = originalNodes.find((node: any) =>
+    /analysisResult|result/i.test(node.id),
+  );
+
   // Add original nodes (we'll still keep these)
   originalNodes.forEach((node: any) => {
     nodes.push(node);
   });
-  
+
   // Add metadata processing node
   if (metadataNodes.length > 0) {
     const metadataProcessNode = {
       id: 'process_metadata',
       title: 'Process Metadata',
       type: 'process',
-      status: 'completed'
+      status: 'completed',
     };
     nodes.push(metadataProcessNode);
-    
+
     // Connect agent to processor
     edges.push({
       source: 'meeting_analysis_agent',
-      target: 'process_metadata'
+      target: 'process_metadata',
     });
-    
+
     // Connect processor to each metadata node
     metadataNodes.forEach((node: any) => {
       edges.push({
         source: 'process_metadata',
-        target: node.id
+        target: node.id,
       });
     });
   }
-  
+
   // Add transcript splitter if chunks exist
   if (chunksNode) {
     const splitNode = {
       id: 'split_transcript',
       title: 'Split Transcript',
       type: 'transform',
-      status: 'completed'
+      status: 'completed',
     };
     nodes.push(splitNode);
-    
+
     // Connect agent to splitter
     edges.push({
       source: 'meeting_analysis_agent',
-      target: 'split_transcript'
+      target: 'split_transcript',
     });
-    
+
     // Connect splitter to chunks
     edges.push({
       source: 'split_transcript',
-      target: chunksNode.id
+      target: chunksNode.id,
     });
-    
+
     // Add chunk processor
     const chunkProcessorNode = {
       id: 'chunk_processor',
       title: 'Process Chunks',
       type: 'process',
-      status: 'completed'
+      status: 'completed',
     };
     nodes.push(chunkProcessorNode);
-    
+
     // Connect chunks to processor
     edges.push({
       source: chunksNode.id,
-      target: 'chunk_processor'
+      target: 'chunk_processor',
     });
-    
+
     // Add LLM analyzer
     const llmNode = {
       id: 'llm_analyzer',
       title: 'LLM Analyzer',
       type: 'agent',
-      status: 'completed'
+      status: 'completed',
     };
     nodes.push(llmNode);
-    
+
     // Connect processor to LLM
     edges.push({
       source: 'chunk_processor',
-      target: 'llm_analyzer'
+      target: 'llm_analyzer',
     });
-    
+
     if (partialAnalysesNode) {
       // Connect LLM to partial analyses
       edges.push({
         source: 'llm_analyzer',
-        target: partialAnalysesNode.id
+        target: partialAnalysesNode.id,
       });
-      
+
       // Add combiner
       const combinerNode = {
         id: 'combine_analyses',
         title: 'Combine Analyses',
         type: 'transform',
-        status: 'completed'
+        status: 'completed',
       };
       nodes.push(combinerNode);
-      
+
       // Connect partial analyses to combiner
       edges.push({
         source: partialAnalysesNode.id,
-        target: 'combine_analyses'
+        target: 'combine_analyses',
       });
-      
+
       // Connect combiner back to agent
       edges.push({
         source: 'combine_analyses',
-        target: 'meeting_analysis_agent'
+        target: 'meeting_analysis_agent',
       });
     }
   }
-  
+
   // Add final analysis step
   if (analysisResultNode) {
     // Connect agent to result
     edges.push({
       source: 'meeting_analysis_agent',
-      target: analysisResultNode.id
+      target: analysisResultNode.id,
     });
-    
+
     // Add end node
     const endNode = {
       id: 'end_node',
       title: '■ End',
       type: 'end',
-      status: 'completed'
+      status: 'completed',
     };
     nodes.push(endNode);
-    
+
     // Connect result to end
     edges.push({
       source: analysisResultNode.id,
-      target: 'end_node'
+      target: 'end_node',
     });
   }
-  
+
   // Now incorporate original edges where they make sense
-  originalEdges.forEach(edge => {
+  originalEdges.forEach((edge) => {
     // Avoid duplicate edges
-    if (!edges.some(e => e.source === edge.source && e.target === edge.target)) {
+    if (
+      !edges.some((e) => e.source === edge.source && e.target === edge.target)
+    ) {
       edges.push(edge);
     }
   });
-  
+
   return { nodes, edges };
 }
 
@@ -1088,20 +1118,18 @@ function transformMeetingAnalysisNodesEdges(originalNodes: any[], originalEdges:
  */
 function formatNodeName(nodeId: string): string {
   if (!nodeId) return 'Unknown';
-  
+
   // Remove any hash or ID part
   let name = nodeId.split('#')[0].trim();
-  
+
   // Replace underscores, hyphens, and camelCase with spaces
-  name = name
-    .replace(/[_-]/g, ' ')
-    .replace(/([a-z])([A-Z])/g, '$1 $2');
-  
+  name = name.replace(/[_-]/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2');
+
   // Capitalize each word
   name = name.replace(/\w\S*/g, (txt) => {
     return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
   });
-  
+
   return name;
 }
 
@@ -1110,97 +1138,104 @@ function formatNodeName(nodeId: string): string {
  */
 function createImplicitEdges(nodes: any[], edges: any[]): void {
   // Look for start nodes
-  const startNodes = nodes.filter(node => 
-    node.type === 'start' || /start|init|begin/i.test(node.id)
+  const startNodes = nodes.filter(
+    (node) => node.type === 'start' || /start|init|begin/i.test(node.id),
   );
-  
+
   // Look for end nodes
-  const endNodes = nodes.filter(node => 
-    node.type === 'end' || /end|final|complete/i.test(node.id)
+  const endNodes = nodes.filter(
+    (node) => node.type === 'end' || /end|final|complete/i.test(node.id),
   );
-  
+
   // Find specific node types
-  const intentNodes = nodes.filter(node => node.type === 'intent');
-  const retrievalNodes = nodes.filter(node => node.type === 'retrieval');
-  const transformNodes = nodes.filter(node => node.type === 'transform');
-  const agentNodes = nodes.filter(node => node.type === 'agent');
-  
+  const intentNodes = nodes.filter((node) => node.type === 'intent');
+  const retrievalNodes = nodes.filter((node) => node.type === 'retrieval');
+  const transformNodes = nodes.filter((node) => node.type === 'transform');
+  const agentNodes = nodes.filter((node) => node.type === 'agent');
+
   // If we have identifiable start and end, create a more complex flow
   if (startNodes.length > 0) {
     let startNode = startNodes[0];
     let endNode = endNodes.length > 0 ? endNodes[0] : null;
-    
+
     // Create structured graph based on typical workflow patterns
     if (intentNodes.length > 0) {
       // Connect start to intent detection
       edges.push({
         source: startNode.id,
-        target: intentNodes[0].id
+        target: intentNodes[0].id,
       });
-      
+
       // Connect intent to next node (split questions or retrieval)
-      const nextNode = transformNodes.find(n => /split|question/i.test(n.id)) || retrievalNodes[0] || agentNodes[0];
+      const nextNode =
+        transformNodes.find((n) => /split|question/i.test(n.id)) ||
+        retrievalNodes[0] ||
+        agentNodes[0];
       if (nextNode) {
         edges.push({
           source: intentNodes[0].id,
-          target: nextNode.id
+          target: nextNode.id,
         });
-        
+
         // Connect to retrieval if available
         if (retrievalNodes.length > 0 && nextNode.id !== retrievalNodes[0].id) {
           edges.push({
             source: nextNode.id,
-            target: retrievalNodes[0].id
+            target: retrievalNodes[0].id,
           });
-          
+
           // Connect retrieval to transform docs
-          const transformDocsNode = transformNodes.find(n => /docs|transform/i.test(n.id));
+          const transformDocsNode = transformNodes.find((n) =>
+            /docs|transform/i.test(n.id),
+          );
           if (transformDocsNode) {
             edges.push({
               source: retrievalNodes[0].id,
-              target: transformDocsNode.id
+              target: transformDocsNode.id,
             });
-            
+
             // Connect transform to agents (LLM Answer and RAG Answer)
-            const llmNode = agentNodes.find(n => /llm/i.test(n.id));
-            const ragNode = agentNodes.find(n => /rag/i.test(n.id));
-            
+            const llmNode = agentNodes.find((n) => /llm/i.test(n.id));
+            const ragNode = agentNodes.find((n) => /rag/i.test(n.id));
+
             if (llmNode) {
               edges.push({
                 source: transformDocsNode.id,
-                target: llmNode.id
+                target: llmNode.id,
               });
             }
-            
+
             if (ragNode) {
               edges.push({
                 source: transformDocsNode.id,
-                target: ragNode.id
+                target: ragNode.id,
               });
             }
-            
+
             // Connect to cite sources node if exists
-            const citeNode = transformNodes.find(n => /cite|sources/i.test(n.id));
+            const citeNode = transformNodes.find((n) =>
+              /cite|sources/i.test(n.id),
+            );
             if (citeNode) {
               if (llmNode) {
                 edges.push({
                   source: llmNode.id,
-                  target: citeNode.id
+                  target: citeNode.id,
                 });
               }
-              
+
               if (ragNode) {
                 edges.push({
                   source: ragNode.id,
-                  target: citeNode.id
+                  target: citeNode.id,
                 });
               }
-              
+
               // Connect cite sources to end
               if (endNode) {
                 edges.push({
                   source: citeNode.id,
-                  target: endNode.id
+                  target: endNode.id,
                 });
               }
             } else if (endNode) {
@@ -1208,14 +1243,14 @@ function createImplicitEdges(nodes: any[], edges: any[]): void {
               if (llmNode) {
                 edges.push({
                   source: llmNode.id,
-                  target: endNode.id
+                  target: endNode.id,
                 });
               }
-              
+
               if (ragNode) {
                 edges.push({
                   source: ragNode.id,
-                  target: endNode.id
+                  target: endNode.id,
                 });
               }
             }
@@ -1228,7 +1263,7 @@ function createImplicitEdges(nodes: any[], edges: any[]): void {
       for (let i = 0; i < nodes.length - 1; i++) {
         edges.push({
           source: nodes[i].id,
-          target: nodes[i + 1].id
+          target: nodes[i + 1].id,
         });
       }
     }
@@ -1237,8 +1272,8 @@ function createImplicitEdges(nodes: any[], edges: any[]): void {
     for (let i = 0; i < nodes.length - 1; i++) {
       edges.push({
         source: nodes[i].id,
-        target: nodes[i + 1].id
+        target: nodes[i + 1].id,
       });
     }
   }
-} 
+}

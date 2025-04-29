@@ -1,4 +1,19 @@
 import { BaseMessage } from '@langchain/core/messages';
+import {
+  CapabilityAssessment,
+  ConfidenceLevel,
+  MetacognitiveState,
+  ReflectionConfig,
+  ReflectionPointType,
+  ReflectionRecord,
+  SelfAssessmentRequest,
+  SelfAssessmentResponse,
+  SelfReflectionRequest,
+  SelfReflectionResponse,
+  StrategyFormulationRequest,
+  StrategyFormulationResponse,
+  TaskStrategy,
+} from './metacognition.interface';
 
 /**
  * Agent capability descriptor
@@ -10,14 +25,33 @@ export interface AgentCapability {
 }
 
 /**
- * Agent execution context
+ * Context information for agent execution
  */
 export interface AgentContext {
   userId?: string;
   runId?: string;
   conversationId?: string;
   sessionId?: string;
+  /**
+   * Unique identifier for the current task being executed
+   * Used for progress tracking and monitoring
+   * @deprecated Will be replaced by agentic self-organizing behavior where tasks are emergent
+   */
+  taskId?: string;
   metadata?: Record<string, any>;
+  /**
+   * Planning result from self-planning service
+   */
+  planningResult?: any;
+  /**
+   * Error information if an error occurred during execution
+   */
+  error?: Error;
+  /**
+   * ID of a registered confidence prediction for calibration
+   * Used to track and update confidence predictions with actual outcomes
+   */
+  confidencePredictionId?: string;
 }
 
 /**
@@ -66,6 +100,7 @@ export interface AgentState {
   errorCount: number;
   executionCount: number;
   metadata: Record<string, any>;
+  metacognition?: Partial<MetacognitiveState>;
 }
 
 /**
@@ -78,6 +113,12 @@ export interface AgentMetrics {
   tokensUsed: number;
   errorRate: number;
   lastExecutionTimeMs?: number;
+  reflectionCount?: number;
+  adaptationCount?: number;
+  confidenceScores?: {
+    average: number;
+    trend: 'improving' | 'stable' | 'declining';
+  };
 }
 
 /**
@@ -138,6 +179,61 @@ export interface BaseAgentInterface {
    * Get agent metrics
    */
   getMetrics(): AgentMetrics;
+
+  /**
+   * Self-reflection methods
+   */
+
+  /**
+   * Perform self-assessment on whether the agent can handle a specific capability
+   * This provides more detailed assessment than the simple canHandle method
+   */
+  assessCapability(
+    request: SelfAssessmentRequest,
+  ): Promise<SelfAssessmentResponse>;
+
+  /**
+   * Perform self-reflection at a specific point in execution
+   */
+  reflect(request: SelfReflectionRequest): Promise<SelfReflectionResponse>;
+
+  /**
+   * Formulate a strategy for approaching a task
+   */
+  formulateStrategy(
+    request: StrategyFormulationRequest,
+  ): Promise<StrategyFormulationResponse>;
+
+  /**
+   * Get the agent's confidence level for a specific capability or task
+   */
+  getConfidence(
+    capability: string,
+    taskDescription?: string,
+  ): Promise<ConfidenceLevel>;
+
+  /**
+   * Get the metacognitive state of the agent
+   */
+  getMetacognitiveState(): Partial<MetacognitiveState>;
+
+  /**
+   * Configure reflection behavior
+   */
+  configureReflection(config: Partial<ReflectionConfig>): void;
+
+  /**
+   * Report progress update during execution
+   * This allows the agent to update its progress tracking
+   */
+  reportProgress(progressUpdate: {
+    capability: string;
+    taskId?: string;
+    completedSteps: number;
+    totalSteps: number;
+    milestone?: string;
+    blocker?: { description: string; severity: 'low' | 'medium' | 'high' };
+  }): void;
 }
 
 /**
@@ -151,6 +247,39 @@ export interface WorkflowCompatibleAgent extends BaseAgentInterface {
    * This method is exposed for direct usage by workflows to prevent circular execution
    */
   executeInternal(request: AgentRequest): Promise<AgentResponse>;
+}
+
+/**
+ * Extended interface for agents with metacognitive capabilities
+ */
+export interface MetacognitiveAgent extends BaseAgentInterface {
+  /**
+   * Access the full reflection history
+   */
+  getReflectionHistory(): ReflectionRecord[];
+
+  /**
+   * Get learned strategies for a specific capability
+   */
+  getLearnedStrategies(capability: string): TaskStrategy[];
+
+  /**
+   * Update metacognitive state after external events
+   * (such as feedback from users or other agents)
+   */
+  updateMetacognitiveState(updates: Partial<MetacognitiveState>): void;
+
+  /**
+   * Transfer knowledge to another agent
+   */
+  transferKnowledge(
+    targetAgentId: string,
+    capabilityFilter?: string[],
+  ): Promise<{
+    transferredStrategies: number;
+    transferredPatterns: number;
+    success: boolean;
+  }>;
 }
 
 /**

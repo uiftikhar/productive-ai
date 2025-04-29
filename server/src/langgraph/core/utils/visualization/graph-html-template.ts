@@ -3,11 +3,14 @@
  */
 
 import { generateStyles } from './styles';
-import { generateGraphRenderer, generateGraphDataScript } from './graph-renderer';
+import {
+  generateGraphRenderer,
+  generateGraphDataScript,
+} from './graph-renderer';
 
 export function generateGraphHtml(graphId: string, initialState: any): string {
   const timestamp = Date.now();
-  
+
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -259,4 +262,4 @@ export function generateGraphHtml(graphId: string, initialState: any): string {
 </body>
 </html>
   `;
-} 
+}

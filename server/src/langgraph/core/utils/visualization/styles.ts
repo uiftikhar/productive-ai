@@ -557,4 +557,4 @@ export function generateStyles(): string {
       }
     }
   `;
-} 
+}

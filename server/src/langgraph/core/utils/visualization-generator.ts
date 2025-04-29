@@ -1,7 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Logger } from '../../../shared/logger/logger.interface';
-import { generateGraphRenderer, generateGraphDataScript } from './visualization/graph-renderer';
+import {
+  generateGraphRenderer,
+  generateGraphDataScript,
+} from './visualization/graph-renderer';
 import { generateGraphHtml } from './visualization/graph-html-template';
 
 /**

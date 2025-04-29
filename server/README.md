@@ -519,3 +519,68 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [OpenAI](https://openai.com/) for LLM capabilities
 - [Pinecone](https://www.pinecone.io/) for vector database services
 
+## Metacognitive Framework
+
+The server now includes a powerful metacognitive framework that enhances agent autonomy through self-reflection, planning, and learning capabilities. This framework enables agents to:
+
+- **Self-assess** their confidence in handling specific tasks
+- **Monitor progress** during execution and detect stalls or anomalies
+- **Adjust strategies** when encountering obstacles
+- **Learn from experience** to improve future performance
+- **Plan approaches** before beginning execution
+
+### Key Components
+
+1. **Capability Self-Assessment**: Agents evaluate their confidence in handling tasks
+2. **Progress Monitoring System**: Real-time tracking of execution progress with anomaly detection
+3. **Strategy Adjustment Capabilities**: Dynamic strategy selection and parameter tuning
+4. **Execution Memory**: Experience repository with pattern recognition
+5. **Self-Prompted Planning**: Pre-execution analysis and approach selection
+
+### Usage
+
+Create a metacognitive agent:
+
+```typescript
+import { MetacognitiveAgentImplementation } from './agents/base/metacognitive-agent-implementation';
+import { ReflectionPointType } from './agents/interfaces/metacognition.interface';
+
+const agent = new MetacognitiveAgentImplementation(
+  'Metacognitive Agent',
+  'An agent with self-reflection capabilities',
+  {
+    reflectionConfig: {
+      reflectionPoints: [
+        ReflectionPointType.PRE_EXECUTION,
+        ReflectionPointType.POST_EXECUTION,
+      ],
+      progressCheckpoints: [0.25, 0.5, 0.75],
+      adaptationThreshold: 0.6,
+      reflectionDepth: 'normal',
+    },
+  }
+);
+```
+
+Execute tasks with metacognitive capabilities:
+
+```typescript
+const response = await agent.execute({
+  capability: 'task-capability',
+  input: taskInput,
+  context: { taskId: 'task-123' },
+});
+```
+
+### Documentation
+
+For detailed documentation, see [Metacognitive Framework](./docs/metacognitive-framework.md).
+
+### Testing
+
+Run the metacognitive framework test:
+
+```bash
+node test-metacognitive-planning.js
+```
+
