@@ -476,4 +476,4 @@ export class VisualizationService {
       return null;
     }
   }
-} 
+}

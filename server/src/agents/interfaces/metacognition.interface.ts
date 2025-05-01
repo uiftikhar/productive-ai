@@ -244,6 +244,7 @@ export interface SelfAssessmentResponse {
   suggestedApproach?: TaskStrategy;
   alternativeApproaches?: TaskStrategy[];
   metadata?: Record<string, any>; // Additional metadata including confidence prediction ID
+  [x: string]: any; // Changed from 'number | PromiseLike<number>' to 'any' to allow different property types
 }
 
 /**

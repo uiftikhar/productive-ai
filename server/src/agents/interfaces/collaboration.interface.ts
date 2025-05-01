@@ -1,6 +1,6 @@
 /**
  * Collaboration Interfaces
- * 
+ *
  * Defines the interfaces for collaboration between agents as part of
  * the supervisor transformation from controller to facilitator.
  */
@@ -92,7 +92,13 @@ export interface CollaborativeTaskBreakdown {
     suggestedChanges?: any;
     reason?: string;
   }[];
-  status: 'draft' | 'voting' | 'approved' | 'rejected' | 'in-progress' | 'completed';
+  status:
+    | 'draft'
+    | 'voting'
+    | 'approved'
+    | 'rejected'
+    | 'in-progress'
+    | 'completed';
   metrics?: {
     averageSubtaskComplexity: number;
     parallelizationScore: number;
@@ -146,4 +152,4 @@ export interface DelegationProtocol {
     acceptanceStatus: 'pending' | 'accepted' | 'rejected' | 'completed';
     feedbackScore?: number;
   };
-} 
+}

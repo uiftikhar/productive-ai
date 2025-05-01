@@ -1,6 +1,6 @@
 /**
  * Dynamic Delegation Protocol Service
- * 
+ *
  * Handles dynamic task routing and delegation based on agent capabilities,
  * enabling more flexible and emergent collaboration patterns
  */
@@ -8,7 +8,11 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
-import { BaseAgentInterface, AgentRequest, AgentResponse } from '../interfaces/base-agent.interface';
+import {
+  BaseAgentInterface,
+  AgentRequest,
+  AgentResponse,
+} from '../interfaces/base-agent.interface';
 import { AgentRegistryService } from './agent-registry.service';
 import { TeamAssemblyService, Team } from './team-assembly.service';
 import { EventEmitter } from 'events';
@@ -111,43 +115,52 @@ export class DelegationProtocolService {
   private agentRegistry: AgentRegistryService;
   private teamAssembly: TeamAssemblyService;
   private eventEmitter: EventEmitter = new EventEmitter();
-  
+
   // Settings
   private defaultWaitTime: number = 5000; // 5 seconds
-  private defaultAdvertisementStrategy: 'broadcast' | 'targeted' | 'team-only' = 'targeted';
-  
+  private defaultAdvertisementStrategy: 'broadcast' | 'targeted' | 'team-only' =
+    'targeted';
+
   // Storage
   private advertisements: Map<string, TaskAdvertisement> = new Map();
-  private pendingAssignments: Map<string, {
-    advertisement: TaskAdvertisement;
-    timer: NodeJS.Timeout;
-    resolve: (result: TaskDelegationResult) => void;
-    reject: (error: Error) => void;
-  }> = new Map();
-  
+  private pendingAssignments: Map<
+    string,
+    {
+      advertisement: TaskAdvertisement;
+      timer: NodeJS.Timeout;
+      resolve: (result: TaskDelegationResult) => void;
+      reject: (error: Error) => void;
+    }
+  > = new Map();
+
   // Subscription management
-  private subscriptions: Map<string, {
-    callback: (event: any) => void;
-    types?: DelegationEventType[];
-  }> = new Map();
+  private subscriptions: Map<
+    string,
+    {
+      callback: (event: any) => void;
+      types?: DelegationEventType[];
+    }
+  > = new Map();
 
   /**
    * Private constructor for singleton pattern
    */
   private constructor(config: DelegationProtocolConfig = {}) {
     this.logger = config.logger || new ConsoleLogger();
-    
-    this.agentRegistry = config.agentRegistry || AgentRegistryService.getInstance();
-    this.teamAssembly = config.teamAssembly || TeamAssemblyService.getInstance();
-    
+
+    this.agentRegistry =
+      config.agentRegistry || AgentRegistryService.getInstance();
+    this.teamAssembly =
+      config.teamAssembly || TeamAssemblyService.getInstance();
+
     if (config.defaultWaitTime) {
       this.defaultWaitTime = config.defaultWaitTime;
     }
-    
+
     if (config.defaultAdvertisementStrategy) {
       this.defaultAdvertisementStrategy = config.defaultAdvertisementStrategy;
     }
-    
+
     this.logger.info('Initialized DelegationProtocolService');
   }
 
@@ -158,7 +171,9 @@ export class DelegationProtocolService {
     config: DelegationProtocolConfig = {},
   ): DelegationProtocolService {
     if (!DelegationProtocolService.instance) {
-      DelegationProtocolService.instance = new DelegationProtocolService(config);
+      DelegationProtocolService.instance = new DelegationProtocolService(
+        config,
+      );
     }
     return DelegationProtocolService.instance;
   }
@@ -174,7 +189,7 @@ export class DelegationProtocolService {
     if (!advertiser) {
       throw new Error(`Advertiser agent not found: ${advertiserId}`);
     }
-    
+
     // Create the advertisement
     const advertisement: TaskAdvertisement = {
       id: uuidv4(),
@@ -194,19 +209,21 @@ export class DelegationProtocolService {
         context: request.context,
       },
     };
-    
+
     // Store the advertisement
     this.advertisements.set(advertisement.id, advertisement);
-    
+
     // Determine which agents to advertise to
     const targetAgents = await this.determineTargetAgents(
       advertisement,
       request,
     );
-    
+
     if (targetAgents.length === 0) {
-      this.logger.warn(`No eligible agents found for task: ${advertisement.title}`);
-      
+      this.logger.warn(
+        `No eligible agents found for task: ${advertisement.title}`,
+      );
+
       return {
         advertisementId: advertisement.id,
         responses: [],
@@ -214,19 +231,19 @@ export class DelegationProtocolService {
         message: 'No eligible agents found',
       };
     }
-    
+
     // Advertise the task
     await this.broadcastAdvertisement(advertisement, targetAgents);
-    
+
     // Emit event
     this.emitEvent({
       type: DelegationEventType.TASK_ADVERTISED,
       advertisementId: advertisement.id,
       advertiserId: advertiser.id,
-      targetAgents: targetAgents.map(a => a.id),
+      targetAgents: targetAgents.map((a) => a.id),
       timestamp: Date.now(),
     });
-    
+
     // If auto-assign is disabled, return immediately with pending status
     if (request.autoAssign === false) {
       return {
@@ -235,7 +252,7 @@ export class DelegationProtocolService {
         status: 'pending',
       };
     }
-    
+
     // Wait for responses and make assignment
     return await this.waitForResponses(
       advertisement,
@@ -250,41 +267,48 @@ export class DelegationProtocolService {
     advertisement: TaskAdvertisement,
     request: TaskDelegationRequest,
   ): Promise<BaseAgentInterface[]> {
-    const strategy = request.advertisementStrategy || this.defaultAdvertisementStrategy;
+    const strategy =
+      request.advertisementStrategy || this.defaultAdvertisementStrategy;
     let candidates: BaseAgentInterface[] = [];
-    
+
     switch (strategy) {
       case 'broadcast':
         // Send to all agents
         candidates = this.agentRegistry.listAgents();
         break;
-      
+
       case 'team-only':
         // Send only to members of the specified team
         if (request.teamId) {
           const team = this.teamAssembly.getTeam(request.teamId);
           if (team) {
-            const teamAgentIds = team.members.map(m => m.agentId);
+            const teamAgentIds = team.members.map((m) => m.agentId);
             candidates = teamAgentIds
-              .map(id => this.agentRegistry.getAgent(id))
-              .filter((agent): agent is BaseAgentInterface => agent !== undefined);
+              .map((id) => this.agentRegistry.getAgent(id))
+              .filter(
+                (agent): agent is BaseAgentInterface => agent !== undefined,
+              );
           } else {
             this.logger.warn(`Team not found: ${request.teamId}`);
           }
         } else {
-          this.logger.warn('Team-only strategy specified but no teamId provided');
+          this.logger.warn(
+            'Team-only strategy specified but no teamId provided',
+          );
         }
         break;
-      
+
       case 'targeted':
       default:
         // Send to agents with matching capabilities
         if (advertisement.requiredCapabilities.length > 0) {
           const allAgents = this.agentRegistry.listAgents();
-          candidates = allAgents.filter(agent => {
-            const agentCapabilities = agent.getCapabilities().map(c => c.name);
-            return advertisement.requiredCapabilities.some(cap => 
-              agentCapabilities.includes(cap)
+          candidates = allAgents.filter((agent) => {
+            const agentCapabilities = agent
+              .getCapabilities()
+              .map((c) => c.name);
+            return advertisement.requiredCapabilities.some((cap) =>
+              agentCapabilities.includes(cap),
             );
           });
         } else {
@@ -293,23 +317,25 @@ export class DelegationProtocolService {
         }
         break;
     }
-    
+
     // Apply preferred/excluded filters
     if (request.preferredAgentIds && request.preferredAgentIds.length > 0) {
       // Keep only preferred agents that are in the candidates list
       const preferredSet = new Set(request.preferredAgentIds);
-      candidates = candidates.filter(agent => preferredSet.has(agent.id));
+      candidates = candidates.filter((agent) => preferredSet.has(agent.id));
     }
-    
+
     if (request.excludedAgentIds && request.excludedAgentIds.length > 0) {
       // Remove excluded agents
       const excludedSet = new Set(request.excludedAgentIds);
-      candidates = candidates.filter(agent => !excludedSet.has(agent.id));
+      candidates = candidates.filter((agent) => !excludedSet.has(agent.id));
     }
-    
+
     // Exclude the advertiser itself
-    candidates = candidates.filter(agent => agent.id !== advertisement.advertiser.id);
-    
+    candidates = candidates.filter(
+      (agent) => agent.id !== advertisement.advertiser.id,
+    );
+
     return candidates;
   }
 
@@ -321,8 +347,10 @@ export class DelegationProtocolService {
     advertisement: TaskAdvertisement,
     targetAgents: BaseAgentInterface[],
   ): Promise<void> {
-    this.logger.info(`Broadcasting advertisement ${advertisement.id} to ${targetAgents.length} agents`);
-    
+    this.logger.info(
+      `Broadcasting advertisement ${advertisement.id} to ${targetAgents.length} agents`,
+    );
+
     // Create advertisement payload as a JSON string
     const advertisementPayload = JSON.stringify({
       taskAdvertisement: {
@@ -333,9 +361,9 @@ export class DelegationProtocolService {
         priority: advertisement.priority,
         deadline: advertisement.deadline,
         advertiser: advertisement.advertiser,
-      }
+      },
     });
-    
+
     // Broadcast to all target agents concurrently
     await Promise.all(
       targetAgents.map(async (agent) => {
@@ -367,8 +395,10 @@ export class DelegationProtocolService {
     agent: BaseAgentInterface,
     response: AgentResponse,
   ): Promise<void> {
-    this.logger.info(`Processing response from agent ${agent.id} for advertisement ${advertisement.id}`);
-    
+    this.logger.info(
+      `Processing response from agent ${agent.id} for advertisement ${advertisement.id}`,
+    );
+
     if (!response.success) {
       this.logger.warn(`Agent ${agent.id} failed to process advertisement`, {
         error: response.error,
@@ -376,13 +406,16 @@ export class DelegationProtocolService {
       });
       return;
     }
-    
+
     // Extract confidence from response
     let confidence = 0;
-    
+
     if (typeof response.output === 'number') {
       confidence = response.output;
-    } else if (typeof response.output === 'object' && response.output !== null) {
+    } else if (
+      typeof response.output === 'object' &&
+      response.output !== null
+    ) {
       const outputObj = response.output as any;
       confidence = outputObj.confidence || outputObj.score || 0;
     } else if (typeof response.output === 'string') {
@@ -401,10 +434,10 @@ export class DelegationProtocolService {
         }
       }
     }
-    
+
     // Clamp confidence to 0-1 range
     confidence = Math.max(0, Math.min(1, confidence));
-    
+
     // Record the response in the advertisement
     const agentResponse = {
       agentId: agent.id,
@@ -412,10 +445,10 @@ export class DelegationProtocolService {
       confidence,
       bidTime: Date.now(),
     };
-    
+
     advertisement.responses.push(agentResponse);
     this.advertisements.set(advertisement.id, advertisement);
-    
+
     // Emit event for the response
     this.emitEvent({
       type: DelegationEventType.AGENT_RESPONDED,
@@ -424,7 +457,7 @@ export class DelegationProtocolService {
       confidence,
       timestamp: Date.now(),
     });
-    
+
     // Check for auto-assignment
     const pendingAssignment = this.pendingAssignments.get(advertisement.id);
     if (
@@ -436,7 +469,7 @@ export class DelegationProtocolService {
       const responses = [...pendingAssignment.advertisement.responses].sort(
         (a, b) => b.confidence - a.confidence,
       );
-      
+
       // If the best response has high confidence, assign the task
       if (responses[0].confidence > 0.8) {
         this.assignTask(advertisement.id)
@@ -462,7 +495,7 @@ export class DelegationProtocolService {
       const timer = setTimeout(() => {
         this.assignTask(advertisement.id).then(resolve).catch(reject);
       }, waitTime);
-      
+
       // Store the pending assignment
       this.pendingAssignments.set(advertisement.id, {
         advertisement,
@@ -481,21 +514,21 @@ export class DelegationProtocolService {
     if (!advertisement) {
       throw new Error(`Advertisement not found: ${advertisementId}`);
     }
-    
+
     // Clean up any pending assignment
     const pending = this.pendingAssignments.get(advertisementId);
     if (pending) {
       clearTimeout(pending.timer);
       this.pendingAssignments.delete(advertisementId);
     }
-    
+
     // If already assigned, return the current assignment
     if (advertisement.status === 'assigned' && advertisement.assignedTo) {
       return {
         advertisementId,
         assignedAgentId: advertisement.assignedTo.agentId,
         assignedAgentName: advertisement.assignedTo.agentName,
-        responses: advertisement.responses.map(r => ({
+        responses: advertisement.responses.map((r) => ({
           agentId: r.agentId,
           agentName: r.agentName,
           confidence: r.confidence,
@@ -503,12 +536,12 @@ export class DelegationProtocolService {
         status: 'assigned',
       };
     }
-    
+
     // If no responses, return failure
     if (advertisement.responses.length === 0) {
       advertisement.status = 'cancelled';
       this.advertisements.set(advertisementId, advertisement);
-      
+
       return {
         advertisementId,
         responses: [],
@@ -516,24 +549,24 @@ export class DelegationProtocolService {
         message: 'No agent responses received',
       };
     }
-    
+
     // Sort responses by confidence (descending)
     const sortedResponses = [...advertisement.responses].sort(
-      (a, b) => b.confidence - a.confidence
+      (a, b) => b.confidence - a.confidence,
     );
-    
+
     // Select the best responder
     const bestResponse = sortedResponses[0];
-    
+
     // Make sure the agent still exists
     const agent = this.agentRegistry.getAgent(bestResponse.agentId);
     if (!agent) {
       advertisement.status = 'cancelled';
       this.advertisements.set(advertisementId, advertisement);
-      
+
       return {
         advertisementId,
-        responses: sortedResponses.map(r => ({
+        responses: sortedResponses.map((r) => ({
           agentId: r.agentId,
           agentName: r.agentName,
           confidence: r.confidence,
@@ -542,7 +575,7 @@ export class DelegationProtocolService {
         message: `Selected agent no longer exists: ${bestResponse.agentId}`,
       };
     }
-    
+
     // Update the advertisement
     advertisement.status = 'assigned';
     advertisement.assignedTo = {
@@ -550,9 +583,9 @@ export class DelegationProtocolService {
       agentName: bestResponse.agentName,
       assignedAt: Date.now(),
     };
-    
+
     this.advertisements.set(advertisementId, advertisement);
-    
+
     // Emit event
     this.emitEvent({
       type: DelegationEventType.TASK_ASSIGNED,
@@ -561,12 +594,12 @@ export class DelegationProtocolService {
       confidence: bestResponse.confidence,
       timestamp: Date.now(),
     });
-    
+
     return {
       advertisementId,
       assignedAgentId: bestResponse.agentId,
       assignedAgentName: bestResponse.agentName,
-      responses: sortedResponses.map(r => ({
+      responses: sortedResponses.map((r) => ({
         agentId: r.agentId,
         agentName: r.agentName,
         confidence: r.confidence,
@@ -587,12 +620,12 @@ export class DelegationProtocolService {
     if (!advertisement) {
       throw new Error(`Advertisement not found: ${advertisementId}`);
     }
-    
+
     // Verify the task was assigned to the agent completing it
     if (performedById && advertisement.assignedTo?.agentId !== performedById) {
       throw new Error(`Task not assigned to this agent: ${performedById}`);
     }
-    
+
     // Update the advertisement
     advertisement.status = 'completed';
     advertisement.metadata = {
@@ -600,9 +633,9 @@ export class DelegationProtocolService {
       result,
       completedAt: Date.now(),
     };
-    
+
     this.advertisements.set(advertisementId, advertisement);
-    
+
     // Emit event
     this.emitEvent({
       type: DelegationEventType.TASK_COMPLETED,
@@ -625,12 +658,12 @@ export class DelegationProtocolService {
     if (!advertisement) {
       throw new Error(`Advertisement not found: ${advertisementId}`);
     }
-    
+
     // Verify the task was assigned to the agent reporting failure
     if (performedById && advertisement.assignedTo?.agentId !== performedById) {
       throw new Error(`Task not assigned to this agent: ${performedById}`);
     }
-    
+
     // Update the advertisement
     advertisement.status = 'cancelled';
     advertisement.metadata = {
@@ -638,9 +671,9 @@ export class DelegationProtocolService {
       failureReason: reason,
       failedAt: Date.now(),
     };
-    
+
     this.advertisements.set(advertisementId, advertisement);
-    
+
     // Emit event
     this.emitEvent({
       type: DelegationEventType.TASK_FAILED,
@@ -659,19 +692,19 @@ export class DelegationProtocolService {
     if (!advertisement) {
       throw new Error(`Advertisement not found: ${advertisementId}`);
     }
-    
+
     // Clean up any pending assignment
     const pending = this.pendingAssignments.get(advertisementId);
     if (pending) {
       clearTimeout(pending.timer);
       this.pendingAssignments.delete(advertisementId);
     }
-    
+
     // Update the advertisement
     advertisement.status = 'cancelled';
-    
+
     this.advertisements.set(advertisementId, advertisement);
-    
+
     // Emit event
     this.emitEvent({
       type: DelegationEventType.TASK_CANCELLED,
@@ -691,8 +724,9 @@ export class DelegationProtocolService {
    * List all active task advertisements
    */
   listActiveAdvertisements(): TaskAdvertisement[] {
-    return Array.from(this.advertisements.values())
-      .filter(ad => ad.status === 'open' || ad.status === 'assigned');
+    return Array.from(this.advertisements.values()).filter(
+      (ad) => ad.status === 'open' || ad.status === 'assigned',
+    );
   }
 
   /**
@@ -703,12 +737,12 @@ export class DelegationProtocolService {
     eventTypes?: DelegationEventType[],
   ): string {
     const subscriptionId = uuidv4();
-    
+
     this.subscriptions.set(subscriptionId, {
       callback,
       types: eventTypes,
     });
-    
+
     return subscriptionId;
   }
 
@@ -727,17 +761,19 @@ export class DelegationProtocolService {
     for (const [id, subscription] of this.subscriptions.entries()) {
       // Skip if subscription specifies event types and this doesn't match
       if (
-        subscription.types && 
+        subscription.types &&
         !subscription.types.includes(event.type as DelegationEventType)
       ) {
         continue;
       }
-      
+
       try {
         subscription.callback(event);
       } catch (error) {
-        this.logger.error(`Error in event subscription handler ${id}`, { error });
+        this.logger.error(`Error in event subscription handler ${id}`, {
+          error,
+        });
       }
     }
   }
-} 
+}

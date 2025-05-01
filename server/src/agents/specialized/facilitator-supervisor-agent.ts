@@ -67,6 +67,22 @@ import {
   CapabilityComposition,
   DelegationProtocol,
 } from '../interfaces/collaboration.interface';
+import {
+  RecruitmentMessageType,
+  RecruitmentInquiryMessage,
+  RecruitmentProposalMessage,
+  CounterProposalMessage,
+  AcceptanceMessage,
+  RejectionMessage,
+  TeamContract,
+} from '../interfaces/recruitment-protocol.interface';
+import {
+  AgentRecruitmentService,
+  RecruitmentStatus,
+} from '../services/agent-recruitment.service';
+import { CapabilityAdvertisementService } from '../services/capability-advertisement.service';
+import { NegotiationEngineService } from '../services/negotiation-engine.service';
+import { TeamContractService } from '../services/team-contract.service';
 
 // Voting system interfaces
 interface VoteRecord {
@@ -424,6 +440,25 @@ export class FacilitatorSupervisorAgent extends BaseAgent {
         'Evaluates the quality of task decomposition using multiple metrics',
     });
 
+    // Register new Agent Recruitment capability
+    this.registerCapability({
+      name: 'agent-recruitment',
+      description:
+        'Recruits agents for tasks based on capability matching and negotiation',
+    });
+
+    this.registerCapability({
+      name: 'capability-advertising',
+      description:
+        'Manages capability advertisements and discovery for agent recruitment',
+    });
+
+    this.registerCapability({
+      name: 'contract-formation',
+      description:
+        'Creates and manages team contracts with expected outcomes and accountability',
+    });
+
     // Add default team members if provided
     if (options.defaultTeamMembers) {
       options.defaultTeamMembers.forEach((member) => {
@@ -495,6 +530,25 @@ export class FacilitatorSupervisorAgent extends BaseAgent {
         'Evaluates the quality of task decomposition using multiple metrics',
     });
 
+    // Register new Agent Recruitment capability
+    this.registerCapability({
+      name: 'agent-recruitment',
+      description:
+        'Recruits agents for tasks based on capability matching and negotiation',
+    });
+
+    this.registerCapability({
+      name: 'capability-advertising',
+      description:
+        'Manages capability advertisements and discovery for agent recruitment',
+    });
+
+    this.registerCapability({
+      name: 'contract-formation',
+      description:
+        'Creates and manages team contracts with expected outcomes and accountability',
+    });
+
     this.logger.info(
       `FacilitatorSupervisorAgent ${this.id} initialized with facilitation capabilities`,
     );
@@ -547,6 +601,18 @@ export class FacilitatorSupervisorAgent extends BaseAgent {
 
         case 'task-breakdown-evaluation':
           result = await this.handleTaskBreakdownEvaluation(request);
+          break;
+
+        case 'agent-recruitment':
+          result = await this.handleAgentRecruitment(request);
+          break;
+
+        case 'capability-advertising':
+          result = await this.handleCapabilityAdvertising(request);
+          break;
+
+        case 'contract-formation':
+          result = await this.handleContractFormation(request);
           break;
 
         default:
@@ -759,7 +825,7 @@ export class FacilitatorSupervisorAgent extends BaseAgent {
 
           const task = this.tasks.get(breakdown.taskId);
           if (!task) {
-            throw new Error(`Task not found: ${breakdown.taskId}`);
+            throw new Error(`Task with ID ${breakdown.taskId} not found`);
           }
 
           const newBreakdown =
@@ -2508,6 +2574,694 @@ export class FacilitatorSupervisorAgent extends BaseAgent {
       const error = err as Error;
       this.logger.warn(
         `Failed to update team assembly service performance metrics: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * Handle agent recruitment capability
+   */
+  private async handleAgentRecruitment(request: AgentRequest): Promise<any> {
+    try {
+      const recruitment = this.parseInput<{
+        operation: string;
+        taskId?: string;
+        teamId?: string;
+        targetAgentId?: string;
+        agentIds?: string[];
+        recruitmentId?: string;
+        proposalId?: string;
+        proposedRole?: string;
+        responsibilities?: string[];
+        requiredCapabilities?: string[];
+        expectedContribution?: string;
+        expectedDuration?: number;
+        compensation?: {
+          type: string;
+          value: number;
+        };
+        message?: string;
+        counterProposal?: CounterProposalMessage;
+        acceptance?: AcceptanceMessage;
+        rejection?: RejectionMessage;
+      }>(request.input);
+
+      // Get the recruitment service
+      const recruitmentService =
+        await this.getServiceInstance<AgentRecruitmentService>(
+          '../services/agent-recruitment.service',
+          'AgentRecruitmentService',
+        );
+
+      switch (recruitment.operation) {
+        case 'create-inquiry':
+          if (!recruitment.taskId || !recruitment.targetAgentId) {
+            throw new Error(
+              'Task ID and target agent ID required for recruitment inquiry',
+            );
+          }
+
+          // Get the task
+          const task = this.tasks.get(recruitment.taskId);
+          if (!task) {
+            throw new Error(`Task with ID ${recruitment.taskId} not found`);
+          }
+
+          // Create recruitment inquiry
+          const inquiry = recruitmentService.createInquiry({
+            recruiterId: this.id,
+            recruiterName: this.name,
+            targetAgentId: recruitment.targetAgentId,
+            taskId: recruitment.taskId,
+            teamId: recruitment.teamId,
+            taskDescription: task.description,
+            requiredCapabilities:
+              recruitment.requiredCapabilities ||
+              task.requiredCapabilities ||
+              [],
+            priority: task.priority,
+            deadline: task.deadline,
+            expiresIn: 3600000, // 1 hour
+          });
+
+          return {
+            success: true,
+            recruitmentId: inquiry.id,
+            message: `Created recruitment inquiry for agent ${recruitment.targetAgentId}`,
+          };
+
+        case 'create-proposal':
+          if (!recruitment.recruitmentId) {
+            throw new Error('Recruitment ID required to create proposal');
+          }
+
+          // Create proposal
+          const proposal = recruitmentService.createProposal({
+            recruitmentId: recruitment.recruitmentId,
+            proposedRole: recruitment.proposedRole || 'team-member',
+            responsibilities: recruitment.responsibilities || [
+              'Execute assigned subtasks',
+            ],
+            requiredCapabilities: recruitment.requiredCapabilities || [],
+            expectedContribution:
+              recruitment.expectedContribution ||
+              'Complete assigned tasks according to requirements',
+            expectedDuration: recruitment.expectedDuration || 86400000, // Default 24 hours
+            compensation: recruitment.compensation,
+            offerExpiresIn: 7200000, // 2 hours
+          });
+
+          if (!proposal) {
+            throw new Error(
+              `Failed to create proposal for recruitment ${recruitment.recruitmentId}`,
+            );
+          }
+
+          return {
+            success: true,
+            proposalId: proposal.id,
+            message: `Created recruitment proposal for ${recruitment.recruitmentId}`,
+          };
+
+        case 'process-counter-proposal':
+          if (!recruitment.counterProposal) {
+            throw new Error('Counter proposal required for processing');
+          }
+
+          // Process the counter proposal
+          const counterSuccess = recruitmentService.processCounterProposal(
+            recruitment.counterProposal,
+          );
+
+          if (!counterSuccess) {
+            return {
+              success: false,
+              message: 'Failed to process counter proposal',
+            };
+          }
+
+          // Resolve conflicts using negotiation engine
+          const originalProposalId =
+            recruitment.counterProposal.originalProposalId;
+          const recruitmentRecord = recruitmentService.getRecruitment(
+            recruitment.counterProposal.conversationId || '',
+          );
+
+          if (!recruitmentRecord || !recruitmentRecord.proposal) {
+            throw new Error(
+              'Unable to find original proposal for conflict resolution',
+            );
+          }
+
+          // Get the negotiation engine service
+          const negotiationEngine =
+            await this.getServiceInstance<NegotiationEngineService>(
+              '../services/negotiation-engine.service',
+              'NegotiationEngineService',
+            );
+
+          const resolution = negotiationEngine.resolveConflicts(
+            recruitmentRecord.proposal,
+            recruitment.counterProposal,
+            {
+              prioritizeCapabilities: true,
+              acceptableCompromiseThreshold: 0.6,
+            },
+          );
+
+          return {
+            success: true,
+            resolution: resolution.proposal,
+            strategy: resolution.strategy,
+            explanation: resolution.explanation,
+          };
+
+        case 'process-acceptance':
+          if (!recruitment.acceptance) {
+            throw new Error('Acceptance message required for processing');
+          }
+
+          // Process the acceptance
+          const acceptanceSuccess = recruitmentService.processAcceptance(
+            recruitment.acceptance,
+          );
+
+          return {
+            success: acceptanceSuccess,
+            message: acceptanceSuccess
+              ? `Processed acceptance for proposal ${recruitment.acceptance.proposalId}`
+              : 'Failed to process acceptance',
+          };
+
+        case 'process-rejection':
+          if (!recruitment.rejection) {
+            throw new Error('Rejection message required for processing');
+          }
+
+          // Process the rejection
+          const rejectionSuccess = recruitmentService.processRejection(
+            recruitment.rejection,
+          );
+
+          return {
+            success: rejectionSuccess,
+            message: rejectionSuccess
+              ? `Processed rejection for proposal ${recruitment.rejection.proposalId}`
+              : 'Failed to process rejection',
+          };
+
+        case 'recruit-team':
+          if (
+            !recruitment.taskId ||
+            !recruitment.agentIds ||
+            recruitment.agentIds.length === 0
+          ) {
+            throw new Error(
+              'Task ID and agent IDs required for team recruitment',
+            );
+          }
+
+          // Get the task
+          const teamTask = this.tasks.get(recruitment.taskId);
+          if (!teamTask) {
+            throw new Error(`Task with ID ${recruitment.taskId} not found`);
+          }
+
+          // Create a recruitment for each agent
+          const recruitmentResults = await Promise.all(
+            recruitment.agentIds.map(async (agentId) => {
+              try {
+                // Create inquiry
+                const agentInquiry = recruitmentService.createInquiry({
+                  recruiterId: this.id,
+                  recruiterName: this.name,
+                  targetAgentId: agentId,
+                  taskId: recruitment.taskId!,
+                  teamId: recruitment.teamId,
+                  taskDescription: teamTask.description,
+                  requiredCapabilities: teamTask.requiredCapabilities || [],
+                  priority: teamTask.priority,
+                  deadline: teamTask.deadline,
+                  expiresIn: 3600000, // 1 hour
+                });
+
+                // Create proposal with role assignment
+                const agentProposal = recruitmentService.createProposal({
+                  recruitmentId: agentInquiry.id,
+                  proposedRole: 'team-member',
+                  responsibilities: [
+                    'Execute assigned subtasks',
+                    'Collaborate with team members',
+                  ],
+                  requiredCapabilities: teamTask.requiredCapabilities || [],
+                  expectedContribution:
+                    'Complete assigned tasks and participate in team coordination',
+                  expectedDuration: teamTask.deadline
+                    ? teamTask.deadline - Date.now()
+                    : 86400000,
+                  offerExpiresIn: 7200000, // 2 hours
+                });
+
+                return {
+                  agentId,
+                  recruitmentId: agentInquiry.id,
+                  proposalId: agentProposal?.id,
+                  status: 'proposal_sent',
+                };
+              } catch (error) {
+                return {
+                  agentId,
+                  error: error instanceof Error ? error.message : String(error),
+                  status: 'failed',
+                };
+              }
+            }),
+          );
+
+          return {
+            success: true,
+            teamRecruitment: {
+              taskId: recruitment.taskId,
+              teamId: recruitment.teamId,
+              recruitments: recruitmentResults,
+            },
+          };
+
+        case 'get-recruitment':
+          if (!recruitment.recruitmentId) {
+            throw new Error('Recruitment ID required');
+          }
+
+          // Get recruitment record
+          const record = recruitmentService.getRecruitment(
+            recruitment.recruitmentId,
+          );
+
+          if (!record) {
+            throw new Error(
+              `Recruitment with ID ${recruitment.recruitmentId} not found`,
+            );
+          }
+
+          return {
+            success: true,
+            recruitment: record,
+          };
+
+        default:
+          throw new Error(
+            `Unknown recruitment operation: ${recruitment.operation}`,
+          );
+      }
+    } catch (error) {
+      this.logger.error('Error handling agent recruitment', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Handle capability advertising capability
+   */
+  private async handleCapabilityAdvertising(
+    request: AgentRequest,
+  ): Promise<any> {
+    try {
+      const advertising = this.parseInput<{
+        operation: string;
+        capabilities?: {
+          name: string;
+          description: string;
+          confidenceLevel: string;
+          confidenceScore: number;
+          experience: number;
+          specializations?: string[];
+          contexts?: string[];
+          limitations?: string[];
+        }[];
+        availability?: {
+          status: 'available' | 'limited' | 'unavailable';
+          currentLoad: number;
+          nextAvailableSlot?: number;
+        };
+        validityDuration?: number;
+        advertisementId?: string;
+        updates?: Record<string, any>;
+        capability?: string;
+        minConfidence?: number;
+        availabilityFilter?: 'available' | 'limited' | 'any';
+      }>(request.input);
+
+      // Get the advertisement service
+      const advertisementService =
+        await this.getServiceInstance<CapabilityAdvertisementService>(
+          '../services/capability-advertisement.service',
+          'CapabilityAdvertisementService',
+        );
+
+      switch (advertising.operation) {
+        case 'advertise-capabilities':
+          if (
+            !advertising.capabilities ||
+            advertising.capabilities.length === 0
+          ) {
+            throw new Error('Capabilities required for advertisement');
+          }
+
+          // Create advertisement
+          const advertisement = advertisementService.createAdvertisement({
+            agentId: this.id,
+            agentName: this.name,
+            capabilities: advertising.capabilities.map((cap) => ({
+              ...cap,
+              confidenceLevel: cap.confidenceLevel as any,
+              confidenceScore: cap.confidenceScore,
+            })),
+            availability: advertising.availability || {
+              status: 'available',
+              currentLoad: 0.5,
+            },
+            validityDuration: advertising.validityDuration || 3600000, // Default 1 hour
+          });
+
+          return {
+            success: true,
+            advertisementId: advertisement.id,
+            message: `Created capability advertisement with ${advertising.capabilities.length} capabilities`,
+          };
+
+        case 'update-advertisement':
+          if (!advertising.advertisementId || !advertising.updates) {
+            throw new Error('Advertisement ID and updates required');
+          }
+
+          // Update advertisement
+          const updatedAd = advertisementService.updateAdvertisement(
+            advertising.advertisementId,
+            advertising.updates,
+          );
+
+          if (!updatedAd) {
+            throw new Error(
+              `Failed to update advertisement ${advertising.advertisementId}`,
+            );
+          }
+
+          return {
+            success: true,
+            advertisementId: updatedAd.id,
+            message: `Updated capability advertisement ${advertising.advertisementId}`,
+          };
+
+        case 'find-capability-providers':
+          if (!advertising.capability) {
+            throw new Error('Capability name required to find providers');
+          }
+
+          // Find providers
+          const providers = advertisementService.findCapabilityProviders(
+            advertising.capability,
+            advertising.minConfidence,
+            advertising.availabilityFilter,
+          );
+
+          return {
+            success: true,
+            capability: advertising.capability,
+            providers,
+            count: providers.length,
+            message: `Found ${providers.length} providers for capability "${advertising.capability}"`,
+          };
+
+        default:
+          throw new Error(
+            `Unknown capability advertising operation: ${advertising.operation}`,
+          );
+      }
+    } catch (error) {
+      this.logger.error('Error handling capability advertising', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Handle contract formation capability
+   */
+  private async handleContractFormation(request: AgentRequest): Promise<any> {
+    try {
+      const formation = this.parseInput<{
+        operation: string;
+        taskId?: string;
+        teamId?: string;
+        name?: string;
+        description?: string;
+        participants?: {
+          agentId: string;
+          role: string;
+          responsibilities: string[];
+          requiredCapabilities: string[];
+          expectedDeliverables: string[];
+          performanceMetrics?: {
+            metricName: string;
+            target: any;
+            weight: number;
+          }[];
+        }[];
+        terms?: {
+          startTime: number;
+          endTime?: number;
+          deadline?: number;
+          gracePeriod?: number;
+          terminationConditions?: string[];
+          paymentTerms?: Record<string, any>;
+        };
+        expectedOutcomes?: string[];
+        contractId?: string;
+        recipientId?: string;
+        requiresSignature?: boolean;
+        offerExpiresIn?: number;
+        acceptance?: any;
+        rejection?: any;
+        reason?: string;
+        performanceReport?: any;
+      }>(request.input);
+
+      // Get the contract service
+      const contractService =
+        await this.getServiceInstance<TeamContractService>(
+          '../services/team-contract.service',
+          'TeamContractService',
+        );
+
+      switch (formation.operation) {
+        case 'create-contract':
+          if (
+            !formation.taskId ||
+            !formation.participants ||
+            !formation.terms ||
+            !formation.expectedOutcomes
+          ) {
+            throw new Error(
+              'Task ID, participants, terms, and expected outcomes required for contract creation',
+            );
+          }
+
+          // Create contract
+          const contract = contractService.createContract({
+            taskId: formation.taskId,
+            teamId: formation.teamId || `team-${uuidv4().substring(0, 8)}`,
+            name: formation.name || `Contract for task ${formation.taskId}`,
+            description:
+              formation.description ||
+              'Team contract for collaborative task execution',
+            createdBy: this.id,
+            participants: formation.participants,
+            terms: formation.terms,
+            expectedOutcomes: formation.expectedOutcomes,
+          });
+
+          return {
+            success: true,
+            contractId: contract.id,
+            teamId: contract.teamId,
+            message: `Created team contract for task ${formation.taskId}`,
+          };
+
+        case 'offer-contract':
+          if (!formation.contractId || !formation.recipientId) {
+            throw new Error(
+              'Contract ID and recipient ID required for contract offer',
+            );
+          }
+
+          // Create offer
+          const offer = contractService.createContractOffer({
+            contractId: formation.contractId,
+            senderId: this.id,
+            recipientId: formation.recipientId,
+            requiresSignature: formation.requiresSignature,
+            offerExpiresIn: formation.offerExpiresIn,
+          });
+
+          if (!offer) {
+            throw new Error(
+              `Failed to create offer for contract ${formation.contractId}`,
+            );
+          }
+
+          return {
+            success: true,
+            offerId: offer.id,
+            contractId: formation.contractId,
+            message: `Offered contract ${formation.contractId} to agent ${formation.recipientId}`,
+          };
+
+        case 'process-acceptance':
+          if (!formation.acceptance) {
+            throw new Error('Acceptance message required');
+          }
+
+          // Process acceptance
+          const acceptanceSuccess = contractService.processAcceptance(
+            formation.acceptance,
+          );
+
+          return {
+            success: acceptanceSuccess,
+            message: acceptanceSuccess
+              ? `Processed acceptance for proposal ${formation.acceptance.proposalId}`
+              : 'Failed to process acceptance',
+          };
+
+        case 'process-rejection':
+          if (!formation.rejection) {
+            throw new Error('Rejection message required');
+          }
+
+          // Process rejection
+          const rejectionSuccess = contractService.processRejection(
+            formation.rejection,
+          );
+
+          return {
+            success: rejectionSuccess,
+            message: rejectionSuccess
+              ? `Processed rejection for proposal ${formation.rejection.proposalId}`
+              : 'Failed to process rejection',
+          };
+
+        case 'complete-contract':
+          if (!formation.contractId) {
+            throw new Error('Contract ID required to complete contract');
+          }
+
+          // Complete contract
+          const completionSuccess = contractService.completeContract(
+            formation.contractId,
+            { completedBy: this.id },
+          );
+
+          return {
+            success: completionSuccess,
+            message: completionSuccess
+              ? `Completed contract ${formation.contractId}`
+              : 'Failed to complete contract',
+          };
+
+        case 'terminate-contract':
+          if (!formation.contractId || !formation.reason) {
+            throw new Error(
+              'Contract ID and reason required to terminate contract',
+            );
+          }
+
+          // Terminate contract
+          const terminationSuccess = contractService.terminateContract(
+            formation.contractId,
+            formation.reason,
+            this.id,
+          );
+
+          return {
+            success: terminationSuccess,
+            message: terminationSuccess
+              ? `Terminated contract ${formation.contractId}: ${formation.reason}`
+              : 'Failed to terminate contract',
+          };
+
+        case 'submit-performance-report':
+          if (!formation.contractId || !formation.performanceReport) {
+            throw new Error('Contract ID and performance report required');
+          }
+
+          // Submit report
+          const reportSuccess = contractService.submitPerformanceReport(
+            formation.performanceReport,
+          );
+
+          return {
+            success: reportSuccess,
+            message: reportSuccess
+              ? `Submitted performance report for contract ${formation.contractId}`
+              : 'Failed to submit performance report',
+          };
+
+        case 'get-contract':
+          if (!formation.contractId) {
+            throw new Error('Contract ID required');
+          }
+
+          // Get contract
+          const contractDetails = contractService.getContract(
+            formation.contractId,
+          );
+
+          if (!contractDetails) {
+            throw new Error(
+              `Contract with ID ${formation.contractId} not found`,
+            );
+          }
+
+          return {
+            success: true,
+            contract: contractDetails,
+          };
+
+        default:
+          throw new Error(
+            `Unknown contract formation operation: ${formation.operation}`,
+          );
+      }
+    } catch (error) {
+      this.logger.error('Error handling contract formation', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Helper method to get service instances dynamically
+   */
+  private async getServiceInstance<T>(
+    modulePath: string,
+    className: string,
+  ): Promise<T> {
+    try {
+      // Dynamic import to avoid circular dependencies
+      const module = await import(modulePath);
+      const ServiceClass = module[className];
+
+      if (!ServiceClass || !ServiceClass.getInstance) {
+        throw new Error(
+          `Service class ${className} not found or doesn't have getInstance method`,
+        );
+      }
+
+      return ServiceClass.getInstance();
+    } catch (error) {
+      this.logger.error(`Error getting service instance ${className}`, {
+        error,
+      });
+      throw new Error(
+        `Failed to get service instance: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }

@@ -25,30 +25,30 @@ export enum CapabilityTaxonomy {
   MEMORY = 'memory',
   PERCEPTION = 'perception',
   PLANNING = 'planning',
-  
+
   // Specialized domains
   DATA_ANALYSIS = 'data_analysis',
   CONTENT_CREATION = 'content_creation',
   CODE = 'code',
   RESEARCH = 'research',
   SUMMARIZATION = 'summarization',
-  
+
   // Communication & coordination
   COMMUNICATION = 'communication',
   COORDINATION = 'coordination',
   SUPERVISION = 'supervision',
   DELEGATION = 'delegation',
-  
+
   // Meta capabilities
   META_COGNITION = 'meta_cognition',
   SELF_IMPROVEMENT = 'self_improvement',
-  
+
   // System integration
   TOOL_USE = 'tool_use',
   API_INTEGRATION = 'api_integration',
-  
+
   // Other
-  UNCATEGORIZED = 'uncategorized'
+  UNCATEGORIZED = 'uncategorized',
 }
 
 /**
@@ -59,17 +59,17 @@ export interface CapabilityCompatibility {
    * Type of compatibility relationship
    */
   type: 'complementary' | 'prerequisite' | 'enhances' | 'conflicts';
-  
+
   /**
    * Target capability name that this capability relates to
    */
   targetCapability: string;
-  
+
   /**
    * Strength of the relationship (0-1)
    */
   strength: number;
-  
+
   /**
    * Description of how these capabilities interact
    */
@@ -87,7 +87,7 @@ export interface CapabilityDescription {
   outputFormat?: string; // Expected output format (e.g., "json", "text", etc.)
   requiresContext?: boolean; // Whether capability requires context
   requestedBy?: string[]; // IDs of agents that have requested this capability
-  
+
   // Enhanced metadata for team formation
   taxonomy?: CapabilityTaxonomy[]; // Taxonomic categories
   compatibilities?: CapabilityCompatibility[]; // Compatibility relationships
@@ -119,7 +119,7 @@ export interface CapabilityRequest {
   status: CapabilityRequestStatus; // Current status
   fallbackStrategy?: 'none' | 'similar' | 'any'; // Fallback strategy
   expiresAt?: number; // When this request expires (if applicable)
-  
+
   // Team formation parameters
   teamContext?: {
     taskId?: string;
@@ -144,7 +144,7 @@ export interface CapabilityDiscoveryOptions {
   fallbackStrategy?: 'none' | 'similar' | 'any'; // Fallback strategy
   minConfidence?: number; // Minimum confidence threshold
   context?: Record<string, any>; // Additional context
-  
+
   // Team-oriented discovery options
   teamOptions?: {
     requiredCapabilities?: string[]; // Other capabilities required
@@ -175,7 +175,7 @@ export interface CapabilityMatchResult {
     similarityScore: number;
     level: CapabilityLevel;
   }>;
-  
+
   // Enhanced team matching information
   teamSuitability?: {
     roleCompatibility: number; // How well this matches the required role (0-1)
@@ -198,7 +198,7 @@ export interface TeamCapabilityMatchResult {
   coverageScore: number; // How well the discovered agents cover the required capabilities
   matchedCapabilities: number;
   totalCapabilities: number;
-  
+
   // Individual agent matches
   agents: Array<{
     agentId: string;
@@ -206,10 +206,10 @@ export interface TeamCapabilityMatchResult {
     complementarityScore: number;
     role?: string;
   }>;
-  
+
   // Missing capabilities
   missingCapabilities?: string[];
-  
+
   // Suggested alternative teams if available
   alternatives?: TeamCapabilityMatchResult[];
 }
@@ -228,9 +228,11 @@ export interface CapabilityRegistry {
     providerId: string,
   ): void;
   listCapabilities(): CapabilityDescription[];
-  
+
   // Enhanced methods for team formation
-  getCompatibleCapabilities(capability: string): Array<{ name: string; compatibilityType: string; score: number }>;
+  getCompatibleCapabilities(
+    capability: string,
+  ): Array<{ name: string; compatibilityType: string; score: number }>;
   getComplementaryCapabilities(capabilities: string[]): string[];
   getCapabilitiesByTaxonomy(taxonomy: CapabilityTaxonomy): string[];
 }
@@ -257,7 +259,7 @@ export interface ICapabilityDiscoveryService {
   getPendingRequests(): CapabilityRequest[];
   getCapabilityDetails(capability: string): CapabilityDescription | null;
   listCapabilities(): CapabilityDescription[];
-  
+
   // Enhanced methods for team formation
   findTeamForCapabilities(
     capabilities: string[],
@@ -266,22 +268,22 @@ export interface ICapabilityDiscoveryService {
       excludedAgentIds?: string[];
       requireAllCapabilities?: boolean;
       maxTeamSize?: number;
-    }
+    },
   ): TeamCapabilityMatchResult;
-  
+
   getCapabilityCompatibility(
     capabilityA: string,
-    capabilityB: string
+    capabilityB: string,
   ): {
     compatible: boolean;
     complementarity: number;
     relationship?: string;
   };
-  
+
   registerCapabilityCompatibility(
     sourceCapability: string,
     targetCapability: string,
-    compatibility: CapabilityCompatibility
+    compatibility: CapabilityCompatibility,
   ): void;
 }
 
@@ -322,6 +324,6 @@ export interface CapabilityInquiryResponseMessage {
 /**
  * Capability negotiation protocol message
  */
-export type CapabilityNegotiationMessage = 
-  CapabilityInquiryMessage | 
-  CapabilityInquiryResponseMessage;
+export type CapabilityNegotiationMessage =
+  | CapabilityInquiryMessage
+  | CapabilityInquiryResponseMessage;

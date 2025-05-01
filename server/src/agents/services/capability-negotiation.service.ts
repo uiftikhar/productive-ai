@@ -35,37 +35,46 @@ export class CapabilityNegotiationService {
   private static instance: CapabilityNegotiationService;
   private logger: Logger;
   private registry: CapabilityRegistry;
-  private pendingInquiries: Map<string, {
-    inquiry: CapabilityInquiryMessage;
-    responses: CapabilityInquiryResponseMessage[];
-    expiresAt: number;
-  }> = new Map();
+  private pendingInquiries: Map<
+    string,
+    {
+      inquiry: CapabilityInquiryMessage;
+      responses: CapabilityInquiryResponseMessage[];
+      expiresAt: number;
+    }
+  > = new Map();
 
   /**
    * Private constructor (singleton pattern)
    */
-  private constructor(options: {
-    logger?: Logger;
-    registry?: CapabilityRegistry;
-  } = {}) {
+  private constructor(
+    options: {
+      logger?: Logger;
+      registry?: CapabilityRegistry;
+    } = {},
+  ) {
     this.logger = options.logger || new ConsoleLogger();
     this.registry = options.registry || CapabilityRegistryService.getInstance();
-    
+
     // Start cleanup of expired inquiries
     setInterval(() => this.cleanupExpiredInquiries(), 60000); // Run every minute
-    
+
     this.logger.info('CapabilityNegotiationService initialized');
   }
 
   /**
    * Get singleton instance
    */
-  public static getInstance(options: {
-    logger?: Logger;
-    registry?: CapabilityRegistry;
-  } = {}): CapabilityNegotiationService {
+  public static getInstance(
+    options: {
+      logger?: Logger;
+      registry?: CapabilityRegistry;
+    } = {},
+  ): CapabilityNegotiationService {
     if (!CapabilityNegotiationService.instance) {
-      CapabilityNegotiationService.instance = new CapabilityNegotiationService(options);
+      CapabilityNegotiationService.instance = new CapabilityNegotiationService(
+        options,
+      );
     }
     return CapabilityNegotiationService.instance;
   }
@@ -86,18 +95,18 @@ export class CapabilityNegotiationService {
     priority?: 'low' | 'medium' | 'high';
     responseDeadlineMs?: number;
   }): CapabilityInquiryMessage {
-    const { 
-      fromAgentId, 
+    const {
+      fromAgentId,
       capability,
       context,
       teamContext,
       priority = 'medium',
       responseDeadlineMs = 30000, // Default 30s
     } = params;
-    
+
     const inquiryId = uuidv4();
     const responseDeadline = Date.now() + responseDeadlineMs;
-    
+
     const inquiry: CapabilityInquiryMessage = {
       messageType: 'capability_inquiry',
       inquiryId,
@@ -108,41 +117,47 @@ export class CapabilityNegotiationService {
       priority,
       responseDeadline,
     };
-    
+
     // Store the inquiry
     this.pendingInquiries.set(inquiryId, {
       inquiry,
       responses: [],
       expiresAt: responseDeadline,
     });
-    
-    this.logger.info(`Created capability inquiry ${inquiryId} for ${capability}`);
-    
+
+    this.logger.info(
+      `Created capability inquiry ${inquiryId} for ${capability}`,
+    );
+
     return inquiry;
   }
 
   /**
    * Process a capability inquiry response from a provider agent
    */
-  public processInquiryResponse(response: CapabilityInquiryResponseMessage): boolean {
+  public processInquiryResponse(
+    response: CapabilityInquiryResponseMessage,
+  ): boolean {
     const { inquiryId } = response;
-    
+
     const pendingInquiry = this.pendingInquiries.get(inquiryId);
     if (!pendingInquiry) {
       this.logger.warn(`Received response for unknown inquiry ${inquiryId}`);
       return false;
     }
-    
+
     // Check if expired
     if (Date.now() > pendingInquiry.expiresAt) {
       this.logger.warn(`Received response for expired inquiry ${inquiryId}`);
       return false;
     }
-    
+
     // Add response
     pendingInquiry.responses.push(response);
-    this.logger.info(`Processed response for inquiry ${inquiryId} from ${response.fromAgentId}`);
-    
+    this.logger.info(
+      `Processed response for inquiry ${inquiryId} from ${response.fromAgentId}`,
+    );
+
     return true;
   }
 
@@ -152,28 +167,30 @@ export class CapabilityNegotiationService {
   public getNegotiationResult(inquiryId: string): NegotiationResult | null {
     const pendingInquiry = this.pendingInquiries.get(inquiryId);
     if (!pendingInquiry) {
-      this.logger.warn(`Attempted to get results for unknown inquiry ${inquiryId}`);
+      this.logger.warn(
+        `Attempted to get results for unknown inquiry ${inquiryId}`,
+      );
       return null;
     }
-    
+
     const { inquiry, responses, expiresAt } = pendingInquiry;
     const isExpired = Date.now() > expiresAt;
-    
+
     // Extract available and unavailable providers
     const availableProviders = responses
-      .filter(r => r.available)
-      .map(r => r.fromAgentId);
-    
+      .filter((r) => r.available)
+      .map((r) => r.fromAgentId);
+
     const unavailableProviders = responses
-      .filter(r => !r.available)
-      .map(r => r.fromAgentId);
-    
+      .filter((r) => !r.available)
+      .map((r) => r.fromAgentId);
+
     // Select best provider based on confidence and commitment
     let selectedProvider: string | undefined;
     if (availableProviders.length > 0) {
       // Find the response with the highest confidence
       const bestResponse = responses
-        .filter(r => r.available)
+        .filter((r) => r.available)
         .sort((a, b) => {
           // Sort by commitment level first
           const commitmentScore = (commitment: string | undefined): number => {
@@ -182,21 +199,21 @@ export class CapabilityNegotiationService {
             if (commitment === 'firm') return 1;
             return 0;
           };
-          
+
           const aCommitmentScore = commitmentScore(a.commitmentLevel);
           const bCommitmentScore = commitmentScore(b.commitmentLevel);
-          
+
           if (aCommitmentScore !== bCommitmentScore) {
             return bCommitmentScore - aCommitmentScore;
           }
-          
+
           // Then by confidence
           return b.confidenceLevel - a.confidenceLevel;
         })[0];
-      
+
       selectedProvider = bestResponse?.fromAgentId;
     }
-    
+
     // Construct result
     const result: NegotiationResult = {
       success: availableProviders.length > 0,
@@ -206,11 +223,13 @@ export class CapabilityNegotiationService {
       expiresAt,
       message: selectedProvider
         ? `Selected provider ${selectedProvider} for capability ${inquiry.capability}`
-        : `No available providers for capability ${inquiry.capability}`
+        : `No available providers for capability ${inquiry.capability}`,
     };
-    
-    this.logger.info(`Negotiation result for ${inquiryId}: ${result.success ? 'success' : 'failure'}`);
-    
+
+    this.logger.info(
+      `Negotiation result for ${inquiryId}: ${result.success ? 'success' : 'failure'}`,
+    );
+
     return result;
   }
 
@@ -237,7 +256,7 @@ export class CapabilityNegotiationService {
       alternativeCapabilities,
       commitmentLevel,
     } = params;
-    
+
     const response: CapabilityInquiryResponseMessage = {
       messageType: 'capability_inquiry_response',
       inquiryId,
@@ -249,35 +268,44 @@ export class CapabilityNegotiationService {
       alternativeCapabilities,
       commitmentLevel,
     };
-    
-    this.logger.info(`Created inquiry response for ${inquiryId} from ${fromAgentId}`);
-    
+
+    this.logger.info(
+      `Created inquiry response for ${inquiryId} from ${fromAgentId}`,
+    );
+
     return response;
   }
 
   /**
    * Broadcast a capability inquiry to potential providers
    */
-  public async broadcastInquiry(inquiry: CapabilityInquiryMessage, providerIds: string[]): Promise<string[]> {
+  public async broadcastInquiry(
+    inquiry: CapabilityInquiryMessage,
+    providerIds: string[],
+  ): Promise<string[]> {
     if (providerIds.length === 0) {
-      this.logger.warn(`No providers specified for inquiry ${inquiry.inquiryId}`);
+      this.logger.warn(
+        `No providers specified for inquiry ${inquiry.inquiryId}`,
+      );
       return [];
     }
-    
+
     // In a real implementation, this would send the message to the specified agents
     // For now, just log that we would send it
     const sentTo: string[] = [];
-    
+
     for (const providerId of providerIds) {
       try {
         // Simulate sending the message
-        this.logger.info(`Would send inquiry ${inquiry.inquiryId} to ${providerId}`);
+        this.logger.info(
+          `Would send inquiry ${inquiry.inquiryId} to ${providerId}`,
+        );
         sentTo.push(providerId);
       } catch (error) {
         this.logger.error(`Failed to send inquiry to ${providerId}`, { error });
       }
     }
-    
+
     return sentTo;
   }
 
@@ -288,16 +316,16 @@ export class CapabilityNegotiationService {
   private cleanupExpiredInquiries(): void {
     const now = Date.now();
     let expiredCount = 0;
-    
+
     for (const [inquiryId, { expiresAt }] of this.pendingInquiries.entries()) {
       if (now > expiresAt) {
         this.pendingInquiries.delete(inquiryId);
         expiredCount++;
       }
     }
-    
+
     if (expiredCount > 0) {
       this.logger.info(`Cleaned up ${expiredCount} expired inquiries`);
     }
   }
-} 
+}
