@@ -9,6 +9,11 @@ export enum InstructionTemplateNameEnum {
   DEFAULT_CLASSIFIER = 'DEFAULT_CLASSIFIER',
   FOLLOWUP_CLASSIFIER = 'FOLLOWUP_CLASSIFIER',
   SPECIALIZED_CLASSIFIER = 'SPECIALIZED_CLASSIFIER',
+  ACTION_ITEM_EXTRACTION = 'ACTION_ITEM_EXTRACTION',
+  TOPIC_DISCOVERY = 'TOPIC_DISCOVERY',
+  PARTICIPANT_DYNAMICS = 'PARTICIPANT_DYNAMICS',
+  CONTEXT_INTEGRATION = 'CONTEXT_INTEGRATION',
+  SUMMARY_SYNTHESIS = 'SUMMARY_SYNTHESIS',
 }
 export type InstructionTemplateName =
   | InstructionTemplateNameEnum.TICKET_GENERATION
@@ -18,7 +23,12 @@ export type InstructionTemplateName =
   | InstructionTemplateNameEnum.CUSTOM
   | InstructionTemplateNameEnum.DEFAULT_CLASSIFIER
   | InstructionTemplateNameEnum.FOLLOWUP_CLASSIFIER
-  | InstructionTemplateNameEnum.SPECIALIZED_CLASSIFIER;
+  | InstructionTemplateNameEnum.SPECIALIZED_CLASSIFIER
+  | InstructionTemplateNameEnum.ACTION_ITEM_EXTRACTION
+  | InstructionTemplateNameEnum.TOPIC_DISCOVERY
+  | InstructionTemplateNameEnum.PARTICIPANT_DYNAMICS
+  | InstructionTemplateNameEnum.CONTEXT_INTEGRATION
+  | InstructionTemplateNameEnum.SUMMARY_SYNTHESIS;
 
 export const InstructionTemplates: Record<
   InstructionTemplateName,
@@ -456,4 +466,187 @@ Respond in the following JSON format:
 Skip any preamble and provide only the JSON response.
 `,
   },
+  ACTION_ITEM_EXTRACTION: {
+    format: {
+      requiredSections: ['actionItems', 'assignees', 'dueDate', 'priority'],
+      outputFormat: 'json_object',
+      jsonSchema: {
+        properties: {
+          actionItems: {
+            type: 'array',
+            description: 'Array of action items with detailed attributes'
+          }
+        }
+      }
+    },
+    rules: [
+      'Extract all action items mentioned explicitly or implicitly',
+      'Identify assignees for each action item',
+      'Infer due dates from context or mark as undefined',
+      'Determine priority based on discussion emphasis and urgency',
+      'Add contextual notes for each action item',
+      'Track status of previously mentioned action items',
+      'Cross-reference action items with previous meetings'
+    ],
+    outputRequirements: [
+      'Complete and structured JSON output',
+      'Each action item must include description and assignee (if mentioned)',
+      'Prioritize accuracy over quantity',
+      'Contextual notes should provide background on why the action item was created'
+    ]
+  },
+  TOPIC_DISCOVERY: {
+    format: {
+      requiredSections: ['mainTopics', 'subTopics', 'timeAllocation', 'keyTerms'],
+      outputFormat: 'json_object',
+      jsonSchema: {
+        properties: {
+          mainTopics: {
+            type: 'array',
+            description: 'Primary discussion topics'
+          },
+          meetingFlow: {
+            type: 'array', 
+            description: 'Sequential progression of topics'
+          },
+          unaddressedTopics: {
+            type: 'array',
+            description: 'Topics mentioned but not fully discussed'
+          }
+        }
+      }
+    },
+    rules: [
+      'Identify main discussion topics and their subtopics',
+      'Track approximate time spent on each topic',
+      'Detect topic transitions and meeting flow',
+      'Note unaddressed topics or items deferred to future meetings',
+      'Capture sentiment around specific topics (positive/negative/neutral)',
+      'Identify recurring topics or themes across meetings',
+      'Extract key domain-specific terminology'
+    ],
+    outputRequirements: [
+      'Topics should be specific and descriptive',
+      'Include estimated time allocation for major topics',
+      'Maintain sequential order of topic progression',
+      'Include technical terms and domain-specific language'
+    ]
+  },
+  PARTICIPANT_DYNAMICS: {
+    format: {
+      requiredSections: ['participants', 'interactions', 'influence', 'sentiment'],
+      outputFormat: 'json_object',
+      jsonSchema: {
+        properties: {
+          participants: {
+            type: 'array',
+            description: 'Individual participant analysis'
+          },
+          interactions: {
+            type: 'array',
+            description: 'Notable participant interactions'
+          },
+          teamDynamics: {
+            type: 'object',
+            description: 'Overall team interaction patterns and collaboration metrics'
+          }
+        }
+      }
+    },
+    rules: [
+      'Track individual participation levels and speaking time',
+      'Identify which participants influenced key decisions',
+      'Detect collaboration patterns and team dynamics',
+      'Analyze agreement and disagreement instances',
+      'Observe communication style differences',
+      'Note emotional responses and sentiment shifts',
+      'Track recurring interaction patterns between specific participants'
+    ],
+    outputRequirements: [
+      'Objective analysis without personal judgment',
+      'Evidence-based observations with specific examples',
+      'Balance between individual and group dynamics',
+      'Quantify participation and influence where possible'
+    ]
+  },
+  CONTEXT_INTEGRATION: {
+    format: {
+      requiredSections: ['historicalReferences', 'externalFactors', 'ongoingInitiatives'],
+      outputFormat: 'json_object',
+      jsonSchema: {
+        properties: {
+          historicalContext: {
+            type: 'array',
+            description: 'References to past meetings or decisions'
+          },
+          externalReferences: {
+            type: 'array',
+            description: 'External factors mentioned'
+          },
+          ongoingInitiatives: {
+            type: 'array',
+            description: 'Long-term projects or initiatives referenced'
+          }
+        }
+      }
+    },
+    rules: [
+      'Connect discussions to previous meeting decisions',
+      'Identify references to ongoing projects or initiatives',
+      'Note external factors influencing discussions',
+      'Track recurring challenges or blockers',
+      'Monitor progress on long-term goals',
+      'Detect shifts in priorities or direction',
+      'Highlight organizational context important for decision-making'
+    ],
+    outputRequirements: [
+      'Focus on continuity between meetings',
+      'Highlight important historical context',
+      'Connect individual meeting to broader organizational goals',
+      'Include potential future impact of current decisions'
+    ]
+  },
+  SUMMARY_SYNTHESIS: {
+    format: {
+      requiredSections: ['meetingInsights', 'recommendationsAndRisks', 'keyHighlights'],
+      outputFormat: 'json_object',
+      jsonSchema: {
+        properties: {
+          meetingInsights: {
+            type: 'object',
+            description: 'Core focus, key outcomes, and unresolved issues'
+          },
+          recommendations: {
+            type: 'array',
+            description: 'Suggested actions based on meeting analysis'
+          },
+          keyHighlights: {
+            type: 'array',
+            description: 'Most important points from the meeting'
+          },
+          audienceSpecificSummaries: {
+            type: 'object',
+            description: 'Summaries formatted for different audience needs'
+          }
+        }
+      }
+    },
+    rules: [
+      'Synthesize key insights across all analysis dimensions',
+      'Generate recommendations based on meeting content',
+      'Identify potential risks or challenges',
+      'Extract the most important highlights',
+      'Format summaries for different audience types',
+      'Focus on actionable outcomes and decisions',
+      'Provide context for recommendations',
+      'Link insights to organizational impact'
+    ],
+    outputRequirements: [
+      'Comprehensive but concise synthesis',
+      'Evidence-based recommendations',
+      'Multiple audience-specific summary formats',
+      'Balance between strategic and tactical insights',
+      'Clear distinction between facts and interpretations'
+    ]
+  }
 };
