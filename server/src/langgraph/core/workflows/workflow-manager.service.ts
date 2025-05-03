@@ -1,3 +1,9 @@
+/**
+ * @deprecated This service is deprecated as part of Phase 4, Milestone 1: Dynamic LangGraph System.
+ * Please use EmergentControllerService from server/src/langgraph/dynamic/emergent-controller.service.ts instead.
+ * See server/src/DEPRECATED-SERVICES.md for migration guidance.
+ */
+
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
 import { SupervisorAdapter } from '../adapters/supervisor-adapter';
@@ -9,6 +15,14 @@ import { UserContextFacade } from '../../../shared/services/user-context/user-co
 /**
  * Service responsible for managing LangGraph workflows
  * Provides centralized creation and cleanup of workflow instances
+ *
+ * @deprecated This service is deprecated as part of Phase 4 Milestone 1.
+ * It will be replaced by the new Dynamic LangGraph System:
+ * - EmergentControllerService for workflow control
+ * - DynamicGraphService for runtime graph generation
+ * - Observation-action-loop for execution control
+ *
+ * Use the new dynamic system for all new development.
  */
 export class WorkflowManagerService {
   private static instance: WorkflowManagerService;

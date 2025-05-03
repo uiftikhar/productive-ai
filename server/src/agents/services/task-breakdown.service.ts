@@ -1,4 +1,10 @@
 /**
+ * @deprecated This service is deprecated as part of Phase 4, Milestone 2: Autonomous Task Decomposition.
+ * Please use CollaborativeTaskDefinitionService and HierarchicalTaskService from the langgraph/dynamic/task-decomposition directory instead.
+ * See server/src/DEPRECATED-SERVICES.md for migration guidance.
+ */
+
+/**
  * Task Breakdown Service
  *
  * Implements collaborative task breakdown functionality for multiple agents

@@ -1,3 +1,9 @@
+/**
+ * @deprecated This service is deprecated as part of Phase 4: Emergent Workflow System.
+ * Please use the dynamic graph system with agent decision nodes for task execution instead.
+ * See server/src/DEPRECATED-SERVICES.md for migration guidance.
+ */
+
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../shared/logger/console-logger';

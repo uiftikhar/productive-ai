@@ -1,3 +1,9 @@
+/**
+ * @deprecated This service is deprecated as part of Phase 4: Emergent Workflow System.
+ * Please use AgentDecisionNodeService and dynamic agent integration instead.
+ * See server/src/DEPRECATED-SERVICES.md for migration guidance.
+ */
+
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { Logger } from '../../shared/logger/logger.interface';
 import {

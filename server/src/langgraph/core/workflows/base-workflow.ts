@@ -1,3 +1,9 @@
+/**
+ * @deprecated This service is deprecated as part of Phase 4, Milestone 1: Dynamic LangGraph System.
+ * Please use DynamicGraphService from server/src/langgraph/dynamic/dynamic-graph.service.ts instead.
+ * See server/src/DEPRECATED-SERVICES.md for migration guidance.
+ */
+
 import { StateGraph, AnnotationRoot } from '@langchain/langgraph';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -63,6 +69,14 @@ export interface BaseWorkflowState {
  *
  * This class provides common functionality and standardized patterns
  * for implementing LangGraph workflows.
+ *
+ * @deprecated This static workflow system is deprecated as part of Phase 4 Milestone 1.
+ * It will be replaced by the new Dynamic LangGraph System:
+ * - DynamicGraphService for runtime-modifiable graphs
+ * - EmergentControllerService for adaptive workflow management
+ * - Dynamic decision points for runtime path selection
+ *
+ * New development should use the dynamic graph system instead.
  */
 export abstract class BaseWorkflow<
   TState extends BaseWorkflowState = BaseWorkflowState,

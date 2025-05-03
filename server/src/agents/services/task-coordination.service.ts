@@ -1,3 +1,9 @@
+/**
+ * @deprecated This service is deprecated as part of Phase 4, Milestone 2: Autonomous Task Decomposition.
+ * Please use SubtaskDelegationService and TaskNegotiationService from the langgraph/dynamic/task-decomposition directory instead.
+ * See server/src/DEPRECATED-SERVICES.md for migration guidance.
+ */
+
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../../shared/logger/logger.interface';

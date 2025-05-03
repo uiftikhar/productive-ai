@@ -1,9 +1,14 @@
 /**
+ * @deprecated This service is deprecated as part of Phase 4, Milestone 2: Autonomous Task Decomposition.
+ * Please use CollaborativeTaskDefinitionService with consensus mechanisms from the langgraph/dynamic/task-decomposition directory instead.
+ * See server/src/DEPRECATED-SERVICES.md for migration guidance.
+ */
+
+/**
  * Collaborative Task Breakdown Service
  *
  * Facilitates collaborative task breakdown between multiple agents.
  * Agents propose subtask structures, evaluate proposals, and reach consensus.
- * @deprecated Will be replaced by agentic self-organizing behavior
  */
 
 import { v4 as uuidv4 } from 'uuid';

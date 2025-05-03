@@ -1,6 +1,5 @@
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
-import { Logger } from '../../shared/logger/logger';
 
 import { AgentMessagingService } from './agent-messaging.service';
 import { EpisodicMemoryService } from './episodic-memory.service';
@@ -20,6 +19,7 @@ import {
   ConversationContext,
   CommunicationModality,
 } from '../interfaces/message-protocol.interface';
+import { Logger } from '../../shared/logger/logger.interface';
 
 /**
  * Knowledge sharing request type

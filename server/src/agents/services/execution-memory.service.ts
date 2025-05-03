@@ -1,4 +1,10 @@
 /**
+ * @deprecated This service is deprecated as part of Phase 4, Milestone 1: Dynamic LangGraph System.
+ * Please use ParallelExplorationService and PathEvaluationService from the langgraph/dynamic directory instead.
+ * See server/src/DEPRECATED-SERVICES.md for migration guidance.
+ */
+
+/**
  * Execution Memory Service
  *
  * Implements learning mechanism and experience repository for agent execution history

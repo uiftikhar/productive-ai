@@ -1,4 +1,10 @@
 /**
+ * @deprecated This service is deprecated as part of Phase 4, Milestone 2: Autonomous Task Decomposition.
+ * Please use the task decomposition framework for dynamic team formation instead.
+ * See server/src/DEPRECATED-SERVICES.md for migration guidance.
+ */
+
+/**
  * Team Assembly Service
  *
  * Implements capability-aware team formation for collaborative task execution

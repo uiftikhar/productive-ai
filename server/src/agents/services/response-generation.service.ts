@@ -1,3 +1,9 @@
+/**
+ * @deprecated This service is deprecated as part of Phase 4: Emergent Workflow System.
+ * Please use context-aware agent communication with dynamic task context instead.
+ * See server/src/DEPRECATED-SERVICES.md for migration guidance.
+ */
+
 import { v4 as uuidv4 } from 'uuid';
 
 import { AgentMessagingService } from './agent-messaging.service';

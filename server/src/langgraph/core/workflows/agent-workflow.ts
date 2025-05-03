@@ -1,3 +1,9 @@
+/**
+ * @deprecated This service is deprecated as part of Phase 4, Milestone 1: Dynamic LangGraph System.
+ * Please use AgentDecisionNodeService and DynamicGraphService from the langgraph/dynamic directory instead.
+ * See server/src/DEPRECATED-SERVICES.md for migration guidance.
+ */
+
 import { StateGraph, Annotation } from '@langchain/langgraph';
 import { END, START } from '@langchain/langgraph';
 import { BaseAgent } from '../../../agents/base/base-agent';
@@ -65,6 +71,14 @@ function isWorkflowCompatible(agent: any): agent is WorkflowCompatibleAgent {
  *
  * This workflow orchestrates agent execution with LangGraph's structured workflow.
  * It implements a state machine pattern for standardized agent execution flows.
+ *
+ * @deprecated This static workflow system is deprecated as part of Phase 4 Milestone 1.
+ * It will be replaced by the dynamic graph system using:
+ * - DynamicGraphService for runtime graph creation
+ * - AgentDecisionNodeService for agent-driven workflows
+ * - Observation-action loop for adaptive execution
+ *
+ * New development should use the dynamic graph system for more flexible and emergent behaviors.
  */
 export class AgentWorkflow<
   T extends BaseAgent = BaseAgent,

@@ -1,4 +1,10 @@
 /**
+ * @deprecated This service is deprecated as part of Phase 4, Milestone 1: Dynamic LangGraph System.
+ * A new visualization service that captures emergent workflows and agent reasoning will be implemented.
+ * See server/src/DEPRECATED-SERVICES.md for migration guidance.
+ */
+
+/**
  * Visualization Service
  *
  * Generates visualizations for agent execution, strategies, and reflections

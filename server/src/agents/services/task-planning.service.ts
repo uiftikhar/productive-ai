@@ -14,6 +14,12 @@ import { AgentRegistryService } from './agent-registry.service';
 import { AgentDiscoveryService } from './agent-discovery.service';
 
 /**
+ * @deprecated This service is deprecated as part of Phase 4, Milestone 2: Autonomous Task Decomposition.
+ * Please use the Task Analysis Framework services from the langgraph/dynamic/task-decomposition directory instead.
+ * See server/src/DEPRECATED-SERVICES.md for migration guidance.
+ */
+
+/**
  * Task structure representing a unit of work in the system
  */
 export interface PlannedTask {

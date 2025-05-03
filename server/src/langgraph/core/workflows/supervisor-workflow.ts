@@ -1,3 +1,9 @@
+/**
+ * @deprecated This service is deprecated as part of Phase 4, Milestone 1: Dynamic LangGraph System.
+ * Please use EmergentControllerService and ObservationActionLoopService from the langgraph/dynamic directory instead.
+ * See server/src/DEPRECATED-SERVICES.md for migration guidance.
+ */
+
 import { StateGraph, Annotation } from '@langchain/langgraph';
 import { END, START } from '@langchain/langgraph';
 import { AgentWorkflow } from './agent-workflow';
