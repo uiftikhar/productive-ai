@@ -16,8 +16,12 @@ export class AgentAvailabilityService implements AgentAvailabilityTracker {
   private logger: Logger;
   private resources: Map<string, Resource> = new Map();
   private resourcesByType: Map<ResourceType, Set<string>> = new Map();
-  private resourcesByCapability: Map<string, Map<CapabilityLevel, Set<string>>> = new Map();
-  private availabilityListeners: Map<string, ((resource: Resource) => void)[]> = new Map();
+  private resourcesByCapability: Map<
+    string,
+    Map<CapabilityLevel, Set<string>>
+  > = new Map();
+  private availabilityListeners: Map<string, ((resource: Resource) => void)[]> =
+    new Map();
   private statusUpdateHistory: {
     resourceId: string;
     previousStatus: AgentAvailabilityStatus;
@@ -27,22 +31,24 @@ export class AgentAvailabilityService implements AgentAvailabilityTracker {
 
   constructor(options: { logger?: Logger } = {}) {
     this.logger = options.logger || new ConsoleLogger();
-    
+
     // Initialize maps for each resource type
-    Object.values(ResourceType).forEach(type => {
+    Object.values(ResourceType).forEach((type) => {
       this.resourcesByType.set(type, new Set<string>());
     });
-    
+
     this.logger.info('Agent availability service initialized');
   }
 
   /**
    * Register a new resource
    */
-  registerResource(resource: Omit<Resource, 'currentLoad' | 'statusLastUpdated'>): string {
+  registerResource(
+    resource: Omit<Resource, 'currentLoad' | 'statusLastUpdated'>,
+  ): string {
     const resourceId = resource.id || uuidv4();
     const now = new Date();
-    
+
     // Create complete resource object
     const completeResource: Resource = {
       ...resource,
@@ -51,68 +57,73 @@ export class AgentAvailabilityService implements AgentAvailabilityTracker {
       statusLastUpdated: now,
       currentTasks: resource.currentTasks || [],
     };
-    
+
     // Store the resource
     this.resources.set(resourceId, completeResource);
-    
+
     // Index by type
     const typeSet = this.resourcesByType.get(completeResource.type);
     if (typeSet) {
       typeSet.add(resourceId);
     }
-    
+
     // Index by capabilities
     for (const capability of completeResource.capabilities) {
       if (!this.resourcesByCapability.has(capability.id)) {
         this.resourcesByCapability.set(
           capability.id,
-          new Map<CapabilityLevel, Set<string>>()
+          new Map<CapabilityLevel, Set<string>>(),
         );
       }
-      
+
       const capabilityMap = this.resourcesByCapability.get(capability.id);
       if (capabilityMap) {
         if (!capabilityMap.has(capability.level)) {
           capabilityMap.set(capability.level, new Set<string>());
         }
-        
+
         const levelSet = capabilityMap.get(capability.level);
         if (levelSet) {
           levelSet.add(resourceId);
         }
       }
     }
-    
+
     this.logger.info(`Resource registered: ${resource.name} (${resourceId})`, {
       resourceId,
       type: completeResource.type,
-      capabilities: completeResource.capabilities.map(c => c.name),
+      capabilities: completeResource.capabilities.map((c) => c.name),
       status: completeResource.currentStatus,
     });
-    
+
     return resourceId;
   }
 
   /**
    * Update a resource's availability status
    */
-  updateResourceStatus(resourceId: string, status: AgentAvailabilityStatus): boolean {
+  updateResourceStatus(
+    resourceId: string,
+    status: AgentAvailabilityStatus,
+  ): boolean {
     const resource = this.resources.get(resourceId);
     if (!resource) {
-      this.logger.warn(`Cannot update status for non-existent resource ${resourceId}`);
+      this.logger.warn(
+        `Cannot update status for non-existent resource ${resourceId}`,
+      );
       return false;
     }
-    
+
     const previousStatus = resource.currentStatus;
     const now = new Date();
-    
+
     // Update resource
     this.resources.set(resourceId, {
       ...resource,
       currentStatus: status,
       statusLastUpdated: now,
     });
-    
+
     // Record status change in history
     this.statusUpdateHistory.push({
       resourceId,
@@ -120,16 +131,19 @@ export class AgentAvailabilityService implements AgentAvailabilityTracker {
       newStatus: status,
       timestamp: now,
     });
-    
+
     // Notify listeners
     this.notifyResourceListeners(resourceId);
-    
-    this.logger.info(`Resource status updated: ${resource.name} (${resourceId})`, {
-      resourceId,
-      previousStatus,
-      newStatus: status,
-    });
-    
+
+    this.logger.info(
+      `Resource status updated: ${resource.name} (${resourceId})`,
+      {
+        resourceId,
+        previousStatus,
+        newStatus: status,
+      },
+    );
+
     return true;
   }
 
@@ -139,31 +153,36 @@ export class AgentAvailabilityService implements AgentAvailabilityTracker {
   updateResourceLoad(resourceId: string, load: number): boolean {
     const resource = this.resources.get(resourceId);
     if (!resource) {
-      this.logger.warn(`Cannot update load for non-existent resource ${resourceId}`);
+      this.logger.warn(
+        `Cannot update load for non-existent resource ${resourceId}`,
+      );
       return false;
     }
-    
+
     // Ensure load is between 0 and 1
     const normalizedLoad = Math.max(0, Math.min(1, load));
-    
+
     // Update resource
     this.resources.set(resourceId, {
       ...resource,
       currentLoad: normalizedLoad,
       statusLastUpdated: new Date(),
     });
-    
+
     // Determine if status should change based on load
     let newStatus = resource.currentStatus;
-    
+
     if (normalizedLoad >= 0.95) {
       newStatus = AgentAvailabilityStatus.FULLY_OCCUPIED;
     } else if (normalizedLoad > 0.5) {
       newStatus = AgentAvailabilityStatus.BUSY;
-    } else if (normalizedLoad <= 0.2 && resource.currentStatus !== AgentAvailabilityStatus.UNAVAILABLE) {
+    } else if (
+      normalizedLoad <= 0.2 &&
+      resource.currentStatus !== AgentAvailabilityStatus.UNAVAILABLE
+    ) {
       newStatus = AgentAvailabilityStatus.AVAILABLE;
     }
-    
+
     // If status would change, update it
     if (newStatus !== resource.currentStatus) {
       this.updateResourceStatus(resourceId, newStatus);
@@ -171,12 +190,15 @@ export class AgentAvailabilityService implements AgentAvailabilityTracker {
       // Notify listeners even if status didn't change
       this.notifyResourceListeners(resourceId);
     }
-    
-    this.logger.debug(`Resource load updated: ${resource.name} (${resourceId})`, {
-      resourceId,
-      load: normalizedLoad,
-    });
-    
+
+    this.logger.debug(
+      `Resource load updated: ${resource.name} (${resourceId})`,
+      {
+        resourceId,
+        load: normalizedLoad,
+      },
+    );
+
     return true;
   }
 
@@ -186,15 +208,17 @@ export class AgentAvailabilityService implements AgentAvailabilityTracker {
   addTaskToResource(resourceId: string, taskId: string): boolean {
     const resource = this.resources.get(resourceId);
     if (!resource) {
-      this.logger.warn(`Cannot add task to non-existent resource ${resourceId}`);
+      this.logger.warn(
+        `Cannot add task to non-existent resource ${resourceId}`,
+      );
       return false;
     }
-    
+
     // Don't add if already assigned
     if (resource.currentTasks.includes(taskId)) {
       return true;
     }
-    
+
     // Add task to resource
     const updatedTasks = [...resource.currentTasks, taskId];
     this.resources.set(resourceId, {
@@ -202,17 +226,23 @@ export class AgentAvailabilityService implements AgentAvailabilityTracker {
       currentTasks: updatedTasks,
       statusLastUpdated: new Date(),
     });
-    
+
     // Update load based on task count
-    const estimatedLoad = Math.min(1, updatedTasks.length / resource.maxConcurrentTasks);
+    const estimatedLoad = Math.min(
+      1,
+      updatedTasks.length / resource.maxConcurrentTasks,
+    );
     this.updateResourceLoad(resourceId, estimatedLoad);
-    
-    this.logger.info(`Task ${taskId} added to resource ${resource.name} (${resourceId})`, {
-      resourceId,
-      taskId,
-      taskCount: updatedTasks.length,
-    });
-    
+
+    this.logger.info(
+      `Task ${taskId} added to resource ${resource.name} (${resourceId})`,
+      {
+        resourceId,
+        taskId,
+        taskCount: updatedTasks.length,
+      },
+    );
+
     return true;
   }
 
@@ -222,35 +252,43 @@ export class AgentAvailabilityService implements AgentAvailabilityTracker {
   removeTaskFromResource(resourceId: string, taskId: string): boolean {
     const resource = this.resources.get(resourceId);
     if (!resource) {
-      this.logger.warn(`Cannot remove task from non-existent resource ${resourceId}`);
+      this.logger.warn(
+        `Cannot remove task from non-existent resource ${resourceId}`,
+      );
       return false;
     }
-    
+
     // Remove task
-    const updatedTasks = resource.currentTasks.filter(id => id !== taskId);
-    
+    const updatedTasks = resource.currentTasks.filter((id) => id !== taskId);
+
     // If no change, return early
     if (updatedTasks.length === resource.currentTasks.length) {
       return false;
     }
-    
+
     // Update resource
     this.resources.set(resourceId, {
       ...resource,
       currentTasks: updatedTasks,
       statusLastUpdated: new Date(),
     });
-    
+
     // Update load based on task count
-    const estimatedLoad = Math.min(1, updatedTasks.length / resource.maxConcurrentTasks);
+    const estimatedLoad = Math.min(
+      1,
+      updatedTasks.length / resource.maxConcurrentTasks,
+    );
     this.updateResourceLoad(resourceId, estimatedLoad);
-    
-    this.logger.info(`Task ${taskId} removed from resource ${resource.name} (${resourceId})`, {
-      resourceId,
-      taskId,
-      remainingTaskCount: updatedTasks.length,
-    });
-    
+
+    this.logger.info(
+      `Task ${taskId} removed from resource ${resource.name} (${resourceId})`,
+      {
+        resourceId,
+        taskId,
+        remainingTaskCount: updatedTasks.length,
+      },
+    );
+
     return true;
   }
 
@@ -266,7 +304,8 @@ export class AgentAvailabilityService implements AgentAvailabilityTracker {
    */
   getAvailableResources(): Resource[] {
     return Array.from(this.resources.values()).filter(
-      resource => resource.currentStatus === AgentAvailabilityStatus.AVAILABLE
+      (resource) =>
+        resource.currentStatus === AgentAvailabilityStatus.AVAILABLE,
     );
   }
 
@@ -276,47 +315,50 @@ export class AgentAvailabilityService implements AgentAvailabilityTracker {
   getResourcesByType(type: ResourceType): Resource[] {
     const resourceIds = this.resourcesByType.get(type) || new Set<string>();
     return Array.from(resourceIds)
-      .map(id => this.resources.get(id))
+      .map((id) => this.resources.get(id))
       .filter((r): r is Resource => r !== undefined);
   }
 
   /**
    * Get resources by capability
    */
-  getResourcesByCapability(capabilityId: string, minimumLevel?: CapabilityLevel): Resource[] {
+  getResourcesByCapability(
+    capabilityId: string,
+    minimumLevel?: CapabilityLevel,
+  ): Resource[] {
     const capabilityMap = this.resourcesByCapability.get(capabilityId);
     if (!capabilityMap) {
       return [];
     }
-    
+
     const resourceIds = new Set<string>();
-    
+
     // Get all capability levels
     const levels = Object.values(CapabilityLevel);
-    
+
     // If minimum level specified, only include resources with that level or higher
     if (minimumLevel) {
       const minIndex = levels.indexOf(minimumLevel);
       if (minIndex === -1) {
         return [];
       }
-      
+
       // Add resources from this level and all higher levels
       for (let i = 0; i <= minIndex; i++) {
         const resourceSet = capabilityMap.get(levels[i]);
         if (resourceSet) {
-          resourceSet.forEach(id => resourceIds.add(id));
+          resourceSet.forEach((id) => resourceIds.add(id));
         }
       }
     } else {
       // Include resources from all levels
       for (const resourceSet of capabilityMap.values()) {
-        resourceSet.forEach(id => resourceIds.add(id));
+        resourceSet.forEach((id) => resourceIds.add(id));
       }
     }
-    
+
     return Array.from(resourceIds)
-      .map(id => this.resources.get(id))
+      .map((id) => this.resources.get(id))
       .filter((r): r is Resource => r !== undefined);
   }
 
@@ -325,11 +367,11 @@ export class AgentAvailabilityService implements AgentAvailabilityTracker {
    */
   getResourceUtilization(): Record<string, number> {
     const utilization: Record<string, number> = {};
-    
+
     for (const [id, resource] of this.resources.entries()) {
       utilization[id] = resource.currentLoad;
     }
-    
+
     return utilization;
   }
 
@@ -341,28 +383,34 @@ export class AgentAvailabilityService implements AgentAvailabilityTracker {
     if (resources.length === 0) {
       return 0;
     }
-    
-    const totalLoad = resources.reduce((sum, resource) => sum + resource.currentLoad, 0);
+
+    const totalLoad = resources.reduce(
+      (sum, resource) => sum + resource.currentLoad,
+      0,
+    );
     return totalLoad / resources.length;
   }
 
   /**
    * Subscribe to resource status updates
    */
-  subscribeToResourceUpdates(resourceId: string, callback: (resource: Resource) => void): () => void {
+  subscribeToResourceUpdates(
+    resourceId: string,
+    callback: (resource: Resource) => void,
+  ): () => void {
     if (!this.availabilityListeners.has(resourceId)) {
       this.availabilityListeners.set(resourceId, []);
     }
-    
+
     this.availabilityListeners.get(resourceId)?.push(callback);
-    
+
     // Return unsubscribe function
     return () => {
       const listeners = this.availabilityListeners.get(resourceId);
       if (listeners) {
         this.availabilityListeners.set(
           resourceId,
-          listeners.filter(cb => cb !== callback)
+          listeners.filter((cb) => cb !== callback),
         );
       }
     };
@@ -376,13 +424,16 @@ export class AgentAvailabilityService implements AgentAvailabilityTracker {
     if (!resource) {
       return;
     }
-    
+
     const listeners = this.availabilityListeners.get(resourceId) || [];
     for (const listener of listeners) {
       try {
         listener(resource);
       } catch (error) {
-        this.logger.error(`Error in resource update listener for ${resourceId}`, { error });
+        this.logger.error(
+          `Error in resource update listener for ${resourceId}`,
+          { error },
+        );
       }
     }
   }
@@ -392,7 +443,9 @@ export class AgentAvailabilityService implements AgentAvailabilityTracker {
    */
   getStatusUpdateHistory(resourceId?: string): any[] {
     if (resourceId) {
-      return this.statusUpdateHistory.filter(update => update.resourceId === resourceId);
+      return this.statusUpdateHistory.filter(
+        (update) => update.resourceId === resourceId,
+      );
     }
     return [...this.statusUpdateHistory];
   }
@@ -403,4 +456,4 @@ export class AgentAvailabilityService implements AgentAvailabilityTracker {
   getAllResources(): Resource[] {
     return Array.from(this.resources.values());
   }
-} 
+}

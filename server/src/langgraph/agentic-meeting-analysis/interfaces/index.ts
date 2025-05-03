@@ -18,4 +18,4 @@ export * from './communication.interface';
 export * from './workflow.interface';
 
 // API compatibility interfaces
-export * from './api-compatibility.interface'; 
+export * from './api-compatibility.interface';

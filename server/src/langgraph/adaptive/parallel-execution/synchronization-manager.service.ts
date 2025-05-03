@@ -17,7 +17,10 @@ export class SynchronizationManagerService implements SynchronizationManager {
   private syncPoints: Map<string, SynchronizationPoint> = new Map();
   private threadSyncPoints: Map<string, Set<string>> = new Map(); // threadId -> set of syncPointIds
   private syncPointTimeouts: Map<string, NodeJS.Timeout> = new Map();
-  private syncPointListeners: Map<string, ((syncPoint: SynchronizationPoint) => void)[]> = new Map();
+  private syncPointListeners: Map<
+    string,
+    ((syncPoint: SynchronizationPoint) => void)[]
+  > = new Map();
 
   constructor(options: { logger?: Logger } = {}) {
     this.logger = options.logger || new ConsoleLogger();
@@ -27,7 +30,12 @@ export class SynchronizationManagerService implements SynchronizationManager {
   /**
    * Create a new synchronization point
    */
-  createSyncPoint(syncPoint: Omit<SynchronizationPoint, 'id' | 'createdAt' | 'waitingThreads'>): string {
+  createSyncPoint(
+    syncPoint: Omit<
+      SynchronizationPoint,
+      'id' | 'createdAt' | 'waitingThreads'
+    >,
+  ): string {
     const syncPointId = uuidv4();
     const createdAt = new Date();
 
@@ -54,12 +62,15 @@ export class SynchronizationManagerService implements SynchronizationManager {
       this.setupSyncPointTimeout(syncPointId, newSyncPoint.timeout);
     }
 
-    this.logger.info(`Sync point created: ${newSyncPoint.name} (${syncPointId})`, {
-      syncPointId,
-      type: newSyncPoint.type,
-      participatingThreads: newSyncPoint.participatingThreads,
-      requiredThreads: newSyncPoint.requiredThreads,
-    });
+    this.logger.info(
+      `Sync point created: ${newSyncPoint.name} (${syncPointId})`,
+      {
+        syncPointId,
+        type: newSyncPoint.type,
+        participatingThreads: newSyncPoint.participatingThreads,
+        requiredThreads: newSyncPoint.requiredThreads,
+      },
+    );
 
     return syncPointId;
   }
@@ -70,13 +81,17 @@ export class SynchronizationManagerService implements SynchronizationManager {
   registerThreadAtSyncPoint(syncPointId: string, threadId: string): boolean {
     const syncPoint = this.syncPoints.get(syncPointId);
     if (!syncPoint) {
-      this.logger.warn(`Cannot register thread at non-existent sync point ${syncPointId}`);
+      this.logger.warn(
+        `Cannot register thread at non-existent sync point ${syncPointId}`,
+      );
       return false;
     }
 
     // Check if thread participates in this sync point
     if (!syncPoint.participatingThreads.includes(threadId)) {
-      this.logger.warn(`Thread ${threadId} is not a participant in sync point ${syncPointId}`);
+      this.logger.warn(
+        `Thread ${threadId} is not a participant in sync point ${syncPointId}`,
+      );
       return false;
     }
 
@@ -94,18 +109,23 @@ export class SynchronizationManagerService implements SynchronizationManager {
     // Update the sync point
     this.syncPoints.set(syncPointId, updatedSyncPoint);
 
-    this.logger.debug(`Thread ${threadId} registered at sync point ${syncPointId}`, {
-      syncPointId,
-      threadId,
-      waitingThreadCount: updatedSyncPoint.waitingThreads.length,
-      totalParticipants: updatedSyncPoint.participatingThreads.length,
-    });
+    this.logger.debug(
+      `Thread ${threadId} registered at sync point ${syncPointId}`,
+      {
+        syncPointId,
+        threadId,
+        waitingThreadCount: updatedSyncPoint.waitingThreads.length,
+        totalParticipants: updatedSyncPoint.participatingThreads.length,
+      },
+    );
 
     // Check if the sync point can now be released
     const status = this.checkSyncPointStatus(syncPointId);
     if (status.canProceed) {
-      this.logger.info(`Sync point ${syncPointId} conditions met, threads can proceed`);
-      
+      this.logger.info(
+        `Sync point ${syncPointId} conditions met, threads can proceed`,
+      );
+
       // Notify all listeners
       this.notifySyncPointListeners(syncPointId);
     }
@@ -188,45 +208,46 @@ export class SynchronizationManagerService implements SynchronizationManager {
     switch (syncPoint.type) {
       case SyncPointType.BARRIER:
         // All participating threads must be waiting
-        canProceed = syncPoint.participatingThreads.every(threadId =>
-          syncPoint.waitingThreads.includes(threadId)
+        canProceed = syncPoint.participatingThreads.every((threadId) =>
+          syncPoint.waitingThreads.includes(threadId),
         );
         break;
 
       case SyncPointType.RENDEZ_VOUS:
         // Only specific threads need to be waiting
-        canProceed = syncPoint.requiredThreads.every(threadId =>
-          syncPoint.waitingThreads.includes(threadId)
+        canProceed = syncPoint.requiredThreads.every((threadId) =>
+          syncPoint.waitingThreads.includes(threadId),
         );
         break;
 
       case SyncPointType.JOIN:
         // Check if all required threads are waiting
-        canProceed = syncPoint.requiredThreads.every(threadId =>
-          syncPoint.waitingThreads.includes(threadId)
+        canProceed = syncPoint.requiredThreads.every((threadId) =>
+          syncPoint.waitingThreads.includes(threadId),
         );
         break;
 
       case SyncPointType.FORK:
         // Fork can proceed as soon as parent thread is waiting
         // Typically just needs the initiating thread
-        canProceed = syncPoint.requiredThreads.length === 0 || 
-          syncPoint.requiredThreads.every(threadId =>
-            syncPoint.waitingThreads.includes(threadId)
+        canProceed =
+          syncPoint.requiredThreads.length === 0 ||
+          syncPoint.requiredThreads.every((threadId) =>
+            syncPoint.waitingThreads.includes(threadId),
           );
         break;
 
       case SyncPointType.DATA_EXCHANGE:
         // Requires all threads that will exchange data
-        canProceed = syncPoint.requiredThreads.every(threadId =>
-          syncPoint.waitingThreads.includes(threadId)
+        canProceed = syncPoint.requiredThreads.every((threadId) =>
+          syncPoint.waitingThreads.includes(threadId),
         );
         break;
 
       case SyncPointType.DECISION:
         // Decision points typically need all inputs before proceeding
-        canProceed = syncPoint.requiredThreads.every(threadId =>
-          syncPoint.waitingThreads.includes(threadId)
+        canProceed = syncPoint.requiredThreads.every((threadId) =>
+          syncPoint.waitingThreads.includes(threadId),
         );
         break;
 
@@ -241,15 +262,21 @@ export class SynchronizationManagerService implements SynchronizationManager {
         // For this, we would need the actual thread objects
         // Here we're simplifying by assuming the condition checks waitingThreads
         canProceed = syncPoint.barrierCondition(
-          syncPoint.waitingThreads.map(threadId => ({
-            id: threadId,
-            status: ExecutionThreadStatus.WAITING,
-          } as ExecutionThread))
+          syncPoint.waitingThreads.map(
+            (threadId) =>
+              ({
+                id: threadId,
+                status: ExecutionThreadStatus.WAITING,
+              }) as ExecutionThread,
+          ),
         );
       } catch (error) {
-        this.logger.error(`Error in custom barrier condition for sync point ${syncPointId}`, {
-          error,
-        });
+        this.logger.error(
+          `Error in custom barrier condition for sync point ${syncPointId}`,
+          {
+            error,
+          },
+        );
         canProceed = false;
       }
     }
@@ -272,19 +299,24 @@ export class SynchronizationManagerService implements SynchronizationManager {
    * Get all synchronization points a thread participates in
    */
   getThreadSyncPoints(threadId: string): SynchronizationPoint[] {
-    const syncPointIds = this.threadSyncPoints.get(threadId) || new Set<string>();
-    
+    const syncPointIds =
+      this.threadSyncPoints.get(threadId) || new Set<string>();
+
     return Array.from(syncPointIds)
-      .map(id => this.syncPoints.get(id))
-      .filter((syncPoint): syncPoint is SynchronizationPoint => syncPoint !== undefined);
+      .map((id) => this.syncPoints.get(id))
+      .filter(
+        (syncPoint): syncPoint is SynchronizationPoint =>
+          syncPoint !== undefined,
+      );
   }
 
   /**
    * Get all active synchronization points
    */
   getActiveSyncPoints(): SynchronizationPoint[] {
-    return Array.from(this.syncPoints.values())
-      .filter(syncPoint => !syncPoint.completedAt);
+    return Array.from(this.syncPoints.values()).filter(
+      (syncPoint) => !syncPoint.completedAt,
+    );
   }
 
   /**
@@ -293,7 +325,9 @@ export class SynchronizationManagerService implements SynchronizationManager {
   forceReleaseSyncPoint(syncPointId: string, reason: string): boolean {
     const syncPoint = this.syncPoints.get(syncPointId);
     if (!syncPoint) {
-      this.logger.warn(`Cannot force-release non-existent sync point ${syncPointId}`);
+      this.logger.warn(
+        `Cannot force-release non-existent sync point ${syncPointId}`,
+      );
       return false;
     }
 
@@ -313,7 +347,7 @@ export class SynchronizationManagerService implements SynchronizationManager {
       reason,
       waitingThreads: syncPoint.waitingThreads,
       missingThreads: syncPoint.participatingThreads.filter(
-        threadId => !syncPoint.waitingThreads.includes(threadId)
+        (threadId) => !syncPoint.waitingThreads.includes(threadId),
       ),
     });
 
@@ -326,7 +360,7 @@ export class SynchronizationManagerService implements SynchronizationManager {
         reason,
         waitingThreads: syncPoint.waitingThreads,
         missingThreads: syncPoint.participatingThreads.filter(
-          threadId => !syncPoint.waitingThreads.includes(threadId)
+          (threadId) => !syncPoint.waitingThreads.includes(threadId),
         ),
       },
     };
@@ -351,7 +385,9 @@ export class SynchronizationManagerService implements SynchronizationManager {
 
     // Set up new timeout
     const timeout = setTimeout(() => {
-      this.logger.warn(`Sync point ${syncPointId} timed out after ${timeoutMs}ms`);
+      this.logger.warn(
+        `Sync point ${syncPointId} timed out after ${timeoutMs}ms`,
+      );
       this.forceReleaseSyncPoint(syncPointId, `Timeout after ${timeoutMs}ms`);
     }, timeoutMs);
 
@@ -361,7 +397,10 @@ export class SynchronizationManagerService implements SynchronizationManager {
   /**
    * Subscribe to synchronization point updates
    */
-  subscribeSyncPointUpdates(syncPointId: string, callback: (syncPoint: SynchronizationPoint) => void): () => void {
+  subscribeSyncPointUpdates(
+    syncPointId: string,
+    callback: (syncPoint: SynchronizationPoint) => void,
+  ): () => void {
     if (!this.syncPointListeners.has(syncPointId)) {
       this.syncPointListeners.set(syncPointId, []);
     }
@@ -374,7 +413,7 @@ export class SynchronizationManagerService implements SynchronizationManager {
       if (listeners) {
         this.syncPointListeners.set(
           syncPointId,
-          listeners.filter(cb => cb !== callback)
+          listeners.filter((cb) => cb !== callback),
         );
       }
     };
@@ -394,7 +433,10 @@ export class SynchronizationManagerService implements SynchronizationManager {
       try {
         listener(syncPoint);
       } catch (error) {
-        this.logger.error(`Error in sync point update listener for ${syncPointId}`, { error });
+        this.logger.error(
+          `Error in sync point update listener for ${syncPointId}`,
+          { error },
+        );
       }
     }
   }
@@ -404,7 +446,10 @@ export class SynchronizationManagerService implements SynchronizationManager {
    */
   isThreadWaiting(threadId: string): boolean {
     for (const syncPoint of this.syncPoints.values()) {
-      if (syncPoint.waitingThreads.includes(threadId) && !syncPoint.completedAt) {
+      if (
+        syncPoint.waitingThreads.includes(threadId) &&
+        !syncPoint.completedAt
+      ) {
         return true;
       }
     }
@@ -415,7 +460,8 @@ export class SynchronizationManagerService implements SynchronizationManager {
    * Get all synchronization points of a specific type
    */
   getSyncPointsByType(type: SyncPointType): SynchronizationPoint[] {
-    return Array.from(this.syncPoints.values())
-      .filter(syncPoint => syncPoint.type === type);
+    return Array.from(this.syncPoints.values()).filter(
+      (syncPoint) => syncPoint.type === type,
+    );
   }
-} 
+}

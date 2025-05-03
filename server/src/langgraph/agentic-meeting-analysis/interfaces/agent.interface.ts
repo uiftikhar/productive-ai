@@ -10,7 +10,7 @@ export enum ConfidenceLevel {
   HIGH = 'high',
   MEDIUM = 'medium',
   LOW = 'low',
-  UNCERTAIN = 'uncertain'
+  UNCERTAIN = 'uncertain',
 }
 
 /**
@@ -24,7 +24,7 @@ export enum AgentExpertise {
   PARTICIPANT_DYNAMICS = 'participant_dynamics',
   SUMMARY_GENERATION = 'summary_generation',
   CONTEXT_INTEGRATION = 'context_integration',
-  COORDINATION = 'coordination'
+  COORDINATION = 'coordination',
 }
 
 /**
@@ -38,7 +38,7 @@ export enum AnalysisGoalType {
   ANALYZE_PARTICIPATION = 'analyze_participation',
   GENERATE_SUMMARY = 'generate_summary',
   INTEGRATE_CONTEXT = 'integrate_context',
-  FULL_ANALYSIS = 'full_analysis'
+  FULL_ANALYSIS = 'full_analysis',
 }
 
 /**
@@ -48,7 +48,7 @@ export enum AnalysisTaskStatus {
   PENDING = 'pending',
   IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
-  FAILED = 'failed'
+  FAILED = 'failed',
 }
 
 /**
@@ -86,7 +86,7 @@ export enum MessageType {
   RESPONSE = 'response',
   NOTIFICATION = 'notification',
   UPDATE = 'update',
-  QUERY = 'query'
+  QUERY = 'query',
 }
 
 /**
@@ -111,24 +111,27 @@ export interface IMeetingAnalysisAgent extends EventEmitter {
   name: string;
   expertise: AgentExpertise[];
   capabilities: Set<AnalysisGoalType>;
-  
+
   // Core methods
   initialize(config?: Record<string, any>): Promise<void>;
   processTask(task: AnalysisTask): Promise<AgentOutput>;
-  
+
   // Communication
   sendMessage(message: AgentMessage): Promise<void>;
   receiveMessage(message: AgentMessage): Promise<void>;
-  
+
   // Memory & state operations
   readMemory(key: string, namespace?: string): Promise<any>;
   writeMemory(key: string, value: any, namespace?: string): Promise<void>;
   subscribeToMemory(key: string, callback: (value: any) => void): void;
-  
+
   // Collaboration
-  requestAssistance(taskId: string, requestedExpertise: AgentExpertise): Promise<void>;
+  requestAssistance(
+    taskId: string,
+    requestedExpertise: AgentExpertise,
+  ): Promise<void>;
   provideAssistance(taskId: string, contribution: AgentOutput): Promise<void>;
-  
+
   // Metacognition
   assessConfidence(output: any): Promise<ConfidenceLevel>;
   explainReasoning(output: any): Promise<string>;
@@ -139,10 +142,13 @@ export interface IMeetingAnalysisAgent extends EventEmitter {
  */
 export interface IAnalysisCoordinatorAgent extends IMeetingAnalysisAgent {
   // Team formation & management
-  formTeam(analysisGoal: AnalysisGoalType, transcript: string): Promise<string[]>;
+  formTeam(
+    analysisGoal: AnalysisGoalType,
+    transcript: string,
+  ): Promise<string[]>;
   assignTask(taskId: string, agentId: string): Promise<void>;
   reassignTask(taskId: string, newAgentId: string): Promise<void>;
-  
+
   // Workflow management
   createWorkflow(analysisGoal: AnalysisGoalType): Promise<AnalysisTask[]>;
   monitorProgress(): Promise<Record<string, AnalysisTaskStatus>>;
@@ -154,7 +160,10 @@ export interface IAnalysisCoordinatorAgent extends IMeetingAnalysisAgent {
  */
 export interface ISpecialistAnalysisAgent extends IMeetingAnalysisAgent {
   // Specialist methods
-  analyzeTranscriptSegment(segment: string, context?: any): Promise<AgentOutput>;
+  analyzeTranscriptSegment(
+    segment: string,
+    context?: any,
+  ): Promise<AgentOutput>;
   mergeAnalyses(analyses: AgentOutput[]): Promise<AgentOutput>;
   prioritizeInformation(output: any): Promise<any>;
-} 
+}

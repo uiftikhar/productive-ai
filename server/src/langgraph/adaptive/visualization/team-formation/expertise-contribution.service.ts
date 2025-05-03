@@ -3,14 +3,16 @@ import { Logger } from '../../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../../shared/logger/console-logger';
 import {
   ExpertiseContributionVisualization,
-  ExpertiseContribution
+  ExpertiseContribution,
 } from '../../interfaces/visualization.interface';
 
 /**
  * Implementation of the expertise contribution visualization service
  * This service visualizes agent expertise contributions to tasks and workflows
  */
-export class ExpertiseContributionVisualizationImpl implements ExpertiseContributionVisualization {
+export class ExpertiseContributionVisualizationImpl
+  implements ExpertiseContributionVisualization
+{
   private logger: Logger;
   private contributions: Map<string, ExpertiseContribution> = new Map();
   private agentContributions: Map<string, string[]> = new Map(); // agentId -> contributionIds[]
@@ -19,7 +21,9 @@ export class ExpertiseContributionVisualizationImpl implements ExpertiseContribu
 
   constructor(options: { logger?: Logger }) {
     this.logger = options.logger || new ConsoleLogger();
-    this.logger.info('Expertise contribution visualization service initialized');
+    this.logger.info(
+      'Expertise contribution visualization service initialized',
+    );
   }
 
   /**
@@ -40,11 +44,17 @@ export class ExpertiseContributionVisualizationImpl implements ExpertiseContribu
         throw new Error('Expertise type is required');
       }
 
-      if (contribution.contributionLevel < 0 || contribution.contributionLevel > 1) {
+      if (
+        contribution.contributionLevel < 0 ||
+        contribution.contributionLevel > 1
+      ) {
         this.logger.warn(
-          `Invalid contribution level: ${contribution.contributionLevel} (should be between 0 and 1)`
+          `Invalid contribution level: ${contribution.contributionLevel} (should be between 0 and 1)`,
         );
-        contribution.contributionLevel = Math.max(0, Math.min(1, contribution.contributionLevel));
+        contribution.contributionLevel = Math.max(
+          0,
+          Math.min(1, contribution.contributionLevel),
+        );
       }
 
       // Generate ID and create the complete contribution object
@@ -52,7 +62,7 @@ export class ExpertiseContributionVisualizationImpl implements ExpertiseContribu
       const completeContribution: ExpertiseContribution = {
         id,
         ...contribution,
-        timestamp: contribution.timestamp || new Date()
+        timestamp: contribution.timestamp || new Date(),
       };
 
       // Store the contribution
@@ -73,7 +83,9 @@ export class ExpertiseContributionVisualizationImpl implements ExpertiseContribu
       // Add expertise type to set
       this.expertiseTypes.add(contribution.expertiseType);
 
-      this.logger.debug(`Recorded expertise contribution ${id} from agent ${contribution.agentId}`);
+      this.logger.debug(
+        `Recorded expertise contribution ${id} from agent ${contribution.agentId}`,
+      );
 
       return id;
     } catch (error) {
@@ -101,14 +113,14 @@ export class ExpertiseContributionVisualizationImpl implements ExpertiseContribu
    */
   getAgentContributions(agentId: string): ExpertiseContribution[] {
     const contributionIds = this.agentContributions.get(agentId) || [];
-    
+
     const contributions = contributionIds
-      .map(id => this.contributions.get(id))
-      .filter(c => c !== undefined) as ExpertiseContribution[];
-    
+      .map((id) => this.contributions.get(id))
+      .filter((c) => c !== undefined) as ExpertiseContribution[];
+
     // Sort by timestamp, newest first
     contributions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-    
+
     return JSON.parse(JSON.stringify(contributions)); // Return copies to prevent modification
   }
 
@@ -117,14 +129,14 @@ export class ExpertiseContributionVisualizationImpl implements ExpertiseContribu
    */
   getTaskContributions(taskId: string): ExpertiseContribution[] {
     const contributionIds = this.taskContributions.get(taskId) || [];
-    
+
     const contributions = contributionIds
-      .map(id => this.contributions.get(id))
-      .filter(c => c !== undefined) as ExpertiseContribution[];
-    
+      .map((id) => this.contributions.get(id))
+      .filter((c) => c !== undefined) as ExpertiseContribution[];
+
     // Sort by timestamp, newest first
     contributions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-    
+
     return JSON.parse(JSON.stringify(contributions)); // Return copies to prevent modification
   }
 
@@ -134,93 +146,108 @@ export class ExpertiseContributionVisualizationImpl implements ExpertiseContribu
   visualizeExpertiseDistribution(taskId: string): any {
     try {
       const contributions = this.getTaskContributions(taskId);
-      
+
       if (contributions.length === 0) {
         return {
           taskId,
-          message: "No contributions recorded for this task",
+          message: 'No contributions recorded for this task',
           expertiseDistribution: {},
           agentDistribution: {},
-          totalContributions: 0
+          totalContributions: 0,
         };
       }
-      
+
       // Group contributions by expertise type
       const expertiseGroups: Record<string, ExpertiseContribution[]> = {};
-      
+
       for (const contribution of contributions) {
         if (!expertiseGroups[contribution.expertiseType]) {
           expertiseGroups[contribution.expertiseType] = [];
         }
         expertiseGroups[contribution.expertiseType].push(contribution);
       }
-      
+
       // Calculate expertise type distribution
-      const expertiseDistribution: Record<string, {
-        count: number;
-        averageLevel: number;
-        totalLevel: number;
-        percentage: number;
-      }> = {};
-      
+      const expertiseDistribution: Record<
+        string,
+        {
+          count: number;
+          averageLevel: number;
+          totalLevel: number;
+          percentage: number;
+        }
+      > = {};
+
       for (const [type, typeContributions] of Object.entries(expertiseGroups)) {
         const totalLevel = typeContributions.reduce(
-          (sum, c) => sum + c.contributionLevel, 0
+          (sum, c) => sum + c.contributionLevel,
+          0,
         );
-        
+
         expertiseDistribution[type] = {
           count: typeContributions.length,
           averageLevel: totalLevel / typeContributions.length,
           totalLevel,
-          percentage: (typeContributions.length / contributions.length) * 100
+          percentage: (typeContributions.length / contributions.length) * 100,
         };
       }
-      
+
       // Group contributions by agent
       const agentGroups: Record<string, ExpertiseContribution[]> = {};
-      
+
       for (const contribution of contributions) {
         if (!agentGroups[contribution.agentId]) {
           agentGroups[contribution.agentId] = [];
         }
         agentGroups[contribution.agentId].push(contribution);
       }
-      
+
       // Calculate agent distribution
-      const agentDistribution: Record<string, {
-        count: number;
-        expertiseTypes: string[];
-        averageLevel: number;
-        totalLevel: number;
-        percentage: number;
-        topExpertise: string;
-      }> = {};
-      
+      const agentDistribution: Record<
+        string,
+        {
+          count: number;
+          expertiseTypes: string[];
+          averageLevel: number;
+          totalLevel: number;
+          percentage: number;
+          topExpertise: string;
+        }
+      > = {};
+
       for (const [agentId, agentContributions] of Object.entries(agentGroups)) {
         const totalLevel = agentContributions.reduce(
-          (sum, c) => sum + c.contributionLevel, 0
+          (sum, c) => sum + c.contributionLevel,
+          0,
         );
-        
+
         // Find expertise types for this agent
-        const expertiseTypes = Array.from(new Set(
-          agentContributions.map(c => c.expertiseType)
-        ));
-        
+        const expertiseTypes = Array.from(
+          new Set(agentContributions.map((c) => c.expertiseType)),
+        );
+
         // Find top expertise (highest average contribution level)
-        const expertiseLevels: Record<string, { total: number; count: number }> = {};
-        
+        const expertiseLevels: Record<
+          string,
+          { total: number; count: number }
+        > = {};
+
         for (const contribution of agentContributions) {
           if (!expertiseLevels[contribution.expertiseType]) {
-            expertiseLevels[contribution.expertiseType] = { total: 0, count: 0 };
+            expertiseLevels[contribution.expertiseType] = {
+              total: 0,
+              count: 0,
+            };
           }
-          
-          expertiseLevels[contribution.expertiseType].total += contribution.contributionLevel;
+
+          expertiseLevels[contribution.expertiseType].total +=
+            contribution.contributionLevel;
           expertiseLevels[contribution.expertiseType].count += 1;
         }
-        
+
         let topExpertise = expertiseTypes[0];
         let topExpertiseAvg = 0;
-        
+
         for (const [type, data] of Object.entries(expertiseLevels)) {
           const avg = data.total / data.count;
           if (avg > topExpertiseAvg) {
@@ -228,20 +255,20 @@ export class ExpertiseContributionVisualizationImpl implements ExpertiseContribu
             topExpertise = type;
           }
         }
-        
+
         agentDistribution[agentId] = {
           count: agentContributions.length,
           expertiseTypes,
           averageLevel: totalLevel / agentContributions.length,
           totalLevel,
           percentage: (agentContributions.length / contributions.length) * 100,
-          topExpertise
+          topExpertise,
         };
       }
-      
+
       // Calculate timeline of expertise contributions
       const timeline = this.generateContributionTimeline(taskId);
-      
+
       return {
         taskId,
         expertiseDistribution,
@@ -249,11 +276,16 @@ export class ExpertiseContributionVisualizationImpl implements ExpertiseContribu
         totalContributions: contributions.length,
         uniqueAgents: Object.keys(agentGroups).length,
         uniqueExpertiseTypes: Object.keys(expertiseGroups).length,
-        timeline
+        timeline,
       };
     } catch (error) {
-      this.logger.error(`Error visualizing expertise distribution:`, { error, taskId });
-      throw new Error(`Failed to visualize expertise distribution for task ${taskId}`);
+      this.logger.error(`Error visualizing expertise distribution:`, {
+        error,
+        taskId,
+      });
+      throw new Error(
+        `Failed to visualize expertise distribution for task ${taskId}`,
+      );
     }
   }
 
@@ -263,54 +295,68 @@ export class ExpertiseContributionVisualizationImpl implements ExpertiseContribu
   identifyKeyContributors(taskId: string): string[] {
     try {
       const contributions = this.getTaskContributions(taskId);
-      
+
       if (contributions.length === 0) {
         return [];
       }
-      
+
       // Group contributions by agent
-      const agentContributions: Record<string, {
-        contributions: ExpertiseContribution[];
-        totalLevel: number;
-        expertiseTypes: Set<string>;
-      }> = {};
-      
+      const agentContributions: Record<
+        string,
+        {
+          contributions: ExpertiseContribution[];
+          totalLevel: number;
+          expertiseTypes: Set<string>;
+        }
+      > = {};
+
       for (const contribution of contributions) {
         if (!agentContributions[contribution.agentId]) {
           agentContributions[contribution.agentId] = {
             contributions: [],
             totalLevel: 0,
-            expertiseTypes: new Set()
+            expertiseTypes: new Set(),
           };
         }
-        
-        agentContributions[contribution.agentId].contributions.push(contribution);
-        agentContributions[contribution.agentId].totalLevel += contribution.contributionLevel;
-        agentContributions[contribution.agentId].expertiseTypes.add(contribution.expertiseType);
+
+        agentContributions[contribution.agentId].contributions.push(
+          contribution,
+        );
+        agentContributions[contribution.agentId].totalLevel +=
+          contribution.contributionLevel;
+        agentContributions[contribution.agentId].expertiseTypes.add(
+          contribution.expertiseType,
+        );
       }
-      
+
       // Calculate a "key contributor score" for each agent
       // This considers: total contribution level, number of contributions, and diversity of expertise
       const agentScores: Array<{ agentId: string; score: number }> = [];
-      
+
       for (const [agentId, data] of Object.entries(agentContributions)) {
-        const score = 
+        const score =
           data.totalLevel * 0.5 + // 50% weight on total contribution level
           data.contributions.length * 0.3 + // 30% weight on number of contributions
           data.expertiseTypes.size * 0.2; // 20% weight on expertise diversity
-        
+
         agentScores.push({ agentId, score });
       }
-      
+
       // Sort by score (highest first) and take the top contributors
       agentScores.sort((a, b) => b.score - a.score);
-      
+
       // Return the IDs of the top contributors (up to 3, or fewer if there aren't enough)
-      const topContributors = agentScores.slice(0, Math.min(3, agentScores.length));
-      
-      return topContributors.map(item => item.agentId);
+      const topContributors = agentScores.slice(
+        0,
+        Math.min(3, agentScores.length),
+      );
+
+      return topContributors.map((item) => item.agentId);
     } catch (error) {
-      this.logger.error(`Error identifying key contributors:`, { error, taskId });
+      this.logger.error(`Error identifying key contributors:`, {
+        error,
+        taskId,
+      });
       throw new Error(`Failed to identify key contributors for task ${taskId}`);
     }
   }
@@ -322,46 +368,58 @@ export class ExpertiseContributionVisualizationImpl implements ExpertiseContribu
   calculateContributionBalance(taskId: string): number {
     try {
       const contributions = this.getTaskContributions(taskId);
-      
+
       if (contributions.length === 0) {
         return 0;
       }
-      
+
       // Group contributions by agent
       const agentContributions: Record<string, number> = {};
-      
+
       for (const contribution of contributions) {
         if (!agentContributions[contribution.agentId]) {
           agentContributions[contribution.agentId] = 0;
         }
-        
-        agentContributions[contribution.agentId] += contribution.contributionLevel;
+
+        agentContributions[contribution.agentId] +=
+          contribution.contributionLevel;
       }
-      
+
       const contributionValues = Object.values(agentContributions);
-      
+
       // If there's only one agent, the balance is 1 by default
       if (contributionValues.length <= 1) {
         return 1;
       }
-      
+
       // Calculate the standard deviation of contributions
-      const mean = contributionValues.reduce((sum, value) => sum + value, 0) / contributionValues.length;
-      const variance = contributionValues.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / contributionValues.length;
+      const mean =
+        contributionValues.reduce((sum, value) => sum + value, 0) /
+        contributionValues.length;
+      const variance =
+        contributionValues.reduce(
+          (sum, value) => sum + Math.pow(value - mean, 2),
+          0,
+        ) / contributionValues.length;
       const stdDev = Math.sqrt(variance);
-      
+
       // Calculate coefficient of variation (CV)
       const cv = stdDev / mean;
-      
+
       // Convert CV to a balance score (0-1)
       // Lower CV means more balanced contributions, so we invert it
       // We use an exponential decay function to map CV to [0,1]
       const balance = Math.exp(-2 * cv);
-      
+
       return Math.max(0, Math.min(1, balance));
     } catch (error) {
-      this.logger.error(`Error calculating contribution balance:`, { error, taskId });
-      throw new Error(`Failed to calculate contribution balance for task ${taskId}`);
+      this.logger.error(`Error calculating contribution balance:`, {
+        error,
+        taskId,
+      });
+      throw new Error(
+        `Failed to calculate contribution balance for task ${taskId}`,
+      );
     }
   }
 
@@ -370,64 +428,79 @@ export class ExpertiseContributionVisualizationImpl implements ExpertiseContribu
    */
   private generateContributionTimeline(taskId: string): any {
     const contributions = this.getTaskContributions(taskId);
-    
+
     if (contributions.length === 0) {
       return [];
     }
-    
+
     // Sort contributions by timestamp - ensure timestamps are Date objects
     contributions.sort((a, b) => {
-      const aTime = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
-      const bTime = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
+      const aTime =
+        a.timestamp instanceof Date
+          ? a.timestamp.getTime()
+          : new Date(a.timestamp).getTime();
+      const bTime =
+        b.timestamp instanceof Date
+          ? b.timestamp.getTime()
+          : new Date(b.timestamp).getTime();
       return aTime - bTime;
     });
-    
+
     // Group contributions into time buckets (hourly)
-    const timeWindows: Record<string, {
-      timestamp: Date;
-      contributions: ExpertiseContribution[];
-      expertiseTypes: Record<string, number>;
-      agents: Set<string>;
-    }> = {};
-    
+    const timeWindows: Record<
+      string,
+      {
+        timestamp: Date;
+        contributions: ExpertiseContribution[];
+        expertiseTypes: Record<string, number>;
+        agents: Set<string>;
+      }
+    > = {};
+
     for (const contribution of contributions) {
       // Create a time bucket key (YYYY-MM-DD HH:00)
-      const timestamp = contribution.timestamp instanceof Date ? 
-        contribution.timestamp : new Date(contribution.timestamp);
-      
+      const timestamp =
+        contribution.timestamp instanceof Date
+          ? contribution.timestamp
+          : new Date(contribution.timestamp);
+
       const date = new Date(timestamp);
       date.setMinutes(0, 0, 0); // Round down to the hour
       const timeKey = date.toISOString();
-      
+
       if (!timeWindows[timeKey]) {
         timeWindows[timeKey] = {
           timestamp: date,
           contributions: [],
           expertiseTypes: {},
-          agents: new Set()
+          agents: new Set(),
         };
       }
-      
+
       timeWindows[timeKey].contributions.push(contribution);
       timeWindows[timeKey].agents.add(contribution.agentId);
-      
+
       if (!timeWindows[timeKey].expertiseTypes[contribution.expertiseType]) {
         timeWindows[timeKey].expertiseTypes[contribution.expertiseType] = 0;
       }
-      
+
       timeWindows[timeKey].expertiseTypes[contribution.expertiseType] += 1;
     }
-    
+
     // Convert to array and sort by timestamp
-    const timeline = Object.values(timeWindows).map(window => ({
+    const timeline = Object.values(timeWindows).map((window) => ({
       timestamp: window.timestamp,
       contributionCount: window.contributions.length,
       uniqueAgents: Array.from(window.agents),
       agentCount: window.agents.size,
       expertiseTypes: window.expertiseTypes,
-      averageContributionLevel: window.contributions.reduce((sum, c) => sum + c.contributionLevel, 0) / window.contributions.length
+      averageContributionLevel:
+        window.contributions.reduce((sum, c) => sum + c.contributionLevel, 0) /
+        window.contributions.length,
     }));
-    
-    return timeline.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+    return timeline.sort(
+      (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+    );
   }
-} 
+}

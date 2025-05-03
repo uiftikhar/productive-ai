@@ -474,10 +474,10 @@ Skip any preamble and provide only the JSON response.
         properties: {
           actionItems: {
             type: 'array',
-            description: 'Array of action items with detailed attributes'
-          }
-        }
-      }
+            description: 'Array of action items with detailed attributes',
+          },
+        },
+      },
     },
     rules: [
       'Extract all action items mentioned explicitly or implicitly',
@@ -486,35 +486,40 @@ Skip any preamble and provide only the JSON response.
       'Determine priority based on discussion emphasis and urgency',
       'Add contextual notes for each action item',
       'Track status of previously mentioned action items',
-      'Cross-reference action items with previous meetings'
+      'Cross-reference action items with previous meetings',
     ],
     outputRequirements: [
       'Complete and structured JSON output',
       'Each action item must include description and assignee (if mentioned)',
       'Prioritize accuracy over quantity',
-      'Contextual notes should provide background on why the action item was created'
-    ]
+      'Contextual notes should provide background on why the action item was created',
+    ],
   },
   TOPIC_DISCOVERY: {
     format: {
-      requiredSections: ['mainTopics', 'subTopics', 'timeAllocation', 'keyTerms'],
+      requiredSections: [
+        'mainTopics',
+        'subTopics',
+        'timeAllocation',
+        'keyTerms',
+      ],
       outputFormat: 'json_object',
       jsonSchema: {
         properties: {
           mainTopics: {
             type: 'array',
-            description: 'Primary discussion topics'
+            description: 'Primary discussion topics',
           },
           meetingFlow: {
-            type: 'array', 
-            description: 'Sequential progression of topics'
+            type: 'array',
+            description: 'Sequential progression of topics',
           },
           unaddressedTopics: {
             type: 'array',
-            description: 'Topics mentioned but not fully discussed'
-          }
-        }
-      }
+            description: 'Topics mentioned but not fully discussed',
+          },
+        },
+      },
     },
     rules: [
       'Identify main discussion topics and their subtopics',
@@ -523,35 +528,41 @@ Skip any preamble and provide only the JSON response.
       'Note unaddressed topics or items deferred to future meetings',
       'Capture sentiment around specific topics (positive/negative/neutral)',
       'Identify recurring topics or themes across meetings',
-      'Extract key domain-specific terminology'
+      'Extract key domain-specific terminology',
     ],
     outputRequirements: [
       'Topics should be specific and descriptive',
       'Include estimated time allocation for major topics',
       'Maintain sequential order of topic progression',
-      'Include technical terms and domain-specific language'
-    ]
+      'Include technical terms and domain-specific language',
+    ],
   },
   PARTICIPANT_DYNAMICS: {
     format: {
-      requiredSections: ['participants', 'interactions', 'influence', 'sentiment'],
+      requiredSections: [
+        'participants',
+        'interactions',
+        'influence',
+        'sentiment',
+      ],
       outputFormat: 'json_object',
       jsonSchema: {
         properties: {
           participants: {
             type: 'array',
-            description: 'Individual participant analysis'
+            description: 'Individual participant analysis',
           },
           interactions: {
             type: 'array',
-            description: 'Notable participant interactions'
+            description: 'Notable participant interactions',
           },
           teamDynamics: {
             type: 'object',
-            description: 'Overall team interaction patterns and collaboration metrics'
-          }
-        }
-      }
+            description:
+              'Overall team interaction patterns and collaboration metrics',
+          },
+        },
+      },
     },
     rules: [
       'Track individual participation levels and speaking time',
@@ -560,35 +571,39 @@ Skip any preamble and provide only the JSON response.
       'Analyze agreement and disagreement instances',
       'Observe communication style differences',
       'Note emotional responses and sentiment shifts',
-      'Track recurring interaction patterns between specific participants'
+      'Track recurring interaction patterns between specific participants',
     ],
     outputRequirements: [
       'Objective analysis without personal judgment',
       'Evidence-based observations with specific examples',
       'Balance between individual and group dynamics',
-      'Quantify participation and influence where possible'
-    ]
+      'Quantify participation and influence where possible',
+    ],
   },
   CONTEXT_INTEGRATION: {
     format: {
-      requiredSections: ['historicalReferences', 'externalFactors', 'ongoingInitiatives'],
+      requiredSections: [
+        'historicalReferences',
+        'externalFactors',
+        'ongoingInitiatives',
+      ],
       outputFormat: 'json_object',
       jsonSchema: {
         properties: {
           historicalContext: {
             type: 'array',
-            description: 'References to past meetings or decisions'
+            description: 'References to past meetings or decisions',
           },
           externalReferences: {
             type: 'array',
-            description: 'External factors mentioned'
+            description: 'External factors mentioned',
           },
           ongoingInitiatives: {
             type: 'array',
-            description: 'Long-term projects or initiatives referenced'
-          }
-        }
-      }
+            description: 'Long-term projects or initiatives referenced',
+          },
+        },
+      },
     },
     rules: [
       'Connect discussions to previous meeting decisions',
@@ -597,39 +612,43 @@ Skip any preamble and provide only the JSON response.
       'Track recurring challenges or blockers',
       'Monitor progress on long-term goals',
       'Detect shifts in priorities or direction',
-      'Highlight organizational context important for decision-making'
+      'Highlight organizational context important for decision-making',
     ],
     outputRequirements: [
       'Focus on continuity between meetings',
       'Highlight important historical context',
       'Connect individual meeting to broader organizational goals',
-      'Include potential future impact of current decisions'
-    ]
+      'Include potential future impact of current decisions',
+    ],
   },
   SUMMARY_SYNTHESIS: {
     format: {
-      requiredSections: ['meetingInsights', 'recommendationsAndRisks', 'keyHighlights'],
+      requiredSections: [
+        'meetingInsights',
+        'recommendationsAndRisks',
+        'keyHighlights',
+      ],
       outputFormat: 'json_object',
       jsonSchema: {
         properties: {
           meetingInsights: {
             type: 'object',
-            description: 'Core focus, key outcomes, and unresolved issues'
+            description: 'Core focus, key outcomes, and unresolved issues',
           },
           recommendations: {
             type: 'array',
-            description: 'Suggested actions based on meeting analysis'
+            description: 'Suggested actions based on meeting analysis',
           },
           keyHighlights: {
             type: 'array',
-            description: 'Most important points from the meeting'
+            description: 'Most important points from the meeting',
           },
           audienceSpecificSummaries: {
             type: 'object',
-            description: 'Summaries formatted for different audience needs'
-          }
-        }
-      }
+            description: 'Summaries formatted for different audience needs',
+          },
+        },
+      },
     },
     rules: [
       'Synthesize key insights across all analysis dimensions',
@@ -639,14 +658,14 @@ Skip any preamble and provide only the JSON response.
       'Format summaries for different audience types',
       'Focus on actionable outcomes and decisions',
       'Provide context for recommendations',
-      'Link insights to organizational impact'
+      'Link insights to organizational impact',
     ],
     outputRequirements: [
       'Comprehensive but concise synthesis',
       'Evidence-based recommendations',
       'Multiple audience-specific summary formats',
       'Balance between strategic and tactical insights',
-      'Clear distinction between facts and interpretations'
-    ]
-  }
+      'Clear distinction between facts and interpretations',
+    ],
+  },
 };

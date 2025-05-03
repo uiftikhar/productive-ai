@@ -1,6 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ChatOpenAI } from '@langchain/openai';
-import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
+import {
+  BaseMessage,
+  HumanMessage,
+  SystemMessage,
+} from '@langchain/core/messages';
 
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
@@ -28,7 +32,9 @@ export interface ComplexityAssessmentConfig {
 /**
  * Service for assessing task complexity and determining if decomposition is needed
  */
-export class ComplexityAssessmentService implements Pick<TaskAnalyzer, 'assessComplexity'> {
+export class ComplexityAssessmentService
+  implements Pick<TaskAnalyzer, 'assessComplexity'>
+{
   private static instance: ComplexityAssessmentService;
   private logger: Logger;
   private llm: ChatOpenAI;
@@ -41,7 +47,7 @@ export class ComplexityAssessmentService implements Pick<TaskAnalyzer, 'assessCo
   private constructor(config: ComplexityAssessmentConfig = {}) {
     this.logger = config.logger || new ConsoleLogger();
     this.confidenceThreshold = config.confidenceThreshold || 0.7;
-    
+
     // Complexity factors to consider in assessment
     this.complexityFactors = config.complexityFactors || [
       'Cognitive complexity',
@@ -69,9 +75,13 @@ export class ComplexityAssessmentService implements Pick<TaskAnalyzer, 'assessCo
   /**
    * Get the singleton instance
    */
-  public static getInstance(config: ComplexityAssessmentConfig = {}): ComplexityAssessmentService {
+  public static getInstance(
+    config: ComplexityAssessmentConfig = {},
+  ): ComplexityAssessmentService {
     if (!ComplexityAssessmentService.instance) {
-      ComplexityAssessmentService.instance = new ComplexityAssessmentService(config);
+      ComplexityAssessmentService.instance = new ComplexityAssessmentService(
+        config,
+      );
     }
     return ComplexityAssessmentService.instance;
   }
@@ -88,7 +98,10 @@ export class ComplexityAssessmentService implements Pick<TaskAnalyzer, 'assessCo
 
     try {
       // Generate assessment using LLM
-      const assessmentResult = await this.generateComplexityAssessment(description, context);
+      const assessmentResult = await this.generateComplexityAssessment(
+        description,
+        context,
+      );
 
       // Create the complexity assessment
       const complexityAssessment = createComplexityAssessment(
@@ -136,8 +149,10 @@ export class ComplexityAssessmentService implements Pick<TaskAnalyzer, 'assessCo
     factors: ComplexityFactor[];
     confidenceScore: number;
   }> {
-    const factorsString = this.complexityFactors.map(f => `- ${f}`).join('\n');
-    
+    const factorsString = this.complexityFactors
+      .map((f) => `- ${f}`)
+      .join('\n');
+
     const systemPrompt = `You are an expert task complexity analyzer. Analyze the provided task description and assess its complexity.
 Consider the following complexity factors:
 ${factorsString}
@@ -174,7 +189,8 @@ Format your response as valid JSON:
     // Add context to the human message if available
     let contextInfo = '';
     if (Object.keys(context).length > 0) {
-      contextInfo = '\n\nAdditional context:\n' + 
+      contextInfo =
+        '\n\nAdditional context:\n' +
         Object.entries(context)
           .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
           .join('\n');
@@ -190,11 +206,12 @@ Format your response as valid JSON:
     try {
       const response = await this.llm.call(messages);
       const responseContent = response.content.toString();
-      
+
       // Extract JSON from response
-      const jsonMatch = responseContent.match(/```json\s*([\s\S]*?)\s*```/) || 
-                       responseContent.match(/{[\s\S]*}/);
-      
+      const jsonMatch =
+        responseContent.match(/```json\s*([\s\S]*?)\s*```/) ||
+        responseContent.match(/{[\s\S]*}/);
+
       let jsonContent = '';
       if (jsonMatch && jsonMatch[1]) {
         jsonContent = jsonMatch[1];
@@ -208,17 +225,21 @@ Format your response as valid JSON:
       const parsedResponse = JSON.parse(jsonContent);
 
       // Map the response to our expected format
-      const factors: ComplexityFactor[] = parsedResponse.factors.map((factor: any) => ({
-        id: uuidv4(),
-        name: factor.name,
-        description: factor.description,
-        weight: factor.weight ?? 1.0,
-        score: factor.score,
-        metadata: {},
-      }));
+      const factors: ComplexityFactor[] = parsedResponse.factors.map(
+        (factor: any) => ({
+          id: uuidv4(),
+          name: factor.name,
+          description: factor.description,
+          weight: factor.weight ?? 1.0,
+          score: factor.score,
+          metadata: {},
+        }),
+      );
 
       // Map the complexity level
-      const overallComplexity = this.mapComplexityLevel(parsedResponse.overallComplexity);
+      const overallComplexity = this.mapComplexityLevel(
+        parsedResponse.overallComplexity,
+      );
 
       return {
         overallComplexity,
@@ -254,4 +275,4 @@ Format your response as valid JSON:
         return ComplexityLevel.MODERATE; // Default to moderate when unsure
     }
   }
-} 
+}

@@ -71,8 +71,9 @@ class InMemoryPersistence implements TaskHierarchyPersistence {
   }
 
   async loadAssignments(parentTaskId: string): Promise<SubtaskAssignment[]> {
-    return Array.from(this.assignments.values())
-      .filter(assignment => assignment.parentTaskId === parentTaskId);
+    return Array.from(this.assignments.values()).filter(
+      (assignment) => assignment.parentTaskId === parentTaskId,
+    );
   }
 }
 
@@ -97,7 +98,9 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
   /**
    * Get the singleton instance
    */
-  public static getInstance(config: HierarchicalTaskConfig = {}): HierarchicalTaskService {
+  public static getInstance(
+    config: HierarchicalTaskConfig = {},
+  ): HierarchicalTaskService {
     if (!HierarchicalTaskService.instance) {
       HierarchicalTaskService.instance = new HierarchicalTaskService(config);
     }
@@ -108,7 +111,10 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
    * Create a new task
    */
   public async createTask(
-    details: Omit<HierarchicalTask, 'id' | 'childTaskIds' | 'createdAt' | 'updatedAt' | 'progress'>,
+    details: Omit<
+      HierarchicalTask,
+      'id' | 'childTaskIds' | 'createdAt' | 'updatedAt' | 'progress'
+    >,
   ): Promise<HierarchicalTask> {
     const task: HierarchicalTask = {
       id: uuidv4(),
@@ -126,7 +132,7 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
 
     try {
       await this.persistence.saveTask(task);
-      
+
       // If this is a child task, update the parent
       if (task.parentTaskId) {
         const parentTask = await this.getTask(task.parentTaskId);
@@ -193,7 +199,10 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
   /**
    * Delete a task and optionally its children
    */
-  public async deleteTask(taskId: string, deleteChildren = false): Promise<boolean> {
+  public async deleteTask(
+    taskId: string,
+    deleteChildren = false,
+  ): Promise<boolean> {
     const task = await this.getTask(taskId);
     if (!task) {
       return false;
@@ -219,7 +228,9 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
     if (task.parentTaskId) {
       const parentTask = await this.getTask(task.parentTaskId);
       if (parentTask) {
-        parentTask.childTaskIds = parentTask.childTaskIds.filter(id => id !== taskId);
+        parentTask.childTaskIds = parentTask.childTaskIds.filter(
+          (id) => id !== taskId,
+        );
         await this.persistence.saveTask(parentTask);
         await this.updateParentProgress(parentTask.id);
       }
@@ -233,7 +244,15 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
    */
   public async addChildTask(
     parentTaskId: string,
-    childTaskDetails: Omit<HierarchicalTask, 'id' | 'parentTaskId' | 'childTaskIds' | 'createdAt' | 'updatedAt' | 'progress'>,
+    childTaskDetails: Omit<
+      HierarchicalTask,
+      | 'id'
+      | 'parentTaskId'
+      | 'childTaskIds'
+      | 'createdAt'
+      | 'updatedAt'
+      | 'progress'
+    >,
     relationshipType: ParentChildRelationship,
   ): Promise<SubtaskAssignment> {
     const parentTask = await this.getTask(parentTaskId);
@@ -260,7 +279,9 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
     };
 
     await this.persistence.saveAssignment(assignment);
-    this.logger.info(`Added child task ${childTask.id} to parent ${parentTaskId}`);
+    this.logger.info(
+      `Added child task ${childTask.id} to parent ${parentTaskId}`,
+    );
 
     return assignment;
   }
@@ -268,7 +289,10 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
   /**
    * Remove a child task from a parent task
    */
-  public async removeChildTask(parentTaskId: string, childTaskId: string): Promise<boolean> {
+  public async removeChildTask(
+    parentTaskId: string,
+    childTaskId: string,
+  ): Promise<boolean> {
     const parentTask = await this.getTask(parentTaskId);
     const childTask = await this.getTask(childTaskId);
 
@@ -277,12 +301,17 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
     }
 
     // Check if the child is actually a child of the parent
-    if (!parentTask.childTaskIds.includes(childTaskId) || childTask.parentTaskId !== parentTaskId) {
+    if (
+      !parentTask.childTaskIds.includes(childTaskId) ||
+      childTask.parentTaskId !== parentTaskId
+    ) {
       return false;
     }
 
     // Update the parent
-    parentTask.childTaskIds = parentTask.childTaskIds.filter(id => id !== childTaskId);
+    parentTask.childTaskIds = parentTask.childTaskIds.filter(
+      (id) => id !== childTaskId,
+    );
     parentTask.updatedAt = Date.now();
     await this.persistence.saveTask(parentTask);
 
@@ -300,7 +329,9 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
   /**
    * Get all child tasks for a parent task
    */
-  public async getChildTasks(parentTaskId: string): Promise<HierarchicalTask[]> {
+  public async getChildTasks(
+    parentTaskId: string,
+  ): Promise<HierarchicalTask[]> {
     const parentTask = await this.getTask(parentTaskId);
     if (!parentTask || !parentTask.childTaskIds.length) {
       return [];
@@ -320,7 +351,9 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
   /**
    * Get the parent task for a child task
    */
-  public async getParentTask(childTaskId: string): Promise<HierarchicalTask | null> {
+  public async getParentTask(
+    childTaskId: string,
+  ): Promise<HierarchicalTask | null> {
     const childTask = await this.getTask(childTaskId);
     if (!childTask || !childTask.parentTaskId) {
       return null;
@@ -332,14 +365,16 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
   /**
    * Get the full hierarchy of tasks starting from a root task
    */
-  public async getTaskHierarchy(rootTaskId: string): Promise<HierarchicalTask[]> {
+  public async getTaskHierarchy(
+    rootTaskId: string,
+  ): Promise<HierarchicalTask[]> {
     const rootTask = await this.getTask(rootTaskId);
     if (!rootTask) {
       return [];
     }
 
     const hierarchy: HierarchicalTask[] = [rootTask];
-    
+
     // Recursively get all descendant tasks
     const getDescendants = async (taskId: string): Promise<void> => {
       const task = await this.getTask(taskId);
@@ -377,7 +412,7 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
     };
 
     await this.persistence.saveMilestone(milestone);
-    
+
     // Update the task
     task.milestones.push(milestone);
     task.updatedAt = Date.now();
@@ -408,11 +443,13 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
     };
 
     await this.persistence.saveMilestone(updatedMilestone);
-    
+
     // Update the task's milestones array
     const task = await this.getTask(milestone.taskId);
     if (task) {
-      const milestoneIndex = task.milestones.findIndex(m => m.id === milestoneId);
+      const milestoneIndex = task.milestones.findIndex(
+        (m) => m.id === milestoneId,
+      );
       if (milestoneIndex >= 0) {
         task.milestones[milestoneIndex] = updatedMilestone;
         task.updatedAt = Date.now();
@@ -451,23 +488,31 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
     };
 
     await this.persistence.saveMilestone(updatedMilestone);
-    
+
     // Update the task's milestones array and recalculate progress
     const task = await this.getTask(milestone.taskId);
     if (task) {
-      const milestoneIndex = task.milestones.findIndex(m => m.id === milestoneId);
+      const milestoneIndex = task.milestones.findIndex(
+        (m) => m.id === milestoneId,
+      );
       if (milestoneIndex >= 0) {
         task.milestones[milestoneIndex] = updatedMilestone;
         task.updatedAt = Date.now();
-        
+
         // Recalculate task progress based on milestones
         if (task.milestones.length > 0) {
-          const totalProgress = task.milestones.reduce((sum, m) => sum + m.progress, 0);
-          task.progress = Math.min(Math.round(totalProgress / task.milestones.length), 100);
+          const totalProgress = task.milestones.reduce(
+            (sum, m) => sum + m.progress,
+            0,
+          );
+          task.progress = Math.min(
+            Math.round(totalProgress / task.milestones.length),
+            100,
+          );
         }
-        
+
         await this.persistence.saveTask(task);
-        
+
         // Update parent progress
         if (task.parentTaskId) {
           await this.updateParentProgress(task.parentTaskId);
@@ -481,7 +526,10 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
   /**
    * Assign a task to an agent
    */
-  public async assignTask(taskId: string, agentId: string): Promise<HierarchicalTask> {
+  public async assignTask(
+    taskId: string,
+    agentId: string,
+  ): Promise<HierarchicalTask> {
     const task = await this.getTask(taskId);
     if (!task) {
       throw new Error(`Task not found: ${taskId}`);
@@ -502,7 +550,10 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
   /**
    * Reassign a task to a different agent
    */
-  public async reassignTask(taskId: string, newAgentId: string): Promise<HierarchicalTask> {
+  public async reassignTask(
+    taskId: string,
+    newAgentId: string,
+  ): Promise<HierarchicalTask> {
     return this.assignTask(taskId, newAgentId);
   }
 
@@ -511,7 +562,7 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
    */
   public async delegateSubtasks(
     parentTaskId: string,
-    assignments: Array<{childTaskId: string, agentId: string}>,
+    assignments: Array<{ childTaskId: string; agentId: string }>,
   ): Promise<SubtaskAssignment[]> {
     const parentTask = await this.getTask(parentTaskId);
     if (!parentTask) {
@@ -521,12 +572,15 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
     const results: SubtaskAssignment[] = [];
 
     // Get existing assignments
-    const existingAssignments = await this.persistence.loadAssignments(parentTaskId);
-    
+    const existingAssignments =
+      await this.persistence.loadAssignments(parentTaskId);
+
     for (const { childTaskId, agentId } of assignments) {
       // Check if the child task exists and is a child of the parent
       if (!parentTask.childTaskIds.includes(childTaskId)) {
-        this.logger.warn(`Task ${childTaskId} is not a child of ${parentTaskId}`);
+        this.logger.warn(
+          `Task ${childTaskId} is not a child of ${parentTaskId}`,
+        );
         continue;
       }
 
@@ -542,8 +596,10 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
       await this.persistence.saveTask(childTask);
 
       // Find or create assignment
-      let assignment = existingAssignments.find(a => a.childTaskId === childTaskId);
-      
+      let assignment = existingAssignments.find(
+        (a) => a.childTaskId === childTaskId,
+      );
+
       if (assignment) {
         // Update existing assignment
         assignment = {
@@ -601,11 +657,17 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
     }
 
     // Update parent task progress
-    const newProgress = Math.min(Math.round(totalProgress / parentTask.childTaskIds.length), 100);
+    const newProgress = Math.min(
+      Math.round(totalProgress / parentTask.childTaskIds.length),
+      100,
+    );
     parentTask.progress = newProgress;
-    
+
     // Update parent task status if all children are complete
-    if (completedTasks === parentTask.childTaskIds.length && completedTasks > 0) {
+    if (
+      completedTasks === parentTask.childTaskIds.length &&
+      completedTasks > 0
+    ) {
       parentTask.status = TaskStatus.COMPLETED;
       parentTask.completedAt = Date.now();
     }
@@ -618,4 +680,4 @@ export class HierarchicalTaskService implements TaskHierarchyManager {
       await this.updateParentProgress(parentTask.parentTaskId);
     }
   }
-} 
+}

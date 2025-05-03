@@ -1,7 +1,11 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ChatOpenAI } from '@langchain/openai';
-import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { JsonOutputParser } from "@langchain/core/output_parsers";
+import {
+  BaseMessage,
+  HumanMessage,
+  SystemMessage,
+} from '@langchain/core/messages';
+import { JsonOutputParser } from '@langchain/core/output_parsers';
 
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
@@ -16,11 +20,11 @@ import {
   createTaskProposal,
   createCollaborativeTask,
 } from './interfaces/peer-task.interface';
-import { 
-  HierarchicalTask, 
-  TaskPriority, 
-  TaskStatus, 
-  createHierarchicalTask, 
+import {
+  HierarchicalTask,
+  TaskPriority,
+  TaskStatus,
+  createHierarchicalTask,
 } from './interfaces/hierarchical-task.interface';
 import { ComplexityLevel } from './interfaces/task-analysis.interface';
 
@@ -74,9 +78,12 @@ export class CollaborativeTaskDefinitionService {
   /**
    * Get the singleton instance
    */
-  public static getInstance(config: CollaborativeTaskDefinitionConfig = {}): CollaborativeTaskDefinitionService {
+  public static getInstance(
+    config: CollaborativeTaskDefinitionConfig = {},
+  ): CollaborativeTaskDefinitionService {
     if (!CollaborativeTaskDefinitionService.instance) {
-      CollaborativeTaskDefinitionService.instance = new CollaborativeTaskDefinitionService(config);
+      CollaborativeTaskDefinitionService.instance =
+        new CollaborativeTaskDefinitionService(config);
     }
     return CollaborativeTaskDefinitionService.instance;
   }
@@ -96,11 +103,13 @@ export class CollaborativeTaskDefinitionService {
       context?: Record<string, any>;
     } = {},
   ): Promise<CollaborativeTask> {
-    this.logger.info(`Initiating collaborative task definition for: ${taskName}`);
+    this.logger.info(
+      `Initiating collaborative task definition for: ${taskName}`,
+    );
 
     // Set initiator to the first agent if not specified
     const initiatorId = options.initiatorId || collaboratingAgents[0].id;
-    
+
     // Create the initial collaborative task
     const task: CollaborativeTask = {
       ...createHierarchicalTask(
@@ -111,29 +120,34 @@ export class CollaborativeTaskDefinitionService {
         3600000, // 1 hour default
       ),
       initiatedBy: initiatorId,
-      collaborators: collaboratingAgents.map(a => a.id),
+      collaborators: collaboratingAgents.map((a) => a.id),
       proposalHistory: [],
       responsibilities: [],
-      consensusStrategy: options.consensusStrategy || ConsensusStrategy.SUPER_MAJORITY,
-      consensusThreshold: options.consensusThreshold || this.defaultConsensusThreshold,
+      consensusStrategy:
+        options.consensusStrategy || ConsensusStrategy.SUPER_MAJORITY,
+      consensusThreshold:
+        options.consensusThreshold || this.defaultConsensusThreshold,
       consensusReached: false,
       lastActivity: Date.now(),
     };
-    
+
     // Generate initial task proposal
     const initialProposal = await this.generateInitialProposal(
       task,
-      collaboratingAgents.find(a => a.id === initiatorId) || collaboratingAgents[0],
+      collaboratingAgents.find((a) => a.id === initiatorId) ||
+        collaboratingAgents[0],
       collaboratingAgents,
       options.context || {},
     );
-    
+
     // Add the proposal to the task history
     task.proposalHistory.push(initialProposal);
     task.currentProposal = initialProposal.id;
-    
-    this.logger.info(`Created collaborative task: ${task.id} with initial proposal: ${initialProposal.id}`);
-    
+
+    this.logger.info(
+      `Created collaborative task: ${task.id} with initial proposal: ${initialProposal.id}`,
+    );
+
     return task;
   }
 
@@ -154,7 +168,7 @@ export class CollaborativeTaskDefinitionService {
       collaborators,
       context,
     );
-    
+
     // Create the proposal object
     const proposal: TaskBoundaryProposal = {
       id: uuidv4(),
@@ -172,10 +186,12 @@ export class CollaborativeTaskDefinitionService {
       status: 'proposed',
       votes: [],
       consensusStrategy: task.consensusStrategy,
-      requiredVoteCount: Math.ceil(collaborators.length * task.consensusThreshold),
+      requiredVoteCount: Math.ceil(
+        collaborators.length * task.consensusThreshold,
+      ),
       metadata: {},
     };
-    
+
     // Add initiator's vote as approval
     proposal.votes.push({
       id: uuidv4(),
@@ -187,7 +203,7 @@ export class CollaborativeTaskDefinitionService {
       timestamp: Date.now(),
       metadata: {},
     });
-    
+
     return proposal;
   }
 
@@ -237,18 +253,22 @@ Format your response as valid JSON:
 The proposal should be clear, specific, and actionable. Consider the expertise and perspectives of all collaborating agents.`;
 
     // Format collaborator information
-    const collaboratorsInfo = collaborators.map(agent => 
-      `Agent ID: ${agent.id}
+    const collaboratorsInfo = collaborators
+      .map(
+        (agent) =>
+          `Agent ID: ${agent.id}
 Name: ${agent.name}
 Expertise: ${agent.expertise.join(', ')}
 ${agent.perspective ? `Perspective: ${agent.perspective}` : ''}
-${agent.communicationStyle ? `Communication Style: ${agent.communicationStyle}` : ''}`
-    ).join('\n\n');
+${agent.communicationStyle ? `Communication Style: ${agent.communicationStyle}` : ''}`,
+      )
+      .join('\n\n');
 
     // Format context if available
     let contextInfo = '';
     if (Object.keys(context).length > 0) {
-      contextInfo = '\n\nAdditional Context:\n' + 
+      contextInfo =
+        '\n\nAdditional Context:\n' +
         Object.entries(context)
           .map(([key, value]) => `- ${key}: ${JSON.stringify(value)}`)
           .join('\n');
@@ -258,13 +278,15 @@ ${agent.communicationStyle ? `Communication Style: ${agent.communicationStyle}` 
 Initial Description: ${initialDescription}
 
 Initiator:
-${collaborators.find(a => a.id === initiator.id) ? 
-  `Agent ID: ${initiator.id}
+${
+  collaborators.find((a) => a.id === initiator.id)
+    ? `Agent ID: ${initiator.id}
 Name: ${initiator.name}
 Expertise: ${initiator.expertise.join(', ')}
-${initiator.perspective ? `Perspective: ${initiator.perspective}` : ''}` : 
-  `Agent ID: ${initiator.id}
-Name: ${initiator.name}`}
+${initiator.perspective ? `Perspective: ${initiator.perspective}` : ''}`
+    : `Agent ID: ${initiator.id}
+Name: ${initiator.name}`
+}
 
 Collaborating Agents:
 ${collaboratorsInfo}${contextInfo}
@@ -279,27 +301,33 @@ Please create a comprehensive task proposal that the initiator would propose for
     try {
       const parser = new JsonOutputParser();
       const response = await this.llm.pipe(parser).invoke(messages);
-      
+
       if (!response || typeof response !== 'object') {
         throw new Error('Invalid response format');
       }
-      
+
       // Apply reasonable defaults for missing fields
       return {
         name: response.name || taskName,
         description: response.description || initialDescription,
         scope: response.scope || '',
-        outOfScope: Array.isArray(response.outOfScope) ? response.outOfScope : [],
+        outOfScope: Array.isArray(response.outOfScope)
+          ? response.outOfScope
+          : [],
         complexity: response.complexity || 'MODERATE',
         estimatedDuration: response.estimatedDuration || 3600000, // 1 hour default
-        resourceNeeds: Array.isArray(response.resourceNeeds) ? response.resourceNeeds : [],
-        expectedOutcomes: Array.isArray(response.expectedOutcomes) ? response.expectedOutcomes : [],
+        resourceNeeds: Array.isArray(response.resourceNeeds)
+          ? response.resourceNeeds
+          : [],
+        expectedOutcomes: Array.isArray(response.expectedOutcomes)
+          ? response.expectedOutcomes
+          : [],
       };
     } catch (error) {
       this.logger.error('Error generating task proposal', {
         error: error instanceof Error ? error.message : String(error),
       });
-      
+
       // Return a basic proposal if generation fails
       return {
         name: taskName,
@@ -331,16 +359,20 @@ Please create a comprehensive task proposal that the initiator would propose for
     voteStats: Record<string, number>;
   }> {
     // Find the proposal
-    const proposalIndex = task.proposalHistory.findIndex(p => p.id === proposalId);
+    const proposalIndex = task.proposalHistory.findIndex(
+      (p) => p.id === proposalId,
+    );
     if (proposalIndex === -1) {
       throw new Error(`Proposal ${proposalId} not found for task ${task.id}`);
     }
-    
+
     const proposal = task.proposalHistory[proposalIndex];
-    
+
     // Check if agent has already voted
-    const existingVoteIndex = proposal.votes.findIndex(v => v.agentId === agentId);
-    
+    const existingVoteIndex = proposal.votes.findIndex(
+      (v) => v.agentId === agentId,
+    );
+
     // Create the vote
     const taskVote: TaskVote = {
       id: uuidv4(),
@@ -353,17 +385,17 @@ Please create a comprehensive task proposal that the initiator would propose for
       suggestedChanges,
       metadata: {},
     };
-    
+
     // Update proposal with the new vote
     if (existingVoteIndex >= 0) {
       proposal.votes[existingVoteIndex] = taskVote;
     } else {
       proposal.votes.push(taskVote);
     }
-    
+
     // Count votes
     const voteStats = this.countVotes(proposal.votes);
-    
+
     // Check if consensus is reached
     const consensusReached = this.checkConsensus(
       proposal.votes,
@@ -371,17 +403,17 @@ Please create a comprehensive task proposal that the initiator would propose for
       task.consensusThreshold,
       task.collaborators.length,
     );
-    
+
     // Update task state
     task.lastActivity = Date.now();
     task.consensusReached = consensusReached;
     task.proposalHistory[proposalIndex] = proposal;
-    
+
     // If consensus is reached, update task details with proposal content
     if (consensusReached) {
       this.applyProposalToTask(task, proposal);
     }
-    
+
     return {
       task,
       vote: taskVote,
@@ -406,17 +438,21 @@ Please create a comprehensive task proposal that the initiator would propose for
     counterProposal: TaskBoundaryProposal;
   }> {
     // Find the original proposal
-    const originalProposal = task.proposalHistory.find(p => p.id === proposalId);
+    const originalProposal = task.proposalHistory.find(
+      (p) => p.id === proposalId,
+    );
     if (!originalProposal) {
       throw new Error(`Proposal ${proposalId} not found for task ${task.id}`);
     }
-    
+
     // Get the agent that is making the counter-proposal
     const agent = options.context?.agents?.[counterProposingAgentId];
     if (!agent) {
-      this.logger.warn(`Agent ${counterProposingAgentId} not found in context, using minimal info`);
+      this.logger.warn(
+        `Agent ${counterProposingAgentId} not found in context, using minimal info`,
+      );
     }
-    
+
     // Generate counter-proposal using LLM
     const counterProposalContent = await this.generateCounterProposalWithLLM(
       task,
@@ -426,7 +462,7 @@ Please create a comprehensive task proposal that the initiator would propose for
       options.context || {},
       options.focusAreas || [],
     );
-    
+
     // Create the counter-proposal
     const counterProposal: TaskBoundaryProposal = {
       id: uuidv4(),
@@ -434,24 +470,35 @@ Please create a comprehensive task proposal that the initiator would propose for
       proposedBy: counterProposingAgentId,
       proposedAt: Date.now(),
       name: counterProposalContent.name || originalProposal.name,
-      description: counterProposalContent.description || originalProposal.description,
+      description:
+        counterProposalContent.description || originalProposal.description,
       scope: counterProposalContent.scope || originalProposal.scope,
-      outOfScope: counterProposalContent.outOfScope || originalProposal.outOfScope,
+      outOfScope:
+        counterProposalContent.outOfScope || originalProposal.outOfScope,
       complexity: this.mapComplexityLevel(counterProposalContent.complexity),
-      estimatedDuration: counterProposalContent.estimatedDuration || originalProposal.estimatedDuration,
-      resourceNeeds: counterProposalContent.resourceNeeds || originalProposal.resourceNeeds,
-      expectedOutcomes: counterProposalContent.expectedOutcomes || originalProposal.expectedOutcomes,
+      estimatedDuration:
+        counterProposalContent.estimatedDuration ||
+        originalProposal.estimatedDuration,
+      resourceNeeds:
+        counterProposalContent.resourceNeeds || originalProposal.resourceNeeds,
+      expectedOutcomes:
+        counterProposalContent.expectedOutcomes ||
+        originalProposal.expectedOutcomes,
       status: 'proposed',
-      votes: [{
-        id: uuidv4(),
-        taskId: task.id,
-        proposalId: '', // Will be set after creation
-        agentId: counterProposingAgentId,
-        vote: VoteType.APPROVE,
-        reasoning: counterProposalContent.reasoning || 'I am proposing this counter-proposal',
-        timestamp: Date.now(),
-        metadata: {},
-      }],
+      votes: [
+        {
+          id: uuidv4(),
+          taskId: task.id,
+          proposalId: '', // Will be set after creation
+          agentId: counterProposingAgentId,
+          vote: VoteType.APPROVE,
+          reasoning:
+            counterProposalContent.reasoning ||
+            'I am proposing this counter-proposal',
+          timestamp: Date.now(),
+          metadata: {},
+        },
+      ],
       consensusStrategy: originalProposal.consensusStrategy,
       requiredVoteCount: originalProposal.requiredVoteCount,
       metadata: {
@@ -460,15 +507,15 @@ Please create a comprehensive task proposal that the initiator would propose for
         changeRationale: counterProposalContent.reasoning || '',
       },
     };
-    
+
     // Update proposal ID in the vote
     counterProposal.votes[0].proposalId = counterProposal.id;
-    
+
     // Add the counter-proposal to the task
     task.proposalHistory.push(counterProposal);
     task.currentProposal = counterProposal.id;
     task.lastActivity = Date.now();
-    
+
     return {
       task,
       counterProposal,
@@ -497,12 +544,13 @@ Please create a comprehensive task proposal that the initiator would propose for
     reasoning: string;
   }> {
     // Get votes with suggestions or rejections
-    const criticalVotes = originalProposal.votes.filter(vote => 
-      vote.vote === VoteType.REJECT || 
-      vote.vote === VoteType.SUGGEST_CHANGES ||
-      (vote.vote === VoteType.APPROVE && vote.suggestedChanges)
+    const criticalVotes = originalProposal.votes.filter(
+      (vote) =>
+        vote.vote === VoteType.REJECT ||
+        vote.vote === VoteType.SUGGEST_CHANGES ||
+        (vote.vote === VoteType.APPROVE && vote.suggestedChanges),
     );
-    
+
     const systemPrompt = `You are an expert task negotiation assistant. Help formulate a counter-proposal that addresses feedback from collaborators.
 
 Based on the original proposal and the feedback from other agents, create an improved counter-proposal.
@@ -545,23 +593,27 @@ Focus on addressing the concerns raised in the feedback, finding a middle ground
 - Expected Outcomes: ${originalProposal.expectedOutcomes.join(', ')}`;
 
     // Format votes and feedback
-    const votesInfo = criticalVotes.map(vote => 
-      `Vote from ${vote.agentId}:
+    const votesInfo = criticalVotes
+      .map(
+        (vote) =>
+          `Vote from ${vote.agentId}:
 - Vote: ${vote.vote}
 - Reasoning: ${vote.reasoning}
-${vote.suggestedChanges ? `- Suggested Changes: ${JSON.stringify(vote.suggestedChanges)}` : ''}`
-    ).join('\n\n');
+${vote.suggestedChanges ? `- Suggested Changes: ${JSON.stringify(vote.suggestedChanges)}` : ''}`,
+      )
+      .join('\n\n');
 
     // Format counterproposing agent info
-    const agentInfo = agent ? 
-      `Your expertise: ${agent.expertise ? agent.expertise.join(', ') : 'Not specified'}
-Your perspective: ${agent.perspective || 'Not specified'}` :
-      `You are agent ${counterProposingAgentId}`;
+    const agentInfo = agent
+      ? `Your expertise: ${agent.expertise ? agent.expertise.join(', ') : 'Not specified'}
+Your perspective: ${agent.perspective || 'Not specified'}`
+      : `You are agent ${counterProposingAgentId}`;
 
     // Format focus areas if any
-    const focusAreasInfo = focusAreas.length > 0 ?
-      `\nFocus particularly on improving these aspects: ${focusAreas.join(', ')}` :
-      '\nAddress all relevant concerns from the feedback';
+    const focusAreasInfo =
+      focusAreas.length > 0
+        ? `\nFocus particularly on improving these aspects: ${focusAreas.join(', ')}`
+        : '\nAddress all relevant concerns from the feedback';
 
     const humanMessage = `Task: ${task.name}
 
@@ -583,27 +635,34 @@ Please create a counter-proposal that addresses the feedback and concerns while 
     try {
       const parser = new JsonOutputParser();
       const response = await this.llm.pipe(parser).invoke(messages);
-      
+
       if (!response || typeof response !== 'object') {
         throw new Error('Invalid response format');
       }
-      
+
       return {
         name: response.name || originalProposal.name,
         description: response.description || originalProposal.description,
         scope: response.scope || originalProposal.scope,
-        outOfScope: Array.isArray(response.outOfScope) ? response.outOfScope : originalProposal.outOfScope,
+        outOfScope: Array.isArray(response.outOfScope)
+          ? response.outOfScope
+          : originalProposal.outOfScope,
         complexity: response.complexity || originalProposal.complexity,
-        estimatedDuration: response.estimatedDuration || originalProposal.estimatedDuration,
-        resourceNeeds: Array.isArray(response.resourceNeeds) ? response.resourceNeeds : originalProposal.resourceNeeds,
-        expectedOutcomes: Array.isArray(response.expectedOutcomes) ? response.expectedOutcomes : originalProposal.expectedOutcomes,
+        estimatedDuration:
+          response.estimatedDuration || originalProposal.estimatedDuration,
+        resourceNeeds: Array.isArray(response.resourceNeeds)
+          ? response.resourceNeeds
+          : originalProposal.resourceNeeds,
+        expectedOutcomes: Array.isArray(response.expectedOutcomes)
+          ? response.expectedOutcomes
+          : originalProposal.expectedOutcomes,
         reasoning: response.reasoning || 'Counter-proposal based on feedback',
       };
     } catch (error) {
       this.logger.error('Error generating counter-proposal', {
         error: error instanceof Error ? error.message : String(error),
       });
-      
+
       // Return a basic counter-proposal preserving most of the original
       return {
         name: originalProposal.name,
@@ -614,7 +673,8 @@ Please create a counter-proposal that addresses the feedback and concerns while 
         estimatedDuration: originalProposal.estimatedDuration,
         resourceNeeds: originalProposal.resourceNeeds,
         expectedOutcomes: originalProposal.expectedOutcomes,
-        reasoning: 'Counter-proposal with minimal changes due to error in generation',
+        reasoning:
+          'Counter-proposal with minimal changes due to error in generation',
       };
     }
   }
@@ -630,11 +690,11 @@ Please create a counter-proposal that addresses the feedback and concerns while 
       [VoteType.SUGGEST_CHANGES]: 0,
       total: votes.length,
     };
-    
+
     for (const vote of votes) {
       counts[vote.vote] = (counts[vote.vote] || 0) + 1;
     }
-    
+
     return counts;
   }
 
@@ -648,33 +708,33 @@ Please create a counter-proposal that addresses the feedback and concerns while 
     totalParticipants: number,
   ): boolean {
     const counts = this.countVotes(votes);
-    
+
     // Calculate approval rate
     const approvalsNeeded = Math.ceil(totalParticipants * threshold);
     const approvalCount = counts[VoteType.APPROVE] || 0;
-    
+
     // Check against the strategy
     switch (strategy) {
       case ConsensusStrategy.UNANIMOUS:
         // Everyone must approve
         return approvalCount === totalParticipants;
-        
+
       case ConsensusStrategy.SUPER_MAJORITY:
         // Super majority (typically 2/3)
-        return approvalCount >= Math.ceil(totalParticipants * 2/3);
-        
+        return approvalCount >= Math.ceil((totalParticipants * 2) / 3);
+
       case ConsensusStrategy.MAJORITY:
         // Simple majority
         return approvalCount > Math.floor(totalParticipants / 2);
-        
+
       case ConsensusStrategy.THRESHOLD:
         // Custom threshold
         return approvalCount >= approvalsNeeded;
-        
+
       case ConsensusStrategy.WEIGHTED:
         // Weighted voting would require agent weights, not implemented here
         return approvalCount >= approvalsNeeded;
-        
+
       default:
         // Default to threshold
         return approvalCount >= approvalsNeeded;
@@ -684,12 +744,15 @@ Please create a counter-proposal that addresses the feedback and concerns while 
   /**
    * Apply an accepted proposal to the task
    */
-  private applyProposalToTask(task: CollaborativeTask, proposal: TaskBoundaryProposal): void {
+  private applyProposalToTask(
+    task: CollaborativeTask,
+    proposal: TaskBoundaryProposal,
+  ): void {
     task.name = proposal.name;
     task.description = proposal.description;
     task.complexity = proposal.complexity;
     task.status = TaskStatus.PLANNED; // Move from draft to planned
-    
+
     // Update metadata with scope information
     task.metadata = {
       ...task.metadata,
@@ -700,7 +763,7 @@ Please create a counter-proposal that addresses the feedback and concerns while 
       consensusReachedAt: Date.now(),
       acceptedProposalId: proposal.id,
     };
-    
+
     // Update estimated duration
     task.estimatedDuration = proposal.estimatedDuration;
   }
@@ -726,4 +789,4 @@ Please create a counter-proposal that addresses the feedback and concerns while 
         return ComplexityLevel.MODERATE; // Default to moderate when unsure
     }
   }
-} 
+}

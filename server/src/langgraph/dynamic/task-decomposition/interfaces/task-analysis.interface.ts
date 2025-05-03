@@ -113,10 +113,26 @@ export interface TaskAnalysis {
  * Task analyzer interface for components that can analyze tasks
  */
 export interface TaskAnalyzer {
-  analyzeTask(taskId: string, description: string, context?: Record<string, any>): Promise<TaskAnalysis>;
-  assessComplexity(taskId: string, description: string, context?: Record<string, any>): Promise<ComplexityAssessment>;
-  detectDependencies(taskId: string, otherTaskIds: string[], context?: Record<string, any>): Promise<TaskDependency[]>;
-  estimateResources(taskId: string, description: string, context?: Record<string, any>): Promise<ResourceRequirement[]>;
+  analyzeTask(
+    taskId: string,
+    description: string,
+    context?: Record<string, any>,
+  ): Promise<TaskAnalysis>;
+  assessComplexity(
+    taskId: string,
+    description: string,
+    context?: Record<string, any>,
+  ): Promise<ComplexityAssessment>;
+  detectDependencies(
+    taskId: string,
+    otherTaskIds: string[],
+    context?: Record<string, any>,
+  ): Promise<TaskDependency[]>;
+  estimateResources(
+    taskId: string,
+    description: string,
+    context?: Record<string, any>,
+  ): Promise<ResourceRequirement[]>;
 }
 
 /**
@@ -174,17 +190,23 @@ export function createComplexityAssessment(
     overallComplexity,
     confidenceScore,
     factors,
-    recommendedDecomposition: 
-      overallComplexity === ComplexityLevel.COMPLEX || 
+    recommendedDecomposition:
+      overallComplexity === ComplexityLevel.COMPLEX ||
       overallComplexity === ComplexityLevel.VERY_COMPLEX,
-    recommendedAgentCount: 
-      overallComplexity === ComplexityLevel.TRIVIAL ? 1 :
-      overallComplexity === ComplexityLevel.SIMPLE ? 1 :
-      overallComplexity === ComplexityLevel.MODERATE ? 2 :
-      overallComplexity === ComplexityLevel.COMPLEX ? 3 :
-      overallComplexity === ComplexityLevel.VERY_COMPLEX ? 5 : 1,
+    recommendedAgentCount:
+      overallComplexity === ComplexityLevel.TRIVIAL
+        ? 1
+        : overallComplexity === ComplexityLevel.SIMPLE
+          ? 1
+          : overallComplexity === ComplexityLevel.MODERATE
+            ? 2
+            : overallComplexity === ComplexityLevel.COMPLEX
+              ? 3
+              : overallComplexity === ComplexityLevel.VERY_COMPLEX
+                ? 5
+                : 1,
     timestamp: Date.now(),
     version: 1,
     metadata: {},
   };
-} 
+}

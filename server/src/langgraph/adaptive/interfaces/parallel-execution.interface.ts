@@ -1,6 +1,6 @@
 /**
  * Interfaces for Parallel Execution Coordinator
- * 
+ *
  * These interfaces define the core types and structures for synchronization point
  * management, data sharing protocols, and progress tracking across concurrent
  * execution paths.
@@ -10,25 +10,25 @@
  * Execution thread status
  */
 export enum ExecutionThreadStatus {
-  PENDING = 'pending',         // Thread created but not started
-  RUNNING = 'running',         // Thread is actively executing
-  WAITING = 'waiting',         // Thread is waiting at synchronization point
-  COMPLETED = 'completed',     // Thread has completed successfully
-  FAILED = 'failed',           // Thread has failed
-  CANCELED = 'canceled',       // Thread was canceled
-  BLOCKED = 'blocked'          // Thread is blocked waiting for a resource
+  PENDING = 'pending', // Thread created but not started
+  RUNNING = 'running', // Thread is actively executing
+  WAITING = 'waiting', // Thread is waiting at synchronization point
+  COMPLETED = 'completed', // Thread has completed successfully
+  FAILED = 'failed', // Thread has failed
+  CANCELED = 'canceled', // Thread was canceled
+  BLOCKED = 'blocked', // Thread is blocked waiting for a resource
 }
 
 /**
  * Synchronization point type
  */
 export enum SyncPointType {
-  BARRIER = 'barrier',         // All threads must reach before any can proceed
+  BARRIER = 'barrier', // All threads must reach before any can proceed
   RENDEZ_VOUS = 'rendez_vous', // Only specific threads need to sync
-  JOIN = 'join',               // Wait for specific threads to complete
-  FORK = 'fork',               // Create new parallel threads
+  JOIN = 'join', // Wait for specific threads to complete
+  FORK = 'fork', // Create new parallel threads
   DATA_EXCHANGE = 'data_exchange', // Exchange data between threads
-  DECISION = 'decision'        // Make a decision based on multiple thread results
+  DECISION = 'decision', // Make a decision based on multiple thread results
 }
 
 /**
@@ -37,7 +37,7 @@ export enum SyncPointType {
 export enum DataAccessMode {
   READ_ONLY = 'read_only',
   READ_WRITE = 'read_write',
-  WRITE_ONLY = 'write_only'
+  WRITE_ONLY = 'write_only',
 }
 
 /**
@@ -48,7 +48,7 @@ export enum ConflictResolutionStrategy {
   MERGE = 'merge',
   CONSENSUS = 'consensus',
   PRIORITY_BASED = 'priority_based',
-  CUSTOM = 'custom'
+  CUSTOM = 'custom',
 }
 
 /**
@@ -61,9 +61,9 @@ export interface ExecutionThread {
   status: ExecutionThreadStatus;
   parentThreadId?: string;
   childThreadIds: string[];
-  taskIds: string[];  // Tasks being executed in this thread
+  taskIds: string[]; // Tasks being executed in this thread
   currentTaskId?: string;
-  progress: number;   // 0-1 progress indicator
+  progress: number; // 0-1 progress indicator
   startTime?: Date;
   endTime?: Date;
   result?: any;
@@ -136,7 +136,12 @@ export interface TaskProgress {
  * Interface for synchronization manager
  */
 export interface SynchronizationManager {
-  createSyncPoint(syncPoint: Omit<SynchronizationPoint, 'id' | 'createdAt' | 'waitingThreads'>): string;
+  createSyncPoint(
+    syncPoint: Omit<
+      SynchronizationPoint,
+      'id' | 'createdAt' | 'waitingThreads'
+    >,
+  ): string;
   registerThreadAtSyncPoint(syncPointId: string, threadId: string): boolean;
   releaseSyncPoint(syncPointId: string, result?: any): boolean;
   checkSyncPointStatus(syncPointId: string): {
@@ -154,13 +159,29 @@ export interface SynchronizationManager {
  * Interface for parallel data sharing service
  */
 export interface ParallelDataSharingService {
-  createSharedData(key: string, initialValue: any, options?: Partial<Omit<SharedDataItem, 'key' | 'value' | 'version' | 'lastUpdated' | 'history'>>): boolean;
+  createSharedData(
+    key: string,
+    initialValue: any,
+    options?: Partial<
+      Omit<
+        SharedDataItem,
+        'key' | 'value' | 'version' | 'lastUpdated' | 'history'
+      >
+    >,
+  ): boolean;
   readSharedData<T>(key: string, threadId: string): T | undefined;
   writeSharedData<T>(key: string, value: T, threadId: string): boolean;
-  subscribeToDataChanges(key: string, callback: (item: SharedDataItem) => void): () => void;
+  subscribeToDataChanges(
+    key: string,
+    callback: (item: SharedDataItem) => void,
+  ): () => void;
   lockSharedData(key: string, threadId: string, timeout?: number): boolean;
   unlockSharedData(key: string, threadId: string): boolean;
-  resolveConflict(key: string, conflictingValues: any[], resolution: any): boolean;
+  resolveConflict(
+    key: string,
+    conflictingValues: any[],
+    resolution: any,
+  ): boolean;
   getSharedDataSnapshot(): Record<string, any>;
 }
 
@@ -168,8 +189,17 @@ export interface ParallelDataSharingService {
  * Interface for multi-task progress tracking
  */
 export interface MultiTaskProgressService {
-  registerTask(taskId: string, threadId: string, metadata?: Record<string, any>): boolean;
-  updateTaskProgress(taskId: string, progress: number, status?: string, message?: string): boolean;
+  registerTask(
+    taskId: string,
+    threadId: string,
+    metadata?: Record<string, any>,
+  ): boolean;
+  updateTaskProgress(
+    taskId: string,
+    progress: number,
+    status?: string,
+    message?: string,
+  ): boolean;
   updateTaskStage(taskId: string, stage: string, progress?: number): boolean;
   getTaskProgress(taskId: string): TaskProgress | undefined;
   getThreadProgress(threadId: string): number; // Combined progress for all tasks in the thread
@@ -181,4 +211,4 @@ export interface MultiTaskProgressService {
   }[];
   setEstimatedCompletion(taskId: string, estimatedCompletion: Date): boolean;
   getProgressReport(): Record<string, any>; // Comprehensive progress report
-} 
+}

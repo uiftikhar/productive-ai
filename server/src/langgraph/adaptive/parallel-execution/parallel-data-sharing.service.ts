@@ -9,17 +9,21 @@ import {
 /**
  * Implementation of the parallel data sharing service
  */
-export class ParallelDataSharingServiceImpl implements ParallelDataSharingService {
+export class ParallelDataSharingServiceImpl
+  implements ParallelDataSharingService
+{
   private logger: Logger;
   private sharedData: Map<string, SharedDataItem> = new Map();
-  private dataLocks: Map<string, { threadId: string; expiry: number }> = new Map();
-  private dataChangeListeners: Map<string, ((item: SharedDataItem) => void)[]> = new Map();
+  private dataLocks: Map<string, { threadId: string; expiry: number }> =
+    new Map();
+  private dataChangeListeners: Map<string, ((item: SharedDataItem) => void)[]> =
+    new Map();
   private DEFAULT_LOCK_TIMEOUT = 30000; // 30 seconds
 
   constructor(options: { logger?: Logger } = {}) {
     this.logger = options.logger || new ConsoleLogger();
     this.logger.info('Parallel data sharing service initialized');
-    
+
     // Start lock expiry check
     setInterval(() => this.checkLockExpiry(), 5000);
   }
@@ -30,7 +34,12 @@ export class ParallelDataSharingServiceImpl implements ParallelDataSharingServic
   createSharedData(
     key: string,
     initialValue: any,
-    options: Partial<Omit<SharedDataItem, 'key' | 'value' | 'version' | 'lastUpdated' | 'history'>> = {}
+    options: Partial<
+      Omit<
+        SharedDataItem,
+        'key' | 'value' | 'version' | 'lastUpdated' | 'history'
+      >
+    > = {},
   ): boolean {
     // Check if data already exists
     if (this.sharedData.has(key)) {
@@ -39,7 +48,7 @@ export class ParallelDataSharingServiceImpl implements ParallelDataSharingServic
     }
 
     const now = new Date();
-    
+
     // Create shared data item with defaults
     const sharedItem: SharedDataItem = {
       key,
@@ -51,7 +60,9 @@ export class ParallelDataSharingServiceImpl implements ParallelDataSharingServic
         readThreads: 'all',
         writeThreads: 'all',
       },
-      conflictResolution: options.conflictResolution || ConflictResolutionStrategy.LAST_WRITER_WINS,
+      conflictResolution:
+        options.conflictResolution ||
+        ConflictResolutionStrategy.LAST_WRITER_WINS,
       history: [
         {
           version: 1,
@@ -81,15 +92,19 @@ export class ParallelDataSharingServiceImpl implements ParallelDataSharingServic
    */
   readSharedData<T>(key: string, threadId: string): T | undefined {
     const item = this.sharedData.get(key);
-    
+
     if (!item) {
-      this.logger.warn(`Thread ${threadId} attempted to read non-existent shared data: ${key}`);
+      this.logger.warn(
+        `Thread ${threadId} attempted to read non-existent shared data: ${key}`,
+      );
       return undefined;
     }
 
     // Check read access
     if (!this.hasReadAccess(item, threadId)) {
-      this.logger.warn(`Thread ${threadId} does not have read access to shared data: ${key}`);
+      this.logger.warn(
+        `Thread ${threadId} does not have read access to shared data: ${key}`,
+      );
       return undefined;
     }
 
@@ -106,26 +121,33 @@ export class ParallelDataSharingServiceImpl implements ParallelDataSharingServic
    */
   writeSharedData<T>(key: string, value: T, threadId: string): boolean {
     const item = this.sharedData.get(key);
-    
+
     if (!item) {
-      this.logger.warn(`Thread ${threadId} attempted to write to non-existent shared data: ${key}`);
+      this.logger.warn(
+        `Thread ${threadId} attempted to write to non-existent shared data: ${key}`,
+      );
       return false;
     }
 
     // Check write access
     if (!this.hasWriteAccess(item, threadId)) {
-      this.logger.warn(`Thread ${threadId} does not have write access to shared data: ${key}`);
+      this.logger.warn(
+        `Thread ${threadId} does not have write access to shared data: ${key}`,
+      );
       return false;
     }
 
     // Check if the key is locked by another thread
     const lock = this.dataLocks.get(key);
     if (lock && lock.threadId !== threadId && lock.expiry > Date.now()) {
-      this.logger.warn(`Thread ${threadId} attempted to write to locked shared data: ${key}`, {
-        key,
-        lockedBy: lock.threadId,
-        lockedUntil: new Date(lock.expiry),
-      });
+      this.logger.warn(
+        `Thread ${threadId} attempted to write to locked shared data: ${key}`,
+        {
+          key,
+          lockedBy: lock.threadId,
+          lockedUntil: new Date(lock.expiry),
+        },
+      );
       return false;
     }
 
@@ -136,7 +158,9 @@ export class ParallelDataSharingServiceImpl implements ParallelDataSharingServic
         // In a real implementation, use a proper schema validator
         if (typeof item.schema === 'function') {
           if (!item.schema(value)) {
-            this.logger.warn(`Thread ${threadId} attempted to write invalid data to ${key}`);
+            this.logger.warn(
+              `Thread ${threadId} attempted to write invalid data to ${key}`,
+            );
             return false;
           }
         }
@@ -190,7 +214,10 @@ export class ParallelDataSharingServiceImpl implements ParallelDataSharingServic
   /**
    * Subscribe to changes on a shared data item
    */
-  subscribeToDataChanges(key: string, callback: (item: SharedDataItem) => void): () => void {
+  subscribeToDataChanges(
+    key: string,
+    callback: (item: SharedDataItem) => void,
+  ): () => void {
     if (!this.dataChangeListeners.has(key)) {
       this.dataChangeListeners.set(key, []);
     }
@@ -205,7 +232,7 @@ export class ParallelDataSharingServiceImpl implements ParallelDataSharingServic
       if (listeners) {
         this.dataChangeListeners.set(
           key,
-          listeners.filter(cb => cb !== callback)
+          listeners.filter((cb) => cb !== callback),
         );
       }
     };
@@ -216,25 +243,34 @@ export class ParallelDataSharingServiceImpl implements ParallelDataSharingServic
    */
   lockSharedData(key: string, threadId: string, timeout?: number): boolean {
     if (!this.sharedData.has(key)) {
-      this.logger.warn(`Thread ${threadId} attempted to lock non-existent shared data: ${key}`);
+      this.logger.warn(
+        `Thread ${threadId} attempted to lock non-existent shared data: ${key}`,
+      );
       return false;
     }
 
     // Check if already locked by another thread
     const existingLock = this.dataLocks.get(key);
-    if (existingLock && existingLock.threadId !== threadId && existingLock.expiry > Date.now()) {
-      this.logger.warn(`Thread ${threadId} attempted to lock already locked data: ${key}`, {
-        key,
-        lockedBy: existingLock.threadId,
-        lockedUntil: new Date(existingLock.expiry),
-      });
+    if (
+      existingLock &&
+      existingLock.threadId !== threadId &&
+      existingLock.expiry > Date.now()
+    ) {
+      this.logger.warn(
+        `Thread ${threadId} attempted to lock already locked data: ${key}`,
+        {
+          key,
+          lockedBy: existingLock.threadId,
+          lockedUntil: new Date(existingLock.expiry),
+        },
+      );
       return false;
     }
 
     // Set lock
     const lockTimeout = timeout || this.DEFAULT_LOCK_TIMEOUT;
     const expiry = Date.now() + lockTimeout;
-    
+
     this.dataLocks.set(key, {
       threadId,
       expiry,
@@ -259,20 +295,25 @@ export class ParallelDataSharingServiceImpl implements ParallelDataSharingServic
     }
 
     const lock = this.dataLocks.get(key);
-    
+
     // Check if locked by another thread
     if (lock && lock.threadId !== threadId) {
-      this.logger.warn(`Thread ${threadId} attempted to unlock data locked by another thread: ${key}`, {
-        key,
-        lockedBy: lock.threadId,
-      });
+      this.logger.warn(
+        `Thread ${threadId} attempted to unlock data locked by another thread: ${key}`,
+        {
+          key,
+          lockedBy: lock.threadId,
+        },
+      );
       return false;
     }
 
     // Remove lock
     this.dataLocks.delete(key);
 
-    this.logger.info(`Thread ${threadId} unlocked shared data: ${key}`, { key });
+    this.logger.info(`Thread ${threadId} unlocked shared data: ${key}`, {
+      key,
+    });
 
     return true;
   }
@@ -280,11 +321,17 @@ export class ParallelDataSharingServiceImpl implements ParallelDataSharingServic
   /**
    * Resolve a conflict with multiple values
    */
-  resolveConflict(key: string, conflictingValues: any[], resolution: any): boolean {
+  resolveConflict(
+    key: string,
+    conflictingValues: any[],
+    resolution: any,
+  ): boolean {
     const item = this.sharedData.get(key);
-    
+
     if (!item) {
-      this.logger.warn(`Attempted to resolve conflict for non-existent shared data: ${key}`);
+      this.logger.warn(
+        `Attempted to resolve conflict for non-existent shared data: ${key}`,
+      );
       return false;
     }
 
@@ -373,12 +420,14 @@ export class ParallelDataSharingServiceImpl implements ParallelDataSharingServic
    */
   private notifyDataChangeListeners(key: string, item: SharedDataItem): void {
     const listeners = this.dataChangeListeners.get(key) || [];
-    
+
     for (const listener of listeners) {
       try {
         listener(item);
       } catch (error) {
-        this.logger.error(`Error in data change listener for ${key}`, { error });
+        this.logger.error(`Error in data change listener for ${key}`, {
+          error,
+        });
       }
     }
   }
@@ -401,7 +450,7 @@ export class ParallelDataSharingServiceImpl implements ParallelDataSharingServic
     for (const key of expiredLocks) {
       const lock = this.dataLocks.get(key);
       this.dataLocks.delete(key);
-      
+
       this.logger.info(`Lock expired for shared data: ${key}`, {
         key,
         threadId: lock?.threadId,
@@ -412,9 +461,11 @@ export class ParallelDataSharingServiceImpl implements ParallelDataSharingServic
   /**
    * Get detailed information about a shared data item
    */
-  getSharedDataInfo(key: string): Omit<SharedDataItem, 'value' | 'history'> | undefined {
+  getSharedDataInfo(
+    key: string,
+  ): Omit<SharedDataItem, 'value' | 'history'> | undefined {
     const item = this.sharedData.get(key);
-    
+
     if (!item) {
       return undefined;
     }
@@ -443,21 +494,25 @@ export class ParallelDataSharingServiceImpl implements ParallelDataSharingServic
    */
   deleteSharedData(key: string, threadId: string): boolean {
     const item = this.sharedData.get(key);
-    
+
     if (!item) {
       return false;
     }
 
     // Check write access (deletion requires write access)
     if (!this.hasWriteAccess(item, threadId)) {
-      this.logger.warn(`Thread ${threadId} does not have write access to delete shared data: ${key}`);
+      this.logger.warn(
+        `Thread ${threadId} does not have write access to delete shared data: ${key}`,
+      );
       return false;
     }
 
     // Check if locked by another thread
     const lock = this.dataLocks.get(key);
     if (lock && lock.threadId !== threadId && lock.expiry > Date.now()) {
-      this.logger.warn(`Thread ${threadId} attempted to delete locked shared data: ${key}`);
+      this.logger.warn(
+        `Thread ${threadId} attempted to delete locked shared data: ${key}`,
+      );
       return false;
     }
 
@@ -470,4 +525,4 @@ export class ParallelDataSharingServiceImpl implements ParallelDataSharingServic
 
     return true;
   }
-} 
+}

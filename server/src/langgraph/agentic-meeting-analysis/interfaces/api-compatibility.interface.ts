@@ -107,28 +107,38 @@ export interface AgenticMeetingAnalysisResponse {
  */
 export interface IApiCompatibilityLayer {
   // Convert between legacy and agentic formats
-  convertLegacyToAgenticRequest(legacyRequest: LegacyMeetingAnalysisRequest): AgenticMeetingAnalysisRequest;
-  convertAgenticToLegacyResponse(agenticResponse: AgenticMeetingAnalysisResponse): LegacyMeetingAnalysisResponse;
-  
+  convertLegacyToAgenticRequest(
+    legacyRequest: LegacyMeetingAnalysisRequest,
+  ): AgenticMeetingAnalysisRequest;
+  convertAgenticToLegacyResponse(
+    agenticResponse: AgenticMeetingAnalysisResponse,
+  ): LegacyMeetingAnalysisResponse;
+
   // Process requests in either format
-  processLegacyRequest(request: LegacyMeetingAnalysisRequest): Promise<LegacyMeetingAnalysisResponse>;
-  processAgenticRequest(request: AgenticMeetingAnalysisRequest): Promise<AgenticMeetingAnalysisResponse>;
-  
+  processLegacyRequest(
+    request: LegacyMeetingAnalysisRequest,
+  ): Promise<LegacyMeetingAnalysisResponse>;
+  processAgenticRequest(
+    request: AgenticMeetingAnalysisRequest,
+  ): Promise<AgenticMeetingAnalysisResponse>;
+
   // Status and results endpoints
   getLegacyAnalysisStatus(meetingId: string): Promise<{
     meetingId: string;
     status: string;
     progress: number;
   }>;
-  
-  getLegacyAnalysisResults(meetingId: string): Promise<LegacyMeetingAnalysisResponse>;
-  
+
+  getLegacyAnalysisResults(
+    meetingId: string,
+  ): Promise<LegacyMeetingAnalysisResponse>;
+
   // Feature flags and versioning
   isAgenticMode(): Promise<boolean>;
   setAgenticMode(enabled: boolean): Promise<void>;
-  
+
   getCompatibilityVersion(): Promise<string>;
-  
+
   // Error mapping
   mapAgenticErrorToLegacyFormat(error: any): any;
-} 
+}

@@ -1,7 +1,11 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ChatOpenAI } from '@langchain/openai';
-import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { JsonOutputParser } from "@langchain/core/output_parsers";
+import {
+  BaseMessage,
+  HumanMessage,
+  SystemMessage,
+} from '@langchain/core/messages';
+import { JsonOutputParser } from '@langchain/core/output_parsers';
 
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
@@ -53,9 +57,13 @@ export class MilestoneDetectionService {
   /**
    * Get the singleton instance
    */
-  public static getInstance(config: MilestoneDetectionConfig = {}): MilestoneDetectionService {
+  public static getInstance(
+    config: MilestoneDetectionConfig = {},
+  ): MilestoneDetectionService {
     if (!MilestoneDetectionService.instance) {
-      MilestoneDetectionService.instance = new MilestoneDetectionService(config);
+      MilestoneDetectionService.instance = new MilestoneDetectionService(
+        config,
+      );
     }
     return MilestoneDetectionService.instance;
   }
@@ -71,22 +79,32 @@ export class MilestoneDetectionService {
       context?: Record<string, any>;
     } = {},
   ): Promise<TaskMilestone[]> {
-    this.logger.info(`Detecting milestones for task: ${task.id} - ${task.name}`);
+    this.logger.info(
+      `Detecting milestones for task: ${task.id} - ${task.name}`,
+    );
 
     const milestoneCount = options.preferredCount || this.defaultMilestoneCount;
     let childTasksInfo = '';
 
-    if (options.includeSubtasks && task.childTaskIds.length > 0 && options.context?.tasks) {
+    if (
+      options.includeSubtasks &&
+      task.childTaskIds.length > 0 &&
+      options.context?.tasks
+    ) {
       // Include information about subtasks if available
       const childTasks = task.childTaskIds
-        .map(id => options.context?.tasks[id])
+        .map((id) => options.context?.tasks[id])
         .filter(Boolean);
-      
+
       if (childTasks.length > 0) {
-        childTasksInfo = `\n\nThis task has ${childTasks.length} subtasks:\n` + 
-          childTasks.map((childTask, index) => 
-            `${index + 1}. ${childTask.name}: ${childTask.description}`
-          ).join('\n');
+        childTasksInfo =
+          `\n\nThis task has ${childTasks.length} subtasks:\n` +
+          childTasks
+            .map(
+              (childTask, index) =>
+                `${index + 1}. ${childTask.name}: ${childTask.description}`,
+            )
+            .join('\n');
       }
     }
 
@@ -100,7 +118,7 @@ export class MilestoneDetectionService {
       );
 
       // Convert to TaskMilestone objects
-      const milestones = suggestedMilestones.map(suggestion => ({
+      const milestones = suggestedMilestones.map((suggestion) => ({
         id: uuidv4(),
         taskId: task.id,
         name: suggestion.name,
@@ -117,7 +135,7 @@ export class MilestoneDetectionService {
       this.logger.error(`Error detecting milestones for task ${task.id}`, {
         error: error instanceof Error ? error.message : String(error),
       });
-      
+
       // Return default milestones as fallback
       return this.generateDefaultMilestones(task.id, task.name);
     }
@@ -131,15 +149,17 @@ export class MilestoneDetectionService {
     taskDescription: string,
     childTasksInfo: string = '',
     milestoneCount: number = 5,
-  ): Promise<Array<{
-    name: string;
-    description: string;
-    type: string;
-    criteria: string;
-    sequence: number;
-  }>> {
+  ): Promise<
+    Array<{
+      name: string;
+      description: string;
+      type: string;
+      criteria: string;
+      sequence: number;
+    }>
+  > {
     const milestoneTypesStr = Object.values(MilestoneType)
-      .map(type => `- ${type}: ${this.describeMilestoneType(type)}`)
+      .map((type) => `- ${type}: ${this.describeMilestoneType(type)}`)
       .join('\n');
 
     const systemPrompt = `You are an expert task planning assistant. Based on the provided task description, suggest appropriate milestones that mark significant points in the task's execution.
@@ -181,17 +201,19 @@ Please suggest ${milestoneCount} appropriate milestones for this task.`;
     try {
       const parser = new JsonOutputParser();
       const response = await this.llm.pipe(parser).invoke(messages);
-      
+
       // Validate and sort by sequence
-      const milestones = Array.isArray(response) 
+      const milestones = Array.isArray(response)
         ? response
-            .filter(m => 
-              m && 
-              m.name && 
-              m.description && 
-              m.type && 
-              m.criteria && 
-              m.sequence !== undefined)
+            .filter(
+              (m) =>
+                m &&
+                m.name &&
+                m.description &&
+                m.type &&
+                m.criteria &&
+                m.sequence !== undefined,
+            )
             .sort((a, b) => a.sequence - b.sequence)
         : [];
 
@@ -207,7 +229,10 @@ Please suggest ${milestoneCount} appropriate milestones for this task.`;
   /**
    * Generate default milestones when the LLM fails
    */
-  private generateDefaultMilestones(taskId: string, taskName: string): TaskMilestone[] {
+  private generateDefaultMilestones(
+    taskId: string,
+    taskName: string,
+  ): TaskMilestone[] {
     return [
       {
         id: uuidv4(),
@@ -280,7 +305,11 @@ Please suggest ${milestoneCount} appropriate milestones for this task.`;
     reasoning: string;
   }> {
     // Simple heuristics for common milestone types
-    if (milestone.type === MilestoneType.START && task.status !== 'draft' && task.status !== 'planned') {
+    if (
+      milestone.type === MilestoneType.START &&
+      task.status !== 'draft' &&
+      task.status !== 'planned'
+    ) {
       return {
         isAchieved: true,
         confidence: 0.9,
@@ -288,7 +317,10 @@ Please suggest ${milestoneCount} appropriate milestones for this task.`;
       };
     }
 
-    if (milestone.type === MilestoneType.COMPLETION && task.status === 'completed') {
+    if (
+      milestone.type === MilestoneType.COMPLETION &&
+      task.status === 'completed'
+    ) {
       return {
         isAchieved: true,
         confidence: 1.0,
@@ -299,7 +331,7 @@ Please suggest ${milestoneCount} appropriate milestones for this task.`;
     // Check progress-based milestones
     if (milestone.type === MilestoneType.CHECKPOINT) {
       const milestoneName = milestone.name.toLowerCase();
-      
+
       // Parse percentage from name if present
       const percentageMatch = milestoneName.match(/(\d+)%/);
       if (percentageMatch) {
@@ -313,7 +345,7 @@ Please suggest ${milestoneCount} appropriate milestones for this task.`;
         }
       }
     }
-    
+
     // For other cases, use LLM to evaluate if the criteria is met
     return this.evaluateMilestone(milestone, task, context);
   }
@@ -356,7 +388,8 @@ The confidence should be a number between 0 and 1, representing how sure you are
     // Format context
     let contextStr = '';
     if (Object.keys(context).length > 0) {
-      contextStr = '\nAdditional Context:\n' + 
+      contextStr =
+        '\nAdditional Context:\n' +
         Object.entries(context)
           .map(([key, value]) => `- ${key}: ${JSON.stringify(value)}`)
           .join('\n');
@@ -380,26 +413,32 @@ Has this milestone been achieved? Explain your reasoning.`;
     try {
       const parser = new JsonOutputParser();
       const response = await this.llm.pipe(parser).invoke(messages);
-      
+
       if (!response || typeof response !== 'object') {
         throw new Error('Invalid response format');
       }
-      
+
       return {
         isAchieved: !!response.isAchieved,
-        confidence: typeof response.confidence === 'number' ? response.confidence : 0.5,
-        reasoning: typeof response.reasoning === 'string' ? response.reasoning : 'No reasoning provided',
+        confidence:
+          typeof response.confidence === 'number' ? response.confidence : 0.5,
+        reasoning:
+          typeof response.reasoning === 'string'
+            ? response.reasoning
+            : 'No reasoning provided',
       };
     } catch (error) {
       this.logger.error('Error evaluating milestone', {
         error: error instanceof Error ? error.message : String(error),
       });
-      
+
       // Default to not achieved with low confidence when evaluation fails
       return {
         isAchieved: false,
         confidence: 0.3,
-        reasoning: 'Failed to evaluate milestone: ' + (error instanceof Error ? error.message : String(error)),
+        reasoning:
+          'Failed to evaluate milestone: ' +
+          (error instanceof Error ? error.message : String(error)),
       };
     }
   }
@@ -445,4 +484,4 @@ Has this milestone been achieved? Explain your reasoning.`;
         return 'Undefined milestone type';
     }
   }
-} 
+}

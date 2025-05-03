@@ -1,6 +1,6 @@
 /**
  * Interfaces for the Resource Management System
- * 
+ *
  * These interfaces define the core types and structures for agent availability tracking,
  * capability-based resource allocation, and load balancing.
  */
@@ -9,33 +9,33 @@
  * Agent availability status
  */
 export enum AgentAvailabilityStatus {
-  AVAILABLE = 'available',         // Fully available for new tasks
-  BUSY = 'busy',                   // Currently working on tasks but can be allocated more
+  AVAILABLE = 'available', // Fully available for new tasks
+  BUSY = 'busy', // Currently working on tasks but can be allocated more
   FULLY_OCCUPIED = 'fully_occupied', // At maximum capacity
-  UNAVAILABLE = 'unavailable',     // Temporarily unavailable
-  OFFLINE = 'offline'              // Not connected/available
+  UNAVAILABLE = 'unavailable', // Temporarily unavailable
+  OFFLINE = 'offline', // Not connected/available
 }
 
 /**
  * Resource type classification
  */
 export enum ResourceType {
-  AGENT = 'agent',                 // AI agent resource
+  AGENT = 'agent', // AI agent resource
   COMPUTATIONAL = 'computational', // Computing resource (CPU, memory, etc.)
-  DATA = 'data',                   // Data access resource
-  EXTERNAL_API = 'external_api',   // External API or service
-  CUSTOM = 'custom'                // Custom resource type
+  DATA = 'data', // Data access resource
+  EXTERNAL_API = 'external_api', // External API or service
+  CUSTOM = 'custom', // Custom resource type
 }
 
 /**
  * Capability level of a resource
  */
 export enum CapabilityLevel {
-  EXPERT = 'expert',               // High proficiency
-  PROFICIENT = 'proficient',       // Good proficiency
-  INTERMEDIATE = 'intermediate',   // Medium proficiency
-  BASIC = 'basic',                 // Basic proficiency
-  LEARNING = 'learning'            // Still learning this capability
+  EXPERT = 'expert', // High proficiency
+  PROFICIENT = 'proficient', // Good proficiency
+  INTERMEDIATE = 'intermediate', // Medium proficiency
+  BASIC = 'basic', // Basic proficiency
+  LEARNING = 'learning', // Still learning this capability
 }
 
 /**
@@ -111,15 +111,23 @@ export interface ResourceAllocation {
  * Interface for agent availability tracking
  */
 export interface AgentAvailabilityTracker {
-  registerResource(resource: Omit<Resource, 'currentLoad' | 'statusLastUpdated'>): string;
-  updateResourceStatus(resourceId: string, status: AgentAvailabilityStatus): boolean;
+  registerResource(
+    resource: Omit<Resource, 'currentLoad' | 'statusLastUpdated'>,
+  ): string;
+  updateResourceStatus(
+    resourceId: string,
+    status: AgentAvailabilityStatus,
+  ): boolean;
   updateResourceLoad(resourceId: string, load: number): boolean;
   addTaskToResource(resourceId: string, taskId: string): boolean;
   removeTaskFromResource(resourceId: string, taskId: string): boolean;
   getResourceById(resourceId: string): Resource | undefined;
   getAvailableResources(): Resource[];
   getResourcesByType(type: ResourceType): Resource[];
-  getResourcesByCapability(capabilityId: string, minimumLevel?: CapabilityLevel): Resource[];
+  getResourcesByCapability(
+    capabilityId: string,
+    minimumLevel?: CapabilityLevel,
+  ): Resource[];
   getResourceUtilization(): Record<string, number>; // resourceId -> utilization (0-1)
   getSystemLoad(): number; // Overall system load (0-1)
 }
@@ -130,11 +138,20 @@ export interface AgentAvailabilityTracker {
 export interface CapabilityAllocationService {
   allocateResources(request: ResourceAllocationRequest): ResourceAllocation;
   releaseResources(taskId: string): boolean;
-  updateAllocation(taskId: string, updatedRequest: Partial<ResourceAllocationRequest>): ResourceAllocation;
+  updateAllocation(
+    taskId: string,
+    updatedRequest: Partial<ResourceAllocationRequest>,
+  ): ResourceAllocation;
   getTaskAllocations(taskId: string): ResourceAllocation | undefined;
   getResourceAllocations(resourceId: string): ResourceAllocation[];
-  findBestResourceForCapability(capabilityId: string, level?: CapabilityLevel): string;
-  checkCapabilityAvailability(capabilityId: string, level?: CapabilityLevel): boolean;
+  findBestResourceForCapability(
+    capabilityId: string,
+    level?: CapabilityLevel,
+  ): string;
+  checkCapabilityAvailability(
+    capabilityId: string,
+    level?: CapabilityLevel,
+  ): boolean;
 }
 
 /**
@@ -148,4 +165,4 @@ export interface LoadBalancingService {
   recommendTaskRedistribution(): Record<string, string[]>; // resourceId -> taskIds to move
   getOptimalDistribution(): Record<string, number>; // resourceId -> optimal load
   rebalanceResource(resourceId: string): boolean;
-} 
+}

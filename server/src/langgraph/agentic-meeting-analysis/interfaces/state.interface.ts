@@ -1,7 +1,12 @@
 /**
  * State interfaces for the Agentic Meeting Analysis System
  */
-import { AgentExpertise, AnalysisGoalType, AnalysisTaskStatus, AgentOutput } from './agent.interface';
+import {
+  AgentExpertise,
+  AnalysisGoalType,
+  AnalysisTaskStatus,
+  AgentOutput,
+} from './agent.interface';
 
 /**
  * Meeting metadata including participants and context
@@ -57,7 +62,7 @@ export interface TranscriptSegment {
 }
 
 /**
- * Analysis team composition 
+ * Analysis team composition
  */
 export interface AnalysisTeam {
   id: string;
@@ -152,7 +157,7 @@ export interface AnalysisResults {
 export enum StateChangeType {
   CREATED = 'created',
   UPDATED = 'updated',
-  DELETED = 'deleted'
+  DELETED = 'deleted',
 }
 
 /**
@@ -181,26 +186,29 @@ export interface AgenticMeetingAnalysisState {
   metadata: MeetingMetadata;
   transcript: MeetingTranscript;
   segments: TranscriptSegment[];
-  
+
   // Analysis process state
   team?: AnalysisTeam;
   goals: AnalysisGoalType[];
-  tasks: Record<string, {
-    id: string;
-    type: AnalysisGoalType;
-    status: AnalysisTaskStatus;
-    assignedTo?: string;
-    dependencies?: string[];
-    input: any;
-    output?: AgentOutput;
-    created: number;
-    updated: number;
-  }>;
+  tasks: Record<
+    string,
+    {
+      id: string;
+      type: AnalysisGoalType;
+      status: AnalysisTaskStatus;
+      assignedTo?: string;
+      dependencies?: string[];
+      input: any;
+      output?: AgentOutput;
+      created: number;
+      updated: number;
+    }
+  >;
   progress: AnalysisProgress;
-  
+
   // Results
   results?: AnalysisResults;
-  
+
   // Execution metadata
   executionId: string;
   startTime: number;
@@ -215,34 +223,55 @@ export interface AgenticMeetingAnalysisState {
 export interface IStateRepository {
   // Core operations
   initialize(): Promise<void>;
-  
+
   // State management
   getState(meetingId: string): Promise<AgenticMeetingAnalysisState>;
-  updateState(meetingId: string, updates: Partial<AgenticMeetingAnalysisState>): Promise<void>;
-  
+  updateState(
+    meetingId: string,
+    updates: Partial<AgenticMeetingAnalysisState>,
+  ): Promise<void>;
+
   // Specific entity operations
   getTeam(meetingId: string): Promise<AnalysisTeam | null>;
   updateTeam(meetingId: string, updates: Partial<AnalysisTeam>): Promise<void>;
-  
+
   getProgress(meetingId: string): Promise<AnalysisProgress>;
-  updateProgress(meetingId: string, updates: Partial<AnalysisProgress>): Promise<void>;
-  
+  updateProgress(
+    meetingId: string,
+    updates: Partial<AnalysisProgress>,
+  ): Promise<void>;
+
   getResults(meetingId: string): Promise<AnalysisResults | null>;
-  updateResults(meetingId: string, updates: Partial<AnalysisResults>): Promise<void>;
-  
+  updateResults(
+    meetingId: string,
+    updates: Partial<AnalysisResults>,
+  ): Promise<void>;
+
   // History and versioning
-  getStateHistory(meetingId: string, limit?: number): Promise<{
-    timestamp: number;
-    state: Partial<AgenticMeetingAnalysisState>;
-    agentId?: string;
-  }[]>;
-  
-  getStateAtTimestamp(meetingId: string, timestamp: number): Promise<AgenticMeetingAnalysisState | null>;
-  
+  getStateHistory(
+    meetingId: string,
+    limit?: number,
+  ): Promise<
+    {
+      timestamp: number;
+      state: Partial<AgenticMeetingAnalysisState>;
+      agentId?: string;
+    }[]
+  >;
+
+  getStateAtTimestamp(
+    meetingId: string,
+    timestamp: number,
+  ): Promise<AgenticMeetingAnalysisState | null>;
+
   // Event subscription
-  subscribeToChanges(callback: (notification: StateChangeNotification) => void): void;
-  unsubscribeFromChanges(callback: (notification: StateChangeNotification) => void): void;
-  
+  subscribeToChanges(
+    callback: (notification: StateChangeNotification) => void,
+  ): void;
+  unsubscribeFromChanges(
+    callback: (notification: StateChangeNotification) => void,
+  ): void;
+
   // Utilities
   listMeetings(options?: {
     limit?: number;
@@ -250,10 +279,12 @@ export interface IStateRepository {
     status?: string;
     fromDate?: string;
     toDate?: string;
-  }): Promise<{
-    meetingId: string;
-    title?: string;
-    date?: string;
-    status: string;
-  }[]>;
-} 
+  }): Promise<
+    {
+      meetingId: string;
+      title?: string;
+      date?: string;
+      status: string;
+    }[]
+  >;
+}

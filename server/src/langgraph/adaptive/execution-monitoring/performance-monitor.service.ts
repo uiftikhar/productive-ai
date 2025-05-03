@@ -11,33 +11,43 @@ import {
 /**
  * Implementation of the performance monitoring service
  */
-export class PerformanceMonitorServiceImpl implements PerformanceMonitorService {
+export class PerformanceMonitorServiceImpl
+  implements PerformanceMonitorService
+{
   private logger: Logger;
   private metrics: Map<string, PerformanceMetric> = new Map();
   private taskMetrics: Map<string, TaskExecutionMetrics> = new Map();
-  private metricChangeListeners: Map<string, ((metric: PerformanceMetric) => void)[]> = new Map();
-  private historicalData: Map<string, {
-    timestamps: Date[];
-    values: number[];
-  }> = new Map();
+  private metricChangeListeners: Map<
+    string,
+    ((metric: PerformanceMetric) => void)[]
+  > = new Map();
+  private historicalData: Map<
+    string,
+    {
+      timestamps: Date[];
+      values: number[];
+    }
+  > = new Map();
   private anomalyDetectionThreshold = 2.0; // Standard deviations for anomaly detection
   private dataRetentionLimit = 100; // Maximum historical data points to keep
 
-  constructor(options: {
-    logger?: Logger;
-    anomalyDetectionThreshold?: number;
-    dataRetentionLimit?: number;
-  } = {}) {
+  constructor(
+    options: {
+      logger?: Logger;
+      anomalyDetectionThreshold?: number;
+      dataRetentionLimit?: number;
+    } = {},
+  ) {
     this.logger = options.logger || new ConsoleLogger();
-    
+
     if (options.anomalyDetectionThreshold !== undefined) {
       this.anomalyDetectionThreshold = options.anomalyDetectionThreshold;
     }
-    
+
     if (options.dataRetentionLimit !== undefined) {
       this.dataRetentionLimit = options.dataRetentionLimit;
     }
-    
+
     this.logger.info('Performance monitor service initialized', {
       anomalyDetectionThreshold: this.anomalyDetectionThreshold,
       dataRetentionLimit: this.dataRetentionLimit,
@@ -47,7 +57,9 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
   /**
    * Register a new performance metric
    */
-  registerMetric(metric: Omit<PerformanceMetric, 'timestamp' | 'trendData'>): string {
+  registerMetric(
+    metric: Omit<PerformanceMetric, 'timestamp' | 'trendData'>,
+  ): string {
     const metricId = metric.id || uuidv4();
     const now = new Date();
 
@@ -64,19 +76,22 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
 
     // Store the metric
     this.metrics.set(metricId, fullMetric);
-    
+
     // Initialize historical data
     this.historicalData.set(metricId, {
       timestamps: [now],
       values: [metric.value],
     });
 
-    this.logger.info(`Registered performance metric: ${metric.name} (${metricId})`, {
-      metricId,
-      name: metric.name,
-      value: metric.value,
-      unit: metric.unit,
-    });
+    this.logger.info(
+      `Registered performance metric: ${metric.name} (${metricId})`,
+      {
+        metricId,
+        name: metric.name,
+        value: metric.value,
+        unit: metric.unit,
+      },
+    );
 
     return metricId;
   }
@@ -92,19 +107,19 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
     }
 
     const now = new Date();
-    
+
     // Update historical data
     const history = this.historicalData.get(metricId);
     if (history) {
       history.timestamps.push(now);
       history.values.push(value);
-      
+
       // Trim history if exceeds limit
       if (history.timestamps.length > this.dataRetentionLimit) {
         history.timestamps = history.timestamps.slice(-this.dataRetentionLimit);
         history.values = history.values.slice(-this.dataRetentionLimit);
       }
-      
+
       this.historicalData.set(metricId, history);
     }
 
@@ -125,11 +140,14 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
     // Check if the metric indicates a significant status change
     const status = this.getMetricStatus(updatedMetric);
     if (this.isSignificantStatusChange(status)) {
-      this.logger.info(`Significant status change in metric ${metric.name}: ${status}`, {
-        metricId,
-        value,
-        status,
-      });
+      this.logger.info(
+        `Significant status change in metric ${metric.name}: ${status}`,
+        {
+          metricId,
+          value,
+          status,
+        },
+      );
     }
 
     // Notify listeners
@@ -150,11 +168,11 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
    */
   getAllMetrics(): Record<string, PerformanceMetric> {
     const result: Record<string, PerformanceMetric> = {};
-    
+
     for (const [id, metric] of this.metrics.entries()) {
       result[id] = metric;
     }
-    
+
     return result;
   }
 
@@ -168,8 +186,8 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
     }
 
     // Get status level for each metric
-    const statusLevels = metrics.map(metric => this.getMetricStatus(metric));
-    
+    const statusLevels = metrics.map((metric) => this.getMetricStatus(metric));
+
     // Count status level occurrences
     const statusCounts: Record<ExecutionStatusLevel, number> = {
       [ExecutionStatusLevel.OPTIMAL]: 0,
@@ -180,11 +198,11 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
       [ExecutionStatusLevel.CRITICAL]: 0,
       [ExecutionStatusLevel.FAILED]: 0,
     };
-    
+
     for (const status of statusLevels) {
       statusCounts[status]++;
     }
-    
+
     // Determine overall status using a pessimistic approach:
     // - If any metric is FAILED, the system is FAILED
     // - If any metric is CRITICAL, the system is CRITICAL
@@ -217,9 +235,12 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
   /**
    * Update metrics for a specific task
    */
-  updateTaskMetrics(taskId: string, metrics: Partial<TaskExecutionMetrics>): boolean {
+  updateTaskMetrics(
+    taskId: string,
+    metrics: Partial<TaskExecutionMetrics>,
+  ): boolean {
     const existingMetrics = this.taskMetrics.get(taskId);
-    
+
     // Create or update task metrics
     if (existingMetrics) {
       // Merge existing metrics with updates
@@ -227,7 +248,7 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
         ...existingMetrics,
         ...metrics,
       };
-      
+
       // Merge resource utilization if provided
       if (metrics.resourceUtilization) {
         updatedMetrics.resourceUtilization = {
@@ -235,15 +256,12 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
           ...metrics.resourceUtilization,
         };
       }
-      
+
       // Add to events if provided
       if (metrics.events && metrics.events.length > 0) {
-        updatedMetrics.events = [
-          ...existingMetrics.events,
-          ...metrics.events,
-        ];
+        updatedMetrics.events = [...existingMetrics.events, ...metrics.events];
       }
-      
+
       // Add to status history if status changed
       if (metrics.status && metrics.status !== existingMetrics.status) {
         updatedMetrics.statusHistory = [
@@ -255,7 +273,7 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
           },
         ];
       }
-      
+
       // Store updated metrics
       this.taskMetrics.set(taskId, updatedMetrics);
     } else {
@@ -276,7 +294,7 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
         ],
         ...metrics,
       };
-      
+
       // Initialize events if not provided
       if (!metrics.events || metrics.events.length === 0) {
         newMetrics.events = [
@@ -287,16 +305,16 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
           },
         ];
       }
-      
+
       // Store new metrics
       this.taskMetrics.set(taskId, newMetrics);
     }
-    
+
     this.logger.debug(`Updated metrics for task ${taskId}`, {
       taskId,
       metrics: Object.keys(metrics),
     });
-    
+
     return true;
   }
 
@@ -307,13 +325,13 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
     const now = new Date();
     const metrics = Array.from(this.metrics.values());
     const tasks = Array.from(this.taskMetrics.values());
-    
+
     // Calculate overall status
     const overallStatus = this.getExecutionStatus();
-    
+
     // Calculate metrics by status
     const metricsByStatus: Record<string, string[]> = {};
-    
+
     for (const metric of metrics) {
       const status = this.getMetricStatus(metric);
       if (!metricsByStatus[status]) {
@@ -321,37 +339,42 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
       }
       metricsByStatus[status].push(metric.id);
     }
-    
+
     // Calculate tasks by status
     const tasksByStatus: Record<string, string[]> = {};
-    
+
     for (const task of tasks) {
       if (!tasksByStatus[task.status]) {
         tasksByStatus[task.status] = [];
       }
       tasksByStatus[task.status].push(task.taskId);
     }
-    
+
     // Identify resources with highest utilization
     const resourceUtilization: Record<string, number> = {};
-    
+
     for (const task of tasks) {
-      for (const [resourceId, utilization] of Object.entries(task.resourceUtilization)) {
-        if (!resourceUtilization[resourceId] || utilization > resourceUtilization[resourceId]) {
+      for (const [resourceId, utilization] of Object.entries(
+        task.resourceUtilization,
+      )) {
+        if (
+          !resourceUtilization[resourceId] ||
+          utilization > resourceUtilization[resourceId]
+        ) {
           resourceUtilization[resourceId] = utilization;
         }
       }
     }
-    
+
     // Sort resources by utilization (descending)
     const sortedResources = Object.entries(resourceUtilization)
       .sort(([, a], [, b]) => b - a)
       .slice(0, 5) // Top 5 most utilized resources
       .reduce((obj, [key, value]) => ({ ...obj, [key]: value }), {});
-    
+
     // Detect anomalies
     const anomalies = this.detectAnomalies();
-    
+
     return {
       timestamp: now,
       overallStatus,
@@ -361,7 +384,8 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
       tasksByStatus,
       topResourceUtilization: sortedResources,
       anomalyCount: anomalies.length,
-      criticalAnomalyCount: anomalies.filter(a => a.severity === 'critical').length,
+      criticalAnomalyCount: anomalies.filter((a) => a.severity === 'critical')
+        .length,
     };
   }
 
@@ -393,7 +417,9 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
       // Calculate mean and standard deviation
       const values = history.values;
       const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
-      const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+      const variance =
+        values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) /
+        values.length;
       const stdDev = Math.sqrt(variance);
 
       // Check if current value is an anomaly
@@ -404,7 +430,7 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
       if (deviationRatio >= this.anomalyDetectionThreshold) {
         // Determine severity based on how extreme the anomaly is
         let severity: 'low' | 'medium' | 'high' | 'critical';
-        
+
         if (deviationRatio >= 5.0) {
           severity = 'critical';
         } else if (deviationRatio >= 4.0) {
@@ -417,7 +443,7 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
 
         // Check which threshold was crossed
         const threshold = this.getClosestThreshold(metric, currentValue);
-        
+
         anomalies.push({
           metricId,
           severity,
@@ -434,7 +460,10 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
   /**
    * Subscribe to changes in a metric
    */
-  subscribeToMetricChanges(metricId: string, callback: (metric: PerformanceMetric) => void): () => void {
+  subscribeToMetricChanges(
+    metricId: string,
+    callback: (metric: PerformanceMetric) => void,
+  ): () => void {
     if (!this.metricChangeListeners.has(metricId)) {
       this.metricChangeListeners.set(metricId, []);
     }
@@ -447,7 +476,7 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
       if (listeners) {
         this.metricChangeListeners.set(
           metricId,
-          listeners.filter(cb => cb !== callback)
+          listeners.filter((cb) => cb !== callback),
         );
       }
     };
@@ -479,15 +508,20 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
    */
   private isSignificantStatusChange(status: ExecutionStatusLevel): boolean {
     // Consider problematic, critical, and failed as significant status levels
-    return status === ExecutionStatusLevel.PROBLEMATIC ||
-           status === ExecutionStatusLevel.CRITICAL ||
-           status === ExecutionStatusLevel.FAILED;
+    return (
+      status === ExecutionStatusLevel.PROBLEMATIC ||
+      status === ExecutionStatusLevel.CRITICAL ||
+      status === ExecutionStatusLevel.FAILED
+    );
   }
 
   /**
    * Get the closest threshold that was crossed
    */
-  private getClosestThreshold(metric: PerformanceMetric, value: number): number {
+  private getClosestThreshold(
+    metric: PerformanceMetric,
+    value: number,
+  ): number {
     const { thresholds } = metric;
     const thresholdValues = [
       thresholds.optimal,
@@ -500,21 +534,28 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
 
     // Find the closest threshold to the current value
     return thresholdValues.reduce((closest, threshold) => {
-      return Math.abs(value - threshold) < Math.abs(value - closest) ? threshold : closest;
+      return Math.abs(value - threshold) < Math.abs(value - closest)
+        ? threshold
+        : closest;
     }, thresholdValues[0]);
   }
 
   /**
    * Notify metric change listeners
    */
-  private notifyMetricListeners(metricId: string, metric: PerformanceMetric): void {
+  private notifyMetricListeners(
+    metricId: string,
+    metric: PerformanceMetric,
+  ): void {
     const listeners = this.metricChangeListeners.get(metricId) || [];
-    
+
     for (const listener of listeners) {
       try {
         listener(metric);
       } catch (error) {
-        this.logger.error(`Error in metric change listener for ${metricId}`, { error });
+        this.logger.error(`Error in metric change listener for ${metricId}`, {
+          error,
+        });
       }
     }
   }
@@ -522,7 +563,11 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
   /**
    * Add a task completion event
    */
-  recordTaskCompletion(taskId: string, duration: number, success: boolean): boolean {
+  recordTaskCompletion(
+    taskId: string,
+    duration: number,
+    success: boolean,
+  ): boolean {
     const task = this.taskMetrics.get(taskId);
     if (!task) {
       this.logger.warn(`Cannot record completion for unknown task: ${taskId}`);
@@ -531,7 +576,7 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
 
     const now = new Date();
     const status = success ? 'completed' : 'failed';
-    
+
     // Create updated task metrics
     const updatedMetrics: TaskExecutionMetrics = {
       ...task,
@@ -543,7 +588,9 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
         {
           timestamp: now,
           type: success ? 'completion' : 'failure',
-          description: success ? `Task completed successfully in ${duration}ms` : `Task failed after ${duration}ms`,
+          description: success
+            ? `Task completed successfully in ${duration}ms`
+            : `Task failed after ${duration}ms`,
         },
       ],
       statusHistory: [
@@ -577,4 +624,4 @@ export class PerformanceMonitorServiceImpl implements PerformanceMonitorService 
     this.historicalData.clear();
     this.logger.info('All metrics cleared');
   }
-} 
+}

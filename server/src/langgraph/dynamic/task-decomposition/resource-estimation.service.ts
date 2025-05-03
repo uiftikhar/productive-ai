@@ -1,7 +1,11 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ChatOpenAI } from '@langchain/openai';
-import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { JsonOutputParser } from "@langchain/core/output_parsers";
+import {
+  BaseMessage,
+  HumanMessage,
+  SystemMessage,
+} from '@langchain/core/messages';
+import { JsonOutputParser } from '@langchain/core/output_parsers';
 
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
@@ -26,7 +30,9 @@ export interface ResourceEstimationConfig {
 /**
  * Service for estimating resource requirements for tasks
  */
-export class ResourceEstimationService implements Pick<TaskAnalyzer, 'estimateResources'> {
+export class ResourceEstimationService
+  implements Pick<TaskAnalyzer, 'estimateResources'>
+{
   private static instance: ResourceEstimationService;
   private logger: Logger;
   private llm: ChatOpenAI;
@@ -50,9 +56,13 @@ export class ResourceEstimationService implements Pick<TaskAnalyzer, 'estimateRe
   /**
    * Get the singleton instance
    */
-  public static getInstance(config: ResourceEstimationConfig = {}): ResourceEstimationService {
+  public static getInstance(
+    config: ResourceEstimationConfig = {},
+  ): ResourceEstimationService {
     if (!ResourceEstimationService.instance) {
-      ResourceEstimationService.instance = new ResourceEstimationService(config);
+      ResourceEstimationService.instance = new ResourceEstimationService(
+        config,
+      );
     }
     return ResourceEstimationService.instance;
   }
@@ -69,14 +79,17 @@ export class ResourceEstimationService implements Pick<TaskAnalyzer, 'estimateRe
 
     try {
       // Generate resource requirements using LLM
-      const resourceRequirements = await this.generateResourceRequirements(description, context);
-      
+      const resourceRequirements = await this.generateResourceRequirements(
+        description,
+        context,
+      );
+
       return resourceRequirements;
     } catch (error) {
       this.logger.error(`Error estimating resources for task ${taskId}`, {
         error: error instanceof Error ? error.message : String(error),
       });
-      
+
       // Return basic resource requirements as fallback
       return this.generateFallbackResourceRequirements();
     }
@@ -90,7 +103,7 @@ export class ResourceEstimationService implements Pick<TaskAnalyzer, 'estimateRe
     context: Record<string, any> = {},
   ): Promise<ResourceRequirement[]> {
     const resourceTypesStr = Object.values(ResourceType)
-      .map(type => `- ${type}: ${this.describeResourceType(type)}`)
+      .map((type) => `- ${type}: ${this.describeResourceType(type)}`)
       .join('\n');
 
     const systemPrompt = `You are an expert task resource analyzer. Analyze the provided task description and estimate its resource requirements.
@@ -121,7 +134,8 @@ Focus on the most important resource requirements. Only include resources that a
     // Add context to the human message if available
     let contextInfo = '';
     if (Object.keys(context).length > 0) {
-      contextInfo = '\n\nAdditional context:\n' + 
+      contextInfo =
+        '\n\nAdditional context:\n' +
         Object.entries(context)
           .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
           .join('\n');
@@ -139,19 +153,25 @@ Focus on the most important resource requirements. Only include resources that a
       const response = await this.llm.pipe(parser).invoke(messages);
 
       // Validate and map the response to proper ResourceRequirement objects
-      const resourceRequirements: ResourceRequirement[] = Array.isArray(response)
+      const resourceRequirements: ResourceRequirement[] = Array.isArray(
+        response,
+      )
         ? response
-            .filter(req => 
-              req &&
-              req.resourceType && 
-              req.quantity !== undefined &&
-              req.description)
-            .map(req => createResourceRequirement(
-              this.mapResourceType(req.resourceType),
-              req.quantity,
-              req.description,
-              req.isRequired !== undefined ? req.isRequired : true
-            ))
+            .filter(
+              (req) =>
+                req &&
+                req.resourceType &&
+                req.quantity !== undefined &&
+                req.description,
+            )
+            .map((req) =>
+              createResourceRequirement(
+                this.mapResourceType(req.resourceType),
+                req.quantity,
+                req.description,
+                req.isRequired !== undefined ? req.isRequired : true,
+              ),
+            )
         : [];
 
       return resourceRequirements;
@@ -172,19 +192,19 @@ Focus on the most important resource requirements. Only include resources that a
         ResourceType.COMPUTATION,
         50,
         'Default computation requirement estimation',
-        true
+        true,
       ),
       createResourceRequirement(
         ResourceType.MEMORY,
         50,
         'Default memory requirement estimation',
-        true
+        true,
       ),
       createResourceRequirement(
         ResourceType.TIME,
         50,
         'Default time requirement estimation',
-        true
+        true,
       ),
     ];
   }
@@ -224,7 +244,7 @@ Focus on the most important resource requirements. Only include resources that a
         if (type.includes('API')) return ResourceType.API_ACCESS;
         if (type.includes('DATA')) return ResourceType.DATA_ACCESS;
         if (type.includes('COORDINATION')) return ResourceType.COORDINATION;
-        
+
         return ResourceType.TIME; // Default to time when unsure
     }
   }
@@ -256,4 +276,4 @@ Focus on the most important resource requirements. Only include resources that a
         return 'Undefined resource type';
     }
   }
-} 
+}

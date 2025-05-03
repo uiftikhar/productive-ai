@@ -1,6 +1,6 @@
 /**
  * Visualization Services - Milestone 4
- * 
+ *
  * This module exports all visualization services for the Emergent Workflow Visualization
  * system. These services provide capabilities for visualizing workflows, agent reasoning,
  * team dynamics, and interactive workflow inspection.
@@ -35,7 +35,7 @@ export {
   GraphNode,
   GraphEdge,
   Graph,
-  
+
   // Visualization service interfaces
   RealTimeGraphRenderer,
   PathHighlighting,
@@ -49,7 +49,7 @@ export {
   InteractiveNodeExploration,
   StateInspection,
   HumanIntervention,
-  
+
   // Data structures
   DecisionPoint,
   ReasoningPath,
@@ -57,5 +57,5 @@ export {
   CommunicationEvent,
   ExpertiseContribution,
   InterventionPoint,
-  GraphHistorySnapshot
-} from '../interfaces/visualization.interface'; 
+  GraphHistorySnapshot,
+} from '../interfaces/visualization.interface';

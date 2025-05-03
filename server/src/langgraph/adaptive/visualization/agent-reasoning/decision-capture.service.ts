@@ -3,7 +3,7 @@ import { Logger } from '../../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../../shared/logger/console-logger';
 import {
   DecisionCapture,
-  DecisionPoint
+  DecisionPoint,
 } from '../../interfaces/visualization.interface';
 
 /**
@@ -18,9 +18,11 @@ export class DecisionCaptureImpl implements DecisionCapture {
   private decisionTags: Map<string, string[]> = new Map(); // decisionId -> tags
   private decisionAnnotations: Map<string, string> = new Map(); // decisionId -> annotation
 
-  constructor(options: {
-    logger?: Logger;
-  } = {}) {
+  constructor(
+    options: {
+      logger?: Logger;
+    } = {},
+  ) {
     this.logger = options.logger || new ConsoleLogger();
     this.logger.info('Decision capture service initialized');
   }
@@ -31,25 +33,25 @@ export class DecisionCaptureImpl implements DecisionCapture {
   recordDecisionPoint(decision: Omit<DecisionPoint, 'id'>): string {
     const id = uuidv4();
     const now = new Date();
-    
+
     // Ensure timestamp is set
     const timestamp = decision.timestamp || now;
-    
+
     const decisionPoint: DecisionPoint = {
       ...decision,
       id,
-      timestamp
+      timestamp,
     };
-    
+
     // Store the decision
     this.decisions.set(id, decisionPoint);
-    
+
     // Update agent decisions index
     if (!this.agentDecisions.has(decision.agentId)) {
       this.agentDecisions.set(decision.agentId, []);
     }
     this.agentDecisions.get(decision.agentId)?.push(id);
-    
+
     // Update task decisions index if taskId is present
     if (decision.taskId) {
       if (!this.taskDecisions.has(decision.taskId)) {
@@ -57,9 +59,11 @@ export class DecisionCaptureImpl implements DecisionCapture {
       }
       this.taskDecisions.get(decision.taskId)?.push(id);
     }
-    
-    this.logger.info(`Recorded decision point ${id} for agent ${decision.agentId}`);
-    
+
+    this.logger.info(
+      `Recorded decision point ${id} for agent ${decision.agentId}`,
+    );
+
     return id;
   }
 
@@ -68,28 +72,32 @@ export class DecisionCaptureImpl implements DecisionCapture {
    */
   getDecisionPoint(decisionId: string): DecisionPoint {
     const decision = this.decisions.get(decisionId);
-    
+
     if (!decision) {
       this.logger.warn(`Decision point not found: ${decisionId}`);
       throw new Error(`Decision point not found: ${decisionId}`);
     }
-    
+
     return { ...decision }; // Return a copy to prevent modification
   }
 
   /**
    * Get decisions by agent within an optional time range
    */
-  getDecisionsByAgent(agentId: string, startTime?: Date, endTime?: Date): DecisionPoint[] {
+  getDecisionsByAgent(
+    agentId: string,
+    startTime?: Date,
+    endTime?: Date,
+  ): DecisionPoint[] {
     const decisionIds = this.agentDecisions.get(agentId) || [];
-    
+
     let decisions = decisionIds
-      .map(id => this.decisions.get(id))
+      .map((id) => this.decisions.get(id))
       .filter(Boolean) as DecisionPoint[];
-    
+
     // Filter by time range if provided
     if (startTime || endTime) {
-      decisions = decisions.filter(decision => {
+      decisions = decisions.filter((decision) => {
         if (startTime && decision.timestamp < startTime) {
           return false;
         }
@@ -99,11 +107,11 @@ export class DecisionCaptureImpl implements DecisionCapture {
         return true;
       });
     }
-    
+
     // Sort by timestamp (newest first)
     decisions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-    
-    return decisions.map(decision => ({ ...decision })); // Return copies
+
+    return decisions.map((decision) => ({ ...decision })); // Return copies
   }
 
   /**
@@ -111,15 +119,15 @@ export class DecisionCaptureImpl implements DecisionCapture {
    */
   getDecisionsByTask(taskId: string): DecisionPoint[] {
     const decisionIds = this.taskDecisions.get(taskId) || [];
-    
+
     const decisions = decisionIds
-      .map(id => this.decisions.get(id))
+      .map((id) => this.decisions.get(id))
       .filter(Boolean) as DecisionPoint[];
-    
+
     // Sort by timestamp (newest first)
     decisions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-    
-    return decisions.map(decision => ({ ...decision })); // Return copies
+
+    return decisions.map((decision) => ({ ...decision })); // Return copies
   }
 
   /**
@@ -130,12 +138,12 @@ export class DecisionCaptureImpl implements DecisionCapture {
       this.logger.warn(`Cannot tag non-existent decision: ${decisionId}`);
       return false;
     }
-    
+
     // Store tags
     this.decisionTags.set(decisionId, [...tags]);
-    
+
     this.logger.debug(`Tagged decision ${decisionId} with: ${tags.join(', ')}`);
-    
+
     return true;
   }
 
@@ -147,12 +155,12 @@ export class DecisionCaptureImpl implements DecisionCapture {
       this.logger.warn(`Cannot annotate non-existent decision: ${decisionId}`);
       return false;
     }
-    
+
     // Store annotation
     this.decisionAnnotations.set(decisionId, annotation);
-    
+
     this.logger.debug(`Annotated decision ${decisionId}`);
-    
+
     return true;
   }
 
@@ -163,34 +171,40 @@ export class DecisionCaptureImpl implements DecisionCapture {
     if (!query || query.trim() === '') {
       return [];
     }
-    
+
     const searchTerms = query.toLowerCase().split(/\s+/);
-    
+
     const matchingDecisions: DecisionPoint[] = [];
-    
+
     // Check each decision for matches
     for (const decision of this.decisions.values()) {
       // Check if any search term matches any field
-      const isMatch = searchTerms.some(term => {
+      const isMatch = searchTerms.some((term) => {
         // Check reasoning
-        if (decision.reasoning && decision.reasoning.toLowerCase().includes(term)) {
+        if (
+          decision.reasoning &&
+          decision.reasoning.toLowerCase().includes(term)
+        ) {
           return true;
         }
-        
+
         // Check result
         if (decision.result && decision.result.toLowerCase().includes(term)) {
           return true;
         }
-        
+
         // Check options descriptions
-        if (decision.options.some(option => 
-          option.description.toLowerCase().includes(term) ||
-          option.pros.some(pro => pro.toLowerCase().includes(term)) ||
-          option.cons.some(con => con.toLowerCase().includes(term))
-        )) {
+        if (
+          decision.options.some(
+            (option) =>
+              option.description.toLowerCase().includes(term) ||
+              option.pros.some((pro) => pro.toLowerCase().includes(term)) ||
+              option.cons.some((con) => con.toLowerCase().includes(term)),
+          )
+        ) {
           return true;
         }
-        
+
         // Check metadata if exists
         if (decision.metadata) {
           const metadataStr = JSON.stringify(decision.metadata).toLowerCase();
@@ -198,30 +212,32 @@ export class DecisionCaptureImpl implements DecisionCapture {
             return true;
           }
         }
-        
+
         // Check tags if exists
         const tags = this.decisionTags.get(decision.id) || [];
-        if (tags.some(tag => tag.toLowerCase().includes(term))) {
+        if (tags.some((tag) => tag.toLowerCase().includes(term))) {
           return true;
         }
-        
+
         // Check annotation if exists
         const annotation = this.decisionAnnotations.get(decision.id);
         if (annotation && annotation.toLowerCase().includes(term)) {
           return true;
         }
-        
+
         return false;
       });
-      
+
       if (isMatch) {
         matchingDecisions.push({ ...decision }); // Add a copy
       }
     }
-    
+
     // Sort by timestamp (newest first)
-    matchingDecisions.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-    
+    matchingDecisions.sort(
+      (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
+    );
+
     return matchingDecisions;
   }
 
@@ -244,40 +260,40 @@ export class DecisionCaptureImpl implements DecisionCapture {
    */
   deleteDecisionPoint(decisionId: string): boolean {
     const decision = this.decisions.get(decisionId);
-    
+
     if (!decision) {
       return false;
     }
-    
+
     // Remove from main map
     this.decisions.delete(decisionId);
-    
+
     // Remove from agent index
     const agentDecisions = this.agentDecisions.get(decision.agentId);
     if (agentDecisions) {
       this.agentDecisions.set(
         decision.agentId,
-        agentDecisions.filter(id => id !== decisionId)
+        agentDecisions.filter((id) => id !== decisionId),
       );
     }
-    
+
     // Remove from task index if applicable
     if (decision.taskId) {
       const taskDecisions = this.taskDecisions.get(decision.taskId);
       if (taskDecisions) {
         this.taskDecisions.set(
           decision.taskId,
-          taskDecisions.filter(id => id !== decisionId)
+          taskDecisions.filter((id) => id !== decisionId),
         );
       }
     }
-    
+
     // Remove tags and annotations
     this.decisionTags.delete(decisionId);
     this.decisionAnnotations.delete(decisionId);
-    
+
     this.logger.info(`Deleted decision point ${decisionId}`);
-    
+
     return true;
   }
 
@@ -287,40 +303,42 @@ export class DecisionCaptureImpl implements DecisionCapture {
   getDecisionStatistics(): Record<string, any> {
     const agents = new Set<string>();
     const tasks = new Set<string>();
-    
+
     let totalOptions = 0;
     let totalConfidence = 0;
     let confidentDecisions = 0;
-    
+
     // Process all decisions
     for (const decision of this.decisions.values()) {
       agents.add(decision.agentId);
       if (decision.taskId) {
         tasks.add(decision.taskId);
       }
-      
+
       // Count options
       totalOptions += decision.options.length;
-      
+
       // Calculate confidence metrics
-      const selectedOption = decision.options.find(opt => opt.selected);
+      const selectedOption = decision.options.find((opt) => opt.selected);
       if (selectedOption) {
         totalConfidence += selectedOption.confidence;
         confidentDecisions++;
       }
     }
-    
+
     return {
       totalDecisions: this.decisions.size,
       uniqueAgents: agents.size,
       uniqueTasks: tasks.size,
-      averageOptionsPerDecision: this.decisions.size > 0 ? totalOptions / this.decisions.size : 0,
-      averageConfidence: confidentDecisions > 0 ? totalConfidence / confidentDecisions : 0,
+      averageOptionsPerDecision:
+        this.decisions.size > 0 ? totalOptions / this.decisions.size : 0,
+      averageConfidence:
+        confidentDecisions > 0 ? totalConfidence / confidentDecisions : 0,
       oldestDecision: this.getOldestDecisionDate(),
-      newestDecision: this.getNewestDecisionDate()
+      newestDecision: this.getNewestDecisionDate(),
     };
   }
-  
+
   /**
    * Get the date of the oldest decision
    */
@@ -328,18 +346,18 @@ export class DecisionCaptureImpl implements DecisionCapture {
     if (this.decisions.size === 0) {
       return null;
     }
-    
+
     let oldestDate: Date | null = null;
-    
+
     for (const decision of this.decisions.values()) {
       if (!oldestDate || decision.timestamp < oldestDate) {
         oldestDate = decision.timestamp;
       }
     }
-    
+
     return oldestDate;
   }
-  
+
   /**
    * Get the date of the newest decision
    */
@@ -347,15 +365,15 @@ export class DecisionCaptureImpl implements DecisionCapture {
     if (this.decisions.size === 0) {
       return null;
     }
-    
+
     let newestDate: Date | null = null;
-    
+
     for (const decision of this.decisions.values()) {
       if (!newestDate || decision.timestamp > newestDate) {
         newestDate = decision.timestamp;
       }
     }
-    
+
     return newestDate;
   }
-} 
+}

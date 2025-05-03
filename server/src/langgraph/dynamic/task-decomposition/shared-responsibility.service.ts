@@ -51,7 +51,13 @@ export interface ContributionRecord {
   agentId: string;
   responsibilityId: string;
   timestamp: number;
-  contributionType: 'code' | 'review' | 'documentation' | 'testing' | 'coordination' | 'other';
+  contributionType:
+    | 'code'
+    | 'review'
+    | 'documentation'
+    | 'testing'
+    | 'coordination'
+    | 'other';
   description: string;
   metrics: {
     timeSpent?: number; // milliseconds
@@ -88,11 +94,15 @@ export class SharedResponsibilityService {
   private readonly collaborativeTaskService: CollaborativeTaskDefinitionService;
   private readonly hierarchicalTaskService: HierarchicalTaskService;
   private readonly config: SharedResponsibilityConfig;
-  
+
   // In-memory store of responsibility assignments (in a real system, this would be persisted)
-  private readonly responsibilityAssignments: Map<string, ResponsibilityAssignment> = new Map();
-  private readonly contributionRecords: Map<string, ContributionRecord[]> = new Map();
-  
+  private readonly responsibilityAssignments: Map<
+    string,
+    ResponsibilityAssignment
+  > = new Map();
+  private readonly contributionRecords: Map<string, ContributionRecord[]> =
+    new Map();
+
   /**
    * Create a new shared responsibility service
    */
@@ -107,7 +117,7 @@ export class SharedResponsibilityService {
     this.collaborativeTaskService = collaborativeTaskService;
     this.hierarchicalTaskService = hierarchicalTaskService;
     this.logger = options.logger || new ConsoleLogger();
-    
+
     // Set default configuration
     this.config = {
       defaultPrimaryPercentage: 60,
@@ -123,7 +133,7 @@ export class SharedResponsibilityService {
       ...options.config,
     };
   }
-  
+
   /**
    * Assign a responsibility to an agent
    */
@@ -139,25 +149,32 @@ export class SharedResponsibilityService {
     if (!task) {
       throw new Error(`Task with ID ${taskId} not found`);
     }
-    
+
     // Validate the assignment
-    const validationResult = await this.validateAssignment(taskId, agentId, type, percentage);
+    const validationResult = await this.validateAssignment(
+      taskId,
+      agentId,
+      type,
+      percentage,
+    );
     if (!validationResult.valid) {
-      throw new Error(`Invalid responsibility assignment: ${validationResult.errors.join(', ')}`);
+      throw new Error(
+        `Invalid responsibility assignment: ${validationResult.errors.join(', ')}`,
+      );
     }
-    
+
     // Create the assignment
     const assignment = createResponsibilityAssignment(
       taskId,
       agentId,
       type,
       description,
-      percentage
+      percentage,
     );
-    
+
     // Store the assignment
     this.responsibilityAssignments.set(assignment.id, assignment);
-    
+
     this.logger.info('Responsibility assigned', {
       responsibilityId: assignment.id,
       taskId,
@@ -165,27 +182,29 @@ export class SharedResponsibilityService {
       type,
       percentage,
     });
-    
+
     // Initialize contribution records for this task/agent
     if (!this.contributionRecords.has(taskId)) {
       this.contributionRecords.set(taskId, []);
     }
-    
+
     return assignment;
   }
-  
+
   /**
    * Update an existing responsibility assignment
    */
   public async updateResponsibility(
     responsibilityId: string,
-    updates: Partial<Omit<ResponsibilityAssignment, 'id' | 'taskId' | 'agentId' | 'assignedAt'>>,
+    updates: Partial<
+      Omit<ResponsibilityAssignment, 'id' | 'taskId' | 'agentId' | 'assignedAt'>
+    >,
   ): Promise<ResponsibilityAssignment> {
     const responsibility = this.responsibilityAssignments.get(responsibilityId);
     if (!responsibility) {
       throw new Error(`Responsibility with ID ${responsibilityId} not found`);
     }
-    
+
     // Check if percentage is being updated
     if (updates.percentage !== undefined) {
       const validationResult = await this.validateAssignment(
@@ -193,122 +212,143 @@ export class SharedResponsibilityService {
         responsibility.agentId,
         updates.type || responsibility.type,
         updates.percentage,
-        responsibilityId
+        responsibilityId,
       );
-      
+
       if (!validationResult.valid) {
-        throw new Error(`Invalid responsibility update: ${validationResult.errors.join(', ')}`);
+        throw new Error(
+          `Invalid responsibility update: ${validationResult.errors.join(', ')}`,
+        );
       }
     }
-    
+
     // Apply updates
     const updatedAssignment = {
       ...responsibility,
       ...updates,
     };
-    
+
     // Store updated assignment
     this.responsibilityAssignments.set(responsibilityId, updatedAssignment);
-    
+
     this.logger.info('Responsibility updated', {
       responsibilityId,
       updates: Object.keys(updates).join(', '),
     });
-    
+
     return updatedAssignment;
   }
-  
+
   /**
    * Accept a responsibility assignment
    */
-  public async acceptResponsibility(responsibilityId: string): Promise<ResponsibilityAssignment> {
+  public async acceptResponsibility(
+    responsibilityId: string,
+  ): Promise<ResponsibilityAssignment> {
     const responsibility = this.responsibilityAssignments.get(responsibilityId);
     if (!responsibility) {
       throw new Error(`Responsibility with ID ${responsibilityId} not found`);
     }
-    
+
     const updatedAssignment = {
       ...responsibility,
       acceptedAt: Date.now(),
     };
-    
+
     this.responsibilityAssignments.set(responsibilityId, updatedAssignment);
-    
+
     this.logger.info('Responsibility accepted', {
       responsibilityId,
       agentId: responsibility.agentId,
     });
-    
+
     return updatedAssignment;
   }
-  
+
   /**
    * Complete a responsibility assignment
    */
-  public async completeResponsibility(responsibilityId: string): Promise<ResponsibilityAssignment> {
+  public async completeResponsibility(
+    responsibilityId: string,
+  ): Promise<ResponsibilityAssignment> {
     const responsibility = this.responsibilityAssignments.get(responsibilityId);
     if (!responsibility) {
       throw new Error(`Responsibility with ID ${responsibilityId} not found`);
     }
-    
+
     // Check if the responsibility was accepted first
     if (!responsibility.acceptedAt) {
-      throw new Error(`Responsibility with ID ${responsibilityId} must be accepted before completion`);
+      throw new Error(
+        `Responsibility with ID ${responsibilityId} must be accepted before completion`,
+      );
     }
-    
+
     const updatedAssignment = {
       ...responsibility,
       completedAt: Date.now(),
     };
-    
+
     this.responsibilityAssignments.set(responsibilityId, updatedAssignment);
-    
+
     this.logger.info('Responsibility completed', {
       responsibilityId,
       agentId: responsibility.agentId,
     });
-    
+
     // Check if all responsibilities are completed for this task
-    const taskResponsibilities = await this.getResponsibilities(responsibility.taskId);
-    const allCompleted = taskResponsibilities.every(r => !!r.completedAt);
-    
+    const taskResponsibilities = await this.getResponsibilities(
+      responsibility.taskId,
+    );
+    const allCompleted = taskResponsibilities.every((r) => !!r.completedAt);
+
     if (allCompleted) {
       // Update task status if all responsibilities are completed
       await this.hierarchicalTaskService.updateTask(responsibility.taskId, {
         status: TaskStatus.COMPLETED,
       });
-      
-      this.logger.info('All responsibilities completed, task marked as completed', {
-        taskId: responsibility.taskId,
-      });
+
+      this.logger.info(
+        'All responsibilities completed, task marked as completed',
+        {
+          taskId: responsibility.taskId,
+        },
+      );
     }
-    
+
     return updatedAssignment;
   }
-  
+
   /**
    * Get all responsibilities for a task
    */
-  public async getResponsibilities(taskId: string): Promise<ResponsibilityAssignment[]> {
-    return Array.from(this.responsibilityAssignments.values())
-      .filter(r => r.taskId === taskId);
+  public async getResponsibilities(
+    taskId: string,
+  ): Promise<ResponsibilityAssignment[]> {
+    return Array.from(this.responsibilityAssignments.values()).filter(
+      (r) => r.taskId === taskId,
+    );
   }
-  
+
   /**
    * Get all responsibilities for an agent
    */
-  public async getAgentResponsibilities(agentId: string): Promise<ResponsibilityAssignment[]> {
-    return Array.from(this.responsibilityAssignments.values())
-      .filter(r => r.agentId === agentId);
+  public async getAgentResponsibilities(
+    agentId: string,
+  ): Promise<ResponsibilityAssignment[]> {
+    return Array.from(this.responsibilityAssignments.values()).filter(
+      (r) => r.agentId === agentId,
+    );
   }
-  
+
   /**
    * Get a specific responsibility assignment
    */
-  public async getResponsibility(responsibilityId: string): Promise<ResponsibilityAssignment | null> {
+  public async getResponsibility(
+    responsibilityId: string,
+  ): Promise<ResponsibilityAssignment | null> {
     return this.responsibilityAssignments.get(responsibilityId) || null;
   }
-  
+
   /**
    * Validate a responsibility assignment
    */
@@ -321,81 +361,97 @@ export class SharedResponsibilityService {
   ): Promise<ResponsibilityValidationResult> {
     const errors: string[] = [];
     const warnings: string[] = [];
-    
+
     // Check percentage is in valid range
     if (percentage < 0 || percentage > 100) {
       errors.push(`Percentage must be between 0 and 100, got ${percentage}`);
     }
-    
+
     // Check if task has collaborative flag
     const task = await this.hierarchicalTaskService.getTask(taskId);
     if (!task) {
       errors.push(`Task with ID ${taskId} not found`);
       return { valid: false, errors, warnings };
     }
-    
+
     // Get existing responsibilities for this task
     const taskResponsibilities = await this.getResponsibilities(taskId);
-    
+
     // Filter out the current responsibility if this is an update
-    const otherResponsibilities = currentResponsibilityId 
-      ? taskResponsibilities.filter(r => r.id !== currentResponsibilityId)
+    const otherResponsibilities = currentResponsibilityId
+      ? taskResponsibilities.filter((r) => r.id !== currentResponsibilityId)
       : taskResponsibilities;
-    
+
     // Check if agent already has this type of responsibility for this task
     const existingTypeAssignment = otherResponsibilities.find(
-      r => r.agentId === agentId && r.type === type
+      (r) => r.agentId === agentId && r.type === type,
     );
-    
+
     if (existingTypeAssignment) {
-      errors.push(`Agent ${agentId} already has a ${type} responsibility for task ${taskId}`);
+      errors.push(
+        `Agent ${agentId} already has a ${type} responsibility for task ${taskId}`,
+      );
     }
-    
+
     // Check for balanced allocation if required
     if (this.config.requireBalancedAllocation) {
       let totalPercentage = percentage;
-      
+
       // Sum percentages of other responsibilities for this task
       for (const r of otherResponsibilities) {
         if (r.agentId === agentId) {
           totalPercentage += r.percentage;
         }
       }
-      
+
       if (totalPercentage > 100) {
-        errors.push(`Total responsibility percentage for agent ${agentId} would exceed 100%`);
+        errors.push(
+          `Total responsibility percentage for agent ${agentId} would exceed 100%`,
+        );
       } else if (totalPercentage > 80) {
-        warnings.push(`Agent ${agentId} would have ${totalPercentage}% responsibility allocation`);
+        warnings.push(
+          `Agent ${agentId} would have ${totalPercentage}% responsibility allocation`,
+        );
       }
     }
-    
+
     // Check maximum number of primary responsibilities
     if (type === ResponsibilityType.PRIMARY) {
-      const primaryCount = (await this.getAgentResponsibilities(agentId))
-        .filter(r => r.type === ResponsibilityType.PRIMARY && !r.completedAt)
-        .length;
-      
-      if (primaryCount >= (this.config.maxConcurrentPrimaryResponsibilities || 3)) {
-        errors.push(`Agent ${agentId} already has maximum number of primary responsibilities`);
+      const primaryCount = (
+        await this.getAgentResponsibilities(agentId)
+      ).filter(
+        (r) => r.type === ResponsibilityType.PRIMARY && !r.completedAt,
+      ).length;
+
+      if (
+        primaryCount >= (this.config.maxConcurrentPrimaryResponsibilities || 3)
+      ) {
+        errors.push(
+          `Agent ${agentId} already has maximum number of primary responsibilities`,
+        );
       }
     }
-    
+
     // Check total number of responsibilities
-    const totalResponsibilities = (await this.getAgentResponsibilities(agentId))
-      .filter(r => !r.completedAt)
-      .length;
-    
-    if (totalResponsibilities >= (this.config.maxResponsibilitiesPerAgent || 10)) {
-      warnings.push(`Agent ${agentId} already has ${totalResponsibilities} active responsibilities`);
+    const totalResponsibilities = (
+      await this.getAgentResponsibilities(agentId)
+    ).filter((r) => !r.completedAt).length;
+
+    if (
+      totalResponsibilities >= (this.config.maxResponsibilitiesPerAgent || 10)
+    ) {
+      warnings.push(
+        `Agent ${agentId} already has ${totalResponsibilities} active responsibilities`,
+      );
     }
-    
+
     return {
       valid: errors.length === 0,
       errors,
       warnings,
     };
   }
-  
+
   /**
    * Get default percentage for a responsibility type
    */
@@ -417,22 +473,23 @@ export class SharedResponsibilityService {
         return 10;
     }
   }
-  
+
   /**
    * Recommend responsibility distribution for a task
    */
   public async recommendResponsibilityDistribution(
     taskId: string,
     agents: string[],
-    strategy: 'balanced' | 'weighted' | 'expertise-based' = this.config.defaultDistributionStrategy || 'balanced',
+    strategy: 'balanced' | 'weighted' | 'expertise-based' = this.config
+      .defaultDistributionStrategy || 'balanced',
   ): Promise<Map<string, ResponsibilityType[]>> {
     const task = await this.hierarchicalTaskService.getTask(taskId);
     if (!task) {
       throw new Error(`Task with ID ${taskId} not found`);
     }
-    
+
     const recommendations = new Map<string, ResponsibilityType[]>();
-    
+
     // Simple implementation for now - in future, this would use LLM for sophisticated assignments
     switch (strategy) {
       case 'balanced':
@@ -453,36 +510,41 @@ export class SharedResponsibilityService {
           }
         }
         break;
-        
+
       case 'weighted':
         // To be implemented - based on agent capabilities and history
         break;
-        
+
       case 'expertise-based':
         // To be implemented - based on agent expertise matching task needs
         break;
     }
-    
+
     this.logger.info('Generated responsibility recommendations', {
       taskId,
       strategy,
       agentCount: agents.length,
     });
-    
+
     return recommendations;
   }
-  
+
   /**
    * Automatically distribute responsibilities
    */
   public async autoDistributeResponsibilities(
     taskId: string,
     agents: string[],
-    strategy: 'balanced' | 'weighted' | 'expertise-based' = this.config.defaultDistributionStrategy || 'balanced',
+    strategy: 'balanced' | 'weighted' | 'expertise-based' = this.config
+      .defaultDistributionStrategy || 'balanced',
   ): Promise<ResponsibilityAssignment[]> {
-    const recommendations = await this.recommendResponsibilityDistribution(taskId, agents, strategy);
+    const recommendations = await this.recommendResponsibilityDistribution(
+      taskId,
+      agents,
+      strategy,
+    );
     const assignments: ResponsibilityAssignment[] = [];
-    
+
     for (const [agentId, types] of recommendations.entries()) {
       for (const type of types) {
         try {
@@ -491,9 +553,9 @@ export class SharedResponsibilityService {
             agentId,
             type,
             `Auto-assigned ${type} responsibility`,
-            this.getDefaultPercentageForType(type)
+            this.getDefaultPercentageForType(type),
           );
-          
+
           assignments.push(assignment);
         } catch (error) {
           this.logger.error('Error auto-assigning responsibility', {
@@ -505,10 +567,10 @@ export class SharedResponsibilityService {
         }
       }
     }
-    
+
     return assignments;
   }
-  
+
   /**
    * Record a contribution from an agent
    */
@@ -525,12 +587,14 @@ export class SharedResponsibilityService {
     if (!responsibility) {
       throw new Error(`Responsibility with ID ${responsibilityId} not found`);
     }
-    
+
     // Check if the responsibility belongs to the agent
     if (responsibility.agentId !== agentId) {
-      throw new Error(`Responsibility with ID ${responsibilityId} does not belong to agent ${agentId}`);
+      throw new Error(
+        `Responsibility with ID ${responsibilityId} does not belong to agent ${agentId}`,
+      );
     }
-    
+
     // Create the contribution record
     const contribution: ContributionRecord = {
       id: uuidv4(),
@@ -543,24 +607,24 @@ export class SharedResponsibilityService {
       metrics,
       metadata: {},
     };
-    
+
     // Store the contribution
     if (!this.contributionRecords.has(taskId)) {
       this.contributionRecords.set(taskId, []);
     }
-    
+
     this.contributionRecords.get(taskId)!.push(contribution);
-    
+
     this.logger.info('Contribution recorded', {
       contributionId: contribution.id,
       taskId,
       agentId,
       type: contributionType,
     });
-    
+
     return contribution;
   }
-  
+
   /**
    * Review a contribution
    */
@@ -571,21 +635,26 @@ export class SharedResponsibilityService {
   ): Promise<ContributionRecord> {
     // Find the contribution
     for (const [taskId, contributions] of this.contributionRecords.entries()) {
-      const contributionIndex = contributions.findIndex(c => c.id === contributionId);
-      
+      const contributionIndex = contributions.findIndex(
+        (c) => c.id === contributionId,
+      );
+
       if (contributionIndex >= 0) {
         const contribution = contributions[contributionIndex];
-        
+
         // Check if the reviewer has a reviewer responsibility
         const reviewerResponsibilities = await this.getResponsibilities(taskId);
         const hasReviewerRole = reviewerResponsibilities.some(
-          r => r.agentId === reviewerId && r.type === ResponsibilityType.REVIEWER
+          (r) =>
+            r.agentId === reviewerId && r.type === ResponsibilityType.REVIEWER,
         );
-        
+
         if (!hasReviewerRole) {
-          throw new Error(`Agent ${reviewerId} does not have reviewer responsibility for task ${taskId}`);
+          throw new Error(
+            `Agent ${reviewerId} does not have reviewer responsibility for task ${taskId}`,
+          );
         }
-        
+
         // Update the contribution
         const updatedContribution = {
           ...contribution,
@@ -593,45 +662,53 @@ export class SharedResponsibilityService {
           reviewedBy: reviewerId,
           reviewedAt: Date.now(),
         };
-        
+
         contributions[contributionIndex] = updatedContribution;
-        
+
         this.logger.info('Contribution reviewed', {
           contributionId,
           reviewerId,
           status: reviewStatus,
         });
-        
+
         return updatedContribution;
       }
     }
-    
+
     throw new Error(`Contribution with ID ${contributionId} not found`);
   }
-  
+
   /**
    * Get contribution summary for an agent on a task
    */
-  public async getAgentContributionSummary(taskId: string, agentId: string): Promise<AgentContributionSummary> {
+  public async getAgentContributionSummary(
+    taskId: string,
+    agentId: string,
+  ): Promise<AgentContributionSummary> {
     const contributions = this.contributionRecords.get(taskId) || [];
-    const agentContributions = contributions.filter(c => c.agentId === agentId);
-    
+    const agentContributions = contributions.filter(
+      (c) => c.agentId === agentId,
+    );
+
     // Count contributions by type
     const contributionsByType: Record<string, number> = {};
     for (const contribution of agentContributions) {
-      contributionsByType[contribution.contributionType] = (contributionsByType[contribution.contributionType] || 0) + 1;
+      contributionsByType[contribution.contributionType] =
+        (contributionsByType[contribution.contributionType] || 0) + 1;
     }
-    
+
     // Calculate total time spent
     const totalTimeSpent = agentContributions.reduce(
       (sum, c) => sum + (c.metrics.timeSpent || 0),
-      0
+      0,
     );
-    
+
     // Get responsibilities
     const responsibilities = await this.getResponsibilities(taskId);
-    const agentResponsibilities = responsibilities.filter(r => r.agentId === agentId);
-    
+    const agentResponsibilities = responsibilities.filter(
+      (r) => r.agentId === agentId,
+    );
+
     // Calculate summary
     const summary: AgentContributionSummary = {
       agentId,
@@ -639,15 +716,22 @@ export class SharedResponsibilityService {
       totalContributions: agentContributions.length,
       contributionsByType,
       totalTimeSpent,
-      effectivenessScore: this.calculateEffectivenessScore(agentContributions, agentResponsibilities),
-      completedResponsibilities: agentResponsibilities.filter(r => !!r.completedAt).length,
-      pendingResponsibilities: agentResponsibilities.filter(r => !r.completedAt).length,
+      effectivenessScore: this.calculateEffectivenessScore(
+        agentContributions,
+        agentResponsibilities,
+      ),
+      completedResponsibilities: agentResponsibilities.filter(
+        (r) => !!r.completedAt,
+      ).length,
+      pendingResponsibilities: agentResponsibilities.filter(
+        (r) => !r.completedAt,
+      ).length,
       metadata: {},
     };
-    
+
     return summary;
   }
-  
+
   /**
    * Calculate an effectiveness score based on contributions and responsibilities
    */
@@ -658,35 +742,48 @@ export class SharedResponsibilityService {
     if (responsibilities.length === 0) {
       return 0;
     }
-    
+
     // Simple scoring logic - could be much more sophisticated
-    const completionRatio = responsibilities.filter(r => !!r.completedAt).length / responsibilities.length;
-    const approvedContributions = contributions.filter(c => c.reviewStatus === 'approved').length;
-    const approvalRatio = contributions.length === 0 ? 0 : approvedContributions / contributions.length;
-    
-    return (completionRatio * 0.6) + (approvalRatio * 0.4);
+    const completionRatio =
+      responsibilities.filter((r) => !!r.completedAt).length /
+      responsibilities.length;
+    const approvedContributions = contributions.filter(
+      (c) => c.reviewStatus === 'approved',
+    ).length;
+    const approvalRatio =
+      contributions.length === 0
+        ? 0
+        : approvedContributions / contributions.length;
+
+    return completionRatio * 0.6 + approvalRatio * 0.4;
   }
-  
+
   /**
    * Get all contributions for a task
    */
-  public async getTaskContributions(taskId: string): Promise<ContributionRecord[]> {
+  public async getTaskContributions(
+    taskId: string,
+  ): Promise<ContributionRecord[]> {
     return this.contributionRecords.get(taskId) || [];
   }
-  
+
   /**
    * Get all contributions by an agent
    */
-  public async getAgentContributions(agentId: string): Promise<ContributionRecord[]> {
+  public async getAgentContributions(
+    agentId: string,
+  ): Promise<ContributionRecord[]> {
     const allContributions: ContributionRecord[] = [];
-    
+
     for (const contributions of this.contributionRecords.values()) {
-      allContributions.push(...contributions.filter(c => c.agentId === agentId));
+      allContributions.push(
+        ...contributions.filter((c) => c.agentId === agentId),
+      );
     }
-    
+
     return allContributions;
   }
-  
+
   /**
    * Get progress status of responsibilities for a task
    */
@@ -697,24 +794,25 @@ export class SharedResponsibilityService {
     progressPercentage: number;
   }> {
     const responsibilities = await this.getResponsibilities(taskId);
-    
+
     const total = responsibilities.length;
-    const accepted = responsibilities.filter(r => !!r.acceptedAt).length;
-    const completed = responsibilities.filter(r => !!r.completedAt).length;
-    
+    const accepted = responsibilities.filter((r) => !!r.acceptedAt).length;
+    const completed = responsibilities.filter((r) => !!r.completedAt).length;
+
     // Calculate weighted progress based on responsibility percentages
     let totalPercentage = 0;
     let completedPercentage = 0;
-    
+
     for (const r of responsibilities) {
       totalPercentage += r.percentage;
       if (r.completedAt) {
         completedPercentage += r.percentage;
       }
     }
-    
-    const progressPercentage = totalPercentage === 0 ? 0 : (completedPercentage / totalPercentage) * 100;
-    
+
+    const progressPercentage =
+      totalPercentage === 0 ? 0 : (completedPercentage / totalPercentage) * 100;
+
     return {
       total,
       accepted,
@@ -722,4 +820,4 @@ export class SharedResponsibilityService {
       progressPercentage,
     };
   }
-} 
+}

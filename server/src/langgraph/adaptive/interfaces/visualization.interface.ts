@@ -1,6 +1,6 @@
 /**
  * Interfaces for the Visualization System
- * 
+ *
  * These interfaces define the core types and structures for visualizing workflows,
  * agent reasoning, team dynamics, and interactive workflow inspection.
  */
@@ -16,7 +16,7 @@ export enum GraphNodeType {
   DATA = 'data',
   BARRIER = 'barrier',
   EVENT = 'event',
-  INTERACTION = 'interaction'
+  INTERACTION = 'interaction',
 }
 
 /**
@@ -29,7 +29,7 @@ export enum GraphEdgeType {
   COMMUNICATION = 'communication',
   ASSIGNMENT = 'assignment',
   INTERACTION = 'interaction',
-  CONTRIBUTION = 'contribution'
+  CONTRIBUTION = 'contribution',
 }
 
 /**
@@ -42,7 +42,7 @@ export enum GraphNodeState {
   ERROR = 'error',
   WARNING = 'warning',
   SELECTED = 'selected',
-  HIGHLIGHTED = 'highlighted'
+  HIGHLIGHTED = 'highlighted',
 }
 
 /**
@@ -142,7 +142,12 @@ export interface AgentRelationship {
   id: string;
   sourceAgentId: string;
   targetAgentId: string;
-  type: 'collaboration' | 'supervision' | 'delegation' | 'information' | 'competition';
+  type:
+    | 'collaboration'
+    | 'supervision'
+    | 'delegation'
+    | 'information'
+    | 'competition';
   strength: number; // 0-1 scale
   startTime: Date;
   endTime?: Date;
@@ -220,28 +225,64 @@ export interface GraphHistorySnapshot {
  */
 export interface RealTimeGraphRenderer {
   initializeGraph(graphId: string, name: string, layout?: string): string;
-  addNode(graphId: string, node: Omit<GraphNode, 'createdAt' | 'updatedAt'>): GraphNode;
-  addEdge(graphId: string, edge: Omit<GraphEdge, 'createdAt' | 'updatedAt'>): GraphEdge;
-  updateNode(graphId: string, nodeId: string, updates: Partial<GraphNode>): GraphNode;
-  updateEdge(graphId: string, edgeId: string, updates: Partial<GraphEdge>): GraphEdge;
+  addNode(
+    graphId: string,
+    node: Omit<GraphNode, 'createdAt' | 'updatedAt'>,
+  ): GraphNode;
+  addEdge(
+    graphId: string,
+    edge: Omit<GraphEdge, 'createdAt' | 'updatedAt'>,
+  ): GraphEdge;
+  updateNode(
+    graphId: string,
+    nodeId: string,
+    updates: Partial<GraphNode>,
+  ): GraphNode;
+  updateEdge(
+    graphId: string,
+    edgeId: string,
+    updates: Partial<GraphEdge>,
+  ): GraphEdge;
   removeNode(graphId: string, nodeId: string): boolean;
   removeEdge(graphId: string, edgeId: string): boolean;
   getGraph(graphId: string): Graph;
   applyLayout(graphId: string, layoutType: string): boolean;
-  subscribeToGraphUpdates(graphId: string, callback: (graph: Graph) => void): () => void;
+  subscribeToGraphUpdates(
+    graphId: string,
+    callback: (graph: Graph) => void,
+  ): () => void;
 }
 
 /**
  * Interface for path highlighting
  */
 export interface PathHighlighting {
-  highlightNode(graphId: string, nodeId: string, highlightType?: string): boolean;
-  highlightEdge(graphId: string, edgeId: string, highlightType?: string): boolean;
-  highlightPath(graphId: string, nodeIds: string[], edgeIds: string[], highlightType?: string): boolean;
+  highlightNode(
+    graphId: string,
+    nodeId: string,
+    highlightType?: string,
+  ): boolean;
+  highlightEdge(
+    graphId: string,
+    edgeId: string,
+    highlightType?: string,
+  ): boolean;
+  highlightPath(
+    graphId: string,
+    nodeIds: string[],
+    edgeIds: string[],
+    highlightType?: string,
+  ): boolean;
   clearHighlights(graphId: string): boolean;
   highlightActiveExecution(graphId: string, taskId: string): boolean;
-  getHighlightedElements(graphId: string): { nodeIds: string[]; edgeIds: string[] };
-  subscribeToHighlightUpdates(graphId: string, callback: (highlights: { nodeIds: string[]; edgeIds: string[] }) => void): () => void;
+  getHighlightedElements(graphId: string): {
+    nodeIds: string[];
+    edgeIds: string[];
+  };
+  subscribeToHighlightUpdates(
+    graphId: string,
+    callback: (highlights: { nodeIds: string[]; edgeIds: string[] }) => void,
+  ): () => void;
 }
 
 /**
@@ -250,11 +291,22 @@ export interface PathHighlighting {
 export interface GraphHistory {
   recordSnapshot(graphId: string, event?: string): string;
   getSnapshot(snapshotId: string): GraphHistorySnapshot;
-  getSnapshotsByGraph(graphId: string, startTime?: Date, endTime?: Date): GraphHistorySnapshot[];
+  getSnapshotsByGraph(
+    graphId: string,
+    startTime?: Date,
+    endTime?: Date,
+  ): GraphHistorySnapshot[];
   getGraphStateAtTime(graphId: string, timestamp: Date): Graph;
-  getGraphEvolution(graphId: string, startTime: Date, endTime: Date): GraphHistorySnapshot[];
+  getGraphEvolution(
+    graphId: string,
+    startTime: Date,
+    endTime: Date,
+  ): GraphHistorySnapshot[];
   revertToSnapshot(graphId: string, snapshotId: string): boolean;
-  compareSnapshots(snapshot1Id: string, snapshot2Id: string): {
+  compareSnapshots(
+    snapshot1Id: string,
+    snapshot2Id: string,
+  ): {
     addedNodes: GraphNode[];
     removedNodes: GraphNode[];
     changedNodes: Array<{ before: GraphNode; after: GraphNode }>;
@@ -272,7 +324,11 @@ export interface GraphHistory {
 export interface DecisionCapture {
   recordDecisionPoint(decision: Omit<DecisionPoint, 'id'>): string;
   getDecisionPoint(decisionId: string): DecisionPoint;
-  getDecisionsByAgent(agentId: string, startTime?: Date, endTime?: Date): DecisionPoint[];
+  getDecisionsByAgent(
+    agentId: string,
+    startTime?: Date,
+    endTime?: Date,
+  ): DecisionPoint[];
   getDecisionsByTask(taskId: string): DecisionPoint[];
   tagDecisionPoint(decisionId: string, tags: string[]): boolean;
   annotateDecisionPoint(decisionId: string, annotation: string): boolean;
@@ -296,8 +352,15 @@ export interface ReasoningPathVisualization {
  * Interface for confidence visualization
  */
 export interface ConfidenceVisualization {
-  recordConfidenceLevel(agentId: string, pathId: string, confidence: number): boolean;
-  getConfidenceHistory(agentId: string, pathId: string): { timestamp: Date; value: number }[];
+  recordConfidenceLevel(
+    agentId: string,
+    pathId: string,
+    confidence: number,
+  ): boolean;
+  getConfidenceHistory(
+    agentId: string,
+    pathId: string,
+  ): { timestamp: Date; value: number }[];
   visualizeConfidenceOverTime(pathId: string): any; // Returns visualization data
   getConfidenceMetrics(agentId: string): {
     average: number;
@@ -314,7 +377,10 @@ export interface ConfidenceVisualization {
  */
 export interface AgentRelationshipVisualization {
   recordRelationship(relationship: Omit<AgentRelationship, 'id'>): string;
-  updateRelationship(relationshipId: string, updates: Partial<AgentRelationship>): boolean;
+  updateRelationship(
+    relationshipId: string,
+    updates: Partial<AgentRelationship>,
+  ): boolean;
   getRelationship(relationshipId: string): AgentRelationship;
   getAgentRelationships(agentId: string): AgentRelationship[];
   visualizeTeamStructure(agentIds: string[]): any; // Returns visualization data
@@ -328,9 +394,17 @@ export interface AgentRelationshipVisualization {
 export interface CommunicationFlowVisualization {
   recordCommunication(communication: Omit<CommunicationEvent, 'id'>): string;
   getCommunication(communicationId: string): CommunicationEvent;
-  getAgentCommunications(agentId: string, startTime?: Date, endTime?: Date): CommunicationEvent[];
+  getAgentCommunications(
+    agentId: string,
+    startTime?: Date,
+    endTime?: Date,
+  ): CommunicationEvent[];
   getTaskCommunications(taskId: string): CommunicationEvent[];
-  visualizeCommunicationFlow(agentIds: string[], startTime?: Date, endTime?: Date): any; // Returns visualization data
+  visualizeCommunicationFlow(
+    agentIds: string[],
+    startTime?: Date,
+    endTime?: Date,
+  ): any; // Returns visualization data
   analyzeConversationThreads(agentIds: string[]): any; // Returns thread analysis
   identifyCommunicationBottlenecks(agentIds: string[]): any; // Returns bottleneck analysis
 }
@@ -358,8 +432,15 @@ export interface InteractiveNodeExploration {
   focusOnNode(viewId: string, nodeId: string): boolean;
   expandNode(viewId: string, nodeId: string): string[]; // Returns related node IDs
   getNodeDetails(viewId: string, nodeId: string): Record<string, any>;
-  navigateToRelatedNode(viewId: string, sourceNodeId: string, targetNodeId: string): boolean;
-  createCustomFilter(viewId: string, filterCriteria: Record<string, any>): string;
+  navigateToRelatedNode(
+    viewId: string,
+    sourceNodeId: string,
+    targetNodeId: string,
+  ): boolean;
+  createCustomFilter(
+    viewId: string,
+    filterCriteria: Record<string, any>,
+  ): string;
   applyFilter(viewId: string, filterId: string): boolean;
 }
 
@@ -369,8 +450,15 @@ export interface InteractiveNodeExploration {
 export interface StateInspection {
   captureNodeState(nodeId: string): string; // Returns state snapshot ID
   getNodeState(nodeId: string): Record<string, any>;
-  compareNodeStates(nodeId: string, snapshot1Id: string, snapshot2Id: string): any; // Returns comparison
-  watchNodeStateChanges(nodeId: string, callback: (state: Record<string, any>) => void): () => void;
+  compareNodeStates(
+    nodeId: string,
+    snapshot1Id: string,
+    snapshot2Id: string,
+  ): any; // Returns comparison
+  watchNodeStateChanges(
+    nodeId: string,
+    callback: (state: Record<string, any>) => void,
+  ): () => void;
   getTaskExecutionState(taskId: string): Record<string, any>;
   inspectDataFlow(sourceNodeId: string, targetNodeId: string): any; // Returns data flow info
 }
@@ -379,11 +467,21 @@ export interface StateInspection {
  * Interface for human intervention
  */
 export interface HumanIntervention {
-  createInterventionPoint(point: Omit<InterventionPoint, 'id' | 'createdAt'>): string;
+  createInterventionPoint(
+    point: Omit<InterventionPoint, 'id' | 'createdAt'>,
+  ): string;
   getInterventionPoint(pointId: string): InterventionPoint;
   getActiveInterventionPoints(): InterventionPoint[];
   completeIntervention(pointId: string, result: string): boolean;
-  createApprovalRequest(nodeId: string, description: string, deadline?: Date): string;
-  createModificationPoint(nodeId: string, description: string, allowedActions: string[]): string;
+  createApprovalRequest(
+    nodeId: string,
+    description: string,
+    deadline?: Date,
+  ): string;
+  createModificationPoint(
+    nodeId: string,
+    description: string,
+    allowedActions: string[],
+  ): string;
   notifyHumanOperator(interventionId: string): boolean;
-} 
+}

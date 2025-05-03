@@ -205,7 +205,10 @@ export class DynamicPrioritizationService {
   ) {
     this.logger = options.logger || new ConsoleLogger();
     this.taskQueue = new PriorityTaskQueue({ logger: this.logger });
-    this.priorityWeights = { ...DEFAULT_PRIORITY_WEIGHTS, ...(options.priorityWeights || {}) };
+    this.priorityWeights = {
+      ...DEFAULT_PRIORITY_WEIGHTS,
+      ...(options.priorityWeights || {}),
+    };
 
     // Initialize current context with default values
     this.currentContext = {
@@ -217,7 +220,8 @@ export class DynamicPrioritizationService {
     };
 
     // Use custom or default priority calculator
-    this.priorityCalculator = options.priorityCalculator || this.defaultPriorityCalculator.bind(this);
+    this.priorityCalculator =
+      options.priorityCalculator || this.defaultPriorityCalculator.bind(this);
 
     this.logger.info('Dynamic prioritization service initialized', {
       initialContext: this.currentContext,
@@ -233,24 +237,34 @@ export class DynamicPrioritizationService {
     context: SchedulingContext,
   ): number {
     // Start with base priority weight
-    let weight = this.priorityWeights[task.priority] || DEFAULT_PRIORITY_WEIGHTS[PriorityLevel.MEDIUM];
+    let weight =
+      this.priorityWeights[task.priority] ||
+      DEFAULT_PRIORITY_WEIGHTS[PriorityLevel.MEDIUM];
 
     // Adjust for urgency
     if (task.deadline) {
       const now = Date.now();
-      const deadline = task.deadline.type === 'absolute'
-        ? task.deadline.value
-        : now + task.deadline.value;
-      
+      const deadline =
+        task.deadline.type === 'absolute'
+          ? task.deadline.value
+          : now + task.deadline.value;
+
       // Calculate time remaining as percentage of estimated duration
       const timeRemaining = deadline - now;
-      const urgencyFactor = Math.max(0, Math.min(1, task.estimatedDuration / (timeRemaining || 1)));
-      
+      const urgencyFactor = Math.max(
+        0,
+        Math.min(1, task.estimatedDuration / (timeRemaining || 1)),
+      );
+
       // Critical deadlines get higher weight boost
       const deadlineBoost = task.deadline.critical ? 1.5 : 1;
-      
+
       // Adjust weight based on urgency and deadline criticality
-      weight += weight * urgencyFactor * deadlineBoost * (1 - task.deadline.flexibility);
+      weight +=
+        weight *
+        urgencyFactor *
+        deadlineBoost *
+        (1 - task.deadline.flexibility);
     }
 
     // Adjust for context factors
@@ -284,10 +298,12 @@ export class DynamicPrioritizationService {
   /**
    * Add a task to be prioritized
    */
-  addTask(task: Omit<SchedulableTask, 'status' | 'insertedAt' | 'weight'>): string {
+  addTask(
+    task: Omit<SchedulableTask, 'status' | 'insertedAt' | 'weight'>,
+  ): string {
     const taskId = task.id || uuidv4();
     const now = new Date();
-    
+
     // Create complete task object
     const completeTask: SchedulableTask = {
       ...task,
@@ -300,17 +316,20 @@ export class DynamicPrioritizationService {
     };
 
     // Calculate initial priority weight
-    completeTask.weight = this.priorityCalculator(completeTask, this.currentContext);
-    
+    completeTask.weight = this.priorityCalculator(
+      completeTask,
+      this.currentContext,
+    );
+
     // Add to queue
     this.taskQueue.enqueue(completeTask);
-    
+
     this.logger.info('Task added to dynamic prioritization', {
       taskId,
       priority: completeTask.priority,
       weight: completeTask.weight,
     });
-    
+
     return taskId;
   }
 
@@ -320,22 +339,27 @@ export class DynamicPrioritizationService {
   updateTaskPriority(taskId: string, priority: PriorityLevel): boolean {
     const task = this.taskQueue.getById(taskId);
     if (!task) {
-      this.logger.warn(`Cannot update priority for non-existent task ${taskId}`);
+      this.logger.warn(
+        `Cannot update priority for non-existent task ${taskId}`,
+      );
       return false;
     }
 
     const updatedTask = { ...task, priority };
-    updatedTask.weight = this.priorityCalculator(updatedTask, this.currentContext);
-    
+    updatedTask.weight = this.priorityCalculator(
+      updatedTask,
+      this.currentContext,
+    );
+
     const result = this.taskQueue.update(taskId, updatedTask);
-    
+
     this.logger.info('Task priority updated', {
       taskId,
       oldPriority: task.priority,
       newPriority: priority,
       newWeight: updatedTask.weight,
     });
-    
+
     return result;
   }
 
@@ -344,7 +368,9 @@ export class DynamicPrioritizationService {
    */
   updateContext(context: Partial<SchedulingContext>): void {
     this.currentContext = { ...this.currentContext, ...context };
-    this.logger.info('Scheduling context updated', { context: this.currentContext });
+    this.logger.info('Scheduling context updated', {
+      context: this.currentContext,
+    });
     this.recalculateAllPriorities();
   }
 
@@ -365,7 +391,7 @@ export class DynamicPrioritizationService {
         this.taskQueue.update(task.id, { ...task, weight: updatedWeight });
       }
     }
-    
+
     this.logger.info('Recalculated all task priorities', {
       taskCount: this.taskQueue.size(),
     });
@@ -389,7 +415,9 @@ export class DynamicPrioritizationService {
    * Get all tasks sorted by priority
    */
   getAllTasks(): SchedulableTask[] {
-    return this.taskQueue.getAll().sort((a, b) => (b.weight || 0) - (a.weight || 0));
+    return this.taskQueue
+      .getAll()
+      .sort((a, b) => (b.weight || 0) - (a.weight || 0));
   }
 
   /**
@@ -409,7 +437,7 @@ export class DynamicPrioritizationService {
     }
 
     const updatedTask = { ...task, ...updates };
-    
+
     // If anything that affects priority was changed, recalculate the weight
     if (
       updates.priority !== undefined ||
@@ -417,9 +445,12 @@ export class DynamicPrioritizationService {
       updates.dependencies !== undefined ||
       updates.resourceRequirements !== undefined
     ) {
-      updatedTask.weight = this.priorityCalculator(updatedTask, this.currentContext);
+      updatedTask.weight = this.priorityCalculator(
+        updatedTask,
+        this.currentContext,
+      );
     }
-    
+
     return this.taskQueue.update(taskId, updatedTask);
   }
 
@@ -449,7 +480,9 @@ export class DynamicPrioritizationService {
    */
   setPriorityWeights(weights: Partial<Record<PriorityLevel, number>>): void {
     this.priorityWeights = { ...this.priorityWeights, ...weights };
-    this.logger.info('Priority weights updated', { priorityWeights: this.priorityWeights });
+    this.logger.info('Priority weights updated', {
+      priorityWeights: this.priorityWeights,
+    });
     this.recalculateAllPriorities();
   }
 
@@ -468,4 +501,4 @@ export class DynamicPrioritizationService {
     this.logger.info('Priority calculator function updated');
     this.recalculateAllPriorities();
   }
-} 
+}

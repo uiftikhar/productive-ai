@@ -17,7 +17,7 @@ export enum WorkflowNodeType {
   LOOP = 'loop',
   SUBPROCESS = 'subprocess',
   AGENT = 'agent',
-  TEAM = 'team'
+  TEAM = 'team',
 }
 
 /**
@@ -28,7 +28,7 @@ export enum WorkflowEdgeType {
   CONDITIONAL = 'conditional',
   DEFAULT = 'default',
   ERROR = 'error',
-  TIMEOUT = 'timeout'
+  TIMEOUT = 'timeout',
 }
 
 /**
@@ -85,7 +85,7 @@ export enum WorkflowExecutionStatus {
   PAUSED = 'paused',
   COMPLETED = 'completed',
   FAILED = 'failed',
-  CANCELED = 'canceled'
+  CANCELED = 'canceled',
 }
 
 /**
@@ -97,7 +97,7 @@ export enum NodeExecutionStatus {
   COMPLETED = 'completed',
   FAILED = 'failed',
   SKIPPED = 'skipped',
-  TIMEOUT = 'timeout'
+  TIMEOUT = 'timeout',
 }
 
 /**
@@ -139,7 +139,14 @@ export interface WorkflowExecution {
  */
 export interface WorkflowExecutionEvent {
   executionId: string;
-  eventType: 'workflow_started' | 'workflow_completed' | 'workflow_failed' | 'node_started' | 'node_completed' | 'node_failed' | 'edge_traversed';
+  eventType:
+    | 'workflow_started'
+    | 'workflow_completed'
+    | 'workflow_failed'
+    | 'node_started'
+    | 'node_completed'
+    | 'node_failed'
+    | 'edge_traversed';
   entityId?: string; // Node or edge ID
   data?: any;
   timestamp: number;
@@ -151,65 +158,95 @@ export interface WorkflowExecutionEvent {
 export interface IWorkflowService {
   // Core operations
   initialize(): Promise<void>;
-  
+
   // Workflow definition management
-  createWorkflow(definition: Omit<WorkflowDefinition, 'id' | 'created' | 'updated'>): Promise<string>;
+  createWorkflow(
+    definition: Omit<WorkflowDefinition, 'id' | 'created' | 'updated'>,
+  ): Promise<string>;
   getWorkflow(id: string): Promise<WorkflowDefinition | null>;
-  updateWorkflow(id: string, updates: Partial<Omit<WorkflowDefinition, 'id' | 'created' | 'updated'>>): Promise<void>;
+  updateWorkflow(
+    id: string,
+    updates: Partial<Omit<WorkflowDefinition, 'id' | 'created' | 'updated'>>,
+  ): Promise<void>;
   deleteWorkflow(id: string): Promise<void>;
-  
+
   // Template operations
-  createWorkflowFromTemplate(templateId: string, parameters: Record<string, any>): Promise<string>;
-  saveAsTemplate(workflowId: string, templateName: string, description?: string): Promise<string>;
-  
+  createWorkflowFromTemplate(
+    templateId: string,
+    parameters: Record<string, any>,
+  ): Promise<string>;
+  saveAsTemplate(
+    workflowId: string,
+    templateName: string,
+    description?: string,
+  ): Promise<string>;
+
   // Dynamically generated workflow for meeting analysis
-  generateAnalysisWorkflow(meetingId: string, goals: AnalysisGoalType[]): Promise<string>;
-  
+  generateAnalysisWorkflow(
+    meetingId: string,
+    goals: AnalysisGoalType[],
+  ): Promise<string>;
+
   // Workflow execution
-  executeWorkflow(workflowId: string, input: any, options?: {
-    synchronous?: boolean;
-    timeout?: number;
-    metadata?: Record<string, any>;
-  }): Promise<string>; // Returns execution ID
-  
+  executeWorkflow(
+    workflowId: string,
+    input: any,
+    options?: {
+      synchronous?: boolean;
+      timeout?: number;
+      metadata?: Record<string, any>;
+    },
+  ): Promise<string>; // Returns execution ID
+
   // Execution control
   pauseExecution(executionId: string): Promise<void>;
   resumeExecution(executionId: string): Promise<void>;
   cancelExecution(executionId: string): Promise<void>;
-  
+
   // Execution inspection
   getExecution(executionId: string): Promise<WorkflowExecution | null>;
-  getExecutionEvents(executionId: string, options?: {
-    eventTypes?: string[];
-    fromTimestamp?: number;
-    limit?: number;
-  }): Promise<WorkflowExecutionEvent[]>;
-  
+  getExecutionEvents(
+    executionId: string,
+    options?: {
+      eventTypes?: string[];
+      fromTimestamp?: number;
+      limit?: number;
+    },
+  ): Promise<WorkflowExecutionEvent[]>;
+
   // Execution monitoring
-  subscribeToExecutionEvents(executionId: string, callback: (event: WorkflowExecutionEvent) => void): void;
-  unsubscribeFromExecutionEvents(executionId: string, callback: (event: WorkflowExecutionEvent) => void): void;
-  
+  subscribeToExecutionEvents(
+    executionId: string,
+    callback: (event: WorkflowExecutionEvent) => void,
+  ): void;
+  unsubscribeFromExecutionEvents(
+    executionId: string,
+    callback: (event: WorkflowExecutionEvent) => void,
+  ): void;
+
   // LangGraph integration
   createStateGraph(workflowId: string): Promise<any>; // Returns LangGraph StateGraph
   mapStateToLangGraph(state: AgenticMeetingAnalysisState): Promise<any>; // Maps to LangGraph state
-  
+
   // Workflow validation
   validateWorkflow(workflowId: string): Promise<{
     valid: boolean;
     errors?: string[];
     warnings?: string[];
   }>;
-  
+
   // Workflow listing and search
   listWorkflows(options?: {
     limit?: number;
     offset?: number;
     name?: string;
     version?: string;
-  }): Promise<{
-    id: string;
-    name: string;
-    version: string;
-    created: number;
-  }[]>;
-} 
+  }): Promise<
+    {
+      id: string;
+      name: string;
+      version: string;
+      created: number;
+    }[]
+  >;
+}

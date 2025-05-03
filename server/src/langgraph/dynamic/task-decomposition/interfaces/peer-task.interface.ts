@@ -1,5 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
-import { HierarchicalTask, TaskPriority, TaskStatus } from './hierarchical-task.interface';
+import {
+  HierarchicalTask,
+  TaskPriority,
+  TaskStatus,
+} from './hierarchical-task.interface';
 import { ComplexityLevel } from './task-analysis.interface';
 
 /**
@@ -110,25 +114,76 @@ export interface CollaborativeTask extends HierarchicalTask {
  * Task consensus interface
  */
 export interface TaskConsensusManager {
-  createProposal(taskId: string, proposedBy: string, details: Omit<TaskBoundaryProposal, 'id' | 'taskId' | 'proposedBy' | 'proposedAt' | 'votes' | 'status'>): Promise<TaskBoundaryProposal>;
+  createProposal(
+    taskId: string,
+    proposedBy: string,
+    details: Omit<
+      TaskBoundaryProposal,
+      'id' | 'taskId' | 'proposedBy' | 'proposedAt' | 'votes' | 'status'
+    >,
+  ): Promise<TaskBoundaryProposal>;
   getProposal(proposalId: string): Promise<TaskBoundaryProposal | null>;
-  updateProposal(proposalId: string, updates: Partial<TaskBoundaryProposal>): Promise<TaskBoundaryProposal>;
-  
+  updateProposal(
+    proposalId: string,
+    updates: Partial<TaskBoundaryProposal>,
+  ): Promise<TaskBoundaryProposal>;
+
   // Voting
-  castVote(proposalId: string, agentId: string, vote: VoteType, reasoning: string, suggestedChanges?: Record<string, any>): Promise<TaskVote>;
+  castVote(
+    proposalId: string,
+    agentId: string,
+    vote: VoteType,
+    reasoning: string,
+    suggestedChanges?: Record<string, any>,
+  ): Promise<TaskVote>;
   getVotes(proposalId: string): Promise<TaskVote[]>;
-  checkConsensus(proposalId: string): Promise<{reached: boolean, approvalRate: number, results: Record<VoteType, number>}>;
-  
+  checkConsensus(proposalId: string): Promise<{
+    reached: boolean;
+    approvalRate: number;
+    results: Record<VoteType, number>;
+  }>;
+
   // Responsibility management
-  assignResponsibility(taskId: string, agentId: string, type: ResponsibilityType, description: string, percentage: number): Promise<ResponsibilityAssignment>;
-  updateResponsibility(responsibilityId: string, updates: Partial<ResponsibilityAssignment>): Promise<ResponsibilityAssignment>;
+  assignResponsibility(
+    taskId: string,
+    agentId: string,
+    type: ResponsibilityType,
+    description: string,
+    percentage: number,
+  ): Promise<ResponsibilityAssignment>;
+  updateResponsibility(
+    responsibilityId: string,
+    updates: Partial<ResponsibilityAssignment>,
+  ): Promise<ResponsibilityAssignment>;
   getResponsibilities(taskId: string): Promise<ResponsibilityAssignment[]>;
-  
+
   // Collaborative tasks
-  createCollaborativeTask(details: Omit<CollaborativeTask, 'id' | 'childTaskIds' | 'createdAt' | 'updatedAt' | 'progress' | 'lastActivity' | 'proposalHistory' | 'consensusReached' | 'responsibilities'>): Promise<CollaborativeTask>;
-  convertToCollaborative(taskId: string, initiatedBy: string, collaborators: string[], consensusStrategy: ConsensusStrategy, consensusThreshold: number): Promise<CollaborativeTask>;
+  createCollaborativeTask(
+    details: Omit<
+      CollaborativeTask,
+      | 'id'
+      | 'childTaskIds'
+      | 'createdAt'
+      | 'updatedAt'
+      | 'progress'
+      | 'lastActivity'
+      | 'proposalHistory'
+      | 'consensusReached'
+      | 'responsibilities'
+    >,
+  ): Promise<CollaborativeTask>;
+  convertToCollaborative(
+    taskId: string,
+    initiatedBy: string,
+    collaborators: string[],
+    consensusStrategy: ConsensusStrategy,
+    consensusThreshold: number,
+  ): Promise<CollaborativeTask>;
   addCollaborator(taskId: string, agentId: string): Promise<CollaborativeTask>;
-  removeCollaborator(taskId: string, agentId: string): Promise<CollaborativeTask>;
+  removeCollaborator(
+    taskId: string,
+    agentId: string,
+  ): Promise<CollaborativeTask>;
 }
 
 /**
@@ -164,7 +219,10 @@ export function createTaskProposal(
   estimatedDuration: number,
   consensusStrategy: ConsensusStrategy,
   requiredVoteCount: number,
-): Omit<TaskBoundaryProposal, 'id' | 'taskId' | 'proposedBy' | 'proposedAt' | 'votes' | 'status'> {
+): Omit<
+  TaskBoundaryProposal,
+  'id' | 'taskId' | 'proposedBy' | 'proposedAt' | 'votes' | 'status'
+> {
   return {
     name,
     description,
@@ -193,7 +251,18 @@ export function createCollaborativeTask(
   priority: TaskPriority = TaskPriority.MEDIUM,
   complexity: ComplexityLevel = ComplexityLevel.MODERATE,
   estimatedDuration: number = 3600000, // 1 hour default
-): Omit<CollaborativeTask, 'id' | 'childTaskIds' | 'createdAt' | 'updatedAt' | 'progress' | 'lastActivity' | 'proposalHistory' | 'consensusReached' | 'responsibilities'> {
+): Omit<
+  CollaborativeTask,
+  | 'id'
+  | 'childTaskIds'
+  | 'createdAt'
+  | 'updatedAt'
+  | 'progress'
+  | 'lastActivity'
+  | 'proposalHistory'
+  | 'consensusReached'
+  | 'responsibilities'
+> {
   return {
     name,
     description,
@@ -205,9 +274,12 @@ export function createCollaborativeTask(
     milestones: [],
     estimatedDuration,
     initiatedBy,
-    collaborators: [initiatedBy, ...collaborators.filter(id => id !== initiatedBy)],
+    collaborators: [
+      initiatedBy,
+      ...collaborators.filter((id) => id !== initiatedBy),
+    ],
     consensusStrategy,
     consensusThreshold,
     metadata: {},
   };
-} 
+}

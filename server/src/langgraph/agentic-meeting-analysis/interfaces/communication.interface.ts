@@ -11,7 +11,7 @@ export enum ChannelType {
   DIRECT = 'direct',
   BROADCAST = 'broadcast',
   TOPIC = 'topic',
-  SYSTEM = 'system'
+  SYSTEM = 'system',
 }
 
 /**
@@ -28,13 +28,13 @@ export interface CommunicationChannel {
 }
 
 /**
- * Message delivery status 
+ * Message delivery status
  */
 export enum MessageDeliveryStatus {
   PENDING = 'pending',
   DELIVERED = 'delivered',
   READ = 'read',
-  FAILED = 'failed'
+  FAILED = 'failed',
 }
 
 /**
@@ -66,7 +66,7 @@ export enum MessagePriority {
   LOW = 0,
   NORMAL = 1,
   HIGH = 2,
-  URGENT = 3
+  URGENT = 3,
 }
 
 /**
@@ -86,30 +86,54 @@ export interface MessagePublishOptions {
 export interface ICommunicationService extends EventEmitter {
   // Core operations
   initialize(): Promise<void>;
-  
+
   // Message operations
-  sendMessage(message: AgentMessage, options?: MessagePublishOptions): Promise<string>; // Returns message ID
-  broadcastMessage(message: Omit<AgentMessage, 'recipients'>, options?: MessagePublishOptions): Promise<string>;
-  
+  sendMessage(
+    message: AgentMessage,
+    options?: MessagePublishOptions,
+  ): Promise<string>; // Returns message ID
+  broadcastMessage(
+    message: Omit<AgentMessage, 'recipients'>,
+    options?: MessagePublishOptions,
+  ): Promise<string>;
+
   // Channel operations
-  createChannel(channelDefinition: Omit<CommunicationChannel, 'id' | 'created'>): Promise<string>; // Returns channel ID
+  createChannel(
+    channelDefinition: Omit<CommunicationChannel, 'id' | 'created'>,
+  ): Promise<string>; // Returns channel ID
   getChannel(channelId: string): Promise<CommunicationChannel | null>;
   addParticipantToChannel(channelId: string, agentId: string): Promise<void>;
-  removeParticipantFromChannel(channelId: string, agentId: string): Promise<void>;
-  
+  removeParticipantFromChannel(
+    channelId: string,
+    agentId: string,
+  ): Promise<void>;
+
   // Topic operations
-  publishToTopic(topic: string, message: Omit<AgentMessage, 'recipients'>, options?: MessagePublishOptions): Promise<string>;
+  publishToTopic(
+    topic: string,
+    message: Omit<AgentMessage, 'recipients'>,
+    options?: MessagePublishOptions,
+  ): Promise<string>;
   subscribeToTopic(options: TopicSubscriptionOptions): Promise<void>;
   unsubscribeFromTopic(agentId: string, topic: string): Promise<void>;
-  
+
   // Delivery management
-  getMessageDeliveryStatus(messageId: string): Promise<Record<string, MessageDeliveryStatus>>;
-  confirmMessageReceipt(messageId: string, agentId: string, status: MessageDeliveryStatus): Promise<void>;
-  
+  getMessageDeliveryStatus(
+    messageId: string,
+  ): Promise<Record<string, MessageDeliveryStatus>>;
+  confirmMessageReceipt(
+    messageId: string,
+    agentId: string,
+    status: MessageDeliveryStatus,
+  ): Promise<void>;
+
   // Agent registration
-  registerAgent(agentId: string, callback: (message: AgentMessage) => Promise<void>): Promise<void>;
+  registerAgent(
+    agentId: string,
+    callback: (message: AgentMessage) => Promise<void>,
+  ): Promise<void>;
   unregisterAgent(agentId: string): Promise<void>;
-  
+
   // Message retrieval
   getMessageHistory(options: {
     agentId?: string;
@@ -120,14 +144,14 @@ export interface ICommunicationService extends EventEmitter {
     after?: number;
     types?: MessageType[];
   }): Promise<AgentMessage[]>;
-  
+
   getUndeliveredMessages(agentId: string): Promise<AgentMessage[]>;
-  
+
   // Utilities
   getAgentChannels(agentId: string): Promise<CommunicationChannel[]>;
   getChannelParticipants(channelId: string): Promise<string[]>;
   getTopicSubscribers(topic: string): Promise<string[]>;
-  
+
   // Metrics
   getMetrics(): Promise<{
     messagesSent: number;
@@ -138,4 +162,4 @@ export interface ICommunicationService extends EventEmitter {
     activeTopics: number;
     registeredAgents: number;
   }>;
-} 
+}

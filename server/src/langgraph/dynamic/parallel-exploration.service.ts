@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
-// Note: Future implementation will likely use LLM capabilities for 
+// Note: Future implementation will likely use LLM capabilities for
 // intelligent branch creation, evaluation, and merge decision making
 // using imports like ChatOpenAI, BaseMessage, SystemMessage.
 

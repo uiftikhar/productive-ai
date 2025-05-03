@@ -1,5 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
-import { ComplexityLevel, ResourceRequirement, TaskDependency } from './task-analysis.interface';
+import {
+  ComplexityLevel,
+  ResourceRequirement,
+  TaskDependency,
+} from './task-analysis.interface';
 
 /**
  * Task status enum
@@ -79,7 +83,13 @@ export interface SubtaskAssignment {
   acceptedAt?: number;
   startedAt?: number;
   completedAt?: number;
-  status: 'pending' | 'accepted' | 'rejected' | 'in_progress' | 'completed' | 'failed';
+  status:
+    | 'pending'
+    | 'accepted'
+    | 'rejected'
+    | 'in_progress'
+    | 'completed'
+    | 'failed';
   priority: TaskPriority;
   metadata?: Record<string, any>;
 }
@@ -115,29 +125,57 @@ export interface HierarchicalTask {
  * Task hierarchy interface for managing parent-child relationships
  */
 export interface TaskHierarchyManager {
-  createTask(details: Omit<HierarchicalTask, 'id' | 'childTaskIds' | 'createdAt' | 'updatedAt' | 'progress'>): Promise<HierarchicalTask>;
+  createTask(
+    details: Omit<
+      HierarchicalTask,
+      'id' | 'childTaskIds' | 'createdAt' | 'updatedAt' | 'progress'
+    >,
+  ): Promise<HierarchicalTask>;
   getTask(taskId: string): Promise<HierarchicalTask | null>;
-  updateTask(taskId: string, updates: Partial<HierarchicalTask>): Promise<HierarchicalTask>;
+  updateTask(
+    taskId: string,
+    updates: Partial<HierarchicalTask>,
+  ): Promise<HierarchicalTask>;
   deleteTask(taskId: string): Promise<boolean>;
-  
+
   // Parent-child relationship management
-  addChildTask(parentTaskId: string, childTask: Omit<HierarchicalTask, 'id' | 'parentTaskId' | 'childTaskIds' | 'createdAt' | 'updatedAt' | 'progress'>, 
-              relationshipType: ParentChildRelationship): Promise<SubtaskAssignment>;
+  addChildTask(
+    parentTaskId: string,
+    childTask: Omit<
+      HierarchicalTask,
+      | 'id'
+      | 'parentTaskId'
+      | 'childTaskIds'
+      | 'createdAt'
+      | 'updatedAt'
+      | 'progress'
+    >,
+    relationshipType: ParentChildRelationship,
+  ): Promise<SubtaskAssignment>;
   removeChildTask(parentTaskId: string, childTaskId: string): Promise<boolean>;
   getChildTasks(parentTaskId: string): Promise<HierarchicalTask[]>;
   getParentTask(childTaskId: string): Promise<HierarchicalTask | null>;
   getTaskHierarchy(rootTaskId: string): Promise<HierarchicalTask[]>;
-  
+
   // Milestone management
-  addMilestone(taskId: string, milestone: Omit<TaskMilestone, 'id' | 'taskId'>): Promise<TaskMilestone>;
-  updateMilestone(milestoneId: string, updates: Partial<TaskMilestone>): Promise<TaskMilestone>;
+  addMilestone(
+    taskId: string,
+    milestone: Omit<TaskMilestone, 'id' | 'taskId'>,
+  ): Promise<TaskMilestone>;
+  updateMilestone(
+    milestoneId: string,
+    updates: Partial<TaskMilestone>,
+  ): Promise<TaskMilestone>;
   getMilestones(taskId: string): Promise<TaskMilestone[]>;
   achieveMilestone(milestoneId: string): Promise<TaskMilestone>;
-  
+
   // Task delegation
   assignTask(taskId: string, agentId: string): Promise<HierarchicalTask>;
   reassignTask(taskId: string, newAgentId: string): Promise<HierarchicalTask>;
-  delegateSubtasks(parentTaskId: string, assignments: Array<{childTaskId: string, agentId: string}>): Promise<SubtaskAssignment[]>;
+  delegateSubtasks(
+    parentTaskId: string,
+    assignments: Array<{ childTaskId: string; agentId: string }>,
+  ): Promise<SubtaskAssignment[]>;
 }
 
 /**
@@ -189,4 +227,4 @@ export function createTaskMilestone(
     progress: 0,
     metadata: {},
   };
-} 
+}

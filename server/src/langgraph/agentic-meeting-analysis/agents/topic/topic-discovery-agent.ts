@@ -2,7 +2,7 @@
  * Topic Discovery Agent for the Agentic Meeting Analysis System
  */
 import { v4 as uuidv4 } from 'uuid';
-import { 
+import {
   ISpecialistAnalysisAgent,
   AgentExpertise,
   AgentOutput,
@@ -10,9 +10,12 @@ import {
   AnalysisTask,
   AnalysisTaskStatus,
   ConfidenceLevel,
-  MessageType
+  MessageType,
 } from '../../interfaces/agent.interface';
-import { MeetingTranscript, TranscriptSegment } from '../../interfaces/state.interface';
+import {
+  MeetingTranscript,
+  TranscriptSegment,
+} from '../../interfaces/state.interface';
 import { BaseMeetingAnalysisAgent } from '../base-meeting-analysis-agent';
 import { Logger } from '../../../../shared/logger/logger.interface';
 import { ChatOpenAI } from '@langchain/openai';
@@ -39,11 +42,14 @@ export interface TopicDiscoveryAgentConfig {
  * - Tracking topic transitions and time allocation
  * - Evaluating topic relevance
  */
-export class TopicDiscoveryAgent extends BaseMeetingAnalysisAgent implements ISpecialistAnalysisAgent {
+export class TopicDiscoveryAgent
+  extends BaseMeetingAnalysisAgent
+  implements ISpecialistAnalysisAgent
+{
   private minTopicRelevance: number;
   private maxTopics: number;
   private enableTopicRelationships: boolean;
-  
+
   /**
    * Create a new Topic Discovery Agent
    */
@@ -55,28 +61,32 @@ export class TopicDiscoveryAgent extends BaseMeetingAnalysisAgent implements ISp
       capabilities: [AnalysisGoalType.EXTRACT_TOPICS],
       logger: config.logger,
       llm: config.llm,
-      systemPrompt: config.systemPrompt
+      systemPrompt: config.systemPrompt,
     });
-    
+
     this.minTopicRelevance = config.minTopicRelevance || 0.4;
     this.maxTopics = config.maxTopics || 10;
     this.enableTopicRelationships = config.enableTopicRelationships !== false;
-    
-    this.logger.info(`Initialized ${this.name} with max topics: ${this.maxTopics}`);
+
+    this.logger.info(
+      `Initialized ${this.name} with max topics: ${this.maxTopics}`,
+    );
   }
-  
+
   /**
    * Initialize the topic discovery agent
    */
   async initialize(config?: Record<string, any>): Promise<void> {
     await super.initialize(config);
-    
+
     // Register with coordinator
     await this.registerWithCoordinator();
-    
-    this.logger.info(`${this.name} initialized and registered with coordinator`);
+
+    this.logger.info(
+      `${this.name} initialized and registered with coordinator`,
+    );
   }
-  
+
   /**
    * Register this agent with the analysis coordinator
    */
@@ -89,52 +99,60 @@ export class TopicDiscoveryAgent extends BaseMeetingAnalysisAgent implements ISp
         agentId: this.id,
         name: this.name,
         expertise: this.expertise,
-        capabilities: Array.from(this.capabilities)
-      }
+        capabilities: Array.from(this.capabilities),
+      },
     );
-    
+
     await this.sendMessage(registrationMessage);
   }
-  
+
   /**
    * Process a topic analysis task
    */
   async processTask(task: AnalysisTask): Promise<AgentOutput> {
     this.logger.info(`Processing topic analysis task: ${task.id}`);
-    
+
     if (task.type !== AnalysisGoalType.EXTRACT_TOPICS) {
-      throw new Error(`Topic Discovery Agent cannot process task type: ${task.type}`);
+      throw new Error(
+        `Topic Discovery Agent cannot process task type: ${task.type}`,
+      );
     }
-    
+
     try {
       // Get transcript data
       const transcript = await this.readMemory('transcript', 'meeting');
       const metadata = await this.readMemory('metadata', 'meeting');
-      
+
       if (!transcript) {
         throw new Error('Meeting transcript not found in memory');
       }
-      
+
       // Extract topics from full transcript
       const topicAnalysis = await this.extractTopics(transcript);
-      
+
       // If enabled, analyze relationships between topics
       if (this.enableTopicRelationships) {
-        (topicAnalysis as any).topicRelationships = await this.analyzeTopicRelationships(topicAnalysis.topics);
+        (topicAnalysis as any).topicRelationships =
+          await this.analyzeTopicRelationships(topicAnalysis.topics);
       }
-      
+
       // Track topic transitions
-      (topicAnalysis as any).topicTransitions = await this.trackTopicTransitions(transcript, topicAnalysis.topics);
-      
+      (topicAnalysis as any).topicTransitions =
+        await this.trackTopicTransitions(transcript, topicAnalysis.topics);
+
       // Measure time allocation for each topic
-      (topicAnalysis as any).timeAllocation = this.calculateTimeAllocation(transcript, topicAnalysis.topics, topicAnalysis.topicSegments);
-      
+      (topicAnalysis as any).timeAllocation = this.calculateTimeAllocation(
+        transcript,
+        topicAnalysis.topics,
+        topicAnalysis.topicSegments,
+      );
+
       // Assess confidence in the analysis
       const confidence = await this.assessConfidence(topicAnalysis);
-      
+
       // Explain reasoning
       const reasoning = await this.explainReasoning(topicAnalysis);
-      
+
       // Create output
       const output: AgentOutput = {
         content: topicAnalysis,
@@ -143,21 +161,23 @@ export class TopicDiscoveryAgent extends BaseMeetingAnalysisAgent implements ISp
         metadata: {
           taskId: task.id,
           topicCount: topicAnalysis.topics.length,
-          meetingId: metadata?.meetingId || 'unknown'
+          meetingId: metadata?.meetingId || 'unknown',
         },
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
-      
+
       // Notify coordinator of task completion
       await this.notifyTaskCompletion(task.id, output);
-      
+
       return output;
     } catch (error) {
-      this.logger.error(`Error processing topic analysis: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `Error processing topic analysis: ${error instanceof Error ? error.message : String(error)}`,
+      );
       throw error;
     }
   }
-  
+
   /**
    * Extract topics from a transcript
    */
@@ -172,10 +192,10 @@ export class TopicDiscoveryAgent extends BaseMeetingAnalysisAgent implements ISp
     topicSegments: Record<string, string[]>;
   }> {
     this.logger.info('Extracting topics from transcript');
-    
+
     // Combine all segments for full-text analysis
-    const fullText = transcript.segments.map(s => s.content).join('\n');
-    
+    const fullText = transcript.segments.map((s) => s.content).join('\n');
+
     const prompt = `
       Extract the main discussion topics from the following meeting transcript.
       
@@ -196,36 +216,41 @@ export class TopicDiscoveryAgent extends BaseMeetingAnalysisAgent implements ISp
       ${fullText}
       
       TRANSCRIPT SEGMENT IDS:
-      ${transcript.segments.map(s => `${s.id}: ${s.content.substring(0, 50)}...`).join('\n')}
+      ${transcript.segments.map((s) => `${s.id}: ${s.content.substring(0, 50)}...`).join('\n')}
     `;
-    
-    const response = await this.callLLM('Extract topics from transcript', prompt);
-    
+
+    const response = await this.callLLM(
+      'Extract topics from transcript',
+      prompt,
+    );
+
     try {
       const analysisResult = JSON.parse(response);
-      
+
       // Ensure each topic has an ID
       analysisResult.topics = analysisResult.topics.map((topic: any) => ({
         ...topic,
-        id: topic.id || `topic-${uuidv4().substring(0, 8)}`
+        id: topic.id || `topic-${uuidv4().substring(0, 8)}`,
       }));
-      
+
       // Filter by minimum relevance
       analysisResult.topics = analysisResult.topics.filter(
-        (topic: any) => topic.relevance >= this.minTopicRelevance
+        (topic: any) => topic.relevance >= this.minTopicRelevance,
       );
-      
+
       // Limit to max topics
       if (analysisResult.topics.length > this.maxTopics) {
         analysisResult.topics = analysisResult.topics
           .sort((a: any, b: any) => b.relevance - a.relevance)
           .slice(0, this.maxTopics);
       }
-      
+
       return analysisResult;
     } catch (error) {
-      this.logger.error(`Error parsing topic extraction response: ${error instanceof Error ? error.message : String(error)}`);
-      
+      this.logger.error(
+        `Error parsing topic extraction response: ${error instanceof Error ? error.message : String(error)}`,
+      );
+
       // Return a minimal valid result if parsing fails
       return {
         topics: [
@@ -234,38 +259,42 @@ export class TopicDiscoveryAgent extends BaseMeetingAnalysisAgent implements ISp
             name: 'Meeting Discussion',
             description: 'General discussion topics from the meeting.',
             keywords: ['meeting', 'discussion'],
-            relevance: 1.0
-          }
+            relevance: 1.0,
+          },
         ],
-        topicSegments: {}
+        topicSegments: {},
       };
     }
   }
-  
+
   /**
    * Analyze relationships between topics
    */
-  private async analyzeTopicRelationships(topics: Array<{
-    id: string;
-    name: string;
-    description: string;
-    keywords: string[];
-  }>): Promise<Array<{
-    source: string;
-    target: string;
-    relationship: string;
-    strength: number;
-  }>> {
+  private async analyzeTopicRelationships(
+    topics: Array<{
+      id: string;
+      name: string;
+      description: string;
+      keywords: string[];
+    }>,
+  ): Promise<
+    Array<{
+      source: string;
+      target: string;
+      relationship: string;
+      strength: number;
+    }>
+  > {
     this.logger.info('Analyzing relationships between topics');
-    
+
     if (topics.length <= 1) {
       return []; // No relationships with only one topic
     }
-    
+
     const prompt = `
       Analyze the relationships between the following meeting topics:
       
-      ${topics.map(t => `Topic ID: ${t.id}\nName: ${t.name}\nDescription: ${t.description}\nKeywords: ${t.keywords.join(', ')}`).join('\n\n')}
+      ${topics.map((t) => `Topic ID: ${t.id}\nName: ${t.name}\nDescription: ${t.description}\nKeywords: ${t.keywords.join(', ')}`).join('\n\n')}
       
       For each pair of related topics:
       1. Identify the source topic ID and target topic ID
@@ -276,54 +305,65 @@ export class TopicDiscoveryAgent extends BaseMeetingAnalysisAgent implements ISp
       
       Return your analysis as a JSON array of objects, each with 'source', 'target', 'relationship', and 'strength' properties.
     `;
-    
+
     const response = await this.callLLM('Analyze topic relationships', prompt);
-    
+
     try {
       const relationships = JSON.parse(response);
-      
+
       // Validate relationships
-      return relationships.filter((rel: any) => 
-        topics.some(t => t.id === rel.source) && 
-        topics.some(t => t.id === rel.target) &&
-        rel.strength >= 0.3
+      return relationships.filter(
+        (rel: any) =>
+          topics.some((t) => t.id === rel.source) &&
+          topics.some((t) => t.id === rel.target) &&
+          rel.strength >= 0.3,
       );
     } catch (error) {
-      this.logger.error(`Error parsing topic relationships: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `Error parsing topic relationships: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return []; // Return empty relationships on error
     }
   }
-  
+
   /**
    * Track topic transitions throughout the meeting
    */
-  private async trackTopicTransitions(transcript: MeetingTranscript, topics: Array<{
-    id: string;
-    name: string;
-  }>): Promise<Array<{
-    fromTopic: string | null;
-    toTopic: string;
-    timestamp: number;
-    segmentId: string;
-    transitionType: 'smooth' | 'abrupt' | 'digression' | 'return';
-  }>> {
+  private async trackTopicTransitions(
+    transcript: MeetingTranscript,
+    topics: Array<{
+      id: string;
+      name: string;
+    }>,
+  ): Promise<
+    Array<{
+      fromTopic: string | null;
+      toTopic: string;
+      timestamp: number;
+      segmentId: string;
+      transitionType: 'smooth' | 'abrupt' | 'digression' | 'return';
+    }>
+  > {
     this.logger.info('Tracking topic transitions');
-    
+
     if (topics.length <= 1 || transcript.segments.length <= 5) {
       return []; // No meaningful transitions with only one topic or few segments
     }
-    
+
     // Select sample segments to analyze transitions
-    const sampleSegments = this.selectRepresentativeSegments(transcript.segments, 15);
-    
+    const sampleSegments = this.selectRepresentativeSegments(
+      transcript.segments,
+      15,
+    );
+
     const prompt = `
       Analyze the topic transitions in this meeting based on the transcript segments below.
       
       TOPICS:
-      ${topics.map(t => `${t.id}: ${t.name}`).join('\n')}
+      ${topics.map((t) => `${t.id}: ${t.name}`).join('\n')}
       
       TRANSCRIPT SEGMENTS (in chronological order):
-      ${sampleSegments.map(s => `Segment ${s.id} [${s.startTime}ms]: ${s.content}`).join('\n\n')}
+      ${sampleSegments.map((s) => `Segment ${s.id} [${s.startTime}ms]: ${s.content}`).join('\n\n')}
       
       For each significant topic transition you identify:
       1. The topic being transitioned from (null if it's the first topic)
@@ -334,104 +374,118 @@ export class TopicDiscoveryAgent extends BaseMeetingAnalysisAgent implements ISp
       
       Return the transitions as a JSON array ordered by timestamp.
     `;
-    
+
     const response = await this.callLLM('Track topic transitions', prompt);
-    
+
     try {
       const transitions = JSON.parse(response);
-      
+
       // Validate transitions
-      return transitions.filter((transition: any) => 
-        (transition.fromTopic === null || topics.some(t => t.id === transition.fromTopic)) &&
-        topics.some(t => t.id === transition.toTopic) &&
-        transcript.segments.some(s => s.id === transition.segmentId)
+      return transitions.filter(
+        (transition: any) =>
+          (transition.fromTopic === null ||
+            topics.some((t) => t.id === transition.fromTopic)) &&
+          topics.some((t) => t.id === transition.toTopic) &&
+          transcript.segments.some((s) => s.id === transition.segmentId),
       );
     } catch (error) {
-      this.logger.error(`Error parsing topic transitions: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(
+        `Error parsing topic transitions: ${error instanceof Error ? error.message : String(error)}`,
+      );
       return []; // Return empty transitions on error
     }
   }
-  
+
   /**
    * Calculate time allocation for each topic
    */
   private calculateTimeAllocation(
     transcript: MeetingTranscript,
     topics: Array<{ id: string; name: string }>,
-    topicSegments: Record<string, string[]>
-  ): Record<string, {
-    totalTime: number;
-    percentage: number;
-    speakerDistribution: Record<string, number>;
-  }> {
-    this.logger.info('Calculating time allocation for topics');
-    
-    const timeAllocation: Record<string, {
+    topicSegments: Record<string, string[]>,
+  ): Record<
+    string,
+    {
       totalTime: number;
       percentage: number;
       speakerDistribution: Record<string, number>;
-    }> = {};
-    
+    }
+  > {
+    this.logger.info('Calculating time allocation for topics');
+
+    const timeAllocation: Record<
+      string,
+      {
+        totalTime: number;
+        percentage: number;
+        speakerDistribution: Record<string, number>;
+      }
+    > = {};
+
     // Initialize with zero time for all topics
     for (const topic of topics) {
       timeAllocation[topic.id] = {
         totalTime: 0,
         percentage: 0,
-        speakerDistribution: {}
+        speakerDistribution: {},
       };
     }
-    
+
     // Calculate total meeting time
     const totalMeetingTime = transcript.segments.reduce(
       (total, segment) => total + (segment.endTime - segment.startTime),
-      0
+      0,
     );
-    
+
     // Calculate time for each topic based on segments
     for (const topic of topics) {
       const segmentIds = topicSegments[topic.id] || [];
-      
+
       // Track time by speaker
       const speakerTime: Record<string, number> = {};
-      
+
       for (const segmentId of segmentIds) {
-        const segment = transcript.segments.find(s => s.id === segmentId);
-        
+        const segment = transcript.segments.find((s) => s.id === segmentId);
+
         if (segment) {
           const segmentDuration = segment.endTime - segment.startTime;
           timeAllocation[topic.id].totalTime += segmentDuration;
-          
+
           // Track speaker distribution
           const speakerId = segment.speakerId;
-          speakerTime[speakerId] = (speakerTime[speakerId] || 0) + segmentDuration;
+          speakerTime[speakerId] =
+            (speakerTime[speakerId] || 0) + segmentDuration;
         }
       }
-      
+
       // Calculate percentages
       if (totalMeetingTime > 0) {
-        timeAllocation[topic.id].percentage = 
+        timeAllocation[topic.id].percentage =
           (timeAllocation[topic.id].totalTime / totalMeetingTime) * 100;
       }
-      
+
       // Set speaker distribution
       timeAllocation[topic.id].speakerDistribution = speakerTime;
     }
-    
+
     return timeAllocation;
   }
-  
+
   /**
    * Select representative segments for analysis
    */
-  private selectRepresentativeSegments(segments: MeetingTranscript['segments'], maxSegments: number): MeetingTranscript['segments'] {
+  private selectRepresentativeSegments(
+    segments: MeetingTranscript['segments'],
+    maxSegments: number,
+  ): MeetingTranscript['segments'] {
     if (segments.length <= maxSegments) {
       return segments;
     }
-    
+
     // Simple algorithm: take the first, last, and evenly distributed segments in between
     const selectedSegments: MeetingTranscript['segments'] = [];
     selectedSegments.push(segments[0]); // First segment
-    
+
     if (segments.length >= 3) {
       // Select evenly distributed segments
       const step = Math.floor((segments.length - 2) / (maxSegments - 2));
@@ -441,18 +495,21 @@ export class TopicDiscoveryAgent extends BaseMeetingAnalysisAgent implements ISp
         }
       }
     }
-    
+
     selectedSegments.push(segments[segments.length - 1]); // Last segment
-    
+
     return selectedSegments;
   }
-  
+
   /**
    * Analyze a specific segment of the transcript
    */
-  async analyzeTranscriptSegment(segment: string, context?: any): Promise<AgentOutput> {
+  async analyzeTranscriptSegment(
+    segment: string,
+    context?: any,
+  ): Promise<AgentOutput> {
     this.logger.info('Analyzing transcript segment for topics');
-    
+
     const prompt = `
       Identify the discussion topics in this meeting transcript segment.
       
@@ -473,57 +530,60 @@ export class TopicDiscoveryAgent extends BaseMeetingAnalysisAgent implements ISp
       
       Return your analysis as a JSON object.
     `;
-    
+
     const response = await this.callLLM('Analyze segment for topics', prompt);
-    
+
     try {
       const segmentAnalysis = JSON.parse(response);
-      
+
       // Assess confidence in the analysis
       const confidence = await this.assessConfidence(segmentAnalysis);
-      
+
       return {
         content: segmentAnalysis,
         confidence,
         reasoning: `Identified ${segmentAnalysis.topics?.length || 0} topics in this segment based on content analysis and keyword frequency.`,
         metadata: {
           segmentLength: segment.length,
-          hasExistingContext: !!context?.existingTopics
+          hasExistingContext: !!context?.existingTopics,
         },
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     } catch (error) {
-      this.logger.error(`Error analyzing transcript segment: ${error instanceof Error ? error.message : String(error)}`);
-      
+      this.logger.error(
+        `Error analyzing transcript segment: ${error instanceof Error ? error.message : String(error)}`,
+      );
+
       return {
         content: {
-          topics: []
+          topics: [],
         },
         confidence: ConfidenceLevel.LOW,
-        reasoning: 'Failed to properly analyze the segment due to parsing error.',
+        reasoning:
+          'Failed to properly analyze the segment due to parsing error.',
         metadata: {
           error: error instanceof Error ? error.message : String(error),
-          segmentLength: segment.length
+          segmentLength: segment.length,
         },
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     }
   }
-  
+
   /**
    * Merge multiple analyses into a consolidated result
    */
   async mergeAnalyses(analyses: AgentOutput[]): Promise<AgentOutput> {
     this.logger.info(`Merging ${analyses.length} topic analyses`);
-    
+
     if (analyses.length === 0) {
       throw new Error('No analyses to merge');
     }
-    
+
     if (analyses.length === 1) {
       return analyses[0];
     }
-    
+
     // Extract topics from all analyses
     const allTopics: any[] = [];
     for (const analysis of analyses) {
@@ -531,7 +591,7 @@ export class TopicDiscoveryAgent extends BaseMeetingAnalysisAgent implements ISp
         allTopics.push(...analysis.content.topics);
       }
     }
-    
+
     const prompt = `
       Merge the following topic analyses into a cohesive result.
       
@@ -548,26 +608,34 @@ export class TopicDiscoveryAgent extends BaseMeetingAnalysisAgent implements ISp
       Return a JSON object with merged 'topics' array.
       Limit to a maximum of ${this.maxTopics} topics, prioritizing by relevance.
     `;
-    
+
     const response = await this.callLLM('Merge topic analyses', prompt);
-    
+
     try {
       const mergedAnalysis = JSON.parse(response);
-      
+
       // Calculate average confidence from input analyses
-      const avgConfidence = analyses.reduce(
-        (sum, analysis) => sum + (
-          analysis.confidence === ConfidenceLevel.HIGH ? 1.0 :
-          analysis.confidence === ConfidenceLevel.MEDIUM ? 0.7 :
-          analysis.confidence === ConfidenceLevel.LOW ? 0.4 : 0.2
-        ),
-        0
-      ) / analyses.length;
-      
-      const confidence = avgConfidence > 0.8 ? ConfidenceLevel.HIGH :
-                         avgConfidence > 0.5 ? ConfidenceLevel.MEDIUM :
-                         ConfidenceLevel.LOW;
-      
+      const avgConfidence =
+        analyses.reduce(
+          (sum, analysis) =>
+            sum +
+            (analysis.confidence === ConfidenceLevel.HIGH
+              ? 1.0
+              : analysis.confidence === ConfidenceLevel.MEDIUM
+                ? 0.7
+                : analysis.confidence === ConfidenceLevel.LOW
+                  ? 0.4
+                  : 0.2),
+          0,
+        ) / analyses.length;
+
+      const confidence =
+        avgConfidence > 0.8
+          ? ConfidenceLevel.HIGH
+          : avgConfidence > 0.5
+            ? ConfidenceLevel.MEDIUM
+            : ConfidenceLevel.LOW;
+
       return {
         content: mergedAnalysis,
         confidence,
@@ -575,64 +643,66 @@ export class TopicDiscoveryAgent extends BaseMeetingAnalysisAgent implements ISp
         metadata: {
           sourceAnalyses: analyses.length,
           originalTopicCount: allTopics.length,
-          mergedTopicCount: mergedAnalysis.topics.length
+          mergedTopicCount: mergedAnalysis.topics.length,
         },
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     } catch (error) {
-      this.logger.error(`Error merging topic analyses: ${error instanceof Error ? error.message : String(error)}`);
-      
+      this.logger.error(
+        `Error merging topic analyses: ${error instanceof Error ? error.message : String(error)}`,
+      );
+
       // Fall back to first analysis if merging fails
       return analyses[0];
     }
   }
-  
+
   /**
    * Prioritize information based on relevance
    */
   async prioritizeInformation(output: any): Promise<any> {
     this.logger.info('Prioritizing topic information');
-    
+
     if (!output.topics || !Array.isArray(output.topics)) {
       return output;
     }
-    
+
     // Sort topics by relevance
     output.topics.sort((a: any, b: any) => b.relevance - a.relevance);
-    
+
     // Keep only the most relevant topics
     if (output.topics.length > this.maxTopics) {
       output.topics = output.topics.slice(0, this.maxTopics);
     }
-    
+
     // Update topic relationships to only include remaining topics
     if (output.topicRelationships) {
       const topicIds = output.topics.map((t: any) => t.id);
       output.topicRelationships = output.topicRelationships.filter(
-        (rel: any) => topicIds.includes(rel.source) && topicIds.includes(rel.target)
+        (rel: any) =>
+          topicIds.includes(rel.source) && topicIds.includes(rel.target),
       );
     }
-    
+
     return output;
   }
-  
+
   /**
    * Notify coordinator of task completion
    */
-  private async notifyTaskCompletion(taskId: string, output: AgentOutput): Promise<void> {
-    const message = this.createMessage(
-      MessageType.RESPONSE,
-      ['coordinator'],
-      {
-        messageType: 'TASK_COMPLETED',
-        taskId,
-        output
-      }
-    );
-    
+  private async notifyTaskCompletion(
+    taskId: string,
+    output: AgentOutput,
+  ): Promise<void> {
+    const message = this.createMessage(MessageType.RESPONSE, ['coordinator'], {
+      messageType: 'TASK_COMPLETED',
+      taskId,
+      output,
+    });
+
     await this.sendMessage(message);
   }
-  
+
   /**
    * Get default system prompt for topic discovery
    */
@@ -648,4 +718,4 @@ Your responsibilities include:
 When analyzing topics, focus on substantive discussion points rather than procedural elements.
 Be thorough in your analysis, but prioritize topics by relevance to avoid overwhelming users with minor points.`;
   }
-} 
+}

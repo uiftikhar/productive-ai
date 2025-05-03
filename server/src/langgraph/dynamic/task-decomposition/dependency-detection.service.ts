@@ -1,7 +1,11 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ChatOpenAI } from '@langchain/openai';
-import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { JsonOutputParser } from "@langchain/core/output_parsers";
+import {
+  BaseMessage,
+  HumanMessage,
+  SystemMessage,
+} from '@langchain/core/messages';
+import { JsonOutputParser } from '@langchain/core/output_parsers';
 
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
@@ -28,7 +32,9 @@ export interface DependencyDetectionConfig {
 /**
  * Service for detecting dependencies between tasks
  */
-export class DependencyDetectionService implements Pick<TaskAnalyzer, 'detectDependencies'> {
+export class DependencyDetectionService
+  implements Pick<TaskAnalyzer, 'detectDependencies'>
+{
   private static instance: DependencyDetectionService;
   private logger: Logger;
   private llm: ChatOpenAI;
@@ -54,9 +60,13 @@ export class DependencyDetectionService implements Pick<TaskAnalyzer, 'detectDep
   /**
    * Get the singleton instance
    */
-  public static getInstance(config: DependencyDetectionConfig = {}): DependencyDetectionService {
+  public static getInstance(
+    config: DependencyDetectionConfig = {},
+  ): DependencyDetectionService {
     if (!DependencyDetectionService.instance) {
-      DependencyDetectionService.instance = new DependencyDetectionService(config);
+      DependencyDetectionService.instance = new DependencyDetectionService(
+        config,
+      );
     }
     return DependencyDetectionService.instance;
   }
@@ -70,13 +80,15 @@ export class DependencyDetectionService implements Pick<TaskAnalyzer, 'detectDep
     context: Record<string, any> = {},
   ): Promise<TaskDependency[]> {
     if (!context.tasks || otherTaskIds.length === 0) {
-      this.logger.info(`No tasks to analyze for dependencies with task ${taskId}`);
+      this.logger.info(
+        `No tasks to analyze for dependencies with task ${taskId}`,
+      );
       return [];
     }
 
     try {
       const mainTask = context.tasks[taskId];
-      
+
       if (!mainTask) {
         this.logger.warn(`Task ${taskId} not found in context`);
         return [];
@@ -84,17 +96,22 @@ export class DependencyDetectionService implements Pick<TaskAnalyzer, 'detectDep
 
       // Filter other tasks to only those in the context
       const otherTasks = otherTaskIds
-        .filter(id => id !== taskId && context.tasks[id])
-        .map(id => context.tasks[id]);
+        .filter((id) => id !== taskId && context.tasks[id])
+        .map((id) => context.tasks[id]);
 
       if (otherTasks.length === 0) {
-        this.logger.info(`No other tasks found in context for dependency analysis with task ${taskId}`);
+        this.logger.info(
+          `No other tasks found in context for dependency analysis with task ${taskId}`,
+        );
         return [];
       }
 
       // Generate dependencies using LLM
-      const dependencies = await this.generateDependencies(mainTask, otherTasks);
-      
+      const dependencies = await this.generateDependencies(
+        mainTask,
+        otherTasks,
+      );
+
       return dependencies;
     } catch (error) {
       this.logger.error(`Error detecting dependencies for task ${taskId}`, {
@@ -113,11 +130,15 @@ export class DependencyDetectionService implements Pick<TaskAnalyzer, 'detectDep
     const allDependencies: TaskDependency[] = [];
     const taskIds = Object.keys(tasks);
 
-    this.logger.info(`Batch detecting dependencies among ${taskIds.length} tasks`);
+    this.logger.info(
+      `Batch detecting dependencies among ${taskIds.length} tasks`,
+    );
 
     for (const taskId of taskIds) {
-      const otherTaskIds = taskIds.filter(id => id !== taskId);
-      const dependencies = await this.detectDependencies(taskId, otherTaskIds, { tasks });
+      const otherTaskIds = taskIds.filter((id) => id !== taskId);
+      const dependencies = await this.detectDependencies(taskId, otherTaskIds, {
+        tasks,
+      });
       allDependencies.push(...dependencies);
     }
 
@@ -132,7 +153,7 @@ export class DependencyDetectionService implements Pick<TaskAnalyzer, 'detectDep
     otherTasks: any[],
   ): Promise<TaskDependency[]> {
     const dependencyTypesStr = Object.values(DependencyType)
-      .map(type => `- ${type}: ${this.describeDependencyType(type)}`)
+      .map((type) => `- ${type}: ${this.describeDependencyType(type)}`)
       .join('\n');
 
     const systemPrompt = `You are an expert task dependency analyzer. Identify dependencies between the main task and other tasks.
@@ -158,9 +179,12 @@ Format your response as JSON:
 
 Only include actual dependencies. If there are no dependencies, return an empty array. Focus on identifying the most important ${this.maxDependenciesToDetect} dependencies.`;
 
-    const tasksString = otherTasks.map(task => 
-      `Task ID: ${task.id}\nName: ${task.name}\nDescription: ${task.description}`
-    ).join('\n\n');
+    const tasksString = otherTasks
+      .map(
+        (task) =>
+          `Task ID: ${task.id}\nName: ${task.name}\nDescription: ${task.description}`,
+      )
+      .join('\n\n');
 
     const humanMessage = `Main Task:
 ID: ${mainTask.id}
@@ -180,24 +204,28 @@ Identify all dependencies between the main task and the other tasks. Remember to
     try {
       const parser = new JsonOutputParser();
       const response = await this.llm.pipe(parser).invoke(messages);
-      
+
       // Validate and map the response to proper TaskDependency objects
-      const dependencies: TaskDependency[] = Array.isArray(response) 
+      const dependencies: TaskDependency[] = Array.isArray(response)
         ? response
-            .filter(dep => 
-              dep && 
-              dep.sourceTaskId && 
-              dep.targetTaskId && 
-              dep.type && 
-              dep.description &&
-              dep.criticality)
-            .map(dep => createTaskDependency(
-              dep.sourceTaskId,
-              dep.targetTaskId,
-              this.mapDependencyType(dep.type),
-              dep.description,
-              this.validateCriticality(dep.criticality)
-            ))
+            .filter(
+              (dep) =>
+                dep &&
+                dep.sourceTaskId &&
+                dep.targetTaskId &&
+                dep.type &&
+                dep.description &&
+                dep.criticality,
+            )
+            .map((dep) =>
+              createTaskDependency(
+                dep.sourceTaskId,
+                dep.targetTaskId,
+                this.mapDependencyType(dep.type),
+                dep.description,
+                this.validateCriticality(dep.criticality),
+              ),
+            )
         : [];
 
       return dependencies;
@@ -233,7 +261,9 @@ Identify all dependencies between the main task and the other tasks. Remember to
   /**
    * Validate criticality level
    */
-  private validateCriticality(criticality: string): 'low' | 'medium' | 'high' | 'blocking' {
+  private validateCriticality(
+    criticality: string,
+  ): 'low' | 'medium' | 'high' | 'blocking' {
     criticality = criticality.toLowerCase();
     switch (criticality) {
       case 'low':
@@ -268,4 +298,4 @@ Identify all dependencies between the main task and the other tasks. Remember to
         return 'Undefined dependency type';
     }
   }
-} 
+}

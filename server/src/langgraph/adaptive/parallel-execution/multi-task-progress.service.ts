@@ -12,12 +12,16 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
   private logger: Logger;
   private taskProgress: Map<string, TaskProgress> = new Map();
   private threadTasks: Map<string, Set<string>> = new Map(); // threadId -> set of taskIds
-  private progressTimelines: Map<string, {
-    timestamp: Date;
-    progress: number;
-    stage?: string;
-  }[]> = new Map();
-  private progressListeners: Map<string, ((progress: TaskProgress) => void)[]> = new Map();
+  private progressTimelines: Map<
+    string,
+    {
+      timestamp: Date;
+      progress: number;
+      stage?: string;
+    }[]
+  > = new Map();
+  private progressListeners: Map<string, ((progress: TaskProgress) => void)[]> =
+    new Map();
   private stageWeights: Map<string, Record<string, number>> = new Map(); // taskId -> stage weights
 
   constructor(options: { logger?: Logger } = {}) {
@@ -28,15 +32,21 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
   /**
    * Register a task for progress tracking
    */
-  registerTask(taskId: string, threadId: string, metadata?: Record<string, any>): boolean {
+  registerTask(
+    taskId: string,
+    threadId: string,
+    metadata?: Record<string, any>,
+  ): boolean {
     // Check if task already registered
     if (this.taskProgress.has(taskId)) {
-      this.logger.warn(`Task ${taskId} is already registered for progress tracking`);
+      this.logger.warn(
+        `Task ${taskId} is already registered for progress tracking`,
+      );
       return false;
     }
 
     const now = new Date();
-    
+
     // Create initial task progress
     const initialProgress: TaskProgress = {
       taskId,
@@ -50,13 +60,15 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
 
     // Store task progress
     this.taskProgress.set(taskId, initialProgress);
-    
+
     // Initialize progress timeline
-    this.progressTimelines.set(taskId, [{
-      timestamp: now,
-      progress: 0,
-      stage: 'initialization',
-    }]);
+    this.progressTimelines.set(taskId, [
+      {
+        timestamp: now,
+        progress: 0,
+        stage: 'initialization',
+      },
+    ]);
 
     // Associate task with thread
     if (!this.threadTasks.has(threadId)) {
@@ -64,11 +76,14 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
     }
     this.threadTasks.get(threadId)?.add(taskId);
 
-    this.logger.info(`Task ${taskId} registered for progress tracking in thread ${threadId}`, {
-      taskId,
-      threadId,
-      metadata,
-    });
+    this.logger.info(
+      `Task ${taskId} registered for progress tracking in thread ${threadId}`,
+      {
+        taskId,
+        threadId,
+        metadata,
+      },
+    );
 
     return true;
   }
@@ -76,7 +91,12 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
   /**
    * Update a task's progress
    */
-  updateTaskProgress(taskId: string, progress: number, status?: string, message?: string): boolean {
+  updateTaskProgress(
+    taskId: string,
+    progress: number,
+    status?: string,
+    message?: string,
+  ): boolean {
     const task = this.taskProgress.get(taskId);
     if (!task) {
       this.logger.warn(`Cannot update progress for unknown task: ${taskId}`);
@@ -111,12 +131,15 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
       this.progressTimelines.set(taskId, timeline);
     }
 
-    this.logger.debug(`Updated progress for task ${taskId}: ${normalizedProgress * 100}%`, {
-      taskId,
-      progress: normalizedProgress,
-      status: updatedTask.status,
-      message: updatedTask.message,
-    });
+    this.logger.debug(
+      `Updated progress for task ${taskId}: ${normalizedProgress * 100}%`,
+      {
+        taskId,
+        progress: normalizedProgress,
+        status: updatedTask.status,
+        message: updatedTask.message,
+      },
+    );
 
     // Notify progress listeners
     this.notifyProgressListeners(taskId, updatedTask);
@@ -170,11 +193,14 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
     });
     this.progressTimelines.set(taskId, timeline);
 
-    this.logger.info(`Task ${taskId} moved to stage "${stage}" with progress ${updatedTask.progress * 100}%`, {
-      taskId,
-      stage,
-      progress: updatedTask.progress,
-    });
+    this.logger.info(
+      `Task ${taskId} moved to stage "${stage}" with progress ${updatedTask.progress * 100}%`,
+      {
+        taskId,
+        stage,
+        progress: updatedTask.progress,
+      },
+    );
 
     // Notify progress listeners
     this.notifyProgressListeners(taskId, updatedTask);
@@ -242,7 +268,9 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
   setEstimatedCompletion(taskId: string, estimatedCompletion: Date): boolean {
     const task = this.taskProgress.get(taskId);
     if (!task) {
-      this.logger.warn(`Cannot set estimated completion for unknown task: ${taskId}`);
+      this.logger.warn(
+        `Cannot set estimated completion for unknown task: ${taskId}`,
+      );
       return false;
     }
 
@@ -255,10 +283,13 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
     // Store updated task
     this.taskProgress.set(taskId, updatedTask);
 
-    this.logger.info(`Set estimated completion for task ${taskId}: ${estimatedCompletion}`, {
-      taskId,
-      estimatedCompletion,
-    });
+    this.logger.info(
+      `Set estimated completion for task ${taskId}: ${estimatedCompletion}`,
+      {
+        taskId,
+        estimatedCompletion,
+      },
+    );
 
     // Notify progress listeners
     this.notifyProgressListeners(taskId, updatedTask);
@@ -272,16 +303,16 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
   getProgressReport(): Record<string, any> {
     const tasks = Array.from(this.taskProgress.entries());
     const threads = Array.from(this.threadTasks.entries());
-    
+
     // Calculate progress by thread
     const threadProgress: Record<string, number> = {};
     for (const [threadId] of threads) {
       threadProgress[threadId] = this.getThreadProgress(threadId);
     }
-    
+
     // Calculate overall progress
     const overallProgress = this.getOverallProgress();
-    
+
     // Get tasks by status
     const tasksByStatus: Record<string, string[]> = {};
     for (const [taskId, task] of tasks) {
@@ -290,38 +321,39 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
       }
       tasksByStatus[task.status].push(taskId);
     }
-    
+
     // Count tasks by stage
     const tasksByStage: Record<string, number> = {};
     for (const [, task] of tasks) {
       if (task.currentStage) {
-        tasksByStage[task.currentStage] = (tasksByStage[task.currentStage] || 0) + 1;
+        tasksByStage[task.currentStage] =
+          (tasksByStage[task.currentStage] || 0) + 1;
       }
     }
-    
+
     // Find slowest and fastest tasks
     let slowestTask: { taskId: string; progress: number } | undefined;
     let fastestTask: { taskId: string; progress: number } | undefined;
-    
+
     for (const [taskId, task] of tasks) {
       if (!task.startTime) continue;
-      
+
       // Skip completed tasks
       if (task.status === 'completed') continue;
-      
+
       // Calculate progress velocity (progress per millisecond)
       const timeElapsed = Date.now() - task.startTime.getTime();
       const velocity = timeElapsed > 0 ? task.progress / timeElapsed : 0;
-      
+
       if (!slowestTask || velocity < slowestTask.progress) {
         slowestTask = { taskId, progress: velocity };
       }
-      
+
       if (!fastestTask || velocity > fastestTask.progress) {
         fastestTask = { taskId, progress: velocity };
       }
     }
-    
+
     return {
       timestamp: new Date(),
       overallProgress,
@@ -341,11 +373,16 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
   /**
    * Set stage weights for calculating progress
    */
-  setTaskStageWeights(taskId: string, stageWeights: Record<string, number>): boolean {
+  setTaskStageWeights(
+    taskId: string,
+    stageWeights: Record<string, number>,
+  ): boolean {
     // Validate that weights are between 0 and 1
     for (const [stage, weight] of Object.entries(stageWeights)) {
       if (weight < 0 || weight > 1) {
-        this.logger.warn(`Invalid weight for stage "${stage}": ${weight}. Weights must be between 0 and 1.`);
+        this.logger.warn(
+          `Invalid weight for stage "${stage}": ${weight}. Weights must be between 0 and 1.`,
+        );
         return false;
       }
     }
@@ -364,7 +401,10 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
   /**
    * Subscribe to progress updates for a task
    */
-  subscribeToTaskProgress(taskId: string, callback: (progress: TaskProgress) => void): () => void {
+  subscribeToTaskProgress(
+    taskId: string,
+    callback: (progress: TaskProgress) => void,
+  ): () => void {
     if (!this.progressListeners.has(taskId)) {
       this.progressListeners.set(taskId, []);
     }
@@ -377,7 +417,7 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
       if (listeners) {
         this.progressListeners.set(
           taskId,
-          listeners.filter(cb => cb !== callback)
+          listeners.filter((cb) => cb !== callback),
         );
       }
     };
@@ -386,14 +426,19 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
   /**
    * Notify progress listeners about task updates
    */
-  private notifyProgressListeners(taskId: string, progress: TaskProgress): void {
+  private notifyProgressListeners(
+    taskId: string,
+    progress: TaskProgress,
+  ): void {
     const listeners = this.progressListeners.get(taskId) || [];
-    
+
     for (const listener of listeners) {
       try {
         listener(progress);
       } catch (error) {
-        this.logger.error(`Error in progress listener for task ${taskId}`, { error });
+        this.logger.error(`Error in progress listener for task ${taskId}`, {
+          error,
+        });
       }
     }
   }
@@ -494,9 +539,9 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
    */
   getThreadTasks(threadId: string): TaskProgress[] {
     const taskIds = this.threadTasks.get(threadId) || new Set<string>();
-    
+
     return Array.from(taskIds)
-      .map(taskId => this.taskProgress.get(taskId))
+      .map((taskId) => this.taskProgress.get(taskId))
       .filter((task): task is TaskProgress => task !== undefined);
   }
 
@@ -506,4 +551,4 @@ export class MultiTaskProgressServiceImpl implements MultiTaskProgressService {
   getAllTasks(): TaskProgress[] {
     return Array.from(this.taskProgress.values());
   }
-} 
+}

@@ -18,15 +18,33 @@ const {
 const {
   DependencyAwareQueueService,
 } = require('./dist/langgraph/adaptive/scheduler/dependency-aware-queue.service');
-const { AgentAvailabilityService } = require('./src/langgraph/adaptive/resource-management/agent-availability.service');
-const { CapabilityAllocationServiceImpl } = require('./src/langgraph/adaptive/resource-management/capability-allocation.service');
-const { LoadBalancingServiceImpl } = require('./src/langgraph/adaptive/resource-management/load-balancing.service');
-const { SynchronizationManagerService } = require('./src/langgraph/adaptive/parallel-execution/synchronization-manager.service');
-const { ParallelDataSharingServiceImpl } = require('./src/langgraph/adaptive/parallel-execution/parallel-data-sharing.service');
-const { MultiTaskProgressServiceImpl } = require('./src/langgraph/adaptive/parallel-execution/multi-task-progress.service');
-const { PerformanceMonitorServiceImpl } = require('./src/langgraph/adaptive/execution-monitoring/performance-monitor.service');
-const { PlanAdjustmentServiceImpl } = require('./src/langgraph/adaptive/execution-monitoring/plan-adjustment.service');
-const { FailureRecoveryServiceImpl } = require('./src/langgraph/adaptive/execution-monitoring/failure-recovery.service');
+const {
+  AgentAvailabilityService,
+} = require('./src/langgraph/adaptive/resource-management/agent-availability.service');
+const {
+  CapabilityAllocationServiceImpl,
+} = require('./src/langgraph/adaptive/resource-management/capability-allocation.service');
+const {
+  LoadBalancingServiceImpl,
+} = require('./src/langgraph/adaptive/resource-management/load-balancing.service');
+const {
+  SynchronizationManagerService,
+} = require('./src/langgraph/adaptive/parallel-execution/synchronization-manager.service');
+const {
+  ParallelDataSharingServiceImpl,
+} = require('./src/langgraph/adaptive/parallel-execution/parallel-data-sharing.service');
+const {
+  MultiTaskProgressServiceImpl,
+} = require('./src/langgraph/adaptive/parallel-execution/multi-task-progress.service');
+const {
+  PerformanceMonitorServiceImpl,
+} = require('./src/langgraph/adaptive/execution-monitoring/performance-monitor.service');
+const {
+  PlanAdjustmentServiceImpl,
+} = require('./src/langgraph/adaptive/execution-monitoring/plan-adjustment.service');
+const {
+  FailureRecoveryServiceImpl,
+} = require('./src/langgraph/adaptive/execution-monitoring/failure-recovery.service');
 const { ConsoleLogger } = require('./src/shared/logger/console-logger');
 const { v4: uuidv4 } = require('uuid');
 
@@ -230,12 +248,24 @@ const urgentContext = {
   userInteracting: true,
 };
 
-const normalTaskInfo = contextAwareScheduler.calculateTaskPriority(task4, normalContext);
-const urgentTaskInfo = contextAwareScheduler.calculateTaskPriority(task5, urgentContext);
+const normalTaskInfo = contextAwareScheduler.calculateTaskPriority(
+  task4,
+  normalContext,
+);
+const urgentTaskInfo = contextAwareScheduler.calculateTaskPriority(
+  task5,
+  urgentContext,
+);
 
-console.log(`Normal context task adjusted priority: ${normalTaskInfo.effectivePriority}`);
-console.log(`Urgent context task adjusted priority: ${urgentTaskInfo.effectivePriority}`);
-console.log(`Applied patterns for urgent task: ${urgentTaskInfo.appliedPatterns.map(p => p.name).join(', ')}`);
+console.log(
+  `Normal context task adjusted priority: ${normalTaskInfo.effectivePriority}`,
+);
+console.log(
+  `Urgent context task adjusted priority: ${urgentTaskInfo.effectivePriority}`,
+);
+console.log(
+  `Applied patterns for urgent task: ${urgentTaskInfo.appliedPatterns.map((p) => p.name).join(', ')}`,
+);
 
 // ------------------------------------
 // TEST 3: Dependency-Aware Execution
@@ -331,9 +361,11 @@ agentAvailability.registerResource({
 // Display registered agents
 console.log('\nRegistered agents:');
 const allResources = agentAvailability.getAllResources();
-allResources.forEach(resource => {
+allResources.forEach((resource) => {
   console.log(`- ${resource.name} (${resource.id})`);
-  console.log(`  Capabilities: ${resource.capabilities.map(c => `${c.id}:${c.level}`).join(', ')}`);
+  console.log(
+    `  Capabilities: ${resource.capabilities.map((c) => `${c.id}:${c.level}`).join(', ')}`,
+  );
 });
 
 // Allocate resources for tasks
@@ -363,8 +395,12 @@ const allocation2 = capabilityAllocation.allocateResources(allocationRequest2);
 
 // Display allocations
 console.log('\nResource allocations:');
-console.log(`Task '${allocationRequest1.taskId}' allocated to: ${allocation1.allocated.map(a => a.resourceId).join(', ')}`);
-console.log(`Task '${allocationRequest2.taskId}' allocated to: ${allocation2.allocated.map(a => a.resourceId).join(', ')}`);
+console.log(
+  `Task '${allocationRequest1.taskId}' allocated to: ${allocation1.allocated.map((a) => a.resourceId).join(', ')}`,
+);
+console.log(
+  `Task '${allocationRequest2.taskId}' allocated to: ${allocation2.allocated.map((a) => a.resourceId).join(', ')}`,
+);
 
 // Check load balancing
 console.log('\nCurrent resource utilization:');
@@ -434,24 +470,41 @@ dataSharing.createSharedData(
       writeThreads: ['thread-1', 'thread-2', 'thread-3'],
     },
     conflictResolution: 'LAST_WRITER_WINS',
-  }
+  },
 );
 
 // Write data from different threads
 console.log('\nUpdating shared data from different threads...');
-dataSharing.writeSharedData('processing-results', { processed: 10, errors: 0 }, 'thread-1');
+dataSharing.writeSharedData(
+  'processing-results',
+  { processed: 10, errors: 0 },
+  'thread-1',
+);
 console.log('Thread-1 updated shared data');
 
-dataSharing.writeSharedData('processing-results', { processed: 25, errors: 2 }, 'thread-2');
+dataSharing.writeSharedData(
+  'processing-results',
+  { processed: 25, errors: 2 },
+  'thread-2',
+);
 console.log('Thread-2 updated shared data');
 
 // Read the current value
-const currentValue = dataSharing.readSharedData('processing-results', 'thread-3');
+const currentValue = dataSharing.readSharedData(
+  'processing-results',
+  'thread-3',
+);
 console.log(`\nCurrent shared data value: ${JSON.stringify(currentValue)}`);
 
 // Attempt to write from unauthorized thread
-const unauthorizedResult = dataSharing.writeSharedData('processing-results', { processed: 0, errors: 0 }, 'thread-4');
-console.log(`Unauthorized thread write attempt succeeded? ${unauthorizedResult}`);
+const unauthorizedResult = dataSharing.writeSharedData(
+  'processing-results',
+  { processed: 0, errors: 0 },
+  'thread-4',
+);
+console.log(
+  `Unauthorized thread write attempt succeeded? ${unauthorizedResult}`,
+);
 
 // ------------------------------------
 // TEST 7: Multi-Task Progress Tracking
@@ -462,7 +515,9 @@ console.log('\n\nTEST 7: MULTI-TASK PROGRESS TRACKING');
 console.log('Registering tasks for progress tracking...');
 
 // Register tasks
-taskProgress.registerTask('progress-task-1', 'thread-1', { type: 'processing' });
+taskProgress.registerTask('progress-task-1', 'thread-1', {
+  type: 'processing',
+});
 console.log('Registered progress-task-1');
 
 taskProgress.registerTask('progress-task-2', 'thread-2', { type: 'analysis' });
@@ -470,16 +525,28 @@ console.log('Registered progress-task-2');
 
 // Update progress
 console.log('\nUpdating task progress...');
-taskProgress.updateTaskProgress('progress-task-1', 0.25, 'running', 'Processing data...');
+taskProgress.updateTaskProgress(
+  'progress-task-1',
+  0.25,
+  'running',
+  'Processing data...',
+);
 console.log('Updated progress-task-1: 25%');
 
-taskProgress.updateTaskProgress('progress-task-2', 0.1, 'running', 'Starting analysis...');
+taskProgress.updateTaskProgress(
+  'progress-task-2',
+  0.1,
+  'running',
+  'Starting analysis...',
+);
 console.log('Updated progress-task-2: 10%');
 
 // Get thread progress
 const thread1Progress = taskProgress.getThreadProgress('thread-1');
 const thread2Progress = taskProgress.getThreadProgress('thread-2');
-console.log(`\nThread-1 overall progress: ${Math.round(thread1Progress * 100)}%`);
+console.log(
+  `\nThread-1 overall progress: ${Math.round(thread1Progress * 100)}%`,
+);
 console.log(`Thread-2 overall progress: ${Math.round(thread2Progress * 100)}%`);
 
 // Get overall progress
@@ -495,7 +562,9 @@ const progressReport = taskProgress.getProgressReport();
 console.log('\nProgress Report Summary:');
 console.log(`- Total tasks: ${progressReport.taskCount}`);
 console.log(`- Completed tasks: ${progressReport.completedTasks}`);
-console.log(`- Overall progress: ${Math.round(progressReport.overallProgress * 100)}%`);
+console.log(
+  `- Overall progress: ${Math.round(progressReport.overallProgress * 100)}%`,
+);
 
 // ------------------------------------
 // TEST 8: Performance Monitoring
@@ -574,7 +643,9 @@ const performanceReport = performanceMonitor.getSystemPerformanceReport();
 console.log('\nPerformance Report:');
 console.log(`- Status: ${performanceReport.overallStatus}`);
 console.log(`- Metrics count: ${performanceReport.metricCount}`);
-console.log(`- Top resource utilization: ${JSON.stringify(performanceReport.topResourceUtilization)}`);
+console.log(
+  `- Top resource utilization: ${JSON.stringify(performanceReport.topResourceUtilization)}`,
+);
 
 // ------------------------------------
 // TEST 9: Plan Adjustment
@@ -591,8 +662,18 @@ const taskPlan = {
   steps: [
     { id: 'step-1', name: 'Data Loading', status: 'COMPLETED' },
     { id: 'step-2', name: 'Data Processing', status: 'RUNNING' },
-    { id: 'step-3', name: 'Data Analysis', status: 'PENDING', dependencies: ['step-2'] },
-    { id: 'step-4', name: 'Result Generation', status: 'PENDING', dependencies: ['step-3'] },
+    {
+      id: 'step-3',
+      name: 'Data Analysis',
+      status: 'PENDING',
+      dependencies: ['step-2'],
+    },
+    {
+      id: 'step-4',
+      name: 'Result Generation',
+      status: 'PENDING',
+      dependencies: ['step-3'],
+    },
   ],
   expectedDuration: 60000,
   priority: 7,
@@ -604,11 +685,13 @@ console.log('Registered task plan for planned-task');
 
 // Check for potential adjustments
 const potentialAdjustments = planAdjustment.checkForAdjustments('planned-task');
-console.log(`\nFound ${potentialAdjustments.length} potential plan adjustments`);
+console.log(
+  `\nFound ${potentialAdjustments.length} potential plan adjustments`,
+);
 
 if (potentialAdjustments.length > 0) {
   console.log('Potential adjustments:');
-  potentialAdjustments.forEach(adjustment => {
+  potentialAdjustments.forEach((adjustment) => {
     console.log(`- ${adjustment.type}: ${adjustment.reason}`);
   });
 
@@ -616,8 +699,12 @@ if (potentialAdjustments.length > 0) {
   if (potentialAdjustments.length > 0) {
     const adjustment = potentialAdjustments[0];
     console.log(`\nApplying adjustment: ${adjustment.type}`);
-    planAdjustment.applyAdjustment('planned-task', adjustment.type, adjustment.reason);
-    
+    planAdjustment.applyAdjustment(
+      'planned-task',
+      adjustment.type,
+      adjustment.reason,
+    );
+
     // Get the updated plan
     const updatedPlan = planAdjustment.getTaskPlan('planned-task');
     console.log('Updated plan:', JSON.stringify(updatedPlan.metadata, null, 2));
@@ -640,17 +727,21 @@ const recoveryPlan = failureRecovery.createRecoveryPlan(
   {
     timeoutMs: 30000,
     lastOperation: 'processLargeDataset',
-  }
+  },
 );
 
 console.log(`Created recovery plan: ${recoveryPlan.id}`);
-console.log(`Applicable strategies: ${recoveryPlan.strategies.map(s => s.name).join(', ')}`);
+console.log(
+  `Applicable strategies: ${recoveryPlan.strategies.map((s) => s.name).join(', ')}`,
+);
 
 // Execute the plan (async)
 console.log('\nExecuting recovery plan (simulated)...');
-failureRecovery.executeRecoveryPlan(recoveryPlan.id).then(result => {
-  console.log(`Recovery plan execution completed with result: ${result ? 'SUCCESS' : 'FAILURE'}`);
-  
+failureRecovery.executeRecoveryPlan(recoveryPlan.id).then((result) => {
+  console.log(
+    `Recovery plan execution completed with result: ${result ? 'SUCCESS' : 'FAILURE'}`,
+  );
+
   // Get the updated plan
   const completedPlan = failureRecovery.getRecoveryPlan(recoveryPlan.id);
   if (completedPlan) {
@@ -676,4 +767,4 @@ console.log('9. Plan Adjustment');
 console.log('10. Failure Recovery');
 console.log('=================================');
 console.log('Milestone 3: Adaptive Execution Engine - COMPLETE');
-console.log('================================='); 
+console.log('=================================');

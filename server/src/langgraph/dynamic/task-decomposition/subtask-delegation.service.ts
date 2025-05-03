@@ -1,7 +1,11 @@
 import { v4 as uuidv4 } from 'uuid';
 import { ChatOpenAI } from '@langchain/openai';
-import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
-import { JsonOutputParser } from "@langchain/core/output_parsers";
+import {
+  BaseMessage,
+  HumanMessage,
+  SystemMessage,
+} from '@langchain/core/messages';
+import { JsonOutputParser } from '@langchain/core/output_parsers';
 
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
@@ -79,7 +83,9 @@ export class SubtaskDelegationService {
   /**
    * Get the singleton instance
    */
-  public static getInstance(config: SubtaskDelegationConfig = {}): SubtaskDelegationService {
+  public static getInstance(
+    config: SubtaskDelegationConfig = {},
+  ): SubtaskDelegationService {
     if (!SubtaskDelegationService.instance) {
       SubtaskDelegationService.instance = new SubtaskDelegationService(config);
     }
@@ -101,7 +107,8 @@ export class SubtaskDelegationService {
   ): Promise<SubtaskAssignment[]> {
     this.logger.info(`Delegating subtasks for parent task: ${parentTaskId}`);
 
-    const hierarchyManager = options.hierarchyManager || this.taskHierarchyManager;
+    const hierarchyManager =
+      options.hierarchyManager || this.taskHierarchyManager;
     if (!hierarchyManager) {
       throw new Error('No task hierarchy manager available for delegation');
     }
@@ -114,12 +121,13 @@ export class SubtaskDelegationService {
       }
 
       // If no specific subtasks provided, use all child tasks
-      let childTaskIds = subtaskIds.length > 0 
-        ? subtaskIds 
-        : parentTask.childTaskIds;
+      let childTaskIds =
+        subtaskIds.length > 0 ? subtaskIds : parentTask.childTaskIds;
 
       // Filter to only include actual child tasks
-      childTaskIds = childTaskIds.filter(id => parentTask.childTaskIds.includes(id));
+      childTaskIds = childTaskIds.filter((id) =>
+        parentTask.childTaskIds.includes(id),
+      );
 
       if (childTaskIds.length === 0) {
         this.logger.info(`No subtasks found for parent task: ${parentTaskId}`);
@@ -136,7 +144,9 @@ export class SubtaskDelegationService {
       }
 
       if (childTasks.length === 0) {
-        this.logger.info(`No valid subtasks found for parent task: ${parentTaskId}`);
+        this.logger.info(
+          `No valid subtasks found for parent task: ${parentTaskId}`,
+        );
         return [];
       }
 
@@ -150,15 +160,20 @@ export class SubtaskDelegationService {
 
       // Apply the assignments
       const subtaskAssignments: SubtaskAssignment[] = [];
-      
+
       for (const assignment of assignments) {
         try {
-          const childTask = childTasks.find(task => task.id === assignment.childTaskId);
+          const childTask = childTasks.find(
+            (task) => task.id === assignment.childTaskId,
+          );
           if (!childTask) continue;
 
           // Update the task with agent assignment
-          await hierarchyManager.assignTask(assignment.childTaskId, assignment.agentId);
-          
+          await hierarchyManager.assignTask(
+            assignment.childTaskId,
+            assignment.agentId,
+          );
+
           // Create the assignment record
           const subtaskAssignment: SubtaskAssignment = {
             id: uuidv4(),
@@ -174,26 +189,34 @@ export class SubtaskDelegationService {
               reasoning: assignment.reasoning,
             },
           };
-          
+
           subtaskAssignments.push(subtaskAssignment);
         } catch (error) {
-          this.logger.error(`Error applying assignment for subtask ${assignment.childTaskId}`, {
-            error: error instanceof Error ? error.message : String(error),
-          });
+          this.logger.error(
+            `Error applying assignment for subtask ${assignment.childTaskId}`,
+            {
+              error: error instanceof Error ? error.message : String(error),
+            },
+          );
         }
       }
 
       // Execute the tasks if requested
       if (options.autoExecute && subtaskAssignments.length > 0) {
-        this.logger.info(`Auto-executing ${subtaskAssignments.length} delegated subtasks`);
+        this.logger.info(
+          `Auto-executing ${subtaskAssignments.length} delegated subtasks`,
+        );
         // This would call the task execution service, not implemented here
       }
 
       return subtaskAssignments;
     } catch (error) {
-      this.logger.error(`Error delegating subtasks for parent task ${parentTaskId}`, {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      this.logger.error(
+        `Error delegating subtasks for parent task ${parentTaskId}`,
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
       throw error;
     }
   }
@@ -241,7 +264,7 @@ export class SubtaskDelegationService {
       this.logger.error(`Error matching agent for task ${task.id}`, {
         error: error instanceof Error ? error.message : String(error),
       });
-      
+
       // Default to the first agent if error occurs
       if (availableAgents.length > 0) {
         return {
@@ -263,12 +286,14 @@ export class SubtaskDelegationService {
     childTasks: HierarchicalTask[],
     availableAgents: AgentForMatching[],
     context: Record<string, any> = {},
-  ): Promise<Array<{
-    childTaskId: string;
-    agentId: string;
-    matchingScore: number; // 0-1 match confidence
-    reasoning: string;
-  }>> {
+  ): Promise<
+    Array<{
+      childTaskId: string;
+      agentId: string;
+      matchingScore: number; // 0-1 match confidence
+      reasoning: string;
+    }>
+  > {
     const systemPrompt = `You are an expert task delegation system. Assign the most appropriate agent to each subtask based on agent capabilities and task requirements.
 
 For each task assignment, provide:
@@ -294,29 +319,36 @@ Optimize for the best overall task-agent fit. Consider:
 - Prior agent performance on similar tasks`;
 
     // Format task information
-    const tasksInfo = childTasks.map(task => 
-      `Task ID: ${task.id}
+    const tasksInfo = childTasks
+      .map(
+        (task) =>
+          `Task ID: ${task.id}
 Name: ${task.name}
 Description: ${task.description}
 Priority: ${task.priority}
 Complexity: ${task.complexity}
-Required Capabilities: ${task.resourceRequirements.map(r => r.resourceType).join(', ') || 'Not specified'}`
-    ).join('\n\n');
+Required Capabilities: ${task.resourceRequirements.map((r) => r.resourceType).join(', ') || 'Not specified'}`,
+      )
+      .join('\n\n');
 
     // Format agent information
-    const agentsInfo = availableAgents.map(agent => 
-      `Agent ID: ${agent.id}
+    const agentsInfo = availableAgents
+      .map(
+        (agent) =>
+          `Agent ID: ${agent.id}
 Name: ${agent.name}
-Capabilities: ${agent.capabilities.map(c => `${c.name} (${c.confidenceScore.toFixed(2)})`).join(', ')}
+Capabilities: ${agent.capabilities.map((c) => `${c.name} (${c.confidenceScore.toFixed(2)})`).join(', ')}
 Current Load: ${agent.currentLoad !== undefined ? agent.currentLoad : 'Unknown'}
 Success Rate: ${agent.successRate !== undefined ? (agent.successRate * 100).toFixed(1) + '%' : 'Unknown'}
-Availability: ${agent.availability !== undefined ? (agent.availability * 100).toFixed(1) + '%' : 'Unknown'}`
-    ).join('\n\n');
+Availability: ${agent.availability !== undefined ? (agent.availability * 100).toFixed(1) + '%' : 'Unknown'}`,
+      )
+      .join('\n\n');
 
     // Format context if available
     let contextInfo = '';
     if (Object.keys(context).length > 0) {
-      contextInfo = '\n\nAdditional Context:\n' + 
+      contextInfo =
+        '\n\nAdditional Context:\n' +
         Object.entries(context)
           .map(([key, value]) => `- ${key}: ${JSON.stringify(value)}`)
           .join('\n');
@@ -341,21 +373,23 @@ Please assign the most appropriate agent to each subtask. Focus on matching agen
     try {
       const parser = new JsonOutputParser();
       const response = await this.llm.pipe(parser).invoke(messages);
-      
+
       // Validate assignments
-      const assignments = Array.isArray(response) 
+      const assignments = Array.isArray(response)
         ? response
-            .filter(assignment => 
-              assignment && 
-              assignment.childTaskId && 
-              assignment.agentId && 
-              typeof assignment.matchingScore === 'number' &&
-              assignment.reasoning &&
-              // Check if the assigned agent and task exist
-              availableAgents.some(a => a.id === assignment.agentId) &&
-              childTasks.some(t => t.id === assignment.childTaskId))
+            .filter(
+              (assignment) =>
+                assignment &&
+                assignment.childTaskId &&
+                assignment.agentId &&
+                typeof assignment.matchingScore === 'number' &&
+                assignment.reasoning &&
+                // Check if the assigned agent and task exist
+                availableAgents.some((a) => a.id === assignment.agentId) &&
+                childTasks.some((t) => t.id === assignment.childTaskId),
+            )
             // Ensure matching score is between 0 and 1
-            .map(assignment => ({
+            .map((assignment) => ({
               ...assignment,
               matchingScore: Math.min(Math.max(assignment.matchingScore, 0), 1),
             }))
@@ -383,7 +417,8 @@ Please assign the most appropriate agent to each subtask. Focus on matching agen
       hierarchyManager?: TaskHierarchyManager;
     } = {},
   ): Promise<SubtaskAssignment | null> {
-    const hierarchyManager = options.hierarchyManager || this.taskHierarchyManager;
+    const hierarchyManager =
+      options.hierarchyManager || this.taskHierarchyManager;
     if (!hierarchyManager) {
       throw new Error('No task hierarchy manager available');
     }
@@ -399,16 +434,19 @@ Please assign the most appropriate agent to each subtask. Focus on matching agen
       const parentTaskId = childTask.parentTaskId;
       const assignments = await hierarchyManager.delegateSubtasks(
         parentTaskId,
-        [{ childTaskId, agentId: childTask.assignedAgentId || '' }]
+        [{ childTaskId, agentId: childTask.assignedAgentId || '' }],
       );
 
       // Find the assignment for this child task
-      return assignments.find(a => a.childTaskId === childTaskId) || null;
+      return assignments.find((a) => a.childTaskId === childTaskId) || null;
     } catch (error) {
-      this.logger.error(`Error getting assignment status for task ${childTaskId}`, {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      this.logger.error(
+        `Error getting assignment status for task ${childTaskId}`,
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
       return null;
     }
   }
-} 
+}

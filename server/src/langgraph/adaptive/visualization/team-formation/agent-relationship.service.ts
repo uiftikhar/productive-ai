@@ -3,21 +3,25 @@ import { Logger } from '../../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../../shared/logger/console-logger';
 import {
   AgentRelationship,
-  AgentRelationshipVisualization
+  AgentRelationshipVisualization,
 } from '../../interfaces/visualization.interface';
 
 /**
  * Implementation of the agent relationship visualization service
  * This service manages agent relationships and provides visualization for team structures
  */
-export class AgentRelationshipVisualizationImpl implements AgentRelationshipVisualization {
+export class AgentRelationshipVisualizationImpl
+  implements AgentRelationshipVisualization
+{
   private logger: Logger;
   private relationships: Map<string, AgentRelationship> = new Map();
   private agentRelationshipIndex: Map<string, Set<string>> = new Map();
 
-  constructor(options: {
-    logger?: Logger;
-  } = {}) {
+  constructor(
+    options: {
+      logger?: Logger;
+    } = {},
+  ) {
     this.logger = options.logger || new ConsoleLogger();
     this.logger.info('Agent relationship visualization service initialized');
   }
@@ -27,47 +31,54 @@ export class AgentRelationshipVisualizationImpl implements AgentRelationshipVisu
    */
   recordRelationship(relationship: Omit<AgentRelationship, 'id'>): string {
     const id = uuidv4();
-    
+
     const newRelationship: AgentRelationship = {
       ...relationship,
-      id
+      id,
     };
-    
+
     // Store the relationship
     this.relationships.set(id, newRelationship);
-    
+
     // Update agent indexes
     this.updateAgentIndex(newRelationship.sourceAgentId, id);
     this.updateAgentIndex(newRelationship.targetAgentId, id);
-    
-    this.logger.debug(`Recorded relationship ${id} between agents ${relationship.sourceAgentId} and ${relationship.targetAgentId}`);
-    
+
+    this.logger.debug(
+      `Recorded relationship ${id} between agents ${relationship.sourceAgentId} and ${relationship.targetAgentId}`,
+    );
+
     return id;
   }
 
   /**
    * Update an existing agent relationship
    */
-  updateRelationship(relationshipId: string, updates: Partial<AgentRelationship>): boolean {
+  updateRelationship(
+    relationshipId: string,
+    updates: Partial<AgentRelationship>,
+  ): boolean {
     const relationship = this.relationships.get(relationshipId);
-    
+
     if (!relationship) {
-      this.logger.warn(`Cannot update non-existent relationship: ${relationshipId}`);
+      this.logger.warn(
+        `Cannot update non-existent relationship: ${relationshipId}`,
+      );
       return false;
     }
-    
+
     // Create updated relationship
     const updatedRelationship: AgentRelationship = {
       ...relationship,
       ...updates,
-      id: relationshipId // Ensure ID is not changed
+      id: relationshipId, // Ensure ID is not changed
     };
-    
+
     // Update the relationship
     this.relationships.set(relationshipId, updatedRelationship);
-    
+
     this.logger.debug(`Updated relationship ${relationshipId}`);
-    
+
     return true;
   }
 
@@ -76,12 +87,12 @@ export class AgentRelationshipVisualizationImpl implements AgentRelationshipVisu
    */
   getRelationship(relationshipId: string): AgentRelationship {
     const relationship = this.relationships.get(relationshipId);
-    
+
     if (!relationship) {
       this.logger.warn(`Relationship not found: ${relationshipId}`);
       throw new Error(`Relationship not found: ${relationshipId}`);
     }
-    
+
     return relationship;
   }
 
@@ -89,12 +100,13 @@ export class AgentRelationshipVisualizationImpl implements AgentRelationshipVisu
    * Get all relationships for a specific agent
    */
   getAgentRelationships(agentId: string): AgentRelationship[] {
-    const relationshipIds = this.agentRelationshipIndex.get(agentId) || new Set<string>();
-    
+    const relationshipIds =
+      this.agentRelationshipIndex.get(agentId) || new Set<string>();
+
     const relationships = Array.from(relationshipIds)
-      .map(id => this.relationships.get(id))
+      .map((id) => this.relationships.get(id))
       .filter(Boolean) as AgentRelationship[];
-    
+
     return relationships;
   }
 
@@ -102,19 +114,21 @@ export class AgentRelationshipVisualizationImpl implements AgentRelationshipVisu
    * Visualize team structure for a set of agents
    */
   visualizeTeamStructure(agentIds: string[]): any {
-    this.logger.debug(`Visualizing team structure for ${agentIds.length} agents`);
-    
+    this.logger.debug(
+      `Visualizing team structure for ${agentIds.length} agents`,
+    );
+
     // Collect all relationships among the specified agents
     const relationships: AgentRelationship[] = [];
     const relationshipSet = new Set<string>();
-    
+
     // Gather all relationships where both source and target are in the agent list
     for (const agentId of agentIds) {
       const agentRelationships = this.getAgentRelationships(agentId);
-      
+
       for (const relationship of agentRelationships) {
         if (
-          agentIds.includes(relationship.sourceAgentId) && 
+          agentIds.includes(relationship.sourceAgentId) &&
           agentIds.includes(relationship.targetAgentId) &&
           !relationshipSet.has(relationship.id)
         ) {
@@ -123,21 +137,21 @@ export class AgentRelationshipVisualizationImpl implements AgentRelationshipVisu
         }
       }
     }
-    
+
     // Create nodes for all agents
-    const nodes = agentIds.map(agentId => ({
+    const nodes = agentIds.map((agentId) => ({
       id: agentId,
-      connections: this.getAgentRelationships(agentId).length
+      connections: this.getAgentRelationships(agentId).length,
     }));
-    
+
     // Create edges for all relationships
-    const edges = relationships.map(relationship => ({
+    const edges = relationships.map((relationship) => ({
       source: relationship.sourceAgentId,
       target: relationship.targetAgentId,
       type: relationship.type,
-      strength: relationship.strength
+      strength: relationship.strength,
     }));
-    
+
     // Create a team structure visualization object
     const teamStructure = {
       nodes,
@@ -145,10 +159,10 @@ export class AgentRelationshipVisualizationImpl implements AgentRelationshipVisu
       metrics: {
         density: this.calculateTeamDensity(agentIds),
         cohesion: this.calculateTeamCohesion(agentIds),
-        centralAgents: this.identifyCentralAgents(agentIds)
-      }
+        centralAgents: this.identifyCentralAgents(agentIds),
+      },
     };
-    
+
     return teamStructure;
   }
 
@@ -156,74 +170,83 @@ export class AgentRelationshipVisualizationImpl implements AgentRelationshipVisu
    * Identify central agents in a team
    */
   identifyCentralAgents(agentIds: string[]): string[] {
-    this.logger.debug(`Identifying central agents among ${agentIds.length} agents`);
-    
+    this.logger.debug(
+      `Identifying central agents among ${agentIds.length} agents`,
+    );
+
     // Calculate connection counts for each agent
     const connectionCounts = new Map<string, number>();
-    
+
     for (const agentId of agentIds) {
       // Count relationships where this agent is either source or target
       const relationships = this.getAgentRelationships(agentId);
       connectionCounts.set(agentId, relationships.length);
     }
-    
+
     // Sort agents by connection count in descending order
-    const sortedAgents = [...connectionCounts.entries()]
-      .sort((a, b) => b[1] - a[1]);
-    
+    const sortedAgents = [...connectionCounts.entries()].sort(
+      (a, b) => b[1] - a[1],
+    );
+
     // Consider agents in the top 25% as central agents
     const centralCount = Math.max(1, Math.ceil(agentIds.length * 0.25));
-    
+
     // Return the IDs of central agents
-    return sortedAgents.slice(0, centralCount).map(entry => entry[0]);
+    return sortedAgents.slice(0, centralCount).map((entry) => entry[0]);
   }
 
   /**
    * Calculate team cohesion score
    */
   calculateTeamCohesion(agentIds: string[]): number {
-    this.logger.debug(`Calculating team cohesion for ${agentIds.length} agents`);
-    
+    this.logger.debug(
+      `Calculating team cohesion for ${agentIds.length} agents`,
+    );
+
     if (agentIds.length <= 1) {
       return 1.0; // A single agent is considered fully cohesive
     }
-    
+
     // Count total relationships within the team
     let relationshipCount = 0;
     let totalStrength = 0;
-    
+
     for (const agentId of agentIds) {
-      const relationships = this.getAgentRelationships(agentId)
-        .filter(relationship => agentIds.includes(relationship.sourceAgentId) && 
-                              agentIds.includes(relationship.targetAgentId));
-      
+      const relationships = this.getAgentRelationships(agentId).filter(
+        (relationship) =>
+          agentIds.includes(relationship.sourceAgentId) &&
+          agentIds.includes(relationship.targetAgentId),
+      );
+
       relationshipCount += relationships.length;
-      
+
       // Sum up relationship strengths
       for (const relationship of relationships) {
         totalStrength += relationship.strength;
       }
     }
-    
+
     // Avoid double-counting by dividing by 2
     relationshipCount = relationshipCount / 2;
     totalStrength = totalStrength / 2;
-    
+
     // Maximum possible relationships in a fully connected team
-    const maxPossibleRelationships = (agentIds.length * (agentIds.length - 1)) / 2;
-    
+    const maxPossibleRelationships =
+      (agentIds.length * (agentIds.length - 1)) / 2;
+
     if (maxPossibleRelationships === 0) {
       return 0;
     }
-    
+
     // Calculate connection density (0-1)
     const connectionDensity = relationshipCount / maxPossibleRelationships;
-    
+
     // Calculate average relationship strength (0-1)
-    const averageStrength = relationshipCount > 0 ? totalStrength / relationshipCount : 0;
-    
+    const averageStrength =
+      relationshipCount > 0 ? totalStrength / relationshipCount : 0;
+
     // Combine density and strength for overall cohesion score
-    return (connectionDensity * 0.5) + (averageStrength * 0.5);
+    return connectionDensity * 0.5 + averageStrength * 0.5;
   }
 
   /**
@@ -233,7 +256,7 @@ export class AgentRelationshipVisualizationImpl implements AgentRelationshipVisu
     if (!this.agentRelationshipIndex.has(agentId)) {
       this.agentRelationshipIndex.set(agentId, new Set<string>());
     }
-    
+
     this.agentRelationshipIndex.get(agentId)!.add(relationshipId);
   }
 
@@ -244,27 +267,30 @@ export class AgentRelationshipVisualizationImpl implements AgentRelationshipVisu
     if (agentIds.length <= 1) {
       return 1.0;
     }
-    
+
     let relationshipCount = 0;
-    
+
     for (const agentId of agentIds) {
-      const relationships = this.getAgentRelationships(agentId)
-        .filter(relationship => agentIds.includes(relationship.sourceAgentId) && 
-                              agentIds.includes(relationship.targetAgentId));
-      
+      const relationships = this.getAgentRelationships(agentId).filter(
+        (relationship) =>
+          agentIds.includes(relationship.sourceAgentId) &&
+          agentIds.includes(relationship.targetAgentId),
+      );
+
       relationshipCount += relationships.length;
     }
-    
+
     // Avoid double-counting
     relationshipCount = relationshipCount / 2;
-    
+
     // Maximum possible relationships
-    const maxPossibleRelationships = (agentIds.length * (agentIds.length - 1)) / 2;
-    
+    const maxPossibleRelationships =
+      (agentIds.length * (agentIds.length - 1)) / 2;
+
     if (maxPossibleRelationships === 0) {
       return 0;
     }
-    
+
     return relationshipCount / maxPossibleRelationships;
   }
-} 
+}

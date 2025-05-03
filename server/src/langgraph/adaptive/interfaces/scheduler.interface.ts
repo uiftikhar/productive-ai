@@ -1,6 +1,6 @@
 /**
  * Interfaces for the Priority-Based Scheduler
- * 
+ *
  * These interfaces define the core types and structures for priority-based,
  * context-aware, and dependency-aware task scheduling.
  */
@@ -9,24 +9,24 @@
  * Priority level for tasks
  */
 export enum PriorityLevel {
-  CRITICAL = 'critical',   // Must be executed immediately
-  HIGH = 'high',           // Should be executed soon
-  MEDIUM = 'medium',       // Standard priority
-  LOW = 'low',             // Can be delayed if needed
-  BACKGROUND = 'background' // Execute when resources are available
+  CRITICAL = 'critical', // Must be executed immediately
+  HIGH = 'high', // Should be executed soon
+  MEDIUM = 'medium', // Standard priority
+  LOW = 'low', // Can be delayed if needed
+  BACKGROUND = 'background', // Execute when resources are available
 }
 
 /**
  * Task status in the scheduling system
  */
 export enum TaskScheduleStatus {
-  QUEUED = 'queued',           // Waiting in priority queue
-  SCHEDULED = 'scheduled',     // Scheduled but not yet running
-  RUNNING = 'running',         // Currently executing
-  BLOCKED = 'blocked',         // Blocked by dependency or resource
-  COMPLETED = 'completed',     // Successfully completed
-  FAILED = 'failed',           // Failed execution
-  CANCELED = 'canceled'        // Explicitly canceled
+  QUEUED = 'queued', // Waiting in priority queue
+  SCHEDULED = 'scheduled', // Scheduled but not yet running
+  RUNNING = 'running', // Currently executing
+  BLOCKED = 'blocked', // Blocked by dependency or resource
+  COMPLETED = 'completed', // Successfully completed
+  FAILED = 'failed', // Failed execution
+  CANCELED = 'canceled', // Explicitly canceled
 }
 
 /**
@@ -102,7 +102,9 @@ export interface TaskQueue {
  * Interface for the main priority-based scheduler
  */
 export interface PriorityScheduler {
-  addTask(task: Omit<SchedulableTask, 'status' | 'insertedAt' | 'weight'>): string;
+  addTask(
+    task: Omit<SchedulableTask, 'status' | 'insertedAt' | 'weight'>,
+  ): string;
   updateTaskPriority(taskId: string, priority: PriorityLevel): boolean;
   cancelTask(taskId: string): boolean;
   getNextTask(): SchedulableTask | undefined;
@@ -136,6 +138,10 @@ export interface DependencyAwareQueue extends TaskQueue {
   getDependencies(taskId: string): SchedulableTask[];
   isBlocked(taskId: string): boolean;
   isReadyToExecute(taskId: string): boolean;
-  updateTaskStatus(taskId: string, status: TaskScheduleStatus, result?: any): void;
+  updateTaskStatus(
+    taskId: string,
+    status: TaskScheduleStatus,
+    result?: any,
+  ): void;
   optimizeExecutionOrder(): SchedulableTask[];
-} 
+}

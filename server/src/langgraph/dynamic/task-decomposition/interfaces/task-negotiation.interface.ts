@@ -96,7 +96,11 @@ export interface OwnershipDispute {
   resolution?: {
     assignedTo: string;
     resolvedAt: number;
-    resolutionMethod: 'consensus' | 'arbitration' | 'capability_match' | 'rotation';
+    resolutionMethod:
+      | 'consensus'
+      | 'arbitration'
+      | 'capability_match'
+      | 'rotation';
     reasoning: string;
   };
   escalationLevel?: number; // Escalation level if dispute is escalated
@@ -109,25 +113,62 @@ export interface OwnershipDispute {
  */
 export interface TaskNegotiationManager {
   // Negotiation management
-  initiateNegotiation(taskId: string, initiatedBy: string, type: NegotiationType, participants: string[], initialProposition?: Omit<NegotiationProposition, 'id' | 'negotiationId' | 'proposedBy' | 'proposedAt' | 'status' | 'previousPropositionId'>): Promise<TaskNegotiation>;
-  
+  initiateNegotiation(
+    taskId: string,
+    initiatedBy: string,
+    type: NegotiationType,
+    participants: string[],
+    initialProposition?: Omit<
+      NegotiationProposition,
+      | 'id'
+      | 'negotiationId'
+      | 'proposedBy'
+      | 'proposedAt'
+      | 'status'
+      | 'previousPropositionId'
+    >,
+  ): Promise<TaskNegotiation>;
+
   getNegotiation(negotiationId: string): Promise<TaskNegotiation | null>;
   getNegotiationsForTask(taskId: string): Promise<TaskNegotiation[]>;
-  
+
   // Proposition management
-  proposeInNegotiation(negotiationId: string, proposedBy: string, proposition: Omit<NegotiationProposition, 'id' | 'negotiationId' | 'proposedBy' | 'proposedAt' | 'status'>): Promise<NegotiationProposition>;
-  respondToProposition(propositionId: string, respondingAgentId: string, response: ProposalResponse, reasoning: string, counterProposition?: Record<string, any>): Promise<TaskNegotiation>;
+  proposeInNegotiation(
+    negotiationId: string,
+    proposedBy: string,
+    proposition: Omit<
+      NegotiationProposition,
+      'id' | 'negotiationId' | 'proposedBy' | 'proposedAt' | 'status'
+    >,
+  ): Promise<NegotiationProposition>;
+  respondToProposition(
+    propositionId: string,
+    respondingAgentId: string,
+    response: ProposalResponse,
+    reasoning: string,
+    counterProposition?: Record<string, any>,
+  ): Promise<TaskNegotiation>;
   getPropositions(negotiationId: string): Promise<NegotiationProposition[]>;
-  
+
   // Boundary negotiation
-  negotiateTaskBoundary(taskId: string, proposedBoundary: TaskBoundaryProposal): Promise<TaskNegotiation>;
-  
+  negotiateTaskBoundary(
+    taskId: string,
+    proposedBoundary: TaskBoundaryProposal,
+  ): Promise<TaskNegotiation>;
+
   // Ownership dispute resolution
-  fileOwnershipDispute(taskId: string, claimantId: string, reason: string): Promise<OwnershipDispute>;
-  resolveOwnershipDispute(disputeId: string, resolution: Omit<OwnershipDispute['resolution'], 'resolvedAt'>): Promise<OwnershipDispute>;
+  fileOwnershipDispute(
+    taskId: string,
+    claimantId: string,
+    reason: string,
+  ): Promise<OwnershipDispute>;
+  resolveOwnershipDispute(
+    disputeId: string,
+    resolution: Omit<OwnershipDispute['resolution'], 'resolvedAt'>,
+  ): Promise<OwnershipDispute>;
   escalateDispute(disputeId: string, reason: string): Promise<OwnershipDispute>;
   getDisputesForTask(taskId: string): Promise<OwnershipDispute[]>;
-  
+
   // Task modifications based on negotiation
   applyNegotiatedChanges(negotiationId: string): Promise<HierarchicalTask>;
 }
@@ -142,7 +183,10 @@ export function createNegotiationProposition(
   expiresAt?: number,
   responseDeadline?: number,
   previousPropositionId?: string,
-): Omit<NegotiationProposition, 'id' | 'negotiationId' | 'proposedBy' | 'proposedAt' | 'status'> {
+): Omit<
+  NegotiationProposition,
+  'id' | 'negotiationId' | 'proposedBy' | 'proposedAt' | 'status'
+> {
   return {
     type,
     content,
@@ -164,12 +208,23 @@ export function createTaskNegotiation(
   participants: string[],
   maxRounds: number = 5,
   deadline?: number,
-): Omit<TaskNegotiation, 'id' | 'initiatedAt' | 'status' | 'propositions' | 'currentRound' | 'currentPropositionId'> {
+): Omit<
+  TaskNegotiation,
+  | 'id'
+  | 'initiatedAt'
+  | 'status'
+  | 'propositions'
+  | 'currentRound'
+  | 'currentPropositionId'
+> {
   return {
     taskId,
     initiatedBy,
     type,
-    participants: [initiatedBy, ...participants.filter(id => id !== initiatedBy)],
+    participants: [
+      initiatedBy,
+      ...participants.filter((id) => id !== initiatedBy),
+    ],
     maxRounds,
     deadline,
     metadata: {},
@@ -192,4 +247,4 @@ export function createOwnershipDispute(
     priority,
     metadata: {},
   };
-} 
+}

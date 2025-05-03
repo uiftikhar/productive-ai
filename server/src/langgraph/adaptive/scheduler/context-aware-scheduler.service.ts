@@ -39,13 +39,29 @@ export interface ContextPattern {
   description: string;
   contextConditions: {
     factor: string;
-    operator: 'eq' | 'ne' | 'gt' | 'lt' | 'gte' | 'lte' | 'between' | 'contains';
+    operator:
+      | 'eq'
+      | 'ne'
+      | 'gt'
+      | 'lt'
+      | 'gte'
+      | 'lte'
+      | 'between'
+      | 'contains';
     value: any;
     value2?: any; // For 'between' operator
   }[];
   taskConditions?: {
     property: string;
-    operator: 'eq' | 'ne' | 'gt' | 'lt' | 'gte' | 'lte' | 'between' | 'contains';
+    operator:
+      | 'eq'
+      | 'ne'
+      | 'gt'
+      | 'lt'
+      | 'gte'
+      | 'lte'
+      | 'between'
+      | 'contains';
     value: any;
     value2?: any; // For 'between' operator
   }[];
@@ -60,12 +76,17 @@ export interface ContextPattern {
 /**
  * Context-aware scheduler service for situational execution
  */
-export class ContextAwareSchedulerService implements ContextAwareScheduler, PriorityScheduler {
+export class ContextAwareSchedulerService
+  implements ContextAwareScheduler, PriorityScheduler
+{
   private logger: Logger;
   private prioritizationService: DynamicPrioritizationService;
   private insights: ContextualInsight[] = [];
   private contextPatterns: ContextPattern[] = [];
-  private taskCompletionCallbacks: Map<string, ((task: SchedulableTask) => void)[]> = new Map();
+  private taskCompletionCallbacks: Map<
+    string,
+    ((task: SchedulableTask) => void)[]
+  > = new Map();
   private schedulingHistory: {
     timestamp: Date;
     action: string;
@@ -83,14 +104,15 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
     } = {},
   ) {
     this.logger = options.logger || new ConsoleLogger();
-    
+
     // Use provided prioritization service or create a new one
-    this.prioritizationService = options.prioritizationService || 
+    this.prioritizationService =
+      options.prioritizationService ||
       new DynamicPrioritizationService({
         logger: this.logger,
         initialContext: options.initialContext,
       });
-    
+
     // Initialize context patterns
     if (options.contextPatterns && options.contextPatterns.length > 0) {
       this.contextPatterns = [...options.contextPatterns];
@@ -111,12 +133,15 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
     this.contextPatterns.push({
       id: uuidv4(),
       name: 'High System Load',
-      description: 'System is under high load, prioritize critical tasks and delay background tasks',
-      contextConditions: [
-        { factor: 'systemLoad', operator: 'gt', value: 0.8 },
-      ],
+      description:
+        'System is under high load, prioritize critical tasks and delay background tasks',
+      contextConditions: [{ factor: 'systemLoad', operator: 'gt', value: 0.8 }],
       taskConditions: [
-        { property: 'priority', operator: 'eq', value: PriorityLevel.BACKGROUND },
+        {
+          property: 'priority',
+          operator: 'eq',
+          value: PriorityLevel.BACKGROUND,
+        },
       ],
       priorityAdjustment: 0.5, // Reduce priority by half
       recommendedAction: {
@@ -131,9 +156,7 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
       id: uuidv4(),
       name: 'High Urgency',
       description: 'System urgency is high, boost priority of all tasks',
-      contextConditions: [
-        { factor: 'urgency', operator: 'gt', value: 0.7 },
-      ],
+      contextConditions: [{ factor: 'urgency', operator: 'gt', value: 0.7 }],
       priorityAdjustment: 1.3, // Boost priority by 30%
       patternWeight: 0.7,
     });
@@ -161,49 +184,55 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
    */
   evaluateContext(task: SchedulableTask, context: SchedulingContext): number {
     // Base priority weight from the dynamic prioritization service
-    const baseWeight = this.prioritizationService.getTaskById(task.id)?.weight || 0;
-    
+    const baseWeight =
+      this.prioritizationService.getTaskById(task.id)?.weight || 0;
+
     // Apply context patterns
     let adjustedWeight = baseWeight;
     const matchedPatterns: ContextPattern[] = [];
-    
+
     for (const pattern of this.contextPatterns) {
       if (this.matchesContextPattern(task, context, pattern)) {
         matchedPatterns.push(pattern);
-        
+
         // Apply priority adjustment if specified
         if (pattern.priorityAdjustment !== undefined) {
           adjustedWeight *= pattern.priorityAdjustment;
         }
       }
     }
-    
+
     // Generate insights from matched patterns
     if (matchedPatterns.length > 0) {
-      this.logger.debug(`Task ${task.id} matched ${matchedPatterns.length} context patterns`, {
-        taskId: task.id,
-        patterns: matchedPatterns.map(p => p.name),
-      });
-      
+      this.logger.debug(
+        `Task ${task.id} matched ${matchedPatterns.length} context patterns`,
+        {
+          taskId: task.id,
+          patterns: matchedPatterns.map((p) => p.name),
+        },
+      );
+
       // Add insight for significant adjustments
       if (Math.abs(adjustedWeight - baseWeight) / baseWeight > 0.2) {
         this.addInsight({
           type: 'observation',
           source: 'context-pattern-matching',
-          description: `Task priority significantly adjusted due to context patterns: ${matchedPatterns.map(p => p.name).join(', ')}`,
+          description: `Task priority significantly adjusted due to context patterns: ${matchedPatterns.map((p) => p.name).join(', ')}`,
           relevantTaskIds: [task.id],
-          relevantContextFactors: matchedPatterns.flatMap(p => p.contextConditions.map(c => c.factor)),
+          relevantContextFactors: matchedPatterns.flatMap((p) =>
+            p.contextConditions.map((c) => c.factor),
+          ),
           confidence: 0.8,
           impact: 0.7,
           metadata: {
             baseWeight,
             adjustedWeight,
-            patterns: matchedPatterns.map(p => p.id),
+            patterns: matchedPatterns.map((p) => p.id),
           },
         });
       }
     }
-    
+
     return Math.max(1, adjustedWeight);
   }
 
@@ -211,24 +240,34 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
    * Check if a task matches a context pattern
    */
   private matchesContextPattern(
-    task: SchedulableTask, 
-    context: SchedulingContext, 
-    pattern: ContextPattern
+    task: SchedulableTask,
+    context: SchedulingContext,
+    pattern: ContextPattern,
   ): boolean {
     // Check context conditions
     for (const condition of pattern.contextConditions) {
       const contextValue = context[condition.factor as keyof SchedulingContext];
-      
-      if (!this.evaluateCondition(contextValue, condition.operator, condition.value, condition.value2)) {
+
+      if (
+        !this.evaluateCondition(
+          contextValue,
+          condition.operator,
+          condition.value,
+          condition.value2,
+        )
+      ) {
         return false;
       }
     }
-    
+
     // Check task conditions if present
     if (pattern.taskConditions && pattern.taskConditions.length > 0) {
       for (const condition of pattern.taskConditions) {
         // Handle special case for deadline
-        if (condition.property === 'deadline' && condition.operator === 'contains') {
+        if (
+          condition.property === 'deadline' &&
+          condition.operator === 'contains'
+        ) {
           // Check if deadline exists (or doesn't if value is false)
           if (condition.value && !task.deadline) {
             return false;
@@ -237,15 +276,22 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
           }
           continue;
         }
-        
+
         // Regular property check
         const propertyValue = this.getNestedProperty(task, condition.property);
-        if (!this.evaluateCondition(propertyValue, condition.operator, condition.value, condition.value2)) {
+        if (
+          !this.evaluateCondition(
+            propertyValue,
+            condition.operator,
+            condition.value,
+            condition.value2,
+          )
+        ) {
           return false;
         }
       }
     }
-    
+
     return true;
   }
 
@@ -253,26 +299,38 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
    * Helper to get a nested property using dot notation
    */
   private getNestedProperty(obj: any, path: string): any {
-    return path.split('.').reduce((o, p) => (o && o[p] !== undefined) ? o[p] : undefined, obj);
+    return path
+      .split('.')
+      .reduce((o, p) => (o && o[p] !== undefined ? o[p] : undefined), obj);
   }
 
   /**
    * Evaluate a condition with various operators
    */
   private evaluateCondition(
-    actual: any, 
-    operator: string, 
-    expected: any, 
-    expected2?: any
+    actual: any,
+    operator: string,
+    expected: any,
+    expected2?: any,
   ): boolean {
     switch (operator) {
-      case 'eq': return actual === expected;
-      case 'ne': return actual !== expected;
-      case 'gt': return actual > expected;
-      case 'lt': return actual < expected;
-      case 'gte': return actual >= expected;
-      case 'lte': return actual <= expected;
-      case 'between': return actual >= expected && actual <= (expected2 !== undefined ? expected2 : expected);
+      case 'eq':
+        return actual === expected;
+      case 'ne':
+        return actual !== expected;
+      case 'gt':
+        return actual > expected;
+      case 'lt':
+        return actual < expected;
+      case 'gte':
+        return actual >= expected;
+      case 'lte':
+        return actual <= expected;
+      case 'between':
+        return (
+          actual >= expected &&
+          actual <= (expected2 !== undefined ? expected2 : expected)
+        );
       case 'contains':
         if (typeof actual === 'string') {
           return actual.includes(expected);
@@ -293,17 +351,17 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
   adaptToContextChange(context: Partial<SchedulingContext>): void {
     // Log the context change
     this.logger.info('Adapting to context change', { context });
-    
+
     // Record in scheduling history
     this.schedulingHistory.push({
       timestamp: new Date(),
       action: 'context_change',
       context,
     });
-    
+
     // Update the context in the prioritization service
     this.prioritizationService.updateContext(context);
-    
+
     // Check for matching patterns and generate insights
     this.analyzeContextChange(context);
   }
@@ -311,37 +369,58 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
   /**
    * Analyze a context change for patterns and insights
    */
-  private analyzeContextChange(contextChange: Partial<SchedulingContext>): void {
+  private analyzeContextChange(
+    contextChange: Partial<SchedulingContext>,
+  ): void {
     const currentContext = this.getCurrentContext();
     const tasks = this.getAllTasks();
-    const matchingPatterns: { pattern: ContextPattern; taskIds: string[] }[] = [];
-    
+    const matchingPatterns: { pattern: ContextPattern; taskIds: string[] }[] =
+      [];
+
     // Find patterns that match the current context
     for (const pattern of this.contextPatterns) {
       const matchingTasks: string[] = [];
-      
+
       // Check just the context conditions first
       let contextConditionsMatch = true;
       for (const condition of pattern.contextConditions) {
-        const contextValue = currentContext[condition.factor as keyof SchedulingContext];
-        if (!this.evaluateCondition(contextValue, condition.operator, condition.value, condition.value2)) {
+        const contextValue =
+          currentContext[condition.factor as keyof SchedulingContext];
+        if (
+          !this.evaluateCondition(
+            contextValue,
+            condition.operator,
+            condition.value,
+            condition.value2,
+          )
+        ) {
           contextConditionsMatch = false;
           break;
         }
       }
-      
+
       // If context conditions match, find matching tasks
       if (contextConditionsMatch) {
         if (!pattern.taskConditions || pattern.taskConditions.length === 0) {
           // Pattern applies to all tasks
-          matchingTasks.push(...tasks.map(t => t.id));
+          matchingTasks.push(...tasks.map((t) => t.id));
         } else {
           // Check which tasks match the task conditions
           for (const task of tasks) {
             let taskMatches = true;
             for (const condition of pattern.taskConditions) {
-              const propertyValue = this.getNestedProperty(task, condition.property);
-              if (!this.evaluateCondition(propertyValue, condition.operator, condition.value, condition.value2)) {
+              const propertyValue = this.getNestedProperty(
+                task,
+                condition.property,
+              );
+              if (
+                !this.evaluateCondition(
+                  propertyValue,
+                  condition.operator,
+                  condition.value,
+                  condition.value2,
+                )
+              ) {
                 taskMatches = false;
                 break;
               }
@@ -351,13 +430,13 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
             }
           }
         }
-        
+
         if (matchingTasks.length > 0) {
           matchingPatterns.push({ pattern, taskIds: matchingTasks });
         }
       }
     }
-    
+
     // Generate insights from matching patterns
     for (const { pattern, taskIds } of matchingPatterns) {
       if (pattern.recommendedAction) {
@@ -366,7 +445,9 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
           source: 'context-pattern-matching',
           description: `Pattern "${pattern.name}" suggests action: ${pattern.recommendedAction.type}`,
           relevantTaskIds: taskIds,
-          relevantContextFactors: pattern.contextConditions.map(c => c.factor),
+          relevantContextFactors: pattern.contextConditions.map(
+            (c) => c.factor,
+          ),
           confidence: 0.75,
           impact: pattern.patternWeight,
           metadata: {
@@ -380,7 +461,9 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
           source: 'context-pattern-matching',
           description: `Pattern "${pattern.name}" detected: ${pattern.description}`,
           relevantTaskIds: taskIds,
-          relevantContextFactors: pattern.contextConditions.map(c => c.factor),
+          relevantContextFactors: pattern.contextConditions.map(
+            (c) => c.factor,
+          ),
           confidence: 0.8,
           impact: pattern.patternWeight,
           metadata: {
@@ -404,33 +487,33 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
   getContextualInsights(): Record<string, any> {
     // Clean up expired insights
     const now = new Date();
-    this.insights = this.insights.filter(insight => 
-      !insight.expiresAt || insight.expiresAt > now
+    this.insights = this.insights.filter(
+      (insight) => !insight.expiresAt || insight.expiresAt > now,
     );
-    
+
     // Group insights by type
     const groupedInsights = {
-      observations: this.insights.filter(i => i.type === 'observation'),
-      recommendations: this.insights.filter(i => i.type === 'recommendation'),
-      warnings: this.insights.filter(i => i.type === 'warning'),
-      predictions: this.insights.filter(i => i.type === 'prediction'),
+      observations: this.insights.filter((i) => i.type === 'observation'),
+      recommendations: this.insights.filter((i) => i.type === 'recommendation'),
+      warnings: this.insights.filter((i) => i.type === 'warning'),
+      predictions: this.insights.filter((i) => i.type === 'prediction'),
     };
-    
+
     // Get most relevant insights by impact
     const mostRelevant = [...this.insights]
       .sort((a, b) => b.impact - a.impact)
       .slice(0, 5);
-    
+
     // Get insights affecting each task
     const taskInsights: Record<string, ContextualInsight[]> = {};
     const allTasks = this.getAllTasks();
-    
+
     for (const task of allTasks) {
-      taskInsights[task.id] = this.insights.filter(
-        insight => insight.relevantTaskIds.includes(task.id)
+      taskInsights[task.id] = this.insights.filter((insight) =>
+        insight.relevantTaskIds.includes(task.id),
       );
     }
-    
+
     return {
       byType: groupedInsights,
       mostRelevant,
@@ -443,24 +526,31 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
   /**
    * Add a new contextual insight
    */
-  private addInsight(insightData: Omit<ContextualInsight, 'id' | 'timestamp'>): string {
+  private addInsight(
+    insightData: Omit<ContextualInsight, 'id' | 'timestamp'>,
+  ): string {
     const id = uuidv4();
     const insight: ContextualInsight = {
       ...insightData,
       id,
       timestamp: new Date(),
     };
-    
+
     this.insights.push(insight);
-    this.logger.debug('Added contextual insight', { insightId: id, type: insight.type });
-    
+    this.logger.debug('Added contextual insight', {
+      insightId: id,
+      type: insight.type,
+    });
+
     // Limit the number of insights to prevent memory issues
     if (this.insights.length > 100) {
       // Remove oldest insights
-      this.insights.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      this.insights.sort(
+        (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+      );
       this.insights = this.insights.slice(-100);
     }
-    
+
     return id;
   }
 
@@ -473,10 +563,13 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
       ...pattern,
       id,
     };
-    
+
     this.contextPatterns.push(newPattern);
-    this.logger.info('Added new context pattern', { patternId: id, name: pattern.name });
-    
+    this.logger.info('Added new context pattern', {
+      patternId: id,
+      name: pattern.name,
+    });
+
     return id;
   }
 
@@ -485,13 +578,15 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
    */
   removeContextPattern(patternId: string): boolean {
     const initialLength = this.contextPatterns.length;
-    this.contextPatterns = this.contextPatterns.filter(p => p.id !== patternId);
-    
+    this.contextPatterns = this.contextPatterns.filter(
+      (p) => p.id !== patternId,
+    );
+
     const removed = initialLength > this.contextPatterns.length;
     if (removed) {
       this.logger.info('Removed context pattern', { patternId });
     }
-    
+
     return removed;
   }
 
@@ -505,7 +600,10 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
   /**
    * Register a callback for when a task completes
    */
-  onTaskComplete(taskId: string, callback: (task: SchedulableTask) => void): void {
+  onTaskComplete(
+    taskId: string,
+    callback: (task: SchedulableTask) => void,
+  ): void {
     if (!this.taskCompletionCallbacks.has(taskId)) {
       this.taskCompletionCallbacks.set(taskId, []);
     }
@@ -524,9 +622,11 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
   /**
    * Add a task to the scheduler
    */
-  addTask(task: Omit<SchedulableTask, 'status' | 'insertedAt' | 'weight'>): string {
+  addTask(
+    task: Omit<SchedulableTask, 'status' | 'insertedAt' | 'weight'>,
+  ): string {
     const taskId = this.prioritizationService.addTask(task);
-    
+
     // Record in scheduling history
     this.schedulingHistory.push({
       timestamp: new Date(),
@@ -534,7 +634,7 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
       taskId,
       context: this.getCurrentContext(),
     });
-    
+
     return taskId;
   }
 
@@ -542,21 +642,32 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
    * Update a task's priority
    */
   updateTaskPriority(taskId: string, priority: PriorityLevel): boolean {
-    const result = this.prioritizationService.updateTaskPriority(taskId, priority);
-    
+    const result = this.prioritizationService.updateTaskPriority(
+      taskId,
+      priority,
+    );
+
     if (result) {
       // Record in scheduling history
       this.schedulingHistory.push({
         timestamp: new Date(),
         action: 'update_priority',
         taskId,
-        context: { importance: priority === PriorityLevel.CRITICAL ? 1.0 : 
-                  priority === PriorityLevel.HIGH ? 0.8 : 
-                  priority === PriorityLevel.MEDIUM ? 0.6 : 
-                  priority === PriorityLevel.LOW ? 0.4 : 0.2 },
+        context: {
+          importance:
+            priority === PriorityLevel.CRITICAL
+              ? 1.0
+              : priority === PriorityLevel.HIGH
+                ? 0.8
+                : priority === PriorityLevel.MEDIUM
+                  ? 0.6
+                  : priority === PriorityLevel.LOW
+                    ? 0.4
+                    : 0.2,
+        },
       });
     }
-    
+
     return result;
   }
 
@@ -568,12 +679,12 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
     if (!task) {
       return false;
     }
-    
+
     const result = this.prioritizationService.updateTask(taskId, {
       status: TaskScheduleStatus.CANCELED,
       completedAt: new Date(),
     });
-    
+
     if (result) {
       // Record in scheduling history
       this.schedulingHistory.push({
@@ -583,7 +694,7 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
         context: this.getCurrentContext(),
       });
     }
-    
+
     return result;
   }
 
@@ -592,7 +703,7 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
    */
   getNextTask(): SchedulableTask | undefined {
     const task = this.prioritizationService.getNextTask();
-    
+
     if (task) {
       // Record in scheduling history
       this.schedulingHistory.push({
@@ -600,10 +711,14 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
         action: 'get_next_task',
         taskId: task.id,
         context: this.getCurrentContext(),
-        result: { taskId: task.id, priority: task.priority, weight: task.weight },
+        result: {
+          taskId: task.id,
+          priority: task.priority,
+          weight: task.weight,
+        },
       });
     }
-    
+
     return task;
   }
 
@@ -615,12 +730,12 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
     if (!task) {
       return false;
     }
-    
+
     const result = this.prioritizationService.updateTask(taskId, {
       status: TaskScheduleStatus.SCHEDULED,
       scheduledAt: new Date(),
     });
-    
+
     if (result) {
       // Record in scheduling history
       this.schedulingHistory.push({
@@ -630,7 +745,7 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
         context: this.getCurrentContext(),
       });
     }
-    
+
     return result;
   }
 
@@ -642,12 +757,12 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
     if (!task) {
       return false;
     }
-    
+
     const result = this.prioritizationService.updateTask(taskId, {
       status: TaskScheduleStatus.RUNNING,
       startedAt: new Date(),
     });
-    
+
     if (result) {
       // Record in scheduling history
       this.schedulingHistory.push({
@@ -657,7 +772,7 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
         context: this.getCurrentContext(),
       });
     }
-    
+
     return result;
   }
 
@@ -669,23 +784,30 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
     if (!task) {
       return false;
     }
-    
+
     const updated = this.prioritizationService.updateTask(taskId, {
       status: TaskScheduleStatus.COMPLETED,
       completedAt: new Date(),
     });
-    
+
     if (updated) {
       // Execute completion callbacks
       const callbacks = this.taskCompletionCallbacks.get(taskId) || [];
       for (const callback of callbacks) {
         try {
-          callback({ ...task, status: TaskScheduleStatus.COMPLETED, completedAt: new Date() });
+          callback({
+            ...task,
+            status: TaskScheduleStatus.COMPLETED,
+            completedAt: new Date(),
+          });
         } catch (err) {
-          this.logger.error('Error in task completion callback', { taskId, error: err });
+          this.logger.error('Error in task completion callback', {
+            taskId,
+            error: err,
+          });
         }
       }
-      
+
       // Record in scheduling history
       this.schedulingHistory.push({
         timestamp: new Date(),
@@ -694,11 +816,11 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
         context: this.getCurrentContext(),
         result,
       });
-      
+
       // Clear callbacks
       this.taskCompletionCallbacks.delete(taskId);
     }
-    
+
     return updated;
   }
 
@@ -710,12 +832,12 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
     if (!task) {
       return false;
     }
-    
+
     const updated = this.prioritizationService.updateTask(taskId, {
       status: TaskScheduleStatus.FAILED,
       completedAt: new Date(),
     });
-    
+
     if (updated) {
       // Record in scheduling history
       this.schedulingHistory.push({
@@ -725,7 +847,7 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
         context: this.getCurrentContext(),
         result: { error },
       });
-      
+
       // Add a warning insight
       this.addInsight({
         type: 'warning',
@@ -737,11 +859,11 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
         impact: 0.8,
         metadata: { error },
       });
-      
+
       // Clear callbacks
       this.taskCompletionCallbacks.delete(taskId);
     }
-    
+
     return updated;
   }
 
@@ -749,9 +871,9 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
    * Get all tasks that are ready to execute
    */
   getReadyTasks(): SchedulableTask[] {
-    return this.prioritizationService.getAllTasks().filter(
-      task => task.status === TaskScheduleStatus.SCHEDULED
-    );
+    return this.prioritizationService
+      .getAllTasks()
+      .filter((task) => task.status === TaskScheduleStatus.SCHEDULED);
   }
 
   /**
@@ -787,7 +909,7 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
    */
   recalculatePriorities(): void {
     this.prioritizationService.recalculateAllPriorities();
-    
+
     // Record in scheduling history
     this.schedulingHistory.push({
       timestamp: new Date(),
@@ -795,4 +917,4 @@ export class ContextAwareSchedulerService implements ContextAwareScheduler, Prio
       context: this.getCurrentContext(),
     });
   }
-} 
+}
