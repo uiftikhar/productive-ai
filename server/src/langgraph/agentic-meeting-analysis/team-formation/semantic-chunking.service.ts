@@ -8,7 +8,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
-import { EmbeddingService } from '../../../shared/services/embedding.service';
 import { EmbeddingServiceFactory } from '../../../shared/services/embedding.factory';
 import { IEmbeddingService } from '../../../shared/services/embedding.interface';
 

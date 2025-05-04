@@ -4,9 +4,9 @@
  * This test harness demonstrates the integration of specialized 
  * meeting analysis visualization services with core visualization services.
  */
-import { Logger } from '../../src/shared/logger/logger.interface';
-import { ConsoleLogger } from '../../src/shared/logger/console-logger';
-import { AgentExpertise } from '../../src/langgraph/agentic-meeting-analysis/interfaces/agent.interface';
+import { Logger } from '../../shared/logger/logger.interface';
+import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { AgentExpertise } from '../agentic-meeting-analysis/interfaces/agent.interface';
 
 import {
   // Team visualization
@@ -30,7 +30,7 @@ import {
   // Core visualization services
   DecisionCaptureImpl,
   RealTimeGraphRendererImpl
-} from '../../src/langgraph/agentic-meeting-analysis/visualization';
+} from '../agentic-meeting-analysis/visualization';
 
 /**
  * Logger for the test harness
@@ -53,8 +53,7 @@ async function testVisualization() {
   
   // Initialize team visualization services using core services
   const roleDistribution = new RoleDistributionVisualizationImpl({ 
-    logger,
-    graphRenderer 
+    logger
   });
   const teamRoster = new TeamRosterVisualizationImpl({ 
     logger 
@@ -79,8 +78,7 @@ async function testVisualization() {
   
   // Initialize collaborative dynamics visualization services using core services
   const communicationNetwork = new CommunicationNetworkVisualizationImpl({ 
-    logger,
-    graphRenderer 
+    logger
   });
   
   // Initialize content visualization services using core services
@@ -129,10 +127,14 @@ async function testVisualization() {
   logger.info('Step 4: Testing role distribution visualization');
   const rosterData = teamRoster.getTeamComposition(teamVisualizationId);
   
-  const roleDistributionGraph = roleDistribution.visualizeRoleDistribution(
-    rosterData.expertiseCoverage,
-    rosterData.specializations
-  );
+  // Create a distribution visualization
+  const distributionId = roleDistribution.createDistributionVisualization('meeting-123');
+  
+  // Update the expertise distribution
+  roleDistribution.updateExpertiseDistribution(distributionId, rosterData.expertiseCoverage);
+  
+  // Visualize role distribution
+  const roleDistributionGraph = roleDistribution.visualizeRoleDistribution(distributionId);
   
   logger.info(`Role distribution graph created with ${roleDistributionGraph.elements.length} elements`);
   
@@ -306,59 +308,46 @@ async function testVisualization() {
   
   // Step 10: Test communication network visualization
   logger.info('Step 10: Testing communication network visualization');
-  const networkId = communicationNetwork.createCommunicationNetwork('meeting-123');
   
-  // Add participants
-  communicationNetwork.addParticipantNode(networkId, {
-    participantId: 'participant-1',
-    name: 'Alice',
-    role: 'Product Manager'
+  // Record communications
+  const comm1Id = communicationNetwork.recordCommunication('meeting-123', {
+    timestamp: new Date(),
+    sourceAgentId: 'agent-1',
+    targetAgentId: 'agent-2',
+    communicationType: 'question',
+    content: 'What is the status of the decision tracking?',
+    relatedEntityId: 'topic-1'
   });
   
-  communicationNetwork.addParticipantNode(networkId, {
-    participantId: 'participant-2',
-    name: 'Bob',
-    role: 'Engineer'
+  const laterCommTimestamp = new Date();
+  laterCommTimestamp.setMinutes(laterCommTimestamp.getMinutes() + 2);
+  
+  const comm2Id = communicationNetwork.recordCommunication('meeting-123', {
+    timestamp: laterCommTimestamp,
+    sourceAgentId: 'agent-2',
+    targetAgentId: 'agent-1',
+    communicationType: 'answer',
+    content: 'Decision tracking is complete for the main topics.',
+    relatedEntityId: 'topic-1',
+    responseToId: comm1Id
   });
   
-  communicationNetwork.addParticipantNode(networkId, {
-    participantId: 'participant-3',
-    name: 'Charlie',
-    role: 'Designer'
-  });
-  
-  // Add connections
-  communicationNetwork.addCommunicationLink(networkId, {
-    sourceId: 'participant-1',
-    targetId: 'participant-2',
-    messageCount: 5,
-    strength: 0.7,
-    type: 'question-answer'
-  });
-  
-  communicationNetwork.addCommunicationLink(networkId, {
-    sourceId: 'participant-1',
-    targetId: 'participant-3',
-    messageCount: 3,
-    strength: 0.5,
-    type: 'information-sharing'
-  });
-  
-  communicationNetwork.addCommunicationLink(networkId, {
-    sourceId: 'participant-2',
-    targetId: 'participant-3',
-    messageCount: 2,
-    strength: 0.3,
-    type: 'collaboration'
+  const comm3Id = communicationNetwork.recordCommunication('meeting-123', {
+    timestamp: new Date(),
+    sourceAgentId: 'agent-1',
+    targetAgentId: 'agent-3',
+    communicationType: 'info-sharing',
+    content: 'Here are the extracted action items for your review.',
+    relatedEntityId: 'action-items'
   });
   
   // Visualize the network
-  const networkGraph = communicationNetwork.visualizeNetwork(networkId);
+  const networkGraph = communicationNetwork.visualizeCommunicationNetwork('meeting-123');
   logger.info(`Communication network graph created with ${networkGraph.elements.length} elements`);
   
   // Step 11: Test topic relationship visualization
   logger.info('Step 11: Testing topic relationship visualization');
-  const topicMapId = topicRelationship.createTopicGraph('meeting-123');
+  const topicMapId = topicRelationship.createTopicMap('meeting-123');
   
   // Add topics
   const rootTopicId = topicRelationship.addTopic(topicMapId, {
@@ -408,43 +397,62 @@ async function testVisualization() {
   
   // Step 12: Test decision point visualization
   logger.info('Step 12: Testing decision point visualization');
-  const decisionGraphId = decisionPoint.createDecisionGraph('meeting-123');
   
-  // Add decisions
-  const decision1Id = decisionPoint.addDecision(decisionGraphId, {
-    title: 'Prioritize UI improvements',
-    description: 'Team decided to prioritize UI improvements over performance optimizations for Q2',
+  // Record decisions directly using the DecisionPointVisualization interface methods
+  const decision1Id = decisionPoint.recordDecision({
+    description: 'Prioritize UI improvements over performance optimizations for Q2',
     timestamp: new Date(),
-    confidence: 0.9,
-    participantIds: ['participant-1', 'participant-3'],
-    supportingEvidence: [
-      'User feedback shows UI is the primary pain point',
-      'UI improvements will have more customer impact'
+    decisionMakers: ['participant-1', 'participant-3'],
+    alternatives: [
+      {
+        description: 'Prioritize UI improvements',
+        pros: ['User feedback shows UI is the primary pain point', 'UI improvements will have more customer impact'],
+        cons: ['May slow down performance further'],
+        selected: true
+      },
+      {
+        description: 'Prioritize performance optimizations',
+        pros: ['Would improve overall user experience', 'Technically easier to implement'],
+        cons: ['Less visible to customers', 'Not addressing main customer complaints'],
+        selected: false
+      }
     ],
-    impact: 0.8,
-    topicIds: [rootTopicId, subtopic1Id]
+    rationale: 'User feedback indicates UI improvements will have more immediate impact on customer satisfaction',
+    confidence: 0.9,
+    topicId: subtopic1Id
   });
   
   const laterDecisionTimestamp = new Date();
   laterDecisionTimestamp.setMinutes(laterDecisionTimestamp.getMinutes() + 20);
   
-  const decision2Id = decisionPoint.addDecision(decisionGraphId, {
-    title: 'Hire additional designer',
+  const decision2Id = decisionPoint.recordDecision({
     description: 'Team decided to request an additional designer to support UI improvements',
     timestamp: laterDecisionTimestamp,
-    confidence: 0.7,
-    participantIds: ['participant-1', 'participant-3'],
-    supportingEvidence: [
-      'Current design team is overloaded',
-      'UI improvements require dedicated resources'
+    decisionMakers: ['participant-1', 'participant-3'],
+    alternatives: [
+      {
+        description: 'Hire additional designer',
+        pros: ['Current design team is overloaded', 'UI improvements require dedicated resources'],
+        cons: ['Budget impact', 'Onboarding time'],
+        selected: true
+      },
+      {
+        description: 'Outsource design work',
+        pros: ['Faster to get started', 'No long-term commitment'],
+        cons: ['Less familiarity with product', 'Communication overhead'],
+        selected: false
+      }
     ],
-    impact: 0.6,
-    relatedDecisionIds: [decision1Id],
-    topicIds: [subtopic1Id]
+    rationale: 'In-house designer will provide better long-term value and continuity',
+    confidence: 0.7,
+    topicId: subtopic1Id
   });
   
+  // Link decisions
+  decisionPoint.linkDecisionToEntities(decision2Id, 'depends_on', [decision1Id]);
+  
   // Visualize decisions
-  const decisionGraph = decisionPoint.visualizeDecisions(decisionGraphId);
+  const decisionGraph = decisionPoint.visualizeDecisions('meeting-123');
   logger.info(`Decision point graph created with ${decisionGraph.elements.length} elements`);
   
   logger.info('Visualization test harness completed successfully');
