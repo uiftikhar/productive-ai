@@ -18,7 +18,7 @@ import {
 } from './types/context.types';
 import { Logger } from '../../logger/logger.interface';
 import { PineconeConnectionService } from '../../../pinecone/pinecone-connection.service';
-import { LanguageModelProvider } from '../../../agents/interfaces/language-model-provider.interface';
+import { LanguageModelProvider } from '../../../connectors/language-model-provider.interface';
 
 /**
  * Retention policy options

@@ -10,17 +10,17 @@ import { authRoutes } from './auth/index';
 import { passportClient } from './database/index';
 import { ticketGeneratorRoutes } from './api/routes/jira-ticket-generator.routes';
 import { initializeApi } from './api/index';
+import transcriptAnalysisRoutes from './routes/transcript-analysis.routes';
 
 // Import dependencies for API initialization
 import { ConsoleLogger } from './shared/logger/console-logger';
 import { UserContextFacade } from './shared/services/user-context/user-context.facade';
-import { AgentRegistryService } from './agents/services/agent-registry.service';
-import { OpenAIConnector } from './agents/integrations/openai-connector';
 import { securityHeaders } from './chat/middleware/security-headers';
 import { PerformanceMonitor } from './shared/services/monitoring/performance-monitor';
 import { summaryRoutes } from './api/routes/summary-generator.routes';
 import visualizationRoutes from './api/routes/visualization.routes';
 import { initializeVisualizationWebSocket } from './api/controllers/visualization.controller';
+import { OpenAIConnector } from './connectors/openai-connector';
 
 dotenv.config();
 
@@ -109,15 +109,15 @@ const llmConnector = new OpenAIConnector({
   },
   logger,
 });
-const agentRegistry = AgentRegistryService.getInstance(logger);
+// const agentRegistry = AgentRegistryService.getInstance(logger);
 
 // Initialize and register all API routes
-const apiRouter = initializeApi(
-  userContextFacade,
-  llmConnector,
-  agentRegistry,
-  logger,
-);
+// const apiRouter = initializeApi(
+//   userContextFacade,
+//   llmConnector,
+//   agentRegistry,
+//   logger,
+// );
 
 // Register auth and existing routes
 app.use('/auth', authRoutes);
@@ -127,8 +127,11 @@ app.use('/api/generate-tickets', ticketGeneratorRoutes);
 // Register visualization routes
 app.use('/api/visualizations', visualizationRoutes);
 
+// Register transcript analysis routes
+app.use('/api/transcript', transcriptAnalysisRoutes);
+
 // Register new API routes
-app.use('/api', apiRouter);
+// app.use('/api', apiRouter);
 
 app.get('/api/health', (_req: express.Request, res: express.Response) => {
   res.json({ status: 'OK' });

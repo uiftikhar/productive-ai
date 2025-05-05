@@ -161,24 +161,22 @@ export function identifyContentSegments(
       // Define importance based on content type
       let segmentImportance = 0.5; // Default importance
 
-      switch (currentType) {
-        case TranscriptSegmentType.ACTION_ITEMS:
-        case TranscriptSegmentType.DECISIONS:
-          segmentImportance = 1.0; // Highest importance
-          break;
-        case TranscriptSegmentType.TOPIC_TRANSITION:
-          segmentImportance = 0.9;
-          break;
-        case TranscriptSegmentType.INTRODUCTION:
-        case TranscriptSegmentType.CONCLUSION:
-          segmentImportance = 0.8;
-          break;
-        case TranscriptSegmentType.Q_AND_A:
-          segmentImportance = 0.7;
-          break;
-        case TranscriptSegmentType.GENERAL:
-          segmentImportance = 0.5;
-          break;
+      // Use if/else instead of switch to avoid TypeScript type issues
+      if (currentType === TranscriptSegmentType.ACTION_ITEMS || 
+          currentType === TranscriptSegmentType.DECISIONS) {
+        segmentImportance = 1.0; // Highest importance
+      } else if (currentType === TranscriptSegmentType.TOPIC_TRANSITION) {
+        segmentImportance = 0.9;
+      } else if (currentType === TranscriptSegmentType.INTRODUCTION || 
+                 currentType === TranscriptSegmentType.CONCLUSION) {
+        segmentImportance = 0.8;
+      } else if (currentType === TranscriptSegmentType.Q_AND_A) {
+        segmentImportance = 0.7;
+      } else if (currentType === TranscriptSegmentType.MAIN_DISCUSSION) {
+        segmentImportance = 0.8;
+      } else {
+        // GENERAL and any other types
+        segmentImportance = 0.5;
       }
 
       currentSegment = {

@@ -1,14 +1,14 @@
 import { EmbeddingServiceFactory } from '../embedding.factory';
 import { EmbeddingService } from '../embedding.service';
 import { EmbeddingAdapter } from '../embedding-adapter';
-import { OpenAIConnector } from '../../../agents/integrations/openai-connector';
 import { ConsoleLogger } from '../../logger/console-logger';
 import { IEmbeddingService } from '../embedding.interface';
+import { OpenAIConnector } from '../../../connectors/openai-connector';
 
 // Mock dependencies
 jest.mock('../embedding.service');
 jest.mock('../embedding-adapter');
-jest.mock('../../../agents/integrations/openai-connector');
+jest.mock('../../../connectors/openai-connector');
 
 describe('EmbeddingServiceFactory', () => {
   beforeEach(() => {

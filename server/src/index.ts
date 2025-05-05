@@ -4,19 +4,15 @@ import http from 'http';
 import { server as httpServer } from './app';
 import { connectDB } from './database/index';
 import { initializePineconeIndexes } from './pinecone/initialize-indexes';
-import { initializeDefaultAgentSystem } from './agents/services/initialize-default-agent';
 import { ConsoleLogger } from './shared/logger/console-logger';
 import { SocketService } from './websocket/socket.service';
 import { ChatService } from './chat/chat.service';
 import { UserContextFacade } from './shared/services/user-context/user-context.facade';
-import { OpenAIConnector } from './agents/integrations/openai-connector';
-import { AgentRegistryService } from './agents/services/agent-registry.service';
+import { OpenAIConnector } from './connectors/openai-connector';
 import { ResourceManager } from './shared/utils/resource-manager';
 import { PerformanceMonitor } from './shared/services/monitoring/performance-monitor';
-import { AgentTaskExecutorService } from './agents/services/agent-task-executor.service';
-import { ClassifierConfigService } from './agents/factories/classifier-config.service';
-import { WorkflowManagerService } from './langgraph/core/workflows/workflow-manager.service';
-import { AgentDiscoveryService } from './agents/services/agent-discovery.service';
+import { initializeApi } from './api';
+import express from 'express';
 
 // Create a logger instance
 const logger = new ConsoleLogger();
@@ -45,20 +41,6 @@ const startServer = async () => {
       logger.info('Continuing with server initialization...');
     }
 
-    // Initialize the default agent system
-    try {
-      logger.info('Initializing agent discovery service...');
-      const agentDiscovery = AgentDiscoveryService.getInstance();
-      // NOTE: These methods appear to be missing in the AgentDiscoveryService
-      // Using alternate approach or awaiting implementation
-      // await agentDiscovery.initialize();
-      // await agentDiscovery.discoverAgents();
-      logger.info('Agent discovery service initialized successfully');
-    } catch (error) {
-      logger.warn('Error initializing agent discovery service:', { error });
-      logger.info('Continuing with server initialization...');
-    }
-
     // Create HTTP server with WebSocket support (imported from app.ts)
     const server = httpServer;
 
@@ -70,43 +52,38 @@ const startServer = async () => {
       },
       logger,
     });
-    const agentRegistry = AgentRegistryService.getInstance(logger);
 
     // Create ChatService instance for Socket.IO
-    const chatService = new ChatService({
-      logger,
-      userContextFacade,
-      llmConnector,
-      agentRegistry,
-    });
+    const chatService = new ChatService();
 
     // Get the performance monitor instance
     const performanceMonitor = PerformanceMonitor.getInstance(logger);
 
-    // Get instances of additional services to register
-    const agentTaskExecutor = AgentTaskExecutorService.getInstance({ logger });
-    const classifierConfig = ClassifierConfigService.getInstance(logger);
-    const workflowManager = WorkflowManagerService.getInstance(logger);
-
     // Initialize Socket.IO
     logger.info('**************Initializing Socket.IO Service**************');
-    const socketService = new SocketService(server, chatService, logger);
+    const socketService = new SocketService();
     logger.info(
       '**************Socket.IO Service Initialization Complete**************',
     );
 
+    // Initialize API routes
+    logger.info('**************Initializing API Routes**************');
+    const apiRouter = initializeApi(
+      userContextFacade,
+      llmConnector,
+      null, // No agent registry needed with new approach
+      logger,
+    );
+    
+    // Add the API router to the Express app
+    const app = server.listeners('request')[0] as express.Application;
+    app.use('/api', apiRouter);
+    
+    logger.info('**************API Routes Initialization Complete**************');
+
     // Register resources with the ResourceManager in shutdown order (higher priority first)
     const resourceManager = ResourceManager.getInstance(logger);
-    resourceManager.register('socketService', () => socketService.shutdown(), {
-      priority: 100,
-      description: 'Socket.IO service',
-    });
-
-    resourceManager.register('chatService', () => chatService.cleanup(), {
-      priority: 90,
-      description: 'Chat service with supervisors',
-    });
-
+    
     resourceManager.register(
       'userContextFacade',
       () => userContextFacade.shutdown(),
@@ -122,39 +99,6 @@ const startServer = async () => {
       {
         priority: 70,
         description: 'Performance monitoring service',
-      },
-    );
-
-    resourceManager.register('agentRegistry', () => agentRegistry.cleanup(), {
-      priority: 60,
-      description: 'Agent registry service',
-    });
-
-    // Register additional services
-    resourceManager.register(
-      'agentTaskExecutor',
-      () => agentTaskExecutor.cleanup(),
-      {
-        priority: 58,
-        description: 'Agent task executor service',
-      },
-    );
-
-    resourceManager.register(
-      'classifierConfig',
-      () => classifierConfig.cleanup(),
-      {
-        priority: 57,
-        description: 'Classifier configuration service',
-      },
-    );
-
-    resourceManager.register(
-      'workflowManager',
-      () => workflowManager.cleanup(),
-      {
-        priority: 56,
-        description: 'LangGraph workflow manager service',
       },
     );
 

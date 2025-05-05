@@ -477,16 +477,40 @@ export class CommunicationService
 
   /**
    * Get message history with filtering options
+   * @param options Options object with filtering criteria or an agent ID string
    */
-  async getMessageHistory(options: {
-    agentId?: string;
-    channelId?: string;
-    topic?: string;
-    limit?: number;
-    before?: number;
-    after?: number;
-    types?: MessageType[];
-  }): Promise<AgentMessage[]> {
+  async getMessageHistory(
+    options: string | {
+      agentId?: string;
+      channelId?: string;
+      topic?: string;
+      limit?: number;
+      before?: number;
+      after?: number;
+      types?: MessageType[];
+    }
+  ): Promise<AgentMessage[]> {
+    // If options is a string, treat it as agentId for backward compatibility
+    const isAgentIdString = typeof options === 'string';
+    
+    if (isAgentIdString) {
+      this.logger.debug(`Getting message history for agent ${options}`);
+      
+      // Filter messages for this agent (sent or received)
+      let messages = this.messageHistory.filter(
+        (msg) =>
+          msg.sender === options ||
+          (Array.isArray(msg.recipients) && msg.recipients.includes(options)) ||
+          msg.recipients === 'broadcast',
+      );
+      
+      // Sort messages by timestamp to ensure chronological order (oldest first)
+      messages.sort((a, b) => a.timestamp - b.timestamp);
+      
+      return messages;
+    }
+    
+    // Normal options object processing
     if (!this.retainMessageHistory) {
       this.logger.warn('Message history retention is disabled');
       return [];
@@ -539,8 +563,8 @@ export class CommunicationService
       messages = messages.filter((msg) => options.types!.includes(msg.type));
     }
 
-    // Sort by timestamp
-    messages.sort((a, b) => b.timestamp - a.timestamp);
+    // Sort by timestamp chronologically (oldest to newest)
+    messages.sort((a, b) => a.timestamp - b.timestamp);
 
     // Apply limit
     if (options.limit && options.limit > 0) {
@@ -754,5 +778,19 @@ export class CommunicationService
         }
       }
     }
+  }
+
+  /**
+   * Clear all message history
+   * Useful for testing and resetting state
+   */
+  async clearMessageHistory(): Promise<void> {
+    this.logger.debug('Clearing message history');
+    this.messageHistory = [];
+    
+    // Also clear pending messages
+    this.pendingMessages.clear();
+    
+    this.logger.info('Message history cleared');
   }
 }

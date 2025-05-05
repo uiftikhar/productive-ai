@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
+import { ISharedMemory } from '../../agentic-meeting-analysis/interfaces/memory.interface';
+import { IStateRepository } from '../../agentic-meeting-analysis/interfaces/state.interface';
 
 /**
  * Execution status enum for workflows
@@ -62,7 +64,7 @@ export interface BaseLangGraphState {
  * Base adapter for LangGraph-based workflows
  *
  * This class provides common functionality and standardized patterns
- * for implementing LangGraph workflows.
+ * for implementing LangGraph workflows with shared memory integration.
  */
 export abstract class BaseLangGraphAdapter<
   TState extends BaseLangGraphState = BaseLangGraphState,
@@ -70,6 +72,10 @@ export abstract class BaseLangGraphAdapter<
   TOutput = any,
 > {
   protected logger: Logger;
+  protected sharedMemory?: ISharedMemory;
+  protected stateRepository?: IStateRepository;
+  protected tracingEnabled: boolean;
+  protected memoryNamespace: string;
 
   /**
    * Creates a new instance of the base LangGraph adapter
@@ -78,9 +84,16 @@ export abstract class BaseLangGraphAdapter<
     options: {
       logger?: Logger;
       tracingEnabled?: boolean;
+      sharedMemory?: ISharedMemory;
+      stateRepository?: IStateRepository;
+      memoryNamespace?: string;
     } = {},
   ) {
     this.logger = options.logger || new ConsoleLogger();
+    this.sharedMemory = options.sharedMemory;
+    this.stateRepository = options.stateRepository;
+    this.tracingEnabled = options.tracingEnabled || false;
+    this.memoryNamespace = options.memoryNamespace || 'workflow';
   }
 
   /**
@@ -119,6 +132,106 @@ export abstract class BaseLangGraphAdapter<
   }
 
   /**
+   * Initialize shared memory for this workflow run
+   * @param state The initial state
+   */
+  protected async initializeSharedMemory(state: TState): Promise<void> {
+    if (!this.sharedMemory) {
+      return;
+    }
+
+    try {
+      // Store the initial state in shared memory
+      await this.sharedMemory.write(
+        `workflow:${state.id}:state`,
+        state,
+        this.memoryNamespace,
+        'system',
+        { operation: 'initialize' }
+      );
+
+      // Store execution metadata
+      await this.sharedMemory.write(
+        `workflow:${state.id}:metadata`,
+        {
+          adapterId: this.constructor.name,
+          startTime: state.startTime,
+          status: state.status
+        },
+        this.memoryNamespace,
+        'system',
+        { operation: 'initialize' }
+      );
+
+      this.logger.debug('Initialized shared memory for workflow', {
+        workflowId: state.id,
+        runId: state.runId
+      });
+    } catch (error) {
+      this.logger.error('Failed to initialize shared memory', {
+        error: error instanceof Error ? error.message : String(error),
+        workflowId: state.id
+      });
+    }
+  }
+
+  /**
+   * Update shared memory with latest state
+   * @param state The current state
+   */
+  protected async updateSharedMemory(state: TState): Promise<void> {
+    if (!this.sharedMemory) {
+      return;
+    }
+
+    try {
+      // Update the state in shared memory
+      await this.sharedMemory.write(
+        `workflow:${state.id}:state`,
+        state,
+        this.memoryNamespace,
+        'system',
+        { operation: 'update' }
+      );
+
+      // Update status
+      await this.sharedMemory.write(
+        `workflow:${state.id}:status`,
+        state.status,
+        this.memoryNamespace,
+        'system',
+        { operation: 'update' }
+      );
+
+      // Add to execution timeline
+      await this.sharedMemory.atomicUpdate<any[]>(
+        `workflow:${state.id}:timeline`,
+        (timeline = []) => [
+          ...timeline,
+          {
+            timestamp: Date.now(),
+            status: state.status,
+            metrics: state.metrics
+          }
+        ],
+        this.memoryNamespace,
+        'system',
+        { operation: 'append' }
+      );
+
+      this.logger.debug('Updated shared memory with latest state', {
+        workflowId: state.id,
+        status: state.status
+      });
+    } catch (error) {
+      this.logger.error('Failed to update shared memory', {
+        error: error instanceof Error ? error.message : String(error),
+        workflowId: state.id
+      });
+    }
+  }
+
+  /**
    * Execute the workflow with the given input
    * @param input The input to the workflow
    * @returns The output of the workflow
@@ -141,9 +254,15 @@ export abstract class BaseLangGraphAdapter<
       const compiledGraph = graph.compile();
 
       const initialState = this.createInitialState(input);
+      
+      // Initialize shared memory with initial state
+      await this.initializeSharedMemory(initialState);
 
       // Execute the graph
       const finalState = (await compiledGraph.invoke(initialState)) as TState;
+      
+      // Update shared memory with final state
+      await this.updateSharedMemory(finalState);
 
       const result = this.processResult(finalState);
 
@@ -166,11 +285,11 @@ export abstract class BaseLangGraphAdapter<
    * @param node The node where the error occurred (optional)
    * @returns The updated state with the error added
    */
-  protected addErrorToState<T extends BaseLangGraphState>(
-    state: T,
+  protected addErrorToState(
+    state: TState,
     error: Error | string,
     node?: string,
-  ): T {
+  ): TState {
     const errorMessage = error instanceof Error ? error.message : error;
     const errorCode =
       error instanceof WorkflowError ? error.code : 'UNKNOWN_ERROR';
@@ -185,12 +304,22 @@ export abstract class BaseLangGraphAdapter<
       details: errorDetails,
     };
 
-    return {
+    const updatedState = {
       ...state,
       status: WorkflowStatus.ERROR,
       errorCount: state.errorCount + 1,
       errors: [...(state.errors || []), errorObj],
-    } as T;
+    } as TState;
+
+    // Update shared memory with error state
+    this.updateSharedMemory(updatedState).catch(e => {
+      this.logger.error('Failed to update shared memory with error state', {
+        error: e instanceof Error ? e.message : String(e),
+        workflowId: state.id
+      });
+    });
+
+    return updatedState;
   }
 
   /**
@@ -214,6 +343,30 @@ export abstract class BaseLangGraphAdapter<
       executionTimeMs,
       adapterId: this.constructor.name,
     });
+
+    // Update shared memory with error information
+    if (this.sharedMemory) {
+      try {
+        // Create an error entry in shared memory
+        await this.sharedMemory.write(
+          `workflow:errors:${Date.now()}`,
+          {
+            error: errorMessage,
+            adapterId: this.constructor.name,
+            input: typeof input === 'object' ? JSON.stringify(input) : String(input),
+            timestamp: new Date().toISOString(),
+            executionTimeMs
+          },
+          'errors',
+          'system',
+          { operation: 'log_error' }
+        );
+      } catch (e) {
+        this.logger.error('Failed to log error to shared memory', {
+          error: e instanceof Error ? e.message : String(e)
+        });
+      }
+    }
 
     // Child classes should override this method to provide specific error handling
     throw new WorkflowError(
@@ -250,68 +403,88 @@ export abstract class BaseLangGraphAdapter<
         );
       }
 
-      return {
-        ...state,
-        status: WorkflowStatus.ERROR,
-        endTime: Date.now(),
-      };
+      return state;
     };
   }
 
   /**
-   * Create a standard completion handler node for the graph
-   * @returns A function that finalizes successful execution
+   * Create a standard completion node for the graph
+   * @returns A function that handles workflow completion
    */
   protected createCompletionNode() {
     return async (state: TState) => {
-      return {
+      const now = Date.now();
+      const completedState = {
         ...state,
         status: WorkflowStatus.COMPLETED,
-        endTime: Date.now(),
+        endTime: now,
+        metadata: {
+          ...state.metadata,
+          completedAt: new Date(now).toISOString(),
+        },
       };
+
+      this.logger.info('Workflow completed', {
+        workflowId: state.id,
+        runId: state.runId,
+        executionTimeMs: now - (state.startTime || now),
+      });
+
+      // Update shared memory with completed state
+      await this.updateSharedMemory(completedState);
+
+      return completedState;
     };
   }
 
   /**
    * Create a standard initialization node for the graph
-   * @returns A function that initializes the workflow
+   * @returns A function that handles workflow initialization
    */
   protected createInitNode() {
     return async (state: TState) => {
-      this.logger.debug('Initializing workflow', {
-        runId: state.runId,
-        adapterId: this.constructor.name,
-      });
-
-      return {
+      const initializedState = {
         ...state,
         status: WorkflowStatus.READY,
+        metadata: {
+          ...state.metadata,
+          initializedAt: new Date().toISOString(),
+        },
       };
+
+      this.logger.info('Workflow initialized', {
+        workflowId: state.id,
+        runId: state.runId,
+      });
+
+      return initializedState;
     };
   }
 
   /**
-   * Create route condition that checks for errors
-   * @returns A function that routes based on error status
+   * Create a condition function to route to error handler if errors exist
+   * @returns A function that determines if an error exists
    */
   protected createErrorRouteCondition() {
     return (state: TState) => {
-      return state.status === WorkflowStatus.ERROR
-        ? 'error_handler'
-        : undefined;
+      const hasErrors = state.errorCount > 0;
+      return hasErrors ? 'error' : 'continue';
     };
   }
 
   /**
-   * Get metric information from the state
+   * Extract standard metrics from state for monitoring
+   * @param state The current state
+   * @returns Object containing metrics
    */
   protected getMetricsFromState(state: TState): Record<string, any> {
+    const now = Date.now();
     return {
-      executionTimeMs:
-        state.endTime && state.startTime
-          ? state.endTime - state.startTime
-          : undefined,
+      workflowId: state.id,
+      runId: state.runId,
+      status: state.status,
       errorCount: state.errorCount,
+      executionTimeMs: now - (state.startTime || now),
       ...(state.metrics || {}),
     };
   }

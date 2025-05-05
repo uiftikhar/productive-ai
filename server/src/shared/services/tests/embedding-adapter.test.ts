@@ -1,12 +1,12 @@
 import { EmbeddingAdapter } from '../embedding-adapter';
-import { OpenAIConnector } from '../../../agents/integrations';
 import { Logger, LogLevel } from '../../logger/logger.interface';
 import { ConsoleLogger } from '../../logger/console-logger';
 import { EmbeddingServiceFactory } from '../embedding.factory';
-import { MockLogger } from '../../../agents/tests/mocks/mock-logger';
+import { OpenAIConnector } from '../../../connectors/openai-connector';
+import { MockLogger } from '../../logger/mock-logger';
 
 // Mock dependencies
-jest.mock('../../../agents/integrations/openai-connector');
+jest.mock('../../../connectors/openai-connector');
 jest.mock('../embedding.factory');
 
 // Mock Logger implementation is replaced with import

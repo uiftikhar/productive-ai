@@ -1,13 +1,13 @@
 import { EmbeddingService } from '../embedding.service';
 import { EmbeddingAdapter } from '../embedding-adapter';
 import { EmbeddingServiceFactory } from '../embedding.factory';
-import { OpenAIConnector } from '../../../agents/integrations/openai-connector';
 import { Logger, LogLevel } from '../../logger/logger.interface';
 import { IEmbeddingService } from '../embedding.interface';
-import { MockLogger } from '../../../agents/tests/mocks/mock-logger';
+import { OpenAIConnector } from '../../../connectors/openai-connector';
+import { MockLogger } from '../../logger/mock-logger';
 
 // Mock OpenAIConnector
-jest.mock('../../../agents/integrations/openai-connector');
+jest.mock('../../../connectors/openai-connector');
 
 // Mock the factory to use real EmbeddingService with mocked connector
 jest.mock('../embedding.factory', () => {
@@ -19,7 +19,7 @@ jest.mock('../embedding.factory', () => {
       getService: jest.fn((options = {}) => {
         const connector =
           options.connector ||
-          new (require('../../../agents/integrations/openai-connector').OpenAIConnector)();
+          new (require('../../../connectors/openai-connector').OpenAIConnector)();
         const logger = options.logger || console;
         // Use the real EmbeddingService with mocked dependencies
         return new EmbeddingService(connector, logger, true);

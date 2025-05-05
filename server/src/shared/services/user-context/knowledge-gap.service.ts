@@ -14,9 +14,9 @@ import {
   KnowledgeGapType,
   USER_CONTEXT_INDEX,
 } from './types/context.types';
-import { OpenAIConnector } from '../../../agents/integrations/openai-connector';
 import { EmbeddingServiceFactory } from '../embedding.factory';
 import { IEmbeddingService } from '../embedding.interface';
+import { OpenAIConnector } from '../../../connectors/openai-connector';
 
 /**
  * Structure representing a knowledge gap

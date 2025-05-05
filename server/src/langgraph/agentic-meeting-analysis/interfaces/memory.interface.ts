@@ -166,4 +166,21 @@ export interface ISharedMemory extends EventEmitter {
   // Persistence (optional)
   saveSnapshot(): Promise<string>; // Returns snapshot ID
   loadSnapshot(snapshotId: string): Promise<void>;
+  
+  // Resource management
+  cleanup(): Promise<void>;
+
+  // Backward compatibility aliases
+  get(key: string, namespace?: string, agentId?: string): Promise<any>;
+  set(key: string, value: any, namespace?: string, agentId?: string, metadata?: Record<string, any>): Promise<void>;
+  
+  // Atomic operation support
+  atomicUpdate<T>(
+    key: string,
+    updateFn: (currentValue: T) => T,
+    namespace?: string,
+    agentId?: string,
+    metadata?: Record<string, any>,
+    options?: { maxRetries?: number; retryDelay?: number }
+  ): Promise<T>;
 }

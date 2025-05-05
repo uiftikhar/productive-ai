@@ -1,5 +1,4 @@
 import { PineconeConnectionService } from '../../../pinecone/pinecone-connection.service';
-import { MockLogger } from '../../../agents/tests/mocks/mock-logger';
 import {
   UserContextValidationError,
   UserContextNotFoundError,
@@ -7,6 +6,7 @@ import {
 } from '../user-context/types/context.types';
 import { ContextType } from '../user-context/context-types';
 import { BaseContextService } from '../user-context/base-context.service';
+import { MockLogger } from '../../logger/mock-logger';
 
 // Create mock for PineconeConnectionService
 jest.mock('../../../pinecone/pinecone-connection.service');

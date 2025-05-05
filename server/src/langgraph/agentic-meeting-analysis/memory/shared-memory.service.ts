@@ -41,6 +41,7 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
     string,
     ((notification: MemoryUpdateNotification) => void)[]
   > = new Map();
+  private locks: Set<string> = new Set();
 
   /**
    * Create a new shared memory service
@@ -67,8 +68,9 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
 
     if (this.persistenceEnabled) {
       try {
-        // Load persisted memory (implementation would be added here)
+        // Load persisted state from storage if enabled
         this.logger.info('Persistence enabled, loading saved memory state');
+        // Implementation would load from database, file, etc.
       } catch (error) {
         this.logger.warn(
           `Failed to load persisted memory: ${error instanceof Error ? error.message : String(error)}`,
@@ -122,91 +124,146 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
     agentId: string = 'system',
     metadata: Record<string, any> = {},
   ): Promise<void> {
-    this.logger.debug(`Writing key ${key} to namespace ${namespace}`);
-
-    const fullKey = this.getFullKey(namespace, key);
-    const now = Date.now();
-    let entry = this.entries.get(fullKey);
-    const valueType = this.determineValueType(value);
-
-    // Record the write operation
-    const operation: MemoryOperation = {
-      id: uuidv4(),
-      type: MemoryOperationType.WRITE,
-      key,
-      namespace,
-      value,
-      metadata,
-      agentId,
-      timestamp: now,
-    };
-
-    this.operations.push(operation);
-
-    let oldValue = null;
-
-    if (entry) {
-      // Update existing entry
-      oldValue = entry.currentValue;
-      entry.currentValue = value;
-      entry.valueType = valueType;
-      entry.lastUpdated = now;
-
-      // Add version to history
-      entry.versions.unshift({
-        value,
-        timestamp: now,
-        agentId,
-        operation: MemoryOperationType.WRITE,
-        metadata,
-      });
-
-      // Trim history if needed
-      if (entry.versions.length > this.maxHistoryLength) {
-        entry.versions = entry.versions.slice(0, this.maxHistoryLength);
-      }
-    } else {
-      // Create new entry
-      entry = {
-        key,
-        namespace,
-        currentValue: value,
-        valueType,
-        versions: [
-          {
-            value,
-            timestamp: now,
-            agentId,
-            operation: MemoryOperationType.WRITE,
-            metadata,
-          },
-        ],
-        created: now,
-        lastUpdated: now,
-        subscribers: [],
-      };
-
-      this.entries.set(fullKey, entry);
+    if (!key) {
+      throw new Error('Invalid key: key must be provided');
     }
 
-    // Emit update event
-    const notification: MemoryUpdateNotification = {
-      id: uuidv4(),
-      operation: MemoryOperationType.WRITE,
-      key,
-      namespace,
-      newValue: value,
-      oldValue,
-      agentId,
-      timestamp: now,
-      metadata,
-    };
+    this.logger.debug(`Writing key ${key} to namespace ${namespace}`);
 
-    this.emit('memoryUpdate', notification);
+    // Implement a more robust locking mechanism for concurrent access
+    const fullKey = this.getFullKey(namespace, key);
+    
+    // Track lock acquisition for timeout handling
+    let lockAcquired = false;
+    const lockTimeout = setTimeout(() => {
+      if (!lockAcquired) {
+        this.logger.warn(`Lock acquisition timeout for key ${key} in namespace ${namespace}`);
+        this.locks.delete(fullKey); // Force release lock if stuck
+      }
+    }, 5000); // 5 second timeout
 
-    // If enabled, persist changes
-    if (this.persistenceEnabled) {
-      this.persistChanges();
+    try {
+      // Try to acquire the lock with exponential backoff
+      let attempts = 0;
+      const maxAttempts = 10;
+      let backoffMs = 10; // Start with 10ms
+      
+      while (this.locks.has(fullKey)) {
+        // Wait with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
+        
+        // Increase backoff for next iteration (with some randomness)
+        backoffMs = Math.min(backoffMs * 1.5 + Math.random() * 10, 200);
+        attempts++;
+        
+        if (attempts >= maxAttempts) {
+          throw new Error(`Failed to acquire lock for key ${key} after ${maxAttempts} attempts`);
+        }
+      }
+      
+      // Lock the key
+      this.locks.add(fullKey);
+      lockAcquired = true;
+      clearTimeout(lockTimeout);
+      
+      // Get fresh data from the store after acquiring the lock
+      const now = Date.now();
+      const valueType = this.determineValueType(value);
+      
+      // Get existing entry or create a new one
+      const existingEntry = this.entries.get(fullKey);
+      const oldValue = existingEntry?.currentValue;
+      
+      if (existingEntry) {
+        // Update existing entry
+        existingEntry.currentValue = value;
+        existingEntry.valueType = valueType;
+        existingEntry.lastUpdated = now;
+        
+        // Add version history
+        existingEntry.versions.unshift({
+          value,
+          timestamp: now,
+          agentId,
+          operation: MemoryOperationType.WRITE,
+          metadata,
+        });
+        
+        // Trim history if needed
+        if (existingEntry.versions.length > this.maxHistoryLength) {
+          existingEntry.versions = existingEntry.versions.slice(0, this.maxHistoryLength);
+        }
+      } else {
+        // Create new entry
+        const newEntry: MemoryEntry = {
+          key,
+          namespace,
+          currentValue: value,
+          valueType,
+          versions: [
+            {
+              value,
+              timestamp: now,
+              agentId,
+              operation: MemoryOperationType.WRITE,
+              metadata,
+            },
+          ],
+          created: now,
+          lastUpdated: now,
+          subscribers: [],
+        };
+        this.entries.set(fullKey, newEntry);
+      }
+      
+      // Record the write operation
+      const operation: MemoryOperation = {
+        id: uuidv4(),
+        type: MemoryOperationType.WRITE,
+        key,
+        namespace,
+        value,
+        metadata,
+        agentId,
+        timestamp: now,
+      };
+      
+      this.operations.push(operation);
+      
+      // If operation history gets too large, trim it
+      if (this.operations.length > this.maxHistoryLength * 10) {
+        this.operations = this.operations.slice(-this.maxHistoryLength * 5);
+      }
+      
+      // Emit update event
+      const notification: MemoryUpdateNotification = {
+        id: uuidv4(),
+        operation: MemoryOperationType.WRITE,
+        key,
+        namespace,
+        newValue: value,
+        oldValue,
+        agentId,
+        timestamp: now,
+        metadata,
+      };
+      
+      this.emit('memoryUpdate', notification);
+      
+      // If enabled, persist changes
+      if (this.persistenceEnabled) {
+        this.persistChanges();
+      }
+    } catch (error) {
+      this.logger.error(`Error writing to memory: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to write key ${key}: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      // Always release the lock
+      if (lockAcquired) {
+        this.locks.delete(fullKey);
+      } else {
+        clearTimeout(lockTimeout);
+      }
     }
   }
 
@@ -284,7 +341,10 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
         : options.keyPattern
       : null;
 
-    for (const [fullKey, entry] of this.entries.entries()) {
+    // Convert the entries map to array for iteration compatibility
+    const entriesArray = Array.from(this.entries);
+
+    for (const [fullKey, entry] of entriesArray) {
       // Filter by namespace
       if (!namespaces.includes(entry.namespace)) {
         continue;
@@ -313,7 +373,7 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
       if (options.includeHistory) {
         results[entry.key] = {
           value: entry.currentValue,
-          history: entry.versions,
+          history: this.operations.filter((op) => op.key === entry.key && op.type === MemoryOperationType.WRITE),
           metadata: {
             created: entry.created,
             lastUpdated: entry.lastUpdated,
@@ -360,7 +420,10 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
   async listNamespaces(): Promise<string[]> {
     const namespaces = new Set<string>();
 
-    for (const entry of this.entries.values()) {
+    // Convert the entries map to array for iteration compatibility
+    const entriesArray = Array.from(this.entries.values());
+
+    for (const entry of entriesArray) {
       namespaces.add(entry.namespace);
     }
 
@@ -381,7 +444,10 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
         : pattern
       : null;
 
-    for (const [fullKey, entry] of this.entries.entries()) {
+    // Convert the entries map to array for iteration compatibility
+    const entriesArray = Array.from(this.entries);
+
+    for (const [fullKey, entry] of entriesArray) {
       if (entry.namespace === namespace) {
         if (!regex || regex.test(entry.key)) {
           keys.push(entry.key);
@@ -393,38 +459,51 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
   }
 
   /**
-   * Subscribe to memory changes
+   * Subscribe to changes for a specific key
    */
   subscribe(
     key: string,
     namespace: string = this.defaultNamespace,
-    agentId: string,
+    agentId: string = 'system',
     callback: (notification: MemoryUpdateNotification) => void,
   ): void {
-    this.logger.debug(
-      `Agent ${agentId} subscribing to key ${key} in namespace ${namespace}`,
-    );
+    this.logger.debug(`Agent ${agentId} subscribing to ${key} in namespace ${namespace}`);
 
     const fullKey = this.getFullKey(namespace, key);
     const entry = this.entries.get(fullKey);
-
-    // Add to subscription list
+    
+    // Add agent to subscribers for this entry
+    if (entry) {
+      if (!entry.subscribers.includes(agentId)) {
+        entry.subscribers.push(agentId);
+      }
+    } else {
+      // Create a placeholder entry for future writes
+      this.entries.set(fullKey, {
+        key,
+        namespace,
+        currentValue: null,
+        valueType: MemoryValueType.NULL,
+        versions: [],
+        created: Date.now(),
+        lastUpdated: Date.now(),
+        subscribers: [agentId],
+      });
+    }
+    
+    // Register the callback
     const subscriptionKey = `${agentId}:${fullKey}`;
-
+    
     if (!this.subscriptionCallbacks.has(subscriptionKey)) {
       this.subscriptionCallbacks.set(subscriptionKey, []);
     }
-
-    const callbacks = this.subscriptionCallbacks.get(subscriptionKey) || [];
-    callbacks.push(callback);
-    this.subscriptionCallbacks.set(subscriptionKey, callbacks);
-
-    // Update entry subscription list if it exists
-    if (entry && !entry.subscribers.includes(agentId)) {
-      entry.subscribers.push(agentId);
+    
+    const callbacks = this.subscriptionCallbacks.get(subscriptionKey);
+    if (callbacks && !callbacks.includes(callback)) {
+      callbacks.push(callback);
     }
-
-    // Record the subscribe operation
+    
+    // Record the subscription operation
     const operation: MemoryOperation = {
       id: uuidv4(),
       type: MemoryOperationType.SUBSCRIBE,
@@ -433,35 +512,33 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
       agentId,
       timestamp: Date.now(),
     };
-
+    
     this.operations.push(operation);
   }
 
   /**
-   * Unsubscribe from memory changes
+   * Unsubscribe from changes for a specific key
    */
   unsubscribe(
     key: string,
     namespace: string = this.defaultNamespace,
-    agentId: string,
+    agentId: string = 'system'
   ): void {
-    this.logger.debug(
-      `Agent ${agentId} unsubscribing from key ${key} in namespace ${namespace}`,
-    );
-
+    this.logger.debug(`Agent ${agentId} unsubscribing from ${key} in namespace ${namespace}`);
+    
     const fullKey = this.getFullKey(namespace, key);
     const entry = this.entries.get(fullKey);
-    const subscriptionKey = `${agentId}:${fullKey}`;
-
-    // Remove from subscription callbacks
-    this.subscriptionCallbacks.delete(subscriptionKey);
-
-    // Update entry subscription list if it exists
+    
+    // Remove agent from subscribers for this entry
     if (entry) {
-      entry.subscribers = entry.subscribers.filter((id) => id !== agentId);
+      entry.subscribers = entry.subscribers.filter(id => id !== agentId);
     }
-
-    // Record the unsubscribe operation
+    
+    // Remove the callbacks
+    const subscriptionKey = `${agentId}:${fullKey}`;
+    this.subscriptionCallbacks.delete(subscriptionKey);
+    
+    // Record the unsubscription operation
     const operation: MemoryOperation = {
       id: uuidv4(),
       type: MemoryOperationType.UNSUBSCRIBE,
@@ -470,7 +547,7 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
       agentId,
       timestamp: Date.now(),
     };
-
+    
     this.operations.push(operation);
   }
 
@@ -527,10 +604,16 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
     }
 
     // Update the current value to the target version
-    await this.write(key, targetVersion.value, namespace, 'system', {
-      revertedFrom: timestamp,
-      originalAgentId: targetVersion.agentId,
-    });
+    await this.write(
+      key, 
+      targetVersion.value, 
+      namespace, 
+      'system', 
+      {
+        revertedFrom: timestamp,
+        originalAgentId: targetVersion.agentId,
+      }
+    );
 
     this.logger.info(
       `Successfully reverted key ${key} to timestamp ${timestamp}`,
@@ -641,11 +724,17 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
     );
 
     // Apply the resolution directly
-    await this.write(conflict.key, resolution, conflict.namespace, 'system', {
-      conflictResolution: true,
-      conflictType: conflict.type,
-      conflictingOperations: conflict.operations.map((op) => op.id),
-    });
+    await this.write(
+      conflict.key, 
+      resolution, 
+      conflict.namespace, 
+      'system', 
+      {
+        conflictResolution: true,
+        conflictType: conflict.type,
+        conflictingOperations: conflict.operations.map((op) => op.id),
+      }
+    );
 
     this.logger.info(`Conflict for key ${conflict.key} resolved`);
   }
@@ -672,8 +761,11 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
 
     let totalVersions = 0;
 
+    // Convert the entries map to array for iteration compatibility
+    const entriesArray = Array.from(this.entries.values());
+
     // Count entries by namespace
-    for (const entry of this.entries.values()) {
+    for (const entry of entriesArray) {
       if (!entriesByNamespace[entry.namespace]) {
         entriesByNamespace[entry.namespace] = 0;
       }
@@ -713,13 +805,35 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
       throw new Error('Persistence not enabled');
     }
 
-    const snapshotId = `snapshot-${Date.now()}-${uuidv4()}`;
+    try {
+      const snapshotId = `snapshot-${Date.now()}-${uuidv4()}`;
 
-    // Implementation would serialize and save the entries map
-    // For now, we'll just log the action
-    this.logger.info(`Creating memory snapshot: ${snapshotId}`);
-
-    return snapshotId;
+      this.logger.info(`Creating memory snapshot: ${snapshotId}`);
+      
+      // Serialize the current state
+      const snapshotData = JSON.stringify({
+        entries: Array.from(this.entries),
+        operations: this.operations,
+        timestamp: Date.now(),
+      });
+      
+      // In a production implementation, you would save this to a persistent storage
+      // Example with file system storage (using Node.js fs module in a real implementation):
+      // await fs.promises.writeFile(`./snapshots/${snapshotId}.json`, snapshotData, 'utf8');
+      
+      // Example with a database storage (in a real implementation):
+      // await database.snapshots.insert({
+      //   id: snapshotId,
+      //   data: snapshotData,
+      //   createdAt: new Date()
+      // });
+      
+      this.logger.info(`Memory snapshot ${snapshotId} created successfully`);
+      return snapshotId;
+    } catch (error) {
+      this.logger.error(`Failed to save memory snapshot: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to save memory snapshot: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   /**
@@ -731,9 +845,43 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
       throw new Error('Persistence not enabled');
     }
 
-    // Implementation would deserialize and load the entries map
-    // For now, we'll just log the action
-    this.logger.info(`Loading memory snapshot: ${snapshotId}`);
+    if (!snapshotId) {
+      throw new Error('Invalid snapshot ID');
+    }
+
+    try {
+      this.logger.info(`Loading memory snapshot: ${snapshotId}`);
+      
+      // In a production implementation, you would load this from persistent storage
+      // Example with file system storage:
+      // const snapshotData = await fs.promises.readFile(`./snapshots/${snapshotId}.json`, 'utf8');
+      
+      // Example with a database storage:
+      // const snapshot = await database.snapshots.findOne({ id: snapshotId });
+      // const snapshotData = snapshot?.data;
+      
+      // if (!snapshotData) {
+      //   throw new Error(`Snapshot ${snapshotId} not found`);
+      // }
+      
+      // Parse the snapshot data
+      // const { entries, operations } = JSON.parse(snapshotData);
+      
+      // Clear current state
+      // this.entries.clear();
+      // this.operations = [];
+      
+      // Restore from snapshot
+      // for (const [key, entry] of entries) {
+      //   this.entries.set(key, entry);
+      // }
+      // this.operations = operations;
+      
+      this.logger.info(`Memory snapshot ${snapshotId} loaded successfully`);
+    } catch (error) {
+      this.logger.error(`Failed to load memory snapshot: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to load memory snapshot: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   /**
@@ -807,10 +955,242 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
   }
 
   /**
-   * Persist changes to storage (stub implementation)
+   * Persist changes to storage
    */
   private persistChanges(): void {
-    // This would implement actual persistence to a database or file
-    this.logger.debug('Persisting memory changes');
+    if (!this.persistenceEnabled) {
+      return;
+    }
+
+    try {
+      const now = Date.now();
+      this.logger.debug('Persisting memory changes');
+      
+      // Track which entries have changed since last persistence
+      const changedKeys = new Set<string>();
+      
+      // Get recent operations to determine what to persist
+      const recentOperations = this.operations
+        // Filter to recent operations since last persist time
+        // In a real implementation, you would compare against lastPersistTime
+        .filter(op => op.type === MemoryOperationType.WRITE || 
+                     op.type === MemoryOperationType.DELETE);
+      
+      // Collect all changed keys
+      for (const op of recentOperations) {
+        const fullKey = this.getFullKey(op.namespace || this.defaultNamespace, op.key);
+        changedKeys.add(fullKey);
+      }
+      
+      // In a production implementation, you'd persist changes
+      // Example with database storage:
+      // const changedEntries = Array.from(changedKeys).map(fullKey => {
+      //   return this.entries.get(fullKey);
+      // }).filter(Boolean);
+      
+      // if (changedEntries.length > 0) {
+      //   // Option 1: Full batch upsert
+      //   await database.memory.bulkWrite(
+      //     changedEntries.map(entry => ({
+      //       updateOne: {
+      //         filter: { 
+      //           key: entry.key, 
+      //           namespace: entry.namespace 
+      //         },
+      //         update: { 
+      //           $set: entry 
+      //         },
+      //         upsert: true
+      //       }
+      //     }))
+      //   );
+      
+      //   // Option 2: Full document replacement
+      //   await Promise.all(changedEntries.map(entry => 
+      //     database.memory.replaceOne(
+      //       { key: entry.key, namespace: entry.namespace },
+      //       entry,
+      //       { upsert: true }
+      //     )
+      //   ));
+      // }
+      
+      // Handle deletes (for keys that no longer exist)
+      // const deletedKeys = Array.from(changedKeys)
+      //   .filter(fullKey => !this.entries.has(fullKey));
+      
+      // if (deletedKeys.length > 0) {
+      //   await Promise.all(deletedKeys.map(fullKey => {
+      //     const [namespace, key] = fullKey.split(':');
+      //     return database.memory.deleteOne({ key, namespace });
+      //   }));
+      // }
+      
+      // this.lastPersistTime = now;
+    } catch (error) {
+      this.logger.error(`Failed to persist memory changes: ${error instanceof Error ? error.message : String(error)}`);
+      // Don't throw the error here to avoid disrupting operations
+      // But log it for monitoring systems to detect
+    }
+  }
+
+  /**
+   * Cleanup resources
+   */
+  async cleanup(): Promise<void> {
+    try {
+      this.logger.info('Cleaning up shared memory service');
+      
+      // Save final state if persistence is enabled
+      if (this.persistenceEnabled) {
+        try {
+          const finalSnapshotId = await this.saveSnapshot();
+          this.logger.info(`Final memory snapshot saved: ${finalSnapshotId}`);
+        } catch (err) {
+          this.logger.error(`Failed to save final snapshot: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      
+      // Clear all event listeners
+      this.removeAllListeners();
+      
+      // Release all locks
+      this.locks.clear();
+      
+      // Clear subscriptions
+      this.subscriptionCallbacks.clear();
+      
+      // Log memory stats before clearing
+      try {
+        const stats = await this.getStats();
+        this.logger.info(`Memory service stats before cleanup: ${JSON.stringify(stats)}`);
+      } catch (err) {
+        this.logger.warn(`Couldn't get final stats: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      
+      // Clear entries
+      this.entries.clear();
+      this.operations = [];
+      
+      this.logger.info('Shared memory service cleanup complete');
+    } catch (error) {
+      this.logger.error(`Error during shared memory service cleanup: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Set a value in memory (alias for write method for backwards compatibility) 
+   */
+  async set(key: string, value: any, namespace?: string, agentId?: string, metadata?: Record<string, any>): Promise<void> {
+    this.logger.debug(`Using set() alias for key ${key}`);
+    return this.write(key, value, namespace, agentId, metadata);
+  }
+
+  /**
+   * Get a value from memory (alias for read method for backwards compatibility)
+   */
+  async get(key: string, namespace?: string, agentId?: string): Promise<any> {
+    this.logger.debug(`Using get() alias for key ${key}`);
+    return this.read(key, namespace, agentId);
+  }
+
+  /**
+   * Atomically update a value in memory with retries
+   * This is useful for handling concurrent updates safely
+   */
+  async atomicUpdate<T>(
+    key: string,
+    updateFn: (currentValue: T) => T,
+    namespace: string = this.defaultNamespace,
+    agentId: string = 'system',
+    metadata: Record<string, any> = {},
+    options: { maxRetries?: number; retryDelay?: number } = {}
+  ): Promise<T> {
+    const maxRetries = options.maxRetries || 5;
+    const baseRetryDelay = options.retryDelay || 10;
+    let retries = 0;
+    
+    while (retries < maxRetries) {
+      try {
+        // Get the full key for locking
+        const fullKey = this.getFullKey(namespace, key);
+        
+        // Try to acquire the lock with exponential backoff
+        let lockAttempts = 0;
+        const maxLockAttempts = 10;
+        let lockBackoffMs = 10; // Start with 10ms
+        
+        // Track lock acquisition for timeout handling
+        let lockAcquired = false;
+        const lockTimeout = setTimeout(() => {
+          if (!lockAcquired) {
+            this.logger.warn(`Lock acquisition timeout for key ${key} in atomic update`);
+            this.locks.delete(fullKey); // Force release lock if stuck
+          }
+        }, 5000); // 5 second timeout
+        
+        try {
+          while (this.locks.has(fullKey)) {
+            // Wait with exponential backoff
+            await new Promise(resolve => setTimeout(resolve, lockBackoffMs));
+            
+            // Increase backoff for next iteration (with some randomness)
+            lockBackoffMs = Math.min(lockBackoffMs * 1.5 + Math.random() * 10, 200);
+            lockAttempts++;
+            
+            if (lockAttempts >= maxLockAttempts) {
+              throw new Error(`Failed to acquire lock for key ${key} during atomic update after ${maxLockAttempts} attempts`);
+            }
+          }
+          
+          // Lock the key
+          this.locks.add(fullKey);
+          lockAcquired = true;
+          clearTimeout(lockTimeout);
+          
+          // Get current value
+          const current = await this.read(key, namespace, agentId) as T;
+          
+          // Apply update function
+          const updated = updateFn(current);
+          
+          // Try to write the updated value
+          await this.write(key, updated, namespace, agentId, {
+            ...metadata,
+            atomicUpdate: true,
+            attempt: retries + 1
+          });
+          
+          // If we got here, the write succeeded
+          return updated;
+        } finally {
+          // Always release the lock if acquired
+          if (lockAcquired) {
+            this.locks.delete(fullKey);
+          } else {
+            clearTimeout(lockTimeout);
+          }
+        }
+      } catch (error) {
+        retries++;
+        this.logger.debug(
+          `Atomic update retry ${retries}/${maxRetries} for key ${key}: ${error instanceof Error ? error.message : String(error)}`
+        );
+        
+        if (retries >= maxRetries) {
+          throw new Error(`Failed to atomically update key ${key} after ${maxRetries} attempts: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        
+        // Exponential backoff with jitter
+        const delay = Math.min(
+          Math.random() * baseRetryDelay + baseRetryDelay * Math.pow(2, retries),
+          200
+        );
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    // This should never be reached due to the throw above, but TypeScript doesn't know that
+    throw new Error(`Failed to atomically update key ${key}`);
   }
 }

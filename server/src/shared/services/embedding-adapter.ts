@@ -13,7 +13,6 @@
 
 import { Logger } from '../logger/logger.interface';
 import { ConsoleLogger } from '../logger/console-logger';
-import { OpenAIConnector } from '../../agents/integrations/openai-connector';
 import { IEmbeddingService } from './embedding.interface';
 import { EmbeddingServiceFactory } from './embedding.factory';
 import {
@@ -21,6 +20,7 @@ import {
   EmbeddingGenerationError,
   EmbeddingValidationError,
 } from './embedding/embedding-error';
+import { OpenAIConnector } from '../../connectors/openai-connector';
 
 /**
  * A unified adapter for embedding services

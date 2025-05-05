@@ -1,85 +1,72 @@
 import { BaseAgentState, createBaseAgentState } from './base-agent-state';
+import {
+  AgenticMeetingAnalysisState,
+  MeetingMetadata,
+  MeetingTranscript,
+  TranscriptSegment,
+  AnalysisTeam,
+  AnalysisResults,
+  AnalysisProgress,
+} from '../../agentic-meeting-analysis/interfaces/state.interface';
+import { AgentExpertise, AnalysisGoalType, AnalysisTaskStatus, AgentOutput } from '../../agentic-meeting-analysis/interfaces/agent.interface';
 
 /**
- * Meeting analysis specific state additions
+ * Meeting analysis specific state additions that extend the base agent state
  */
-export interface MeetingAnalysisState extends BaseAgentState {
-  // Meeting details
+export interface MeetingAnalysisState extends BaseAgentState, Omit<AgenticMeetingAnalysisState, 'status'> {
+  // Core meeting information (from AgenticMeetingAnalysisState)
   meetingId: string;
-  meetingTitle?: string;
-  meetingStartTime?: number;
-  meetingEndTime?: number;
-  participants?: Array<{
-    id: string;
-    name?: string;
-    email?: string;
-    role?: string;
+  metadata: MeetingMetadata;
+  transcript: MeetingTranscript;
+  segments: TranscriptSegment[];
+
+  // Analysis process state
+  team?: AnalysisTeam;
+  goals: AnalysisGoalType[];
+  tasks: Record<
+    string,
+    {
+      id: string;
+      type: AnalysisGoalType;
+      status: AnalysisTaskStatus;
+      assignedTo?: string;
+      dependencies?: string[];
+      input: any;
+      output?: AgentOutput;
+      created: number;
+      updated: number;
+    }
+  >;
+  progress: AnalysisProgress;
+
+  // Results
+  results?: AnalysisResults;
+
+  // Execution metadata
+  executionId: string;
+  startTime: number;
+  endTime?: number;
+  // Using BaseAgentState status instead of AgenticMeetingAnalysisState status
+  // status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  agenticStatus?: 'pending' | 'in_progress' | 'completed' | 'failed';
+  errors?: any[];
+
+  // Additional fields for workflow management
+  currentlyProcessingTaskId?: string;
+  taskCompletionMap?: Record<string, boolean>;
+  annotationHistory?: Array<{
+    taskId: string;
+    agentId: string;
+    timestamp: number;
+    annotation: string;
   }>;
-  previousMeetingIds?: string[];
 
-  // Transcript data
-  transcript?: string;
-  transcriptSegments?: Array<{
-    speakerId: string;
-    text: string;
-    startTime?: number;
-    endTime?: number;
-  }>;
-  transcriptEmbeddings?: number[];
-
-  // Processing state
-  chunks?: string[];
-  currentChunkIndex?: number;
-  partialAnalyses?: string[];
-
-  // Analysis results
-  analysisResult?: {
-    summary: string;
-    topics?: Array<{
-      id: string;
-      name: string;
-      summary?: string;
-    }>;
-    actionItems?: Array<{
-      id: string;
-      text: string;
-      assignee: string;
-      priority?: 'low' | 'medium' | 'high';
-      dueDate?: number;
-    }>;
-    decisions?: Array<{
-      id: string;
-      text: string;
-      summary?: string;
-    }>;
-    keyInsights?: string[];
-    nextSteps?: string;
+  // Store custom workflow metadata separately
+  workflow: {
+    lastPartialAnalysisTimestamp?: number;
+    analysisCompletedTimestamp?: number;
+    lastTaskCompletedTimestamp?: number;
   };
-
-  // Extraction results
-  extractedActionItems?: Array<{
-    id: string;
-    text: string;
-    assignee: string;
-    priority?: 'low' | 'medium' | 'high';
-    dueDate?: number;
-  }>;
-  extractedDecisions?: Array<{
-    id: string;
-    text: string;
-    summary?: string;
-  }>;
-  extractedQuestions?: Array<{
-    id: string;
-    text: string;
-    isAnswered: boolean;
-    answerContextId?: string;
-  }>;
-  extractedTopics?: Array<{
-    id: string;
-    name: string;
-    summary?: string;
-  }>;
 }
 
 /**
@@ -94,24 +81,56 @@ export function createMeetingAnalysisState(
     ...overrides,
   });
 
+  const now = Date.now();
+  
+  // Default for meeting metadata
+  const defaultMetadata: MeetingMetadata = {
+    meetingId: overrides.meetingId || `meeting-${baseState.runId}`,
+    participants: overrides.metadata?.participants || [],
+    title: overrides.metadata?.title || '',
+  };
+
+  // Default for transcript
+  const defaultTranscript: MeetingTranscript = {
+    meetingId: overrides.meetingId || `meeting-${baseState.runId}`,
+    segments: overrides.transcript?.segments || [],
+    rawText: overrides.transcript?.rawText || '',
+  };
+
+  // Default for progress
+  const defaultProgress: AnalysisProgress = {
+    meetingId: overrides.meetingId || `meeting-${baseState.runId}`,
+    goals: overrides.progress?.goals || [],
+    taskStatuses: overrides.progress?.taskStatuses || {},
+    overallProgress: overrides.progress?.overallProgress || 0,
+    started: overrides.progress?.started || now,
+    lastUpdated: overrides.progress?.lastUpdated || now,
+  };
+
   const meetingState: MeetingAnalysisState = {
     ...baseState,
-    meetingId: overrides.meetingId || '',
-    meetingTitle: overrides.meetingTitle,
-    meetingStartTime: overrides.meetingStartTime,
-    meetingEndTime: overrides.meetingEndTime,
-    participants: overrides.participants || [],
-    previousMeetingIds: overrides.previousMeetingIds || [],
-    transcript: overrides.transcript,
-    transcriptSegments: overrides.transcriptSegments || [],
-    chunks: overrides.chunks,
-    currentChunkIndex: overrides.currentChunkIndex,
-    partialAnalyses: overrides.partialAnalyses || [],
-    analysisResult: overrides.analysisResult,
-    extractedActionItems: overrides.extractedActionItems || [],
-    extractedDecisions: overrides.extractedDecisions || [],
-    extractedQuestions: overrides.extractedQuestions || [],
-    extractedTopics: overrides.extractedTopics || [],
+    meetingId: overrides.meetingId || `meeting-${baseState.runId}`,
+    metadata: overrides.metadata || defaultMetadata,
+    transcript: overrides.transcript || defaultTranscript,
+    segments: overrides.segments || [],
+    team: overrides.team,
+    goals: overrides.goals || [],
+    tasks: overrides.tasks || {},
+    progress: overrides.progress || defaultProgress,
+    results: overrides.results,
+    executionId: overrides.executionId || `exec-${baseState.runId}`,
+    startTime: overrides.startTime || now,
+    endTime: overrides.endTime,
+    agenticStatus: overrides.agenticStatus || 'pending',
+    errors: overrides.errors || [],
+    currentlyProcessingTaskId: overrides.currentlyProcessingTaskId,
+    taskCompletionMap: overrides.taskCompletionMap || {},
+    annotationHistory: overrides.annotationHistory || [],
+    workflow: {
+      lastPartialAnalysisTimestamp: overrides.workflow?.lastPartialAnalysisTimestamp,
+      analysisCompletedTimestamp: overrides.workflow?.analysisCompletedTimestamp,
+      lastTaskCompletedTimestamp: overrides.workflow?.lastTaskCompletedTimestamp,
+    },
   };
 
   return meetingState;
@@ -123,24 +142,65 @@ export function createMeetingAnalysisState(
 export function addPartialAnalysis(
   state: MeetingAnalysisState,
   analysisText: string,
-  chunkIndex?: number,
+  taskId: string,
+  agentId: string = state.agentId,
 ): MeetingAnalysisState {
-  const updatedAnalyses = [...(state.partialAnalyses || []), analysisText];
+  // Add to annotation history
+  const updatedAnnotationHistory = [
+    ...(state.annotationHistory || []),
+    {
+      taskId,
+      agentId,
+      timestamp: Date.now(),
+      annotation: analysisText,
+    },
+  ];
+
+  // Update task status if needed
+  const updatedTasks = { ...state.tasks };
+  if (updatedTasks[taskId]) {
+    updatedTasks[taskId] = {
+      ...updatedTasks[taskId],
+      status: AnalysisTaskStatus.IN_PROGRESS,
+      updated: Date.now(),
+    };
+  }
+
+  // Update progress
+  const updatedProgress = {
+    ...state.progress,
+    taskStatuses: {
+      ...state.progress.taskStatuses,
+      [taskId]: AnalysisTaskStatus.IN_PROGRESS,
+    },
+    lastUpdated: Date.now(),
+  };
+
+  // Calculate overall progress
+  const totalTasks = Object.keys(updatedTasks).length;
+  const completedTasks = Object.values(updatedTasks).filter(
+    task => task.status === AnalysisTaskStatus.COMPLETED
+  ).length;
+  const inProgressTasks = Object.values(updatedTasks).filter(
+    task => task.status === AnalysisTaskStatus.IN_PROGRESS
+  ).length;
+  
+  updatedProgress.overallProgress = totalTasks 
+    ? Math.floor((completedTasks * 100 + inProgressTasks * 50) / totalTasks)
+    : 0;
 
   return {
     ...state,
-    partialAnalyses: updatedAnalyses,
-    currentChunkIndex:
-      chunkIndex !== undefined
-        ? chunkIndex
-        : state.currentChunkIndex !== undefined
-          ? state.currentChunkIndex + 1
-          : 0,
+    annotationHistory: updatedAnnotationHistory,
+    tasks: updatedTasks,
+    progress: updatedProgress,
+    currentlyProcessingTaskId: taskId,
+    agenticStatus: 'in_progress',
     metadata: {
       ...state.metadata,
-      lastChunkProcessed:
-        chunkIndex !== undefined ? chunkIndex : state.currentChunkIndex,
-      partialAnalysisCount: updatedAnalyses.length,
+    },
+    workflow: {
+      ...state.workflow,
       lastPartialAnalysisTimestamp: Date.now(),
     },
   };
@@ -151,47 +211,93 @@ export function addPartialAnalysis(
  */
 export function setAnalysisResult(
   state: MeetingAnalysisState,
-  result: MeetingAnalysisState['analysisResult'],
+  result: AnalysisResults,
 ): MeetingAnalysisState {
+  const now = Date.now();
+  
   return {
     ...state,
-    analysisResult: result,
+    results: result,
+    agenticStatus: 'completed',
+    endTime: now,
+    progress: {
+      ...state.progress,
+      overallProgress: 100,
+      lastUpdated: now,
+    },
     metadata: {
       ...state.metadata,
-      analysisCompletedTimestamp: Date.now(),
+    },
+    workflow: {
+      ...state.workflow,
+      analysisCompletedTimestamp: now,
     },
   };
 }
 
 /**
- * Add extracted entities to state
+ * Mark a task as completed
  */
-export function addExtractedEntities(
+export function completeTask(
   state: MeetingAnalysisState,
-  entities: {
-    actionItems?: MeetingAnalysisState['extractedActionItems'];
-    decisions?: MeetingAnalysisState['extractedDecisions'];
-    questions?: MeetingAnalysisState['extractedQuestions'];
-    topics?: MeetingAnalysisState['extractedTopics'];
-  },
+  taskId: string,
+  output?: AgentOutput,
 ): MeetingAnalysisState {
+  const now = Date.now();
+  
+  // Update the task
+  const updatedTasks = { ...state.tasks };
+  if (updatedTasks[taskId]) {
+    updatedTasks[taskId] = {
+      ...updatedTasks[taskId],
+      status: AnalysisTaskStatus.COMPLETED,
+      updated: now,
+      output,
+    };
+  }
+
+  // Update task completion map
+  const updatedTaskCompletionMap = {
+    ...state.taskCompletionMap,
+    [taskId]: true,
+  };
+
+  // Update progress
+  const updatedProgress = {
+    ...state.progress,
+    taskStatuses: {
+      ...state.progress.taskStatuses,
+      [taskId]: AnalysisTaskStatus.COMPLETED,
+    },
+    lastUpdated: now,
+  };
+
+  // Calculate overall progress
+  const totalTasks = Object.keys(updatedTasks).length;
+  const completedTasks = Object.values(updatedTasks).filter(
+    task => task.status === AnalysisTaskStatus.COMPLETED
+  ).length;
+  
+  updatedProgress.overallProgress = totalTasks 
+    ? Math.floor((completedTasks * 100) / totalTasks)
+    : 0;
+
+  // Check if all tasks are completed
+  const allTasksCompleted = totalTasks > 0 && completedTasks === totalTasks;
+
   return {
     ...state,
-    extractedActionItems: entities.actionItems
-      ? [...(state.extractedActionItems || []), ...entities.actionItems]
-      : state.extractedActionItems,
-    extractedDecisions: entities.decisions
-      ? [...(state.extractedDecisions || []), ...entities.decisions]
-      : state.extractedDecisions,
-    extractedQuestions: entities.questions
-      ? [...(state.extractedQuestions || []), ...entities.questions]
-      : state.extractedQuestions,
-    extractedTopics: entities.topics
-      ? [...(state.extractedTopics || []), ...entities.topics]
-      : state.extractedTopics,
+    tasks: updatedTasks,
+    taskCompletionMap: updatedTaskCompletionMap,
+    progress: updatedProgress,
+    agenticStatus: allTasksCompleted ? 'completed' : state.agenticStatus,
+    endTime: allTasksCompleted ? now : state.endTime,
     metadata: {
       ...state.metadata,
-      lastEntityExtractionTimestamp: Date.now(),
+    },
+    workflow: {
+      ...state.workflow,
+      lastTaskCompletedTimestamp: now,
     },
   };
 }

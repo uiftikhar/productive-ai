@@ -1,6 +1,6 @@
 // Global Jest setup
 // This file runs before your tests
-const { MockLogger } = require('./src/agents/tests/mocks/mock-logger');
+const { MockLogger } = require('./src/shared/logger/mock-logger');
 
 // Mock environment variables if needed
 process.env.PINECONE_API_KEY = 'test-pinecone-key';
@@ -8,8 +8,6 @@ process.env.PINECONE_ENVIRONMENT = 'test-environment';
 process.env.PINECONE_INDEX = 'test-index';
 process.env.OPENAI_API_KEY = 'test-openai-key';
 process.env.NODE_ENV = 'test';
-
-// Using imported MockLogger instead of local implementation
 
 // Expose MockLogger globally for tests
 global.MockLogger = MockLogger;

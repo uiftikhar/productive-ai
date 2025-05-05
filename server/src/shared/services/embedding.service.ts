@@ -16,7 +16,7 @@
  * - Finding similar embeddings
  */
 
-import { OpenAIConnector } from '../../agents/integrations/openai-connector';
+import { OpenAIConnector } from '../../connectors/openai-connector';
 import { ConsoleLogger } from '../logger/console-logger';
 import { Logger } from '../logger/logger.interface';
 import { IEmbeddingService } from './embedding.interface';

@@ -25,6 +25,18 @@ export interface StateRepositoryConfig {
 }
 
 /**
+ * Meeting interface for saveMeeting method
+ */
+export interface Meeting {
+  meetingId: string;
+  title?: string;
+  transcript?: string;
+  metadata?: any;
+  participants?: any[];
+  [key: string]: any;
+}
+
+/**
  * Implementation of state repository service
  */
 export class StateRepositoryService
@@ -40,6 +52,8 @@ export class StateRepositoryService
       agentId?: string;
     }[]
   > = new Map();
+
+  private meetings: Map<string, Meeting> = new Map();
 
   private logger: Logger;
   private persistenceEnabled: boolean;
@@ -76,6 +90,64 @@ export class StateRepositoryService
     }
 
     this.logger.info('State repository service initialized');
+  }
+
+  /**
+   * Save a meeting to the repository
+   */
+  async saveMeeting(meeting: Meeting): Promise<void> {
+    if (!meeting || !meeting.meetingId) {
+      this.logger.error('Cannot save meeting: Invalid meeting data');
+      throw new Error('Invalid meeting data: meetingId is required');
+    }
+
+    this.logger.debug(`Saving meeting ${meeting.meetingId} to repository`);
+    this.meetings.set(meeting.meetingId, meeting);
+    
+    // Initialize state if needed
+    if (!this.states.has(meeting.meetingId)) {
+      const now = Date.now();
+      const initialState: AgenticMeetingAnalysisState = {
+        meetingId: meeting.meetingId,
+        metadata: {
+          meetingId: meeting.meetingId,
+          participants: meeting.participants || [],
+          title: meeting.title || '',
+        },
+        transcript: {
+          meetingId: meeting.meetingId,
+          segments: [],
+          rawText: meeting.transcript || '',
+        },
+        segments: [],
+        goals: [],
+        tasks: {},
+        progress: {
+          meetingId: meeting.meetingId,
+          goals: [],
+          taskStatuses: {},
+          overallProgress: 0,
+          started: now,
+          lastUpdated: now,
+        },
+        executionId: `exec-${uuidv4()}`,
+        startTime: now,
+        status: 'pending',
+      };
+      
+      this.states.set(meeting.meetingId, initialState);
+      
+      // Add to history
+      this.addToStateHistory(meeting.meetingId, initialState);
+    }
+  }
+
+  /**
+   * Get a meeting from the repository
+   */
+  async getMeeting(meetingId: string): Promise<Meeting | null> {
+    this.logger.debug(`Getting meeting ${meetingId} from repository`);
+    return this.meetings.get(meetingId) || null;
   }
 
   /**
@@ -682,5 +754,144 @@ export class StateRepositoryService
   private persistState(meetingId: string): void {
     // This would implement actual persistence to a database or file
     this.logger.debug(`Persisting state for meeting ${meetingId}`);
+  }
+
+  /**
+   * Save analysis result to the repository
+   */
+  async saveAnalysisResult(
+    meetingId: string,
+    result: any
+  ): Promise<void> {
+    this.logger.debug(`Saving analysis result for meeting ${meetingId}`);
+    
+    if (!meetingId) {
+      this.logger.error('Cannot save analysis result: Invalid meeting ID');
+      throw new Error('Invalid meeting ID');
+    }
+    
+    // Get the current state
+    const state = await this.getState(meetingId);
+    if (!state) {
+      this.logger.error(`Cannot save analysis result: Meeting ${meetingId} not found`);
+      throw new Error(`Meeting ${meetingId} not found`);
+    }
+    
+    // Update the state with the results
+    state.results = result.results || state.results;
+    state.status = result.status || state.status;
+    state.endTime = result.endTime || Date.now();
+    
+    // Update the state
+    await this.updateState(meetingId, state);
+  }
+
+  /**
+   * Save analysis progress to the repository
+   */
+  async saveAnalysisProgress(
+    meetingId: string,
+    progressData: any
+  ): Promise<void> {
+    this.logger.debug(`Saving analysis progress for meeting ${meetingId}`);
+    
+    if (!meetingId) {
+      this.logger.error('Cannot save analysis progress: Invalid meeting ID');
+      throw new Error('Invalid meeting ID');
+    }
+    
+    // Get the current state
+    const state = await this.getState(meetingId);
+    if (!state) {
+      this.logger.error(`Cannot save analysis progress: Meeting ${meetingId} not found`);
+      throw new Error(`Meeting ${meetingId} not found`);
+    }
+    
+    // Update the progress
+    const progress: AnalysisProgress = {
+      ...state.progress,
+      overallProgress: progressData.progress || state.progress.overallProgress,
+      lastUpdated: Date.now(),
+    };
+    
+    // Update partial results if provided
+    if (progressData.partialResults) {
+      state.results = {
+        ...state.results,
+        ...progressData.partialResults,
+        metadata: {
+          ...(state.results?.metadata || {}),
+          ...progressData.partialResults.metadata,
+          generatedAt: Date.now(),
+        },
+      };
+    }
+    
+    // Update the state
+    await this.updateState(meetingId, { 
+      progress,
+      status: progressData.status || state.status,
+      results: state.results,
+    });
+  }
+
+  /**
+   * Get analysis result from the repository
+   */
+  async getAnalysisResult(
+    meetingId: string
+  ): Promise<any> {
+    this.logger.debug(`Getting analysis result for meeting ${meetingId}`);
+    
+    if (!meetingId) {
+      this.logger.error('Cannot get analysis result: Invalid meeting ID');
+      throw new Error('Invalid meeting ID');
+    }
+    
+    // Get the current state
+    const state = await this.getState(meetingId);
+    if (!state) {
+      this.logger.error(`Cannot get analysis result: Meeting ${meetingId} not found`);
+      throw new Error(`Meeting ${meetingId} not found`);
+    }
+    
+    // Return the results
+    return {
+      meetingId,
+      status: state.status,
+      results: state.results,
+      error: state.errors || null,
+      progress: state.progress?.overallProgress || 100
+    };
+  }
+
+  /**
+   * Get analysis status from the repository
+   */
+  async getAnalysisStatus(
+    meetingId: string
+  ): Promise<any> {
+    this.logger.debug(`Getting analysis status for meeting ${meetingId}`);
+    
+    if (!meetingId) {
+      this.logger.error('Cannot get analysis status: Invalid meeting ID');
+      throw new Error('Invalid meeting ID');
+    }
+    
+    // Get the current state
+    const state = await this.getState(meetingId);
+    if (!state) {
+      this.logger.error(`Cannot get analysis status: Meeting ${meetingId} not found`);
+      throw new Error(`Meeting ${meetingId} not found`);
+    }
+    
+    // Return the status
+    return {
+      meetingId,
+      status: state.status,
+      progress: state.progress?.overallProgress || 0,
+      partialResults: state.results || {},
+      updatedAt: state.progress?.lastUpdated || Date.now()
+    };
   }
 }

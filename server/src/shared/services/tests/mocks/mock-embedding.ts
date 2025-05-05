@@ -8,6 +8,7 @@ interface EmbeddingWithMetadata {
   metadata?: Record<string, any>;
 }
 
+// TODO: Fix linting errors
 export class MockEmbeddingService implements IEmbeddingService {
   private embeddingMap: Map<string, number[]> = new Map();
   private logger: Logger;
@@ -26,6 +27,11 @@ export class MockEmbeddingService implements IEmbeddingService {
     const mockEmbedding = Array.from({ length: 32 }, () => Math.random());
     this.embeddingMap.set(text, mockEmbedding);
     return mockEmbedding;
+  }
+
+  async embedText(text: string): Promise<number[]> {
+    // Reuse the existing generateEmbedding implementation
+    return this.generateEmbedding(text);
   }
 
   async generateEmbeddingWithMetadata(

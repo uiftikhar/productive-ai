@@ -21,11 +21,11 @@
 import { IEmbeddingService } from './embedding.interface';
 import { EmbeddingService } from './embedding.service';
 import { EmbeddingAdapter } from './embedding-adapter';
-import { OpenAIConnector } from '../../agents/integrations/openai-connector';
 import { Logger } from '../logger/logger.interface';
 import { ConsoleLogger } from '../logger/console-logger';
 import { ConfigurationError } from '../utils/base-error';
 import { EmbeddingConnectorError } from './embedding/embedding-error';
+import { OpenAIConnector } from '../../connectors/openai-connector';
 
 /**
  * Factory options for creating embedding services

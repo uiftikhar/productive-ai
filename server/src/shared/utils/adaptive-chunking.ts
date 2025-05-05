@@ -255,13 +255,13 @@ function identifyContentSegments(transcript: string): TranscriptSegment[] {
 
   // Process the transcript line by line to identify segments
   let currentType = TranscriptSegmentType.GENERAL;
-  let currentSegment = {
+  let currentSegment: TranscriptSegment = {
     type: currentType,
     text: '',
     startIndex: 0,
     endIndex: 0,
     importance: 0.5,
-    speakers: new Set<string>(),
+    speakers: [],
   };
 
   let paragraphBuffer = '';
@@ -280,7 +280,9 @@ function identifyContentSegments(transcript: string): TranscriptSegment[] {
       line.match(/^<([^>]+)>/);
 
     if (speakerMatch && speakerMatch[1]) {
-      currentSegment.speakers.add(speakerMatch[1]);
+      if (!currentSegment.speakers?.includes(speakerMatch[1])) {
+        currentSegment.speakers?.push(speakerMatch[1]);
+      }
     }
 
     // Check for content type indicators
@@ -323,7 +325,7 @@ function identifyContentSegments(transcript: string): TranscriptSegment[] {
         currentSegment.endIndex = currentIndex - lineLength - 1;
         segments.push({
           ...currentSegment,
-          speakers: Array.from(currentSegment.speakers),
+          speakers: currentSegment.speakers,
         });
       }
 
@@ -334,13 +336,23 @@ function identifyContentSegments(transcript: string): TranscriptSegment[] {
       const segmentImportance =
         DEFAULT_CONFIG.contentTypes[currentType]?.importance ?? 0.5;
 
-      currentSegment = {
-        type: currentType,
+      // Modify the TranscriptSegment creation to avoid type issues
+      const newSegment: TranscriptSegment = {
+        type: TranscriptSegmentType.GENERAL, // Start with GENERAL
         text: '',
         startIndex: currentIndex - lineLength - 1,
         endIndex: 0,
         importance: segmentImportance,
-        speakers: new Set<string>(),
+        speakers: [],
+      };
+      
+      // Then assign the actual type
+      newSegment.type = currentType;
+      
+      // Use the properly typed segment
+      currentSegment = {
+        ...newSegment,
+        speakers: [],
       };
     }
 
@@ -360,7 +372,7 @@ function identifyContentSegments(transcript: string): TranscriptSegment[] {
     currentSegment.endIndex = currentIndex;
     segments.push({
       ...currentSegment,
-      speakers: Array.from(currentSegment.speakers),
+      speakers: currentSegment.speakers,
     });
   }
 

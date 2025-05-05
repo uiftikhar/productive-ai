@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import pLimit from 'p-limit';
 
 import type { InstructionTemplateName } from '../prompts/instruction-templates';
 import type { SystemRole } from '../prompts/prompt-types';
@@ -54,15 +55,26 @@ async function processChunksWithLimit<T>(
   const results: T[] = [];
   let running = 0;
   let index = 0;
+  let hasError = false;
+  let firstError: Error | null = null;
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     function startNext() {
+      // If we've encountered an error, don't start any more tasks
+      if (hasError) {
+        if (running === 0) {
+          reject(firstError);
+        }
+        return;
+      }
+
+      // If all tasks are done, resolve with results
       if (index >= items.length && running === 0) {
         resolve(results);
         return;
       }
 
-      while (running < concurrency && index < items.length) {
+      while (running < concurrency && index < items.length && !hasError) {
         const i = index++;
         running++;
 
@@ -72,6 +84,11 @@ async function processChunksWithLimit<T>(
           })
           .catch((err) => {
             console.error(`Error processing item ${i}:`, err);
+            
+            // Track error and immediately set hasError flag
+            hasError = true;
+            firstError = err;
+            
             results[i] = null as any;
           })
           .finally(() => {
@@ -86,10 +103,7 @@ async function processChunksWithLimit<T>(
 }
 
 /**
- * Processes all transcript chunks concurrently.
- * @param chunks - Array of transcript chunks.
- * @param client - The OpenAI client instance.
- * @returns A promise that resolves to an array of summaries.
+ * Process all chunks concurrently with specified concurrency limit
  */
 export async function processAllChunks(
   chunks: string[],
@@ -97,24 +111,30 @@ export async function processAllChunks(
   role: SystemRole,
   templateName: InstructionTemplateName,
   userContext?: string,
-  model = 'gpt-4',
-  max_tokens = 700,
-  temperature = 0,
-  otherParams?: any,
+  model: string = 'gpt-4',
+  maxTokens: number = 700,
+  temperature: number = 0,
+  otherParams: any = {},
 ): Promise<string[]> {
-  // Using 5 as the concurrency limit
-  return processChunksWithLimit(5, chunks, (chunk, index) =>
-    processChunk(
-      index,
+  // Create a concurrency limit of 5 by default
+  const limit = pLimit(5);
+
+  // Map chunks to concurrent processing tasks
+  const promises = chunks.map((chunk, i) => {
+    return limit(() => processChunk(
+      i,
       client,
       chunk,
       role,
       templateName,
       userContext,
       model,
-      max_tokens,
+      maxTokens,
       temperature,
       otherParams,
-    ),
-  );
+    ));
+  });
+
+  // Wait for all chunks to be processed
+  return Promise.all(promises);
 }

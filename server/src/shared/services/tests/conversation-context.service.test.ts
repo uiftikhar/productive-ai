@@ -1,7 +1,7 @@
 import { UserContextValidationError } from '../user-context/types/context.types';
 import { BaseContextService } from '../user-context/base-context.service';
 import { ConversationContextService } from '../user-context/conversation-context.service';
-import { MockLogger } from '../../../agents/tests/mocks/mock-logger';
+import { MockLogger } from '../../logger/mock-logger';
 
 // Mock dependencies
 jest.mock('../user-context/base-context.service');
