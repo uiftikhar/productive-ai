@@ -5,7 +5,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { AnalysisGoalType, IMeetingAnalysisAgent, SharedMemoryService, StateRepositoryService, CommunicationService, TeamFormationService, ApiCompatibilityService } from '../agentic-meeting-analysis';
+import { AnalysisGoalType, IMeetingAnalysisAgent, SharedMemoryService, StateRepositoryService, CommunicationService, TeamFormationService, ApiCompatibilityService, AgentExpertise } from '../agentic-meeting-analysis';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 
 // Interface for agent execution request
@@ -57,46 +57,44 @@ export function getServiceInstance<T>(
 export class PerformanceTracker {
   private startTime: number = 0;
   private endTime: number = 0;
-  private marks: Map<string, number> = new Map();
-  private measures: Map<string, { duration: number }> = new Map();
+  private measurements = new Map<string, number>();
 
   /**
    * Start tracking performance
    */
   start(): void {
-    this.startTime = Date.now();
+    this.startTime = performance.now();
   }
 
   /**
    * End tracking performance
    */
   end(): void {
-    this.endTime = Date.now();
+    this.endTime = performance.now();
   }
 
-  /**
-   * Mark a point in time
-   */
-  mark(name: string): void {
-    this.marks.set(name, Date.now());
+  log(message: string): void {
+    console.log(message);
   }
 
   /**
    * Measure time between two marks
    */
-  measure(name: string, startMark: string, endMark: string, showInConsole: boolean = false): void {
-    const start = this.marks.get(startMark);
-    const end = this.marks.get(endMark);
+  measure(name: string, fn: () => void): void {
+    const start = performance.now();
+    fn();
+    const duration = performance.now() - start;
+    this.measurements.set(name, duration);
+    this.log(`Measure ${name}: ${Math.round(duration)}ms`);
+  }
 
-    if (start && end) {
-      this.measures.set(name, {
-        duration: end - start,
-      });
-      
-      if (showInConsole) {
-        console.log(`Measure ${name}: ${end - start}ms`);
-      }
-    }
+  // Add async measurement method
+  async measureAsync(name: string, fn: () => Promise<void>): Promise<void> {
+    const start = performance.now();
+    await fn();
+    const duration = performance.now() - start;
+    this.measurements.set(name, duration);
+    this.log(`Measure ${name}: ${Math.round(duration)}ms`);
   }
 
   /**
@@ -107,17 +105,17 @@ export class PerformanceTracker {
     console.log(`Total duration: ${this.endTime - this.startTime}ms`);
     
     console.log('\nMeasurements:');
-    this.measures.forEach((value, key) => {
-      console.log(`- ${key}: ${value.duration}ms`);
+    this.measurements.forEach((value, key) => {
+      console.log(`- ${key}: ${value}ms`);
     });
   }
   
   /**
    * Get results for assertions
    */
-  getResults(): { measures: Map<string, { duration: number }> } {
+  getResults(): { measurements: Map<string, number> } {
     return {
-      measures: this.measures
+      measurements: this.measurements
     };
   }
 }
@@ -367,6 +365,16 @@ export async function setupTestEnvironment(): Promise<any> {
   
   stateRepository.getAnalysisResult.mockImplementation((meetingId: string) => {
     // Return appropriate mock data based on meetingId
+    if (meetingId.includes('nonexistent')) {
+      return {
+        status: 'not_found',
+        error: {
+          code: 'MEETING_NOT_FOUND',
+          message: 'Meeting not found',
+        },
+      };
+    }
+    
     if (meetingId.includes('empty-transcript')) {
       return {
         status: 'failed',
@@ -558,8 +566,51 @@ export async function setupTestEnvironment(): Promise<any> {
   
   // Create mock team formation service
   const teamFormation = {
-    assessMeetingCharacteristics: jest.fn(),
-    formTeam: jest.fn(),
+    assessMeetingCharacteristics: jest.fn().mockImplementation((meeting) => {
+      return {
+        complexity: 0.75,
+        topicDiversity: 0.6,
+        requiredExpertise: {
+          [AgentExpertise.TOPIC_ANALYSIS]: 0.9,
+          [AgentExpertise.ACTION_ITEM_EXTRACTION]: 0.8,
+          [AgentExpertise.SUMMARY_GENERATION]: 0.7,
+          [AgentExpertise.DECISION_TRACKING]: 0.5,
+          [AgentExpertise.SENTIMENT_ANALYSIS]: 0.3
+        }
+      };
+    }),
+    formTeam: jest.fn().mockImplementation((meeting) => {
+      return {
+        teamId: `team-${meeting.meetingId}`,
+        meetingId: meeting.meetingId,
+        members: [
+          {
+            agentId: 'agent-1',
+            name: 'Topic Analyzer',
+            expertise: [AgentExpertise.TOPIC_ANALYSIS, AgentExpertise.SUMMARY_GENERATION]
+          },
+          {
+            agentId: 'agent-2',
+            name: 'Action Item Extractor',
+            expertise: [AgentExpertise.ACTION_ITEM_EXTRACTION]
+          },
+          {
+            agentId: 'agent-3',
+            name: 'Summary Generator',
+            expertise: [AgentExpertise.SUMMARY_GENERATION, AgentExpertise.SENTIMENT_ANALYSIS]
+          }
+        ],
+        coverage: {
+          expertiseCoverage: 0.85,
+          specializations: {
+            [AgentExpertise.TOPIC_ANALYSIS]: 1,
+            [AgentExpertise.ACTION_ITEM_EXTRACTION]: 1,
+            [AgentExpertise.SUMMARY_GENERATION]: 2,
+            [AgentExpertise.SENTIMENT_ANALYSIS]: 1
+          }
+        }
+      };
+    })
   };
   
   // Create mock API compatibility layer
@@ -582,12 +633,48 @@ export async function setupTestEnvironment(): Promise<any> {
     }),
   };
   
+  // Mock task decomposer
+  const taskDecomposer = {
+    assessComplexity: jest.fn(),
+    decomposeTask: jest.fn(),
+    detectDependencies: jest.fn(),
+    estimateResources: jest.fn()
+  };
+
+  // Mock workflow manager
+  const workflowManager = {
+    createWorkflow: jest.fn(),
+    executeWorkflow: jest.fn(),
+    getWorkflowStatus: jest.fn(),
+    updateWorkflow: jest.fn()
+  };
+
+  // Mock scheduler
+  const scheduler = {
+    prioritizeTasks: jest.fn(),
+    scheduleTask: jest.fn(),
+    rescheduleTask: jest.fn(),
+    calculateDeadlines: jest.fn()
+  };
+
+  // Mock dependency verifier
+  const dependencyVerifier = {
+    getExecutableTasks: jest.fn(),
+    verifyDependencies: jest.fn(),
+    updateTaskStatus: jest.fn(),
+    detectCircularDependencies: jest.fn()
+  };
+  
   return {
     stateRepository,
     sharedMemory,
     communication,
     teamFormation,
     apiCompatibility,
+    taskDecomposer,
+    workflowManager,
+    scheduler,
+    dependencyVerifier
   };
 }
 

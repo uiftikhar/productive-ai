@@ -55,155 +55,153 @@ describe('Meeting Analysis End-to-End Workflow', () => {
       teamFormation 
     } = testEnv;
     
+    // Create shared variables at test scope
+    let testMeeting: any;
+    let analysisRequest: any;
+    let mockAgents: Array<{id: string, role: string}> = [];
+    let agentHandlers: Record<string, any> = {};
+    let analysisOutput: any;
+    
     // Start performance tracking
     performanceTracker.start();
-    performanceTracker.mark('setup-start');
     
-    // 1. Create a test meeting
-    const testMeeting = createTestMeeting();
-    
-    // 2. Save meeting to repository
-    await stateRepository.saveMeeting(testMeeting);
-    
-    // 3. Create analysis request
-    const analysisRequest = createTestAnalysisRequest(testMeeting.meetingId);
-    
-    // 4. Setup mock for team formation to avoid actual agent creation
-    const mockAgents = [
-      { id: `agent-${uuidv4()}`, role: 'coordinator' },
-      { id: `agent-${uuidv4()}`, role: 'topic_analyzer' },
-      { id: `agent-${uuidv4()}`, role: 'action_item_extractor' },
-      { id: `agent-${uuidv4()}`, role: 'summarizer' },
-    ];
-    
-    jest.spyOn(teamFormation, 'formTeam').mockResolvedValue(mockAgents);
-    
-    // 5. Setup mock agent handlers for communication
-    // Using any type for simplicity in this test file
-    const agentHandlers: Record<string, any> = {};
-    
-    for (const agent of mockAgents) {
-      const handler = jest.fn(async (message: AgentMessage) => {
-        // For request messages, send a response back
-        if (message.type === 'request') {
-          const responseId = `response-${uuidv4()}`;
-          const responseMessage: AgentMessage = {
-            id: responseId,
-            type: 'response',
-            sender: agent.id,
-            recipients: [message.sender],
-            replyTo: message.id,
-            content: {
-              status: 'success',
-              data: {
-                result: `Mock result for ${agent.role}`,
-                confidence: 'high',
+    // Setup phase
+    await performanceTracker.measureAsync('setup', async () => {
+      // 1. Create a test meeting
+      testMeeting = createTestMeeting();
+      
+      // 2. Save meeting to repository
+      await stateRepository.saveMeeting(testMeeting);
+      
+      // 3. Create analysis request
+      analysisRequest = createTestAnalysisRequest(testMeeting.meetingId);
+      
+      // 4. Setup mock for team formation to avoid actual agent creation
+      mockAgents = [
+        { id: `agent-${uuidv4()}`, role: 'coordinator' },
+        { id: `agent-${uuidv4()}`, role: 'topic_analyzer' },
+        { id: `agent-${uuidv4()}`, role: 'action_item_extractor' },
+        { id: `agent-${uuidv4()}`, role: 'summarizer' },
+      ];
+      
+      jest.spyOn(teamFormation, 'formTeam').mockResolvedValue(mockAgents);
+      
+      // 5. Setup mock agent handlers for communication
+      agentHandlers = {};
+      
+      for (const agent of mockAgents) {
+        const handler = jest.fn(async (message: AgentMessage) => {
+          // For request messages, send a response back
+          if (message.type === 'request') {
+            const responseId = `response-${uuidv4()}`;
+            const responseMessage: AgentMessage = {
+              id: responseId,
+              type: 'response',
+              sender: agent.id,
+              recipients: [message.sender],
+              replyTo: message.id,
+              content: {
+                status: 'success',
+                data: {
+                  result: `Mock result for ${agent.role}`,
+                  confidence: 'high',
+                },
               },
-            },
-            timestamp: Date.now(),
-          };
-          
-          // Send response immediately rather than using setTimeout
-          // This ensures the test can properly track the response
-          await communication.sendMessage(responseMessage);
-        }
-      });
-      
-      // Register mock agent handler
-      agentHandlers[agent.id] = handler;
-      await communication.registerAgent(agent.id, handler);
-    }
-    
-    performanceTracker.mark('setup-complete');
-    
-    // 6. Start the analysis process
-    performanceTracker.mark('analysis-start');
-    const analysisResult = await apiCompatibility.startAnalysis(analysisRequest);
-    
-    // Verify analysis was started successfully
-    expect(analysisResult).toBeDefined();
-    expect(analysisResult.requestId).toBeDefined();
-    
-    // Send a specific message to the coordinator to ensure it receives messages
-    const coordinatorAgent = mockAgents.find(agent => agent.role === 'coordinator');
-    if (coordinatorAgent) {
-      await communication.sendMessage({
-        id: `coordinator-test-${uuidv4()}`,
-        type: 'request',
-        sender: 'system',
-        recipients: [coordinatorAgent.id],
-        content: {
-          action: 'start_workflow',
-          meetingId: testMeeting.meetingId,
-        },
-        timestamp: Date.now(),
-      });
-    }
-    
-    // 7. Wait for analysis to complete (mocked)
-    performanceTracker.mark('analysis-wait-start');
-    
-    // Allow some time for message processing
-    await flushPromises();
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
-    // Simulate analysis completion (this would normally be done by the agents)
-    const analysisOutput = {
-      status: 'completed',
-      results: {
-        topics: ['Product Roadmap', 'Timeline Concerns', 'Release Planning'],
-        actionItems: [
-          {
-            description: 'Update the project plan with new timeline',
-            assignee: 'John Doe',
-            deadline: 'end of week',
+              timestamp: Date.now(),
+            };
+            
+            // Send response immediately rather than using setTimeout
+            // This ensures the test can properly track the response
+            await communication.sendMessage(responseMessage);
           }
-        ],
-        summary: 'The meeting discussed Q3 roadmap planning with concerns about timeline. Action items were assigned to update the project plan.',
-      },
-      metadata: {
-        confidence: 'high',
-        completedAt: new Date().toISOString(),
-        processingTime: 1.5, // seconds
+        });
+        
+        // Register mock agent handler
+        agentHandlers[agent.id] = handler;
+        await communication.registerAgent(agent.id, handler);
       }
-    };
+    });
     
-    // Update the analysis state to completed
-    await stateRepository.saveAnalysisResult(testMeeting.meetingId, analysisOutput);
-    
-    // Allow time for the system to process
-    await flushPromises();
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
-    performanceTracker.mark('analysis-wait-complete');
-    
-    // 8. Retrieve the final analysis result
-    performanceTracker.mark('result-retrieval-start');
-    const finalResult = await apiCompatibility.getAnalysisResult(testMeeting.meetingId);
-    performanceTracker.mark('result-retrieval-complete');
-    
-    // Verify analysis result
-    expect(finalResult).toBeDefined();
-    expect(finalResult.status).toBe('completed');
-    expect(finalResult.results).toEqual(analysisOutput.results);
-    
-    // Check if all expected agents received messages
-    for (const agent of mockAgents) {
-      const handler = agentHandlers[agent.id];
+    // Analysis phase
+    await performanceTracker.measureAsync('analysis', async () => {
+      // 6. Start the analysis process
+      const analysisResult = await apiCompatibility.startAnalysis(analysisRequest);
       
-      // Verify coordinator received messages
-      if (agent.role === 'coordinator') {
-        expect(handler).toHaveBeenCalled();
+      // Verify analysis was started successfully
+      expect(analysisResult).toBeDefined();
+      expect(analysisResult.requestId).toBeDefined();
+      
+      // Send a specific message to the coordinator to ensure it receives messages
+      const coordinatorAgent = mockAgents.find(agent => agent.role === 'coordinator');
+      if (coordinatorAgent) {
+        await communication.sendMessage({
+          id: `coordinator-test-${uuidv4()}`,
+          type: 'request',
+          sender: 'system',
+          recipients: [coordinatorAgent.id],
+          content: {
+            action: 'start_workflow',
+            meetingId: testMeeting.meetingId,
+          },
+          timestamp: Date.now(),
+        });
       }
-    }
+      
+      // Allow some time for message processing
+      await flushPromises();
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Simulate analysis completion (this would normally be done by the agents)
+      analysisOutput = {
+        status: 'completed',
+        results: {
+          topics: ['Product Roadmap', 'Timeline Concerns', 'Release Planning'],
+          actionItems: [
+            {
+              description: 'Update the project plan with new timeline',
+              assignee: 'John Doe',
+              deadline: 'end of week',
+            }
+          ],
+          summary: 'The meeting discussed Q3 roadmap planning with concerns about timeline. Action items were assigned to update the project plan.',
+        },
+        metadata: {
+          confidence: 'high',
+          completedAt: new Date().toISOString(),
+          processingTime: 1.5, // seconds
+        }
+      };
+      
+      // Update the analysis state to completed
+      await stateRepository.saveAnalysisResult(testMeeting.meetingId, analysisOutput);
+      
+      // Allow time for the system to process
+      await flushPromises();
+      await new Promise(resolve => setTimeout(resolve, 200));
+    });
+    
+    // Result retrieval phase
+    await performanceTracker.measureAsync('result-retrieval', async () => {
+      const finalResult = await apiCompatibility.getAnalysisResult(testMeeting.meetingId);
+      
+      // Verify analysis result
+      expect(finalResult).toBeDefined();
+      expect(finalResult.status).toBe('completed');
+      expect(finalResult.results).toEqual(analysisOutput.results);
+      
+      // Check if all expected agents received messages
+      for (const agent of mockAgents) {
+        const handler = agentHandlers[agent.id];
+        
+        // Verify coordinator received messages
+        if (agent.role === 'coordinator') {
+          expect(handler).toHaveBeenCalled();
+        }
+      }
+    });
     
     // End performance tracking
     performanceTracker.end();
-    
-    // Calculate processing stages durations
-    performanceTracker.measure('setup', 'setup-start', 'setup-complete');
-    performanceTracker.measure('analysis', 'analysis-start', 'analysis-wait-complete');
-    performanceTracker.measure('result-retrieval', 'result-retrieval-start', 'result-retrieval-complete');
     
     // Log performance results for analysis
     console.log('End-to-End Test Performance:');
