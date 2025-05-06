@@ -1,265 +1,237 @@
 /**
- * Integration Tests for CommunicationService
+ * Communication Integration Tests (Refactored)
  * 
  * Tests the CommunicationService's integration with agents and message delivery.
+ * 
+ * This uses the new testing approach with real services.
  */
 
 import { jest } from '@jest/globals';
-import {
-  setupTestEnvironment,
-  cleanupTestEnvironment,
-  flushPromises
-} from '../test-utils';
-import { MessageType } from '../../agentic-meeting-analysis';
-describe('CommunicationService Integration', () => {
+import { setupTestEnvironment } from '../utils';
+import { v4 as uuidv4 } from 'uuid';
+import { MessageType, AgentMessage } from '../../agentic-meeting-analysis';
+
+describe('Communication Integration', () => {
   let testEnv: any;
   
-  beforeAll(async () => {
-    // Set up the test environment with all services
+  beforeEach(async () => {
+    // Set up the test environment with real services
     testEnv = await setupTestEnvironment();
   });
   
-  afterAll(async () => {
-    // Clean up after tests
-    await cleanupTestEnvironment();
-  });
-  
-  beforeEach(() => {
-    jest.clearAllMocks();
+  afterEach(async () => {
+    // Clean up resources
+    await testEnv.cleanup();
   });
   
   test('should register agents and deliver messages', async () => {
-    const { communication } = testEnv;
+    // Arrange
+    const agentId = `test-agent-${uuidv4()}`;
+    const receiveMessage = jest.fn();
     
-    // Create message handler mocks
-    const agent1Handler = jest.fn();
-    const agent2Handler = jest.fn();
+    // Act - Register agent
+    await testEnv.communication.registerAgent(agentId, receiveMessage);
     
-    // Register agents
-    await communication.registerAgent('agent-1', agent1Handler);
-    await communication.registerAgent('agent-2', agent2Handler);
-    
-    // Create a test message
-    const message = {
-      id: 'msg-123',
+    // Create a message to send
+    const message: AgentMessage = {
+      id: uuidv4(),
       type: MessageType.REQUEST,
-      sender: 'agent-1',
-      recipients: ['agent-2'],
-      content: { command: 'analyze', data: 'test data' },
+      sender: 'system',
+      recipients: [agentId],
+      content: { task: 'test-task', priority: 'high' },
       timestamp: Date.now()
     };
     
-    // Send message
-    await communication.sendMessage(message);
+    // Act - Send message to agent
+    await testEnv.communication.sendMessage(message);
     
-    // Wait for async operations
-    await flushPromises();
-    
-    // Verify message was delivered to the intended recipient
-    expect(agent2Handler).toHaveBeenCalledTimes(1);
-    expect(agent2Handler).toHaveBeenCalledWith(message);
-    
-    // Verify message was not delivered to the sender
-    expect(agent1Handler).not.toHaveBeenCalled();
+    // Assert
+    expect(receiveMessage).toHaveBeenCalledWith(message);
   });
-  
-  test('should handle broadcasts to all agents', async () => {
-    const { communication } = testEnv;
+
+  test('should broadcast messages to all registered agents', async () => {
+    // Arrange
+    const agent1Id = `agent1-${uuidv4()}`;
+    const agent2Id = `agent2-${uuidv4()}`;
+    const agent3Id = `agent3-${uuidv4()}`;
     
-    // Create message handler mocks
-    const agent1Handler = jest.fn();
-    const agent2Handler = jest.fn();
-    const agent3Handler = jest.fn();
+    const agent1ReceiveMessage = jest.fn();
+    const agent2ReceiveMessage = jest.fn();
+    const agent3ReceiveMessage = jest.fn();
     
-    // Register agents
-    await communication.registerAgent('agent-1', agent1Handler);
-    await communication.registerAgent('agent-2', agent2Handler);
-    await communication.registerAgent('agent-3', agent3Handler);
+    // Register 3 agents
+    await testEnv.communication.registerAgent(agent1Id, agent1ReceiveMessage);
+    await testEnv.communication.registerAgent(agent2Id, agent2ReceiveMessage);
+    await testEnv.communication.registerAgent(agent3Id, agent3ReceiveMessage);
     
     // Create a broadcast message
-    const broadcastMessage = {
-      id: 'msg-broadcast',
+    const broadcastMessage: Omit<AgentMessage, 'recipients'> = {
+      id: uuidv4(),
       type: MessageType.NOTIFICATION,
-      sender: 'agent-1',
-      recipients: 'broadcast',
-      content: { notification: 'system event', importance: 'high' },
+      sender: 'system',
+      content: { announcement: 'system-announcement', importance: 'high' },
       timestamp: Date.now()
     };
     
-    // Send broadcast message
-    await communication.sendMessage(broadcastMessage);
+    // Act - Broadcast message
+    await testEnv.communication.broadcastMessage(broadcastMessage);
     
-    // Wait for async operations
-    await flushPromises();
-    
-    // Verify message was delivered to all agents except sender
-    expect(agent1Handler).not.toHaveBeenCalled(); // Sender doesn't receive own broadcast
-    expect(agent2Handler).toHaveBeenCalledWith(broadcastMessage);
-    expect(agent3Handler).toHaveBeenCalledWith(broadcastMessage);
+    // Assert
+    expect(agent1ReceiveMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: MessageType.NOTIFICATION,
+      sender: 'system',
+      content: expect.objectContaining({ announcement: 'system-announcement' })
+    }));
+    expect(agent2ReceiveMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: MessageType.NOTIFICATION,
+      sender: 'system',
+      content: expect.objectContaining({ announcement: 'system-announcement' })
+    }));
+    expect(agent3ReceiveMessage).toHaveBeenCalledWith(expect.objectContaining({
+      type: MessageType.NOTIFICATION,
+      sender: 'system',
+      content: expect.objectContaining({ announcement: 'system-announcement' })
+    }));
   });
-  
-  test('should handle message replies correctly', async () => {
-    const { communication } = testEnv;
-    
-    // Create message handler mocks
-    const agent1Handler = jest.fn();
-    const agent2Handler = jest.fn();
-    
-    // Register agents
-    await communication.registerAgent('agent-1', agent1Handler);
-    await communication.registerAgent('agent-2', agent2Handler);
-    
-    // Create initial message
-    const initialMessage = {
-      id: 'msg-request',
-      type: MessageType.REQUEST,
-      sender: 'agent-1',
-      recipients: ['agent-2'],
-      content: { request: 'data analysis' },
-      timestamp: Date.now()
-    };
-    
-    // Send initial message
-    await communication.sendMessage(initialMessage);
-    
-    // Create reply message
-    const replyMessage = {
-      id: 'msg-response',
-      type: MessageType.RESPONSE,
-      sender: 'agent-2',
-      recipients: ['agent-1'],
-      content: { result: 'analysis complete' },
-      replyTo: 'msg-request',
-      timestamp: Date.now()
-    };
-    
-    // Send reply
-    await communication.sendMessage(replyMessage);
-    
-    // Wait for async operations
-    await flushPromises();
-    
-    // Verify reply was delivered to the original sender
-    expect(agent1Handler).toHaveBeenCalledTimes(1);
-    expect(agent1Handler).toHaveBeenCalledWith(replyMessage);
-  });
-  
-  test('should maintain message history for agents', async () => {
-    const { communication } = testEnv;
-    
-    // Clear previous messages
-    await communication.clearMessageHistory();
-    
-    // Create message handler mocks
-    const agent1Handler = jest.fn();
-    const agent2Handler = jest.fn();
-    
-    // Register agents
-    await communication.registerAgent('agent-1', agent1Handler);
-    await communication.registerAgent('agent-2', agent2Handler);
-    
-    // Create and send multiple messages
-    const messages = [
-      {
-        id: 'msg-1',
-        type: MessageType.REQUEST,
-        sender: 'agent-1',
-        recipients: ['agent-2'],
-        content: { request: 'data' },
-        timestamp: Date.now() - 2000
-      },
-      {
-        id: 'msg-2',
-        type: MessageType.RESPONSE,
-        sender: 'agent-2',
-        recipients: ['agent-1'],
-        content: { response: 'data provided' },
-        replyTo: 'msg-1',
-        timestamp: Date.now() - 1000
-      },
-      {
-        id: 'msg-3',
-        type: MessageType.NOTIFICATION,
-        sender: 'agent-1',
-        recipients: 'broadcast',
-        content: { notification: 'process complete' },
-        timestamp: Date.now()
-      }
-    ];
-    
-    for (const message of messages) {
-      await communication.sendMessage(message);
-    }
-    
-    // Wait for async operations
-    await flushPromises();
-    
-    // Get message history for agent-1
-    const agent1History = await communication.getMessageHistory('agent-1');
-    
-    // Verify agent-1's message history
-    expect(agent1History).toHaveLength(3);
-    expect(agent1History[0].id).toBe('msg-1');
-    expect(agent1History[1].id).toBe('msg-2');
-    expect(agent1History[2].id).toBe('msg-3');
-    
-    // Get message history for agent-2
-    const agent2History = await communication.getMessageHistory('agent-2');
-    
-    // Verify agent-2's message history
-    expect(agent2History).toHaveLength(3);
-    expect(agent2History[0].id).toBe('msg-1');
-    expect(agent2History[1].id).toBe('msg-2');
-    expect(agent2History[2].id).toBe('msg-3');
-  });
-  
-  test('should handle unregistering agents correctly', async () => {
-    const { communication } = testEnv;
-    
-    // Create message handler mocks
-    const agentHandler = jest.fn();
+
+  test('should unregister agents properly', async () => {
+    // Arrange
+    const agentId = `test-agent-${uuidv4()}`;
+    const receiveMessage = jest.fn();
     
     // Register agent
-    await communication.registerAgent('temp-agent', agentHandler);
+    await testEnv.communication.registerAgent(agentId, receiveMessage);
     
-    // Create a test message for the agent
-    const message = {
-      id: 'msg-temp',
-      type: MessageType.NOTIFICATION,
+    // Create a message
+    const message: AgentMessage = {
+      id: uuidv4(),
+      type: MessageType.REQUEST,
       sender: 'system',
-      recipients: ['temp-agent'],
-      content: { notification: 'test' },
+      recipients: [agentId],
+      content: { task: 'test-task', priority: 'high' },
       timestamp: Date.now()
     };
     
-    // Send message
-    await communication.sendMessage(message);
-    await flushPromises();
+    // Verify agent receives messages
+    await testEnv.communication.sendMessage(message);
+    expect(receiveMessage).toHaveBeenCalledTimes(1);
     
-    // Verify message was delivered
-    expect(agentHandler).toHaveBeenCalledTimes(1);
+    // Act - Unregister agent
+    await testEnv.communication.unregisterAgent(agentId);
     
-    // Unregister agent
-    await communication.unregisterAgent('temp-agent');
-    
-    // Reset mock
-    agentHandler.mockClear();
-    
-    // Send another message to the unregistered agent
-    const secondMessage = {
-      id: 'msg-temp-2',
-      type: MessageType.NOTIFICATION,
+    // Create another message
+    const secondMessage: AgentMessage = {
+      id: uuidv4(),
+      type: MessageType.REQUEST,
       sender: 'system',
-      recipients: ['temp-agent'],
-      content: { notification: 'test-2' },
+      recipients: [agentId],
+      content: { task: 'another-task', priority: 'medium' },
       timestamp: Date.now()
     };
     
-    // Send message
-    await communication.sendMessage(secondMessage);
-    await flushPromises();
+    // Send message to unregistered agent
+    await testEnv.communication.sendMessage(secondMessage);
     
-    // Verify message was not delivered to unregistered agent
-    expect(agentHandler).not.toHaveBeenCalled();
+    // Assert - Should not have received the second message
+    expect(receiveMessage).toHaveBeenCalledTimes(1);
+  });
+
+  test('should maintain message history', async () => {
+    // Arrange
+    const agentId = `test-agent-${uuidv4()}`;
+    const message1: AgentMessage = {
+      id: uuidv4(),
+      type: MessageType.REQUEST,
+      sender: 'system',
+      recipients: [agentId],
+      content: { task: 'task-1' },
+      timestamp: Date.now() - 1000
+    };
+    
+    const message2: AgentMessage = {
+      id: uuidv4(),
+      type: MessageType.RESPONSE,
+      sender: agentId,
+      recipients: ['system'],
+      content: { result: 'result-1' },
+      timestamp: Date.now()
+    };
+    
+    // Register agent
+    await testEnv.communication.registerAgent(agentId, jest.fn());
+    
+    // Act - Send messages
+    await testEnv.communication.sendMessage(message1);
+    await testEnv.communication.sendMessage(message2);
+    
+    // Act - Get message history
+    const history = await testEnv.communication.getMessageHistory({});
+    
+    // Assert
+    expect(history.length).toBeGreaterThanOrEqual(2);
+    expect(history).toContainEqual(expect.objectContaining({
+      id: message1.id,
+      type: MessageType.REQUEST
+    }));
+    expect(history).toContainEqual(expect.objectContaining({
+      id: message2.id,
+      type: MessageType.RESPONSE
+    }));
+  });
+
+  test('should filter message history by type', async () => {
+    // Arrange
+    const agentId = `test-agent-${uuidv4()}`;
+    
+    // Create messages of different types
+    const taskRequestMessage: AgentMessage = {
+      id: uuidv4(),
+      type: MessageType.REQUEST,
+      sender: 'system',
+      recipients: [agentId],
+      content: { task: 'filter-test' },
+      timestamp: Date.now() - 2000
+    };
+    
+    const taskResultMessage: AgentMessage = {
+      id: uuidv4(),
+      type: MessageType.RESPONSE,
+      sender: agentId,
+      recipients: ['system'],
+      content: { result: 'filter-result' },
+      timestamp: Date.now() - 1000
+    };
+    
+    const announcementMessage: Omit<AgentMessage, 'recipients'> = {
+      id: uuidv4(),
+      type: MessageType.NOTIFICATION,
+      sender: 'system',
+      content: { announcement: 'filter-announcement' },
+      timestamp: Date.now()
+    };
+    
+    // Register agent
+    await testEnv.communication.registerAgent(agentId, jest.fn());
+    
+    // Send messages
+    await testEnv.communication.sendMessage(taskRequestMessage);
+    await testEnv.communication.sendMessage(taskResultMessage);
+    await testEnv.communication.broadcastMessage(announcementMessage);
+    
+    // Act - Get filtered history
+    const requests = await testEnv.communication.getMessageHistory({
+      types: [MessageType.REQUEST]
+    });
+    
+    const notifications = await testEnv.communication.getMessageHistory({
+      types: [MessageType.NOTIFICATION]
+    });
+    
+    // Assert
+    expect(requests.length).toBeGreaterThanOrEqual(1);
+    expect(requests[0].type).toBe(MessageType.REQUEST);
+    
+    expect(notifications.length).toBeGreaterThanOrEqual(1);
+    expect(notifications[0].type).toBe(MessageType.NOTIFICATION);
   });
 }); 

@@ -1035,47 +1035,25 @@ export class SharedMemoryService extends EventEmitter implements ISharedMemory {
   }
 
   /**
-   * Cleanup resources
+   * Clean up resources
    */
   async cleanup(): Promise<void> {
-    try {
-      this.logger.info('Cleaning up shared memory service');
-      
-      // Save final state if persistence is enabled
-      if (this.persistenceEnabled) {
-        try {
-          const finalSnapshotId = await this.saveSnapshot();
-          this.logger.info(`Final memory snapshot saved: ${finalSnapshotId}`);
-        } catch (err) {
-          this.logger.error(`Failed to save final snapshot: ${err instanceof Error ? err.message : String(err)}`);
-        }
-      }
-      
-      // Clear all event listeners
-      this.removeAllListeners();
-      
-      // Release all locks
-      this.locks.clear();
-      
-      // Clear subscriptions
-      this.subscriptionCallbacks.clear();
-      
-      // Log memory stats before clearing
-      try {
-        const stats = await this.getStats();
-        this.logger.info(`Memory service stats before cleanup: ${JSON.stringify(stats)}`);
-      } catch (err) {
-        this.logger.warn(`Couldn't get final stats: ${err instanceof Error ? err.message : String(err)}`);
-      }
-      
-      // Clear entries
-      this.entries.clear();
-      this.operations = [];
-      
-      this.logger.info('Shared memory service cleanup complete');
-    } catch (error) {
-      this.logger.error(`Error during shared memory service cleanup: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    this.logger.info('Cleaning up SharedMemoryService resources');
+    
+    // Clear all locks
+    this.locks.clear();
+    
+    // Clear all subscriptions
+    this.subscriptionCallbacks.clear();
+    
+    // Clear all stored data
+    this.entries.clear();
+    this.operations = [];
+    
+    // Remove all event listeners
+    this.removeAllListeners();
+    
+    this.logger.info('SharedMemoryService cleanup completed');
   }
 
   /**

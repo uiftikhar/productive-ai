@@ -92,6 +92,9 @@ async function testSharedMemory(logger: ConsoleLogger) {
 
   console.log('Notification received:', notificationReceived);
 
+  // Clean up
+  await memory.cleanup();
+
   logger.info('Shared Memory Service tests passed');
 }
 
@@ -210,6 +213,11 @@ async function testStateRepository(logger: ConsoleLogger) {
   const meetings = await state.listMeetings();
   console.log('Meetings in repository:', meetings.length);
 
+  // Clean up
+  if ('cleanup' in state && typeof state.cleanup === 'function') {
+    await state.cleanup();
+  }
+
   logger.info('State Repository Service tests passed');
 }
 
@@ -308,6 +316,9 @@ async function testCommunication(logger: ConsoleLogger) {
     registeredAgents: metrics.registeredAgents,
   });
 
+  // Clean up resources
+  await communication.cleanup();
+
   logger.info('Communication Service tests passed');
 }
 
@@ -318,10 +329,8 @@ async function testApiCompatibility(logger: ConsoleLogger) {
   console.log('\n--- Testing API Compatibility Layer ---');
 
   // Initialize the service
-  const compatibility = new ApiCompatibilityService({
-    logger,
-    defaultFeatureFlag: true,
-  });
+  const compatibility = new ApiCompatibilityService({ logger });
+  await compatibility.initialize();
 
   // Test conversion from legacy to agentic format
   const legacyRequest = {
@@ -380,6 +389,11 @@ async function testApiCompatibility(logger: ConsoleLogger) {
     new Error('Test error'),
   );
   console.log('Mapped error structure:', Object.keys(mappedError));
+
+  // Clean up
+  if ('cleanup' in compatibility && typeof compatibility.cleanup === 'function') {
+    await compatibility.cleanup();
+  }
 
   logger.info('API Compatibility Layer tests passed');
 }

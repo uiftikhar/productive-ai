@@ -57,6 +57,7 @@ export class CommunicationService
   private deliveryTimeout: number;
   private retainMessageHistory: boolean;
   private maxMessageHistory: number;
+  private messageProcessingInterval?: NodeJS.Timeout;
 
   /**
    * Create a new communication service
@@ -95,7 +96,7 @@ export class CommunicationService
     });
 
     // Start background processing
-    setInterval(() => this.processExpiredMessages(), 5000);
+    this.messageProcessingInterval = setInterval(() => this.processExpiredMessages(), 5000);
 
     this.logger.info('Communication service initialized');
   }
@@ -792,5 +793,31 @@ export class CommunicationService
     this.pendingMessages.clear();
     
     this.logger.info('Message history cleared');
+  }
+  
+  /**
+   * Clean up resources used by the communication service
+   * This should be called before shutting down the service
+   */
+  async cleanup(): Promise<void> {
+    this.logger.info('Cleaning up communication service resources');
+    
+    // Clear the interval that processes expired messages
+    if (this.messageProcessingInterval) {
+      clearInterval(this.messageProcessingInterval);
+      this.messageProcessingInterval = undefined;
+    }
+    
+    // Clear data structures
+    this.channels.clear();
+    this.messageHistory = [];
+    this.pendingMessages.clear();
+    this.agentCallbacks.clear();
+    this.topicSubscriptions.clear();
+    
+    // Remove all event listeners
+    this.removeAllListeners();
+    
+    this.logger.info('Communication service cleanup completed');
   }
 }

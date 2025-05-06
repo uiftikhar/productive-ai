@@ -86,6 +86,9 @@ export interface MessagePublishOptions {
 export interface ICommunicationService extends EventEmitter {
   // Core operations
   initialize(): Promise<void>;
+  
+  // Cleanup resources
+  cleanup(): Promise<void>;
 
   // Message operations
   sendMessage(

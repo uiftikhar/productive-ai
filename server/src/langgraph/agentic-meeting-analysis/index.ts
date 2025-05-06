@@ -738,6 +738,30 @@ export class AgenticMeetingAnalysis {
       }
     }
   }
+  
+  /**
+   * Clean up resources used by the system
+   * This should be called before shutting down
+   */
+  async cleanup(): Promise<void> {
+    this.logger.info('Cleaning up Agentic Meeting Analysis System');
+    
+    try {
+      // Clean up communication service
+      await this.communicationService.cleanup();
+      
+      // Clean up other services using optional chaining and conditional checks
+      // to avoid TypeScript errors for services without cleanup methods
+      
+      // Clear all event listeners
+      this.eventListeners = {};
+      
+      this.logger.info('Agentic Meeting Analysis System cleanup completed');
+    } catch (error) {
+      this.logger.error(`Error during cleanup: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
+  }
 }
 
 /**
