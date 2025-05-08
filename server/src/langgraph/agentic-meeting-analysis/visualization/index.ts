@@ -60,4 +60,12 @@ export {
  * The specialized services are built on top of the core services to provide
  * domain-specific visualizations while leveraging the robust foundation of the
  * adaptive visualization framework.
- */ 
+ */
+
+/**
+ * Index file for visualization services
+ * Part of Milestone 3.1: Enhanced Topic Extraction
+ */
+
+// Export topic visualization service
+export * from './topic-visualization.service'; 

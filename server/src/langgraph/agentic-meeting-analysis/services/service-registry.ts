@@ -4,6 +4,9 @@ import { ServiceFactory } from '../factories/service-factory';
 import { SupervisorCoordinationService } from './supervisor-coordination.service';
 import { SessionService } from './session.service';
 import { MessageStore } from './message-store.service';
+import { TopicExtractionService } from '../interfaces/topic-extraction.interface';
+import { TopicExtractionServiceImpl } from './topic-extraction.service';
+import { TopicVisualizationService } from '../visualization/topic-visualization.service';
 
 /**
  * Service registry options
@@ -36,6 +39,10 @@ export class ServiceRegistry {
   private sessionService: SessionService;
   private messageStore: MessageStore;
   private initialized: boolean = false;
+  
+  // Add new service properties
+  private topicExtractionService?: TopicExtractionService;
+  private topicVisualizationService?: TopicVisualizationService;
   
   /**
    * Get the singleton instance of ServiceRegistry
@@ -127,5 +134,31 @@ export class ServiceRegistry {
    */
   isInitialized(): boolean {
     return this.initialized;
+  }
+
+  // Get topic extraction service
+  getTopicExtractionService(): TopicExtractionService {
+    if (!this.topicExtractionService) {
+      this.topicExtractionService = new TopicExtractionServiceImpl(this.logger);
+    }
+    return this.topicExtractionService;
+  }
+  
+  // Get topic visualization service
+  getTopicVisualizationService(): TopicVisualizationService {
+    if (!this.topicVisualizationService) {
+      this.topicVisualizationService = new TopicVisualizationService(this.logger);
+    }
+    return this.topicVisualizationService;
+  }
+  
+  // Set topic extraction service
+  setTopicExtractionService(service: TopicExtractionService): void {
+    this.topicExtractionService = service;
+  }
+  
+  // Set topic visualization service
+  setTopicVisualizationService(service: TopicVisualizationService): void {
+    this.topicVisualizationService = service;
   }
 } 

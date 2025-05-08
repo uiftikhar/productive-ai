@@ -19,3 +19,6 @@ export * from './workflow.interface';
 
 // API compatibility interfaces
 export * from './api-compatibility.interface';
+
+// Topic extraction interfaces
+export * from './topic-extraction.interface';
