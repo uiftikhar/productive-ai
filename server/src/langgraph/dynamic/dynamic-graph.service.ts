@@ -44,8 +44,8 @@ export class DynamicGraphService<
   private modificationHistory: GraphModification<TState>[] = [];
   private graph?: StateGraph<any>;
   private compiledGraph?: any;
-  private logger: Logger;
   private needsRecompilation: boolean = true;
+  logger: Logger;
 
   /**
    * Create a new dynamic graph service

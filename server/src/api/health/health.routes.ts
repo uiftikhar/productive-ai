@@ -1,10 +1,20 @@
 import { Router } from 'express';
 import { healthController } from './health.controller';
 
+// Create the health router with versioning support
 export const healthRouter = Router();
 
-// Basic health check
+// Basic health check - available without version prefix
 healthRouter.get('/health', healthController.checkHealth);
 
-// Detailed health check (may require authentication in production)
+// API version 1 endpoints
+const v1Router = Router();
+
+// Detailed health check with versioning
+v1Router.get('/health/detailed', healthController.checkDetailedHealth);
+
+// Add version-specific routes
+healthRouter.use('/v1', v1Router);
+
+// For backward compatibility, also expose without version prefix
 healthRouter.get('/health/detailed', healthController.checkDetailedHealth); 

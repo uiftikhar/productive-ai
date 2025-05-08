@@ -9,10 +9,24 @@ const { http, HttpResponse, delay } = require('msw');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 
-// Store mock data for test sessions and meetings
-const mockSessions = new Map();
-const mockMeetings = new Map();
-const mockMessages = new Map();
+// Mock state to track sessions, messages, etc.
+let mockState = {
+  sessions: new Map(),
+  messages: new Map(),
+  meetings: new Map(),
+  analyses: new Map()
+};
+
+// Reset mock state - useful for testing
+function resetMockState() {
+  mockState = {
+    sessions: new Map(),
+    messages: new Map(),
+    meetings: new Map(),
+    analyses: new Map()
+  };
+  isAgentTeamInitialized = false;
+}
 
 // API version
 const API_VERSION = 'v1';
@@ -32,460 +46,552 @@ async function ensureAgentTeamInitialized() {
   if (isAgentTeamInitialized) return;
   
   try {
-    // This is a mock testing environment, so we need to require dynamically
-    // In a real TS environment, this would be imported properly
     console.log('Initializing hierarchical agent team...');
     
-    // We're running in a JS context, so we need to access the compiled JS version
-    // of the factory from dist (assuming it's been built)
-    // If this fails, it means the project needs to be built first
-    const factory = require('../dist/src/langgraph/agentic-meeting-analysis/factories/hierarchical-team-factory');
+    // First try to use the factory directly without requiring a build
+    let factory;
+    let graph;
     
-    hierarchicalTeam = factory.createHierarchicalAgentTeam({
-      debugMode: true,
-      llmConfig: {
-        model: 'gpt-3.5-turbo', // Use a faster model for testing
-        temperature: 0.1
-      }
-    });
-    
-    console.log('Hierarchical agent team initialized with:');
-    console.log(`- 1 Supervisor: ${hierarchicalTeam.supervisor.id}`);
-    console.log(`- ${hierarchicalTeam.managers.length} Managers`);
-    console.log(`- ${hierarchicalTeam.workers.length} Workers`);
-    
-    isAgentTeamInitialized = true;
-  } catch (error) {
-    console.error('Failed to initialize hierarchical agent team:', error);
-    console.error('Using simulated agent behavior instead.');
-    
-    // Create a mock team structure as fallback
-    hierarchicalTeam = {
-      supervisor: { 
-        id: 'mock-supervisor',
-        name: 'Mock Supervisor',
-        analyzeTranscript: async (transcript, options) => {
-          return {
-            status: 'completed',
-            progress: 100,
-            summary: 'Mock analysis summary',
-            topics: ['roadmap', 'reporting feature', 'api update'],
-            actionItems: [
-              { description: 'Update JIRA board', assignee: 'Mark' },
-              { description: 'Schedule API update meeting', assignee: 'John' }
-            ]
-          };
-        }
-      }
-    };
-  }
-}
-
-// Reset state for testing
-exports.resetMockState = () => {
-  mockSessions.clear();
-  mockMeetings.clear();
-  mockMessages.clear();
-  isAgentTeamInitialized = false;
-  hierarchicalTeam = null;
-};
-
-// Analysis state for each meeting
-const analysisState = new Map();
-
-// Process a transcript through the hierarchical agent system
-async function processTranscript(meetingId, transcript, title, participants) {
-  await ensureAgentTeamInitialized();
-  
-  // Create analysis state
-  const analysisState = {
-    meetingId,
-    status: 'pending',
-    progress: 0,
-    startTime: Date.now(),
-    results: null
-  };
-  
-  // Store state
-  mockMeetings.get(meetingId).status = 'pending';
-  mockMeetings.get(meetingId).progress.overallProgress = 0;
-  
-  // Start analysis in the background
-  (async () => {
     try {
-      // Update to in_progress
-      analysisState.status = 'in_progress';
-      analysisState.progress = 25;
-      mockMeetings.get(meetingId).status = 'in_progress';
-      mockMeetings.get(meetingId).progress.overallProgress = 25;
+      // Try the dynamic import approach for ESM compatibility
+      const factoryPath = '../dist/src/langgraph/agentic-meeting-analysis/factories/hierarchical-team-factory.js';
+      factory = await import(factoryPath);
       
-      // Run the actual analysis with the supervisor agent
-      const results = await hierarchicalTeam.supervisor.analyzeTranscript(transcript, {
-        title,
-        participants: participants.map(p => ({ 
-          id: p.id, 
-          name: p.name,
-          role: p.role
-        })),
-        onProgress: (progress) => {
-          analysisState.progress = progress;
-          if (mockMeetings.has(meetingId)) {
-            mockMeetings.get(meetingId).progress.overallProgress = progress;
-          }
-        }
-      });
+      const graphPath = '../dist/src/langgraph/agentic-meeting-analysis/graph/hierarchical-meeting-analysis-graph.js';
+      graph = await import(graphPath);
       
-      // Store results
-      analysisState.results = results;
-      analysisState.status = 'completed';
-      analysisState.progress = 100;
+      console.log('Successfully imported hierarchical team factory and graph modules');
+    } catch (importError) {
+      console.log('Module import failed, falling back to require:', importError.message);
       
-      // Update meeting status
-      if (mockMeetings.has(meetingId)) {
-        mockMeetings.get(meetingId).status = 'completed';
-        mockMeetings.get(meetingId).progress.overallProgress = 100;
-        mockMeetings.get(meetingId).results = results;
-      }
-      
-      console.log(`Analysis completed for meeting ${meetingId}`);
-    } catch (error) {
-      console.error(`Analysis failed for meeting ${meetingId}:`, error);
-      analysisState.status = 'failed';
-      analysisState.error = error.message;
-      
-      // Update meeting status
-      if (mockMeetings.has(meetingId)) {
-        mockMeetings.get(meetingId).status = 'failed';
-        mockMeetings.get(meetingId).error = error.message;
-      }
-    }
-  })();
-  
-  return analysisState;
-}
-
-// Answer a question about a meeting using the hierarchical agent
-async function answerQuestion(meetingId, question) {
-  await ensureAgentTeamInitialized();
-  
-  try {
-    const meeting = mockMeetings.get(meetingId);
-    
-    if (!meeting) {
-      return "I don't have information about this meeting.";
-    }
-    
-    if (meeting.status !== 'completed') {
-      return `The meeting analysis is ${meeting.status}. Please wait for it to complete.`;
-    }
-    
-    // Use the supervisor agent to answer the question
-    const answer = await hierarchicalTeam.supervisor.answerQuestion(question, {
-      context: meeting.results,
-      transcript: meeting.transcript
-    });
-    
-    return answer;
-  } catch (error) {
-    console.error(`Failed to answer question for meeting ${meetingId}:`, error);
-    return "I'm having trouble answering that question right now. Please try again later.";
-  }
-}
-
-// Mock handlers for the chat API
-exports.handlers = [
-  // Create Session
-  http.post(`/api/${API_VERSION}/chat/session`, async ({ request }) => {
-    await delay(100);
-    
-    const data = await request.json();
-    const { userId, metadata } = data;
-    
-    if (!userId) {
-      return HttpResponse.json(
-        { 
-          error: {
-            type: 'BAD_REQUEST',
-            message: 'userId is required',
-            timestamp: Date.now()
-          } 
-        },
-        { status: 400 }
-      );
-    }
-    
-    const sessionId = createSessionId();
-    const now = Date.now();
-    const session = {
-      id: sessionId,
-      userId,
-      createdAt: now,
-      expiresAt: now + 86400000, // 24 hours from now
-      metadata
-    };
-    
-    mockSessions.set(sessionId, session);
-    
-    return HttpResponse.json({
-      data: session,
-      timestamp: now
-    });
-  }),
-  
-  // Upload Transcript
-  http.post(`/api/${API_VERSION}/chat/transcript`, async ({ request }) => {
-    await delay(200);
-    
-    const data = await request.json();
-    const { sessionId, userId, transcript, title, description, participants } = data;
-    
-    if (!sessionId && !userId) {
-      return HttpResponse.json(
-        { 
-          error: {
-            type: 'BAD_REQUEST',
-            message: 'Either sessionId or userId is required',
-            timestamp: Date.now()
-          } 
-        },
-        { status: 400 }
-      );
-    }
-    
-    // Handle session
-    let actualSessionId = sessionId;
-    if (!sessionId && userId) {
-      actualSessionId = createSessionId();
-      const session = {
-        id: actualSessionId,
-        userId,
-        createdAt: Date.now(),
-        expiresAt: Date.now() + 86400000
-      };
-      mockSessions.set(actualSessionId, session);
-    } else if (!mockSessions.has(sessionId)) {
-      return HttpResponse.json(
-        { 
-          error: {
-            type: 'NOT_FOUND',
-            message: `Session ${sessionId} not found`,
-            timestamp: Date.now()
-          } 
-        },
-        { status: 404 }
-      );
-    }
-    
-    // Create meeting record
-    const meetingId = createMeetingId();
-    const analysisSessionId = createAnalysisSessionId();
-    const now = Date.now();
-    
-    const meeting = {
-      id: meetingId,
-      analysisSessionId,
-      sessionId: actualSessionId,
-      transcript,
-      title,
-      description,
-      participants,
-      status: 'pending',
-      progress: {
-        overallProgress: 0,
-        goals: []
-      },
-      createdAt: now
-    };
-    
-    mockMeetings.set(meetingId, meeting);
-    
-    // Create and store system message
-    const messageId = createMessageId();
-    const systemMessage = {
-      id: messageId,
-      sessionId: actualSessionId,
-      content: `Uploaded transcript "${title}" for analysis. Analysis is now in progress.`,
-      role: 'system',
-      timestamp: now,
-      attachments: [],
-      metadata: {
-        meetingId,
-        analysisSessionId
-      }
-    };
-    
-    if (!mockMessages.has(actualSessionId)) {
-      mockMessages.set(actualSessionId, []);
-    }
-    mockMessages.get(actualSessionId).push(systemMessage);
-    
-    // Start processing with real hierarchical agent
-    processTranscript(meetingId, transcript, title, participants)
-      .then(() => {
-        // Add completion message when analysis is done
-        const completionMessageId = createMessageId();
-        const completionMessage = {
-          id: completionMessageId,
-          sessionId: actualSessionId,
-          content: `Analysis of "${title}" is complete. You can now ask questions about the meeting.`,
-          role: 'system',
-          timestamp: Date.now(),
-          attachments: [],
-          metadata: {
-            meetingId,
-            analysisSessionId,
-            type: 'analysis_complete'
+      // Try CommonJS require as fallback
+      try {
+        factory = require('../dist/src/langgraph/agentic-meeting-analysis/factories/hierarchical-team-factory');
+        graph = require('../dist/src/langgraph/agentic-meeting-analysis/graph/hierarchical-meeting-analysis-graph');
+        console.log('Successfully required hierarchical team factory and graph modules');
+      } catch (requireError) {
+        console.log('CommonJS require also failed:', requireError.message);
+        
+        // Last resort - create minimal mock implementations
+        factory = {
+          createHierarchicalAgentTeam: (config) => ({
+            supervisor: {
+              id: 'supervisor-1',
+              name: 'Supervisor',
+              decideNextAgent: async () => 'FINISH'
+            },
+            managers: [],
+            workers: []
+          })
+        };
+        
+        graph = {
+          createHierarchicalMeetingAnalysisGraph: (config) => {
+            const eventHandlers = {};
+            
+            return {
+              on: (event, handler) => {
+                if (!eventHandlers[event]) eventHandlers[event] = [];
+                eventHandlers[event].push(handler);
+              },
+              off: (event, handler) => {
+                if (!eventHandlers[event]) return;
+                eventHandlers[event] = eventHandlers[event].filter(h => h !== handler);
+              },
+              emit: (event, ...args) => {
+                if (!eventHandlers[event]) return;
+                for (const handler of eventHandlers[event]) {
+                  handler(...args);
+                }
+              },
+              invoke: async (state) => ({
+                ...state,
+                results: {
+                  summary: 'Mock meeting summary for testing',
+                  topics: ['Product roadmap', 'Mobile priorities', 'Q3 planning'],
+                  actionItems: ['Update JIRA board', 'Schedule follow-up meeting']
+                }
+              }),
+              getNodes: () => [],
+              getEdges: () => [],
+              getCurrentNode: () => 'supervisor'
+            };
           }
         };
         
-        if (!mockMessages.has(actualSessionId)) {
-          mockMessages.set(actualSessionId, []);
-        }
-        mockMessages.get(actualSessionId).push(completionMessage);
-      });
-    
-    return HttpResponse.json({
-      meetingId,
-      analysisSessionId,
-      status: 'pending',
-      progress: {
-        overallProgress: 0,
-        goals: []
-      },
-      sessionId: actualSessionId,
-      timestamp: now
-    });
-  }),
-  
-  // Get Analysis Status
-  http.get(`/api/${API_VERSION}/chat/analysis/:meetingId/status`, ({ params }) => {
-    const { meetingId } = params;
-    const meeting = mockMeetings.get(meetingId);
-    
-    if (!meeting) {
-      return HttpResponse.json(
-        { 
-          error: {
-            type: 'NOT_FOUND',
-            message: `Meeting ${meetingId} not found`,
-            timestamp: Date.now()
-          } 
-        },
-        { status: 404 }
-      );
-    }
-    
-    return HttpResponse.json({
-      meetingId,
-      analysisSessionId: meeting.analysisSessionId,
-      status: meeting.status,
-      progress: meeting.progress
-    });
-  }),
-  
-  // Send Message
-  http.post(`/api/${API_VERSION}/chat/session/:sessionId/message`, async ({ params, request }) => {
-    await delay(300);
-    
-    const { sessionId } = params;
-    const session = mockSessions.get(sessionId);
-    
-    if (!session) {
-      return HttpResponse.json(
-        { 
-          error: {
-            type: 'NOT_FOUND',
-            message: `Session ${sessionId} not found`,
-            timestamp: Date.now()
-          } 
-        },
-        { status: 404 }
-      );
-    }
-    
-    const data = await request.json();
-    const { content } = data;
-    const now = Date.now();
-    
-    // Store user message
-    const userMsgId = createMessageId();
-    const userMessage = {
-      id: userMsgId,
-      sessionId,
-      content,
-      role: 'user',
-      timestamp: now,
-      attachments: [],
-      metadata: {}
-    };
-    
-    if (!mockMessages.has(sessionId)) {
-      mockMessages.set(sessionId, []);
-    }
-    mockMessages.get(sessionId).push(userMessage);
-    
-    // Find active meeting for this session
-    const activeMeeting = Array.from(mockMeetings.values())
-      .find(m => m.sessionId === sessionId);
-    
-    // Generate AI response
-    let aiResponse;
-    
-    if (activeMeeting) {
-      if (activeMeeting.status === 'completed') {
-        // Use real agent to answer the question
-        aiResponse = await answerQuestion(activeMeeting.id, content);
-      } else if (activeMeeting.status === 'in_progress') {
-        aiResponse = `The meeting analysis is still in progress (${activeMeeting.progress.overallProgress}% complete). I'll be able to answer questions about it once the analysis is complete.`;
-      } else if (activeMeeting.status === 'failed') {
-        aiResponse = "I'm sorry, there was an error analyzing the meeting transcript. Please try uploading it again.";
-      } else {
-        aiResponse = "The meeting analysis is pending. Please check back in a moment.";
+        console.log('Created minimal mock implementations for testing');
       }
-    } else {
-      aiResponse = "No meeting transcript has been uploaded. Please upload a transcript first.";
     }
     
-    // Store AI message
-    const aiMsgId = createMessageId();
-    const aiMessage = {
-      id: aiMsgId,
-      sessionId,
-      content: aiResponse,
-      role: 'assistant',
-      timestamp: now + 2,
-      attachments: [],
-      metadata: {}
-    };
+    // Create the hierarchical agent team
+    hierarchicalTeam = factory.createHierarchicalAgentTeam({
+      debugMode: true,
+      llmConfig: {
+        temperature: 0
+      }
+    });
     
-    mockMessages.get(sessionId).push(aiMessage);
+    console.log('Created hierarchical agent team');
     
-    return HttpResponse.json(aiMessage);
-  }),
+    // Store the graph factory for later use
+    hierarchicalTeam.createGraph = graph.createHierarchicalMeetingAnalysisGraph;
+    
+    isAgentTeamInitialized = true;
+  } catch (error) {
+    console.error('Error initializing hierarchical agent team:', error);
+    throw error;
+  }
+}
+
+// Mock API handlers
+const handlers = [
+  // Health check
+  {
+    url: 'http://localhost:3001/health',
+    method: 'GET',
+    async response() {
+      return {
+        status: 'ok',
+        version: '1.0.0',
+        timestamp: Date.now()
+      };
+    }
+  },
   
-  // Get Messages
-  http.get(`/api/${API_VERSION}/chat/session/:sessionId/messages`, ({ params }) => {
-    const { sessionId } = params;
-    const session = mockSessions.get(sessionId);
-    
-    if (!session) {
-      return HttpResponse.json(
-        { 
-          error: {
-            type: 'NOT_FOUND',
-            message: `Session ${sessionId} not found`,
-            timestamp: Date.now()
-          } 
-        },
-        { status: 404 }
-      );
+  // Create session
+  {
+    url: 'http://localhost:3001/api/*/chat/session',
+    method: 'POST',
+    async response(request) {
+      const { userId, metadata = {} } = await request.json();
+      
+      if (!userId) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              type: 'VALIDATION_ERROR',
+              message: 'User ID is required'
+            }
+          }),
+          { status: 400 }
+        );
+      }
+      
+      const sessionId = `session-${Date.now()}`;
+      
+      // Store session
+      mockState.sessions.set(sessionId, {
+        id: sessionId,
+        userId,
+        createdAt: Date.now(),
+        lastActiveAt: Date.now(),
+        expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000), // 7 days
+        metadata
+      });
+      
+      return {
+        data: {
+          id: sessionId,
+          userId,
+          createdAt: Date.now(),
+          expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000),
+          metadata
+        }
+      };
     }
-    
-    const messages = mockMessages.get(sessionId) || [];
-    
-    // Sort messages by timestamp (newest first according to the API docs)
-    const sortedMessages = [...messages].sort((a, b) => b.timestamp - a.timestamp);
-    
-    return HttpResponse.json(sortedMessages);
-  })
-]; 
+  },
+  
+  // Upload transcript
+  {
+    url: 'http://localhost:3001/api/*/chat/transcript',
+    method: 'POST',
+    async response(request) {
+      // Initialize agent team if not already done
+      await ensureAgentTeamInitialized();
+      
+      const {
+        sessionId,
+        transcript,
+        title = `Meeting ${Date.now()}`,
+        description = '',
+        participants = []
+      } = await request.json();
+      
+      // Validate session
+      const session = mockState.sessions.get(sessionId);
+      if (!sessionId || !session) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              type: 'NOT_FOUND',
+              message: 'Session not found'
+            }
+          }),
+          { status: 404 }
+        );
+      }
+      
+      // Create meeting ID
+      const meetingId = `meeting-${Date.now()}`;
+      const analysisSessionId = `analysis-${Date.now()}`;
+      
+      // Store meeting
+      mockState.meetings.set(meetingId, {
+        id: meetingId,
+        title,
+        description,
+        transcript,
+        uploadedAt: Date.now(),
+        participants,
+        sessionId,
+        userId: session.userId,
+        analysis: {
+          id: analysisSessionId,
+          status: 'pending',
+          progress: {
+            overallProgress: 0,
+            goals: []
+          },
+          startTime: Date.now()
+        }
+      });
+      
+      // Create a graph instance for this analysis
+      const graph = hierarchicalTeam.createGraph({
+        supervisorAgent: hierarchicalTeam.supervisor,
+        managerAgents: hierarchicalTeam.managers || [],
+        workerAgents: hierarchicalTeam.workers || []
+      });
+      
+      // Store the graph for later use
+      mockState.analyses.set(analysisSessionId, {
+        id: analysisSessionId,
+        meetingId,
+        graph,
+        status: 'pending',
+        progress: {
+          overallProgress: 0,
+          goals: [],
+          totalNodes: 1,
+          visitedNodes: 0,
+          completedNodes: 0
+        },
+        startTime: Date.now()
+      });
+      
+      // Start analysis in background
+      setTimeout(async () => {
+        try {
+          // Update status to in_progress
+          const analysis = mockState.analyses.get(analysisSessionId);
+          analysis.status = 'in_progress';
+          
+          // Add progress tracking
+          graph.on('progressUpdate', (progress) => {
+            analysis.progress = {
+              ...analysis.progress,
+              ...progress,
+              overallProgress: progress.totalNodes > 0 
+                ? Math.round((progress.completedNodes / progress.totalNodes) * 100)
+                : 0
+            };
+          });
+          
+          // Execute the graph with initial state
+          const result = await graph.invoke({
+            transcript,
+            messages: []
+          });
+          
+          // Update meeting with results
+          const meeting = mockState.meetings.get(meetingId);
+          if (meeting) {
+            meeting.analysis.status = 'completed';
+            meeting.analysis.progress.overallProgress = 100;
+            meeting.analysis.results = result.results;
+            meeting.analysis.completedTime = Date.now();
+          }
+          
+          // Update analysis status
+          analysis.status = 'completed';
+          analysis.progress.overallProgress = 100;
+          analysis.results = result.results;
+          analysis.completedTime = Date.now();
+          
+        } catch (error) {
+          console.error('Error analyzing transcript:', error);
+          
+          // Update status to failed
+          const analysis = mockState.analyses.get(analysisSessionId);
+          if (analysis) {
+            analysis.status = 'failed';
+            analysis.error = {
+              message: error.message,
+              stack: error.stack
+            };
+          }
+          
+          // Update meeting with error
+          const meeting = mockState.meetings.get(meetingId);
+          if (meeting) {
+            meeting.analysis.status = 'failed';
+            meeting.analysis.error = {
+              message: error.message
+            };
+          }
+        }
+      }, 1000);
+      
+      // Update session with current meeting
+      session.currentMeetingId = meetingId;
+      session.lastActiveAt = Date.now();
+      
+      // Create a system message about the upload
+      const messageId = `msg-${Date.now()}`;
+      const systemMessage = {
+        id: messageId,
+        sessionId,
+        content: `Uploaded transcript "${title}" for analysis. Analysis is now in progress.`,
+        role: 'system',
+        timestamp: Date.now(),
+        metadata: {
+          meetingId,
+          analysisSessionId
+        }
+      };
+      
+      // Store message
+      if (!mockState.messages.has(sessionId)) {
+        mockState.messages.set(sessionId, []);
+      }
+      mockState.messages.get(sessionId).push(systemMessage);
+      
+      return {
+        meetingId,
+        analysisSessionId,
+        status: 'pending',
+        progress: {
+          overallProgress: 0
+        },
+        sessionId,
+        timestamp: Date.now()
+      };
+    }
+  },
+  
+  // Get analysis status
+  {
+    url: 'http://localhost:3001/api/*/chat/analysis/:meetingId/status',
+    method: 'GET',
+    async response(request, { meetingId }) {
+      // Get meeting
+      const meeting = mockState.meetings.get(meetingId);
+      if (!meeting) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              type: 'NOT_FOUND',
+              message: `Meeting ${meetingId} not found`
+            }
+          }),
+          { status: 404 }
+        );
+      }
+      
+      // Get analysis
+      const analysis = mockState.analyses.get(meeting.analysis.id);
+      
+      // Add visualization data if available
+      let visualization = null;
+      if (analysis && analysis.graph) {
+        try {
+          visualization = {
+            nodes: analysis.graph.getNodes(),
+            edges: analysis.graph.getEdges(),
+            currentNode: analysis.graph.getCurrentNode()
+          };
+        } catch (e) {
+          console.warn('Could not get visualization:', e);
+        }
+      }
+      
+      return {
+        meetingId,
+        analysisSessionId: meeting.analysis.id,
+        status: meeting.analysis.status,
+        progress: {
+          ...meeting.analysis.progress,
+          visualization
+        },
+        startTime: meeting.analysis.startTime,
+        completedTime: meeting.analysis.completedTime
+      };
+    }
+  },
+  
+  // Send message
+  {
+    url: 'http://localhost:3001/api/*/chat/session/:sessionId/message',
+    method: 'POST',
+    async response(request, { sessionId }) {
+      const { content, role = 'user' } = await request.json();
+      
+      // Check session
+      const session = mockState.sessions.get(sessionId);
+      if (!session) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              type: 'NOT_FOUND',
+              message: `Session ${sessionId} not found`
+            }
+          }),
+          { status: 404 }
+        );
+      }
+      
+      // Update last active time
+      session.lastActiveAt = Date.now();
+      
+      // Create message
+      const messageId = `msg-${Date.now()}`;
+      const message = {
+        id: messageId,
+        sessionId,
+        content,
+        role,
+        timestamp: Date.now()
+      };
+      
+      // Store user message
+      if (!mockState.messages.has(sessionId)) {
+        mockState.messages.set(sessionId, []);
+      }
+      mockState.messages.get(sessionId).push(message);
+      
+      // Get current meeting ID
+      const meetingId = session.currentMeetingId;
+      
+      // Check if there's an attached meeting
+      if (!meetingId) {
+        // No meeting - respond with guidance
+        const responseMessage = {
+          id: `msg-${Date.now() + 1}`,
+          sessionId,
+          content: 'No meeting transcript has been uploaded. Please upload a transcript first.',
+          role: 'assistant',
+          timestamp: Date.now() + 1
+        };
+        
+        mockState.messages.get(sessionId).push(responseMessage);
+        return responseMessage;
+      }
+      
+      // Get meeting data
+      const meeting = mockState.meetings.get(meetingId);
+      if (!meeting) {
+        const errorMessage = {
+          id: `msg-${Date.now() + 1}`,
+          sessionId,
+          content: `Could not find meeting ${meetingId}. Please upload a new transcript.`,
+          role: 'assistant',
+          timestamp: Date.now() + 1
+        };
+        
+        mockState.messages.get(sessionId).push(errorMessage);
+        return errorMessage;
+      }
+      
+      // Get analysis status
+      const analysisStatus = meeting.analysis.status;
+      
+      // If analysis failed, report error
+      if (analysisStatus === 'failed') {
+        const errorMessage = {
+          id: `msg-${Date.now() + 1}`,
+          sessionId,
+          content: `Analysis failed: ${meeting.analysis.error?.message || 'Unknown error'}. Please try uploading the transcript again.`,
+          role: 'assistant',
+          timestamp: Date.now() + 1
+        };
+        
+        mockState.messages.get(sessionId).push(errorMessage);
+        return errorMessage;
+      }
+      
+      // If analysis is still in progress, report status
+      if (analysisStatus === 'pending' || analysisStatus === 'in_progress') {
+        const progressMessage = {
+          id: `msg-${Date.now() + 1}`,
+          sessionId,
+          content: `The analysis is still in progress (${meeting.analysis.progress.overallProgress}% complete). Please check back later.`,
+          role: 'assistant',
+          timestamp: Date.now() + 1
+        };
+        
+        mockState.messages.get(sessionId).push(progressMessage);
+        return progressMessage;
+      }
+      
+      // Analysis is complete - respond to the question using the results
+      let response = '';
+      
+      const results = meeting.analysis.results || {};
+      const question = content.toLowerCase();
+      
+      if (question.includes('topic')) {
+        response = `The main topics discussed were: ${(results.topics || []).join(', ')}`;
+      } else if (question.includes('action') || question.includes('task')) {
+        response = `The action items from the meeting were: ${(results.actionItems || []).join(', ')}`;
+      } else if (question.includes('decision')) {
+        response = `The key decisions made were: ${(results.decisions || []).join(', ')}`;
+      } else {
+        response = results.summary || 'The meeting analysis is complete, but no specific summary was generated.';
+      }
+      
+      const responseMessage = {
+        id: `msg-${Date.now() + 1}`,
+        sessionId,
+        content: response,
+        role: 'assistant',
+        timestamp: Date.now() + 1
+      };
+      
+      mockState.messages.get(sessionId).push(responseMessage);
+      return responseMessage;
+    }
+  },
+  
+  // Get messages
+  {
+    url: 'http://localhost:3001/api/*/chat/session/:sessionId/messages',
+    method: 'GET',
+    async response(request, { sessionId }) {
+      // Check session
+      const session = mockState.sessions.get(sessionId);
+      if (!session) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              type: 'NOT_FOUND',
+              message: `Session ${sessionId} not found`
+            }
+          }),
+          { status: 404 }
+        );
+      }
+      
+      // Get messages for session
+      const messages = mockState.messages.get(sessionId) || [];
+      
+      // Sort by timestamp descending (newest first)
+      return [...messages].sort((a, b) => b.timestamp - a.timestamp);
+    }
+  }
+];
+
+// Export handlers and reset function
+module.exports = {
+  handlers,
+  resetMockState
+};

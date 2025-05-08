@@ -516,97 +516,150 @@ export const chatController = {
   },
 
   /**
-   * Analyze a transcript
+   * Analyze a meeting transcript using the hierarchical agent system
    */
   async analyzeTranscript(req: Request, res: Response) {
     try {
       const { meetingId } = req.params;
-      const { sessionId, goals, options } = req.body;
+      const { goals } = req.body; // Optional analysis goals
+
+      // Get meeting from service
+      const meeting = await supervisorCoordination.getMeeting(meetingId);
       
-      if (!sessionId) {
-        return createErrorResponse(
-          res, 
-          400, 
-          ApiErrorType.BAD_REQUEST, 
-          'Session ID is required'
-        );
-      }
-      
-      // Validate session exists
-      const session = await sessionService.getSession(sessionId);
-      if (!session) {
+      if (!meeting) {
         return createErrorResponse(
           res,
           404,
           ApiErrorType.NOT_FOUND,
-          `Session ${sessionId} not found`
+          `Meeting ${meetingId} not found`
         );
       }
       
-      // Check if analysis exists
-      let analysisSession = await supervisorCoordination.getAnalysisSessionForMeeting(meetingId);
-      
-      if (!analysisSession) {
+      // Check if analysis already exists for this meeting
+      if (meeting.analysis && meeting.analysis.status === 'completed') {
         return createErrorResponse(
           res,
-          404,
-          ApiErrorType.NOT_FOUND,
-          `Analysis for meeting ${meetingId} not found`
+          409,
+          ApiErrorType.CONFLICT,
+          `Meeting ${meetingId} already has a completed analysis`,
+          { analysisId: meeting.analysis.id }
         );
       }
       
-      // Resume analysis if needed
-      if (analysisSession.status !== 'completed') {
-        analysisSession = await supervisorCoordination.resumeAnalysis(analysisSession.sessionId);
-      }
+      // Create new analysis session or use existing one
+      const analysisSessionId = meeting.analysis?.id || `analysis-${uuidv4()}`;
+      const analysisGoal = goals?.length ? mapGoals(goals) : AnalysisGoalType.FULL_ANALYSIS;
       
-      // Update chat session with meeting info
-      await sessionService.setCurrentMeeting(sessionId, meetingId, analysisSession.sessionId);
-      
-      // Return analysis details
-      return res.status(200).json({
+      // Create hierarchical agent team for analysis
+      const analysisResult = await supervisorCoordination.startHierarchicalAnalysis(
         meetingId,
-        analysisSessionId: analysisSession.sessionId,
-        status: analysisSession.status,
-        progress: analysisSession.progress
+        analysisSessionId,
+        meeting.transcript,
+        {
+          title: meeting.title,
+          participants: meeting.participants,
+          description: meeting.description,
+          analysisGoal,
+          // Add progress tracking event handler
+          onProgress: (progress) => {
+            // Update meeting analysis progress
+            try {
+              supervisorCoordination.updateAnalysisProgress(meetingId, progress);
+            } catch (err) {
+              logger.error(`Failed to update analysis progress for ${meetingId}`, { error: err });
+            }
+          }
+        }
+      );
+      
+      // Store analysis metadata
+      await supervisorCoordination.updateMeetingAnalysis(meetingId, {
+        id: analysisSessionId,
+        status: 'in_progress',
+        progress: {
+          overallProgress: 0,
+          goals: []
+        },
+        startTime: Date.now()
+      });
+      
+      // Return the analysis session details
+      return createSuccessResponse(res, 202, {
+        meetingId,
+        analysisSessionId,
+        status: 'in_progress',
+        progress: {
+          overallProgress: 0,
+          goals: []
+        }
       });
     } catch (error: any) {
-      logger.error('Error analyzing transcript:', { error });
+      logger.error('Error starting transcript analysis:', { error });
       return createErrorResponse(
         res,
         500,
         ApiErrorType.INTERNAL_ERROR,
-        'Failed to analyze transcript',
+        'Failed to start transcript analysis',
         { message: error.message }
       );
     }
   },
 
   /**
-   * Get the current status of analysis
+   * Get the current status of a meeting analysis
    */
   async getAnalysisStatus(req: Request, res: Response) {
     try {
       const { meetingId } = req.params;
       
-      // Get analysis session for meeting
-      const analysisSession = await supervisorCoordination.getAnalysisSessionForMeeting(meetingId);
+      // Get analysis status from service
+      const meeting = await supervisorCoordination.getMeeting(meetingId);
       
-      if (!analysisSession) {
+      if (!meeting) {
         return createErrorResponse(
           res,
           404,
           ApiErrorType.NOT_FOUND,
-          `Analysis for meeting ${meetingId} not found`
+          `Meeting ${meetingId} not found`
         );
       }
       
-      // Return analysis status
-      return res.status(200).json({
+      if (!meeting.analysis) {
+        return createErrorResponse(
+          res,
+          404,
+          ApiErrorType.NOT_FOUND,
+          `No analysis found for meeting ${meetingId}`
+        );
+      }
+      
+      // Enrich the response with additional details if available
+      let enhancedProgress = meeting.analysis.progress;
+      
+      // Get graph visualization data if available
+      if (meeting.analysis.status === 'in_progress' || meeting.analysis.status === 'completed') {
+        try {
+          const graphData = await supervisorCoordination.getAnalysisGraphVisualization(meetingId);
+          if (graphData) {
+            enhancedProgress = {
+              ...enhancedProgress,
+              visualization: graphData
+            };
+          }
+        } catch (vizError) {
+          logger.warn(`Failed to get visualization for ${meetingId}`, { error: vizError });
+          // Continue without visualization data
+        }
+      }
+      
+      // Return the analysis status
+      return createSuccessResponse(res, 200, {
         meetingId,
-        analysisSessionId: analysisSession.sessionId,
-        status: analysisSession.status,
-        progress: analysisSession.progress
+        analysisSessionId: meeting.analysis.id,
+        status: meeting.analysis.status,
+        progress: enhancedProgress,
+        startTime: meeting.analysis.startTime,
+        completedTime: meeting.analysis.completedTime
       });
     } catch (error: any) {
       logger.error('Error getting analysis status:', { error });
@@ -676,4 +729,19 @@ export const chatController = {
       );
     }
   }
-}; 
+};
+
+// Helper function to map goal strings to enum values
+function mapGoals(goals: string[]): AnalysisGoalType {
+  if (goals.includes('summary') && goals.includes('action_items') && goals.includes('decisions')) {
+    return AnalysisGoalType.FULL_ANALYSIS;
+  } else if (goals.includes('summary')) {
+    return AnalysisGoalType.SUMMARY_ONLY;
+  } else if (goals.includes('action_items')) {
+    return AnalysisGoalType.ACTION_ITEMS_ONLY;
+  } else if (goals.includes('decisions')) {
+    return AnalysisGoalType.DECISIONS_ONLY;
+  }
+  
+  return AnalysisGoalType.FULL_ANALYSIS;
+} 

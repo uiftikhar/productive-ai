@@ -40,6 +40,9 @@ export enum AnalysisGoalType {
   GENERATE_SUMMARY = 'generate_summary',
   INTEGRATE_CONTEXT = 'integrate_context',
   FULL_ANALYSIS = 'full_analysis',
+  SUMMARY_ONLY = 'summary_only',
+  ACTION_ITEMS_ONLY = 'action_items_only',
+  DECISIONS_ONLY = 'decisions_only'
 }
 
 /**

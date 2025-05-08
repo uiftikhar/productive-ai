@@ -86,11 +86,24 @@ async function runHierarchicalAnalysisExample() {
   
   // 2. Create the hierarchical graph using the team
   logger.info('Creating hierarchical meeting analysis graph');
-  const { graph, graphService, execute } = createHierarchicalMeetingAnalysisGraph({
+  const graph = createHierarchicalMeetingAnalysisGraph({
     supervisorAgent: team.supervisor,
     managerAgents: team.managers,
     workerAgents: team.workers,
     analysisGoal: AnalysisGoalType.FULL_ANALYSIS
+  });
+  
+  // Set up progress tracking
+  graph.on('progressUpdate', (progress) => {
+    logger.info(`Progress: ${progress.completedNodes}/${progress.totalNodes} nodes (${progress.currentNode})`);
+  });
+  
+  graph.on('nodeStart', (data) => {
+    logger.info(`Started processing node: ${data.id}`);
+  });
+  
+  graph.on('nodeComplete', (data) => {
+    logger.info(`Completed processing node: ${data.id}`);
   });
   
   // 3. Prepare initial messages
@@ -102,13 +115,31 @@ async function runHierarchicalAnalysisExample() {
   
   // 4. Execute the graph with initial state
   logger.info('Executing the hierarchical analysis graph');
-  const result = await execute({
+  const result = await graph.invoke({
+    id: `hierarchical-analysis-${uuidv4()}`,
+    runId: uuidv4(),
     messages: [initialMessage],
-    transcript: SAMPLE_TRANSCRIPT
+    transcript: SAMPLE_TRANSCRIPT,
+    visitedNodes: [],
+    completedNodes: [],
+    traversedEdges: [],
+    nodes: new Map(),
+    edges: new Map(),
+    modificationHistory: [],
+    metadata: {},
+    executionPath: [],
+    analysisGoal: AnalysisGoalType.FULL_ANALYSIS,
+    teamStructure: {
+      supervisor: team.supervisor.id,
+      managers: {}
+    },
+    currentNode: 'supervisor',
+    nextStep: 'supervisor',
+    results: {}
   });
   
   // 5. Log the results
-  logger.info('Analysis complete! Execution path:', result.executionPath);
+  logger.info('Analysis complete!');
   logger.info('Final results:', result.results);
   
   // Display the hierarchical structure that processed the data
@@ -129,6 +160,13 @@ async function runHierarchicalAnalysisExample() {
     
     logger.info(`- ${worker.name} (${worker.id}): ${worker.expertise.join(', ')} → Reports to: ${managerName}`);
   }
+  
+  // Display graph visualization data
+  logger.info('\n--- Graph Visualization Data ---');
+  logger.info(`Total Nodes: ${graph.getNodes().length}`);
+  logger.info(`Total Edges: ${graph.getEdges().length}`);
+  logger.info(`Completed Nodes: ${result.completedNodes?.length || 0}`);
+  logger.info(`Visited Nodes: ${result.visitedNodes?.length || 0}`);
   
   return result;
 }

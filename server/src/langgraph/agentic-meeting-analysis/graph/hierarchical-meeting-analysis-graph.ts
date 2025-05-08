@@ -4,7 +4,7 @@
  * This implementation follows the hierarchical agent teams pattern from LangGraph,
  * with a supervisor agent coordinating managers who in turn coordinate workers.
  */
-import { StateGraph, END } from '@langchain/langgraph';
+import { END } from '@langchain/langgraph';
 import { ChatMessage } from '@langchain/core/messages';
 import { AgentMessage } from '../interfaces/agent.interface';
 
@@ -12,8 +12,14 @@ import { EnhancedSupervisorAgent } from '../agents/coordinator/enhanced-supervis
 import { AnalysisManagerAgent } from '../agents/manager/analysis-manager-agent';
 import { SpecialistWorkerAgent } from '../agents/workers/specialist-worker-agent';
 import { AgentExpertise, AnalysisGoalType, AgentRole } from '../interfaces/agent.interface';
-import { DynamicGraphService, DynamicGraphState } from '../../dynamic/dynamic-graph.service';
-import { DynamicGraphNode, DynamicGraphEdge } from '../../dynamic/interfaces/graph-modification.interface';
+import { DynamicGraphState } from '../../dynamic/dynamic-graph.service';
+import { 
+  EnhancedDynamicGraphService, 
+  EnhancedDynamicGraphState,
+  EnhancedGraphNode, 
+  EnhancedGraphEdge, 
+  EnhancedGraph 
+} from '../../dynamic/enhanced-dynamic-graph.service';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -30,7 +36,7 @@ export interface HierarchicalMeetingAnalysisConfig {
 /**
  * Extended state for hierarchical analysis
  */
-export interface HierarchicalAnalysisState extends DynamicGraphState {
+export interface HierarchicalAnalysisState extends EnhancedDynamicGraphState {
   messages: AgentMessage[];
   transcript: string;
   analysisGoal: AnalysisGoalType;
@@ -44,11 +50,11 @@ export interface HierarchicalAnalysisState extends DynamicGraphState {
 }
 
 /**
- * Create a hierarchical meeting analysis graph using the DynamicGraphService
+ * Create a hierarchical meeting analysis graph using the EnhancedDynamicGraphService
  */
 export function createHierarchicalMeetingAnalysisGraph(
   config: HierarchicalMeetingAnalysisConfig
-) {
+): EnhancedGraph {
   // Initialize agents
   const supervisor = config.supervisorAgent;
   const managers = config.managerAgents;
@@ -58,11 +64,11 @@ export function createHierarchicalMeetingAnalysisGraph(
   const logger = new ConsoleLogger();
   
   // Define the initial nodes for the dynamic graph
-  const initialNodes: DynamicGraphNode<HierarchicalAnalysisState>[] = [];
-  const initialEdges: DynamicGraphEdge[] = [];
+  const initialNodes: EnhancedGraphNode[] = [];
+  const initialEdges: EnhancedGraphEdge[] = [];
   
   // Create supervisor node
-  const supervisorNode: DynamicGraphNode<HierarchicalAnalysisState> = {
+  const supervisorNode: EnhancedGraphNode = {
     id: 'supervisor',
     type: 'agent',
     label: 'Supervisor',
@@ -110,7 +116,7 @@ export function createHierarchicalMeetingAnalysisGraph(
   
   // Create manager nodes
   for (const manager of managers) {
-    const managerNode: DynamicGraphNode<HierarchicalAnalysisState> = {
+    const managerNode: EnhancedGraphNode = {
       id: manager.id,
       type: 'agent',
       label: `Manager: ${manager.name}`,
@@ -151,7 +157,7 @@ export function createHierarchicalMeetingAnalysisGraph(
     initialNodes.push(managerNode);
     
     // Add edge from supervisor to manager
-    const supervisorToManagerEdge: DynamicGraphEdge = {
+    const supervisorToManagerEdge: EnhancedGraphEdge = {
       id: `edge-supervisor-to-${manager.id}`,
       source: 'supervisor',
       target: manager.id,
@@ -161,7 +167,7 @@ export function createHierarchicalMeetingAnalysisGraph(
     initialEdges.push(supervisorToManagerEdge);
     
     // Add edge from manager back to supervisor
-    const managerToSupervisorEdge: DynamicGraphEdge = {
+    const managerToSupervisorEdge: EnhancedGraphEdge = {
       id: `edge-${manager.id}-to-supervisor`,
       source: manager.id,
       target: 'supervisor',
@@ -173,7 +179,7 @@ export function createHierarchicalMeetingAnalysisGraph(
   
   // Create worker nodes
   for (const worker of workers) {
-    const workerNode: DynamicGraphNode<HierarchicalAnalysisState> = {
+    const workerNode: EnhancedGraphNode = {
       id: worker.id,
       type: 'agent',
       label: `Worker: ${worker.name}`,
@@ -224,7 +230,7 @@ export function createHierarchicalMeetingAnalysisGraph(
     
     if (matchingManager) {
       // Add edge from manager to worker
-      const managerToWorkerEdge: DynamicGraphEdge = {
+      const managerToWorkerEdge: EnhancedGraphEdge = {
         id: `edge-${matchingManager.id}-to-${worker.id}`,
         source: matchingManager.id,
         target: worker.id,
@@ -234,7 +240,7 @@ export function createHierarchicalMeetingAnalysisGraph(
       initialEdges.push(managerToWorkerEdge);
       
       // Add edge from worker back to manager
-      const workerToManagerEdge: DynamicGraphEdge = {
+      const workerToManagerEdge: EnhancedGraphEdge = {
         id: `edge-${worker.id}-to-${matchingManager.id}`,
         source: worker.id,
         target: matchingManager.id,
@@ -246,7 +252,7 @@ export function createHierarchicalMeetingAnalysisGraph(
   }
   
   // Add completion edge
-  const completionEdge: DynamicGraphEdge = {
+  const completionEdge: EnhancedGraphEdge = {
     id: 'edge-completion',
     source: 'supervisor',
     target: END,
@@ -255,52 +261,17 @@ export function createHierarchicalMeetingAnalysisGraph(
   
   initialEdges.push(completionEdge);
   
-  // Create the dynamic graph service
-  const graphService = new DynamicGraphService<HierarchicalAnalysisState>({
+  // Create the enhanced dynamic graph service
+  const graphService = new EnhancedDynamicGraphService<HierarchicalAnalysisState>({
     initialNodes,
     initialEdges,
     logger
   });
   
-  // Create the graph
-  const graph = graphService.createGraph();
+  // Create the enhanced graph
+  const graph = graphService.createEnhancedGraph();
   
-  return {
-    graph,
-    graphService,
-    execute: async (initialState: Partial<HierarchicalAnalysisState>) => {
-      // Create default state
-      const defaultState: Partial<HierarchicalAnalysisState> = {
-        id: uuidv4(),
-        runId: uuidv4(),
-        messages: [],
-        transcript: "",
-        analysisGoal: config.analysisGoal || AnalysisGoalType.FULL_ANALYSIS,
-        teamStructure: {
-          supervisor: supervisor.id,
-          managers: managers.reduce((acc, manager) => {
-            acc[manager.id] = [];
-            return acc;
-          }, {} as Record<string, string[]>)
-        },
-        currentNode: "supervisor",
-        nextStep: "supervisor",
-        results: {},
-        metadata: {
-          createdAt: new Date().toISOString()
-        }
-      };
-      
-      // Merge with provided state
-      const completeState = {
-        ...defaultState,
-        ...initialState
-      };
-      
-      // Execute the graph
-      return graphService.execute(completeState);
-    }
-  };
+  return graph;
 }
 
 /**
