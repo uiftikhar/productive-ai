@@ -7,6 +7,7 @@
 import { Router } from 'express';
 import { UserContextFacade } from '../shared/services/user-context/user-context.facade';
 import { Logger } from '../shared/logger/logger.interface';
+import { chatRouter } from './chat/chat.routes';
 
 /**
  * Initialize API routes with all required dependencies
@@ -19,9 +20,10 @@ export function initializeApi(
 ) {
   const apiRouter = Router();
 
-  // Register new transcript analysis routes
+  // Register chat routes
+  apiRouter.use('/chat', chatRouter);
 
-  // Add more API routes here as needed
-
+  // Register other API routes as needed
+  
   return apiRouter;
 }

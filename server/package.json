@@ -19,7 +19,9 @@
     "test:watch": "jest --watch",
     "load-test": "ts-node src/chat/scripts/load-test.ts",
     "test:dialogue": "node test-dialogue-system.js",
-    "test:messaging": "node test-agent-messaging.js"
+    "test:messaging": "node test-agent-messaging.js",
+    "start:chat": "node start-server.js",
+    "test:chat": "node test-chat-interface.js"
   },
   "dependencies": {
     "@aws-sdk/credential-provider-node": "^3.787.0",
