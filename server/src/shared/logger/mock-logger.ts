@@ -10,7 +10,7 @@ export class MockLogger implements Logger {
     meta?: Record<string, any>;
   }[] = [];
   
-  private logLevel: LogLevel = 'debug';
+  private logLevel: LogLevel = LogLevel.DEBUG;
 
   /**
    * Set the minimum log level to record
@@ -19,7 +19,14 @@ export class MockLogger implements Logger {
     this.logLevel = level;
   }
 
+
   debug(message: string, meta?: Record<string, any>): void {
+    if (['debug', 'info', 'warn', 'error'].includes(this.logLevel)) {
+      this.logs.push({ level: 'debug', message, meta });
+    }
+  }
+  
+  log(level: LogLevel, message: string, meta?: Record<string, any>): void {
     if (['debug', 'info', 'warn', 'error'].includes(this.logLevel)) {
       this.logs.push({ level: 'debug', message, meta });
     }

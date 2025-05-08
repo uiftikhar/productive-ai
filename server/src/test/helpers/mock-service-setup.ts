@@ -3,6 +3,7 @@
  */
 import { ServiceRegistry } from '../../langgraph/agentic-meeting-analysis/services/service-registry';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { LogLevel } from '../../shared/logger/logger.interface';
 
 /**
  * Service registry options interface
@@ -22,7 +23,7 @@ export function setupMockServices(): ServiceRegistry {
   const logger = new ConsoleLogger();
 
   // Set the log level to error for tests
-  logger.setLogLevel('error');
+  logger.setLogLevel(LogLevel.ERROR);
   
   // Create the service registry with in-memory storage for testing
   const options: ServiceRegistryTestOptions = {

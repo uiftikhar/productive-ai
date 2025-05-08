@@ -13,11 +13,11 @@ const loggerInstance: Logger = new ConsoleLogger();
 
 // Set default log level based on environment
 if (process.env.NODE_ENV === 'development') {
-  loggerInstance.setLogLevel('debug');
+  loggerInstance.log(LogLevel.DEBUG, 'Setting global log level');
 } else if (process.env.NODE_ENV === 'test') {
-  loggerInstance.setLogLevel('warn');
+  loggerInstance.log(LogLevel.WARN, 'Setting global log level');
 } else {
-  loggerInstance.setLogLevel('info');
+  loggerInstance.log(LogLevel.INFO, 'Setting global log level');
 }
 
 /**
@@ -30,7 +30,7 @@ export const logger: Logger = loggerInstance;
  * @param level - Log level to set
  */
 export function setGlobalLogLevel(level: LogLevel): void {
-  logger.setLogLevel(level);
+  logger.log(level, 'Setting global log level');
 }
 
 /**
@@ -40,7 +40,8 @@ export function setGlobalLogLevel(level: LogLevel): void {
  */
 export function createContextLogger(context: string): Logger {
   return {
-    setLogLevel: (level: LogLevel) => logger.setLogLevel(level),
+    log: (level: LogLevel, message: string, ctx?: Record<string, any>) =>
+      logger.log(level, message, { ...ctx, context }),
     debug: (message: string, ctx?: Record<string, any>) =>
       logger.debug(message, { ...ctx, context }),
     info: (message: string, ctx?: Record<string, any>) =>
