@@ -296,10 +296,18 @@ export class MongoStorageAdapter implements StorageAdapter {
   /**
    * List keys according to filter criteria
    */
-  async listKeys(filter?: StateFilter): Promise<string[]> {
+  async listKeys(pattern: string | StateFilter): Promise<string[]> {
     this.ensureInitialized();
     
     try {
+      // Handle string pattern case
+      if (typeof pattern === 'string') {
+        // For simple string patterns, convert to a filter with keyPrefix
+        return this.listKeys({ keyPrefix: pattern });
+      }
+      
+      const filter = pattern as StateFilter;
+      
       // Create the MongoDB query
       const namespace = this.options.namespace || 'default';
       
@@ -313,7 +321,7 @@ export class MongoStorageAdapter implements StorageAdapter {
       }
       
       // Add key prefix filter if specified in filter
-      if (filter?.keyPrefix) {
+      if (filter.keyPrefix) {
         query.key = { $regex: `^${this.escapeRegExp(filter.keyPrefix)}` };
       }
       
@@ -329,11 +337,11 @@ export class MongoStorageAdapter implements StorageAdapter {
       };
       
       // Add pagination
-      if (filter?.offset !== undefined) {
+      if (filter.offset !== undefined) {
         options.skip = filter.offset;
       }
       
-      if (filter?.limit !== undefined) {
+      if (filter.limit !== undefined) {
         options.limit = filter.limit;
       }
       
@@ -345,7 +353,7 @@ export class MongoStorageAdapter implements StorageAdapter {
       let keys = documents.map((doc: MongoDocument) => doc.key);
       
       // Apply custom filter function if provided
-      if (filter?.filterFn) {
+      if (filter.filterFn) {
         keys = keys.filter(filter.filterFn);
       }
       

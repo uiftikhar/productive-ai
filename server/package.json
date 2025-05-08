@@ -21,7 +21,8 @@
     "test:dialogue": "node test-dialogue-system.js",
     "test:messaging": "node test-agent-messaging.js",
     "start:chat": "node start-server.js",
-    "test:chat": "node test-chat-interface.js"
+    "test:chat": "node test-chat-interface.js",
+    "setup:mocks": "node setup-mock-server.js"
   },
   "dependencies": {
     "@aws-sdk/credential-provider-node": "^3.787.0",

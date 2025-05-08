@@ -1,51 +1,39 @@
 import express from 'express';
 import cors from 'cors';
-import { json, urlencoded } from 'body-parser';
-import { ConsoleLogger } from './shared/logger/console-logger';
-import { initializeApi } from './api';
-import { ServiceRegistry } from './langgraph/agentic-meeting-analysis/services/service-registry';
+import { json } from 'body-parser';
 import { chatRouter } from './api/chat/chat.routes';
+import { healthRouter } from './api/health/health.routes';
+import { ConsoleLogger } from './shared/logger/console-logger';
+import { ServiceRegistry } from './langgraph/agentic-meeting-analysis/services/service-registry';
 
-// Create logger
+// Initialize services
 const logger = new ConsoleLogger();
 
 // Create Express app
 const app = express();
 const port = process.env.PORT || 3001;
 
-// Middleware
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  credentials: true
-}));
-app.use(json({ limit: '50mb' }));
-app.use(urlencoded({ extended: true, limit: '50mb' }));
+// Apply middleware
+app.use(cors());
+app.use(json({ limit: '10mb' })); // Increased limit for transcript uploads
 
-// Initialize services
-const serviceRegistry = ServiceRegistry.getInstance({
-  storageType: 'file',
-  storagePath: process.env.STORAGE_PATH || './data',
-  logger
-});
+// Create versioned API routes
+const apiV1Router = express.Router();
 
-// Initialize the service registry
-(async () => {
-  try {
-    logger.info('Initializing services...');
-    await serviceRegistry.initialize();
-    logger.info('Services initialized successfully');
-  } catch (error) {
-    logger.error('Error initializing services', { error });
-    process.exit(1);
-  }
-})();
+// Health routes (not versioned for easier monitoring)
+app.use('/', healthRouter);
 
-// API routes
-app.use('/api/chat', chatRouter);
+// Mount API v1 routes
+apiV1Router.use('/chat', chatRouter);
 
-// Error handler
+// Use versioned routes
+app.use('/api/v1', apiV1Router);
+// Keep an unversioned path for backward compatibility
+app.use('/api', apiV1Router);
+
+// General error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  logger.error('Unhandled error', { error: err });
+  logger.error('Unhandled error in request', { error: err, path: req.path });
   res.status(500).json({
     error: {
       type: 'INTERNAL_ERROR',
@@ -55,7 +43,26 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
+// Initialize services before starting the server
+const serviceRegistry = ServiceRegistry.getInstance({
+  storageType: 'file',
+  storagePath: process.env.STORAGE_PATH || './data',
+  logger
+});
+
 // Start server
-app.listen(port, () => {
-  logger.info(`Server running on port ${port}`);
-}); 
+(async () => {
+  try {
+    // Initialize services
+    await serviceRegistry.initialize();
+    logger.info('Services initialized successfully');
+    
+    // Start listening
+    app.listen(port, () => {
+      logger.info(`Server running on port ${port} `);
+    });
+  } catch (error) {
+    logger.error('Failed to initialize services', { error });
+    process.exit(1);
+  }
+})(); 

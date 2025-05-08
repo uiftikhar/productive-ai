@@ -463,7 +463,16 @@ export class PersistentStateManager {
     this.ensureInitialized();
     
     try {
-      await this.storageAdapter.clear();
+      // Check if the storage adapter supports the clear method
+      if (typeof this.storageAdapter.clear === 'function') {
+        await this.storageAdapter.clear();
+      } else {
+        // Fallback: delete all keys with our namespace
+        const keys = await this.storageAdapter.listKeys('state:*');
+        for (const key of keys) {
+          await this.storageAdapter.delete(key);
+        }
+      }
       this.logger?.debug('Cleared all states');
     } catch (error) {
       this.logger?.error(`Failed to clear states: ${(error as Error).message}`);
@@ -538,6 +547,33 @@ export class PersistentStateManager {
     } catch (error) {
       this.logger?.error(`Failed to deserialize state: ${(error as Error).message}`);
       throw new Error(`Failed to deserialize state: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * List state keys matching a pattern
+   * 
+   * @param pattern - Pattern to match (supports * wildcards)
+   * @returns Array of state keys
+   */
+  async listKeys(pattern: string): Promise<string[]> {
+    this.ensureInitialized();
+    
+    try {
+      // Check if the storage adapter supports listing keys
+      if (typeof this.storageAdapter.listKeys === 'function') {
+        const fullPattern = this.getStateKey(pattern);
+        const keys = await this.storageAdapter.listKeys(fullPattern);
+        
+        // Extract the state IDs from the keys
+        return keys.map(key => this.extractStateId(key));
+      } else {
+        this.logger?.warn('Storage adapter does not support listing keys');
+        return [];
+      }
+    } catch (error) {
+      this.logger?.error(`Failed to list keys for pattern ${pattern}`, { error });
+      throw new Error(`Failed to list keys: ${(error as Error).message}`);
     }
   }
 } 

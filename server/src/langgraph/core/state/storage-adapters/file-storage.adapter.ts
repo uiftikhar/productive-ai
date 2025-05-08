@@ -344,9 +344,16 @@ export class FileStorageAdapter implements StorageAdapter {
   /**
    * List keys according to filter criteria
    */
-  async listKeys(filter?: StateFilter): Promise<string[]> {
+  async listKeys(pattern: string | StateFilter): Promise<string[]> {
     this.ensureInitialized();
     
+    // Handle string pattern case
+    if (typeof pattern === 'string') {
+      // For simple string patterns, convert to a filter with keyPrefix
+      return this.listKeys({ keyPrefix: pattern });
+    }
+    
+    const filter = pattern as StateFilter;
     const namespace = this.options.namespace || 'default';
     const storageDir = path.join(this.options.storageDir, namespace);
     const keys: string[] = [];
@@ -393,25 +400,23 @@ export class FileStorageAdapter implements StorageAdapter {
       // Apply filters
       let filteredKeys = keys;
       
-      if (filter) {
-        // Apply key prefix filter
-        if (filter.keyPrefix) {
-          filteredKeys = filteredKeys.filter(key => 
-            key.startsWith(filter.keyPrefix || '')
-          );
-        }
-        
-        // Apply custom filter function
-        if (filter.filterFn) {
-          filteredKeys = filteredKeys.filter(filter.filterFn);
-        }
-        
-        // Apply pagination
-        if (filter.offset !== undefined || filter.limit !== undefined) {
-          const offset = filter.offset || 0;
-          const limit = filter.limit || filteredKeys.length;
-          filteredKeys = filteredKeys.slice(offset, offset + limit);
-        }
+      // Apply key prefix filter
+      if (filter.keyPrefix) {
+        filteredKeys = filteredKeys.filter(key => 
+          key.startsWith(filter.keyPrefix || '')
+        );
+      }
+      
+      // Apply custom filter function
+      if (filter.filterFn) {
+        filteredKeys = filteredKeys.filter(filter.filterFn);
+      }
+      
+      // Apply pagination
+      if (filter.offset !== undefined || filter.limit !== undefined) {
+        const offset = filter.offset || 0;
+        const limit = filter.limit || filteredKeys.length;
+        filteredKeys = filteredKeys.slice(offset, offset + limit);
       }
       
       this.logger?.debug(`Listed ${filteredKeys.length} keys matching filter`, { filter });

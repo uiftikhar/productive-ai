@@ -13,17 +13,41 @@ enum ApiErrorType {
   INTERNAL_ERROR = 'INTERNAL_ERROR',
   UNAUTHORIZED = 'UNAUTHORIZED',
   CONFLICT = 'CONFLICT',
-  SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE'
+  SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE',
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  RESOURCE_LIMIT_EXCEEDED = 'RESOURCE_LIMIT_EXCEEDED',
+  TIMEOUT_ERROR = 'TIMEOUT_ERROR'
 }
 
 // Helper function to create standardized error responses
 function createErrorResponse(res: Response, status: number, type: ApiErrorType, message: string, details?: any) {
-  return res.status(status).json({
+  const error = {
     error: {
       type,
       message,
-      details: details || undefined
+      details: details || undefined,
+      timestamp: Date.now()
     }
+  };
+  
+  // Log detailed error info with request context
+  logger.error(`API Error: ${type} - ${message}`, { 
+    error_type: type,
+    status,
+    message,
+    details,
+    timestamp: new Date().toISOString()
+  });
+  
+  return res.status(status).json(error);
+}
+
+// Helper function to create standardized success responses
+function createSuccessResponse(res: Response, status: number, data: any, meta?: any) {
+  return res.status(status).json({
+    data,
+    meta: meta || undefined,
+    timestamp: Date.now()
   });
 }
 
@@ -60,14 +84,46 @@ export const chatController = {
   async createSession(req: Request, res: Response) {
     try {
       const { userId, metadata = {} } = req.body;
-
+      
+      // Validate required fields
       if (!userId) {
         return createErrorResponse(
           res, 
           400, 
-          ApiErrorType.BAD_REQUEST, 
-          'User ID is required'
+          ApiErrorType.VALIDATION_ERROR, 
+          'User ID is required',
+          { field: 'userId' }
         );
+      }
+      
+      // Validate metadata if provided
+      if (metadata && typeof metadata !== 'object') {
+        return createErrorResponse(
+          res,
+          400,
+          ApiErrorType.VALIDATION_ERROR,
+          'Metadata must be an object',
+          { field: 'metadata' }
+        );
+      }
+      
+      // Check active session count (for rate limiting)
+      try {
+        const sessionCount = await sessionService.getSessionCountByUser(userId);
+        const SESSION_LIMIT = 10; // Configurable limit
+        
+        if (sessionCount >= SESSION_LIMIT) {
+          return createErrorResponse(
+            res,
+            429,
+            ApiErrorType.RESOURCE_LIMIT_EXCEEDED,
+            `Maximum session limit reached (${SESSION_LIMIT})`,
+            { userId, current: sessionCount, limit: SESSION_LIMIT }
+          );
+        }
+      } catch (countError) {
+        logger.warn(`Unable to check session count for user ${userId}`, { error: countError });
+        // Continue even if count check fails
       }
 
       // Create session using session service
@@ -75,8 +131,8 @@ export const chatController = {
       
       logger.info(`Created new chat session ${session.id} for user ${userId}`);
       
-      // Return the session
-      return res.status(201).json({
+      // Return the session with standardized response
+      return createSuccessResponse(res, 201, {
         id: session.id,
         userId: session.userId,
         createdAt: session.createdAt,
@@ -84,7 +140,12 @@ export const chatController = {
         metadata: session.metadata
       });
     } catch (error: any) {
-      logger.error('Error creating session:', { error });
+      logger.error('Error creating session:', { 
+        error,
+        userId: req.body.userId,
+        stack: error.stack 
+      });
+      
       return createErrorResponse(
         res,
         500,

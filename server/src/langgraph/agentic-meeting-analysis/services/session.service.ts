@@ -95,11 +95,6 @@ export class SessionService {
    */
   async createSession(userId: string, metadata?: Record<string, any>): Promise<ChatSession> {
     try {
-      // Check if the state manager is initialized
-      if (this.stateManager['ensureInitialized']) {
-        this.stateManager['ensureInitialized']();
-      }
-
       const sessionId = uuidv4();
       const now = Date.now();
       
@@ -117,16 +112,17 @@ export class SessionService {
         session,
         {
           ttl: this.sessionExpirationMs / 1000, // Convert to seconds for TTL
-          description: 'Chat session storage'
+          description: 'Chat session creation'
         }
       );
       
-      this.logger.info(`Created new chat session ${sessionId} for user ${userId}`);
+      // Add session to user's index for tracking
+      await this.addSessionToUserIndex(userId, sessionId);
       
       return session;
     } catch (error: any) {
-      this.logger.error('Failed to create chat session', { error });
-      throw new Error(`Failed to create chat session: ${error.message}`);
+      this.logger.error('Failed to create session', { error, userId });
+      throw new Error(`Failed to create session: ${error.message}`);
     }
   }
   
@@ -249,5 +245,109 @@ export class SessionService {
       currentMeetingId: undefined,
       currentAnalysisSessionId: undefined
     });
+  }
+  
+  /**
+   * Get count of active sessions for a user
+   * Used for rate limiting and resource usage monitoring
+   */
+  async getSessionCountByUser(userId: string): Promise<number> {
+    try {
+      // Use a user index key to track active sessions
+      const userSessionsKey = `user_sessions:${userId}`;
+      
+      // Check if the user sessions index exists
+      const exists = await this.stateManager.hasState(userSessionsKey);
+      
+      if (!exists) {
+        // No index exists yet, so user has no active sessions
+        return 0;
+      }
+      
+      // Get the user sessions index
+      const userSessions = await this.stateManager.loadState<{ sessions: string[] }>(userSessionsKey);
+      
+      if (!userSessions || !userSessions.sessions || !Array.isArray(userSessions.sessions)) {
+        // Invalid index format
+        return 0;
+      }
+      
+      // Filter to only include active sessions
+      const now = Date.now();
+      let activeCount = 0;
+      
+      for (const sessionId of userSessions.sessions) {
+        try {
+          const session = await this.getSession(sessionId);
+          
+          if (session && session.expiresAt > now) {
+            activeCount++;
+          }
+        } catch (sessionError) {
+          this.logger.warn(`Error checking session activity: ${sessionId}`, { error: sessionError });
+          // Continue to next session
+        }
+      }
+      
+      return activeCount;
+    } catch (error) {
+      this.logger.error(`Failed to get session count for user ${userId}`, { error });
+      // Return 0 as a fallback to avoid blocking the user
+      return 0;
+    }
+  }
+  
+  /**
+   * Add session to user's session index
+   * Used for tracking user's sessions for rate limiting
+   */
+  private async addSessionToUserIndex(userId: string, sessionId: string): Promise<void> {
+    try {
+      const userSessionsKey = `user_sessions:${userId}`;
+      
+      // Check if the user sessions index exists
+      const exists = await this.stateManager.hasState(userSessionsKey);
+      
+      let userSessions: { sessions: string[] } = { sessions: [] };
+      
+      if (exists) {
+        // Load existing user sessions
+        const existingUserSessions = await this.stateManager.loadState<{ sessions: string[] }>(userSessionsKey);
+        
+        if (existingUserSessions && Array.isArray(existingUserSessions.sessions)) {
+          userSessions = existingUserSessions;
+        }
+      }
+      
+      // Add new session ID if not already present
+      if (!userSessions.sessions.includes(sessionId)) {
+        userSessions.sessions.push(sessionId);
+      }
+      
+      // Save updated user sessions index
+      await this.stateManager.saveState(
+        userSessionsKey,
+        userSessions,
+        {
+          ttl: 30 * 24 * 60 * 60, // 30 days TTL
+          description: 'User sessions index'
+        }
+      );
+    } catch (error) {
+      this.logger.error(`Failed to add session to user index: ${userId}/${sessionId}`, { error });
+      // Non-critical error, continue without failing
+    }
+  }
+  
+  /**
+   * Helper method to load state with proper error handling
+   */
+  private async loadState<T>(key: string): Promise<T | null> {
+    try {
+      return await this.stateManager.loadState<T>(key);
+    } catch (error) {
+      this.logger.warn(`Failed to load state for key ${key}`, { error });
+      return null;
+    }
   }
 } 

@@ -24,32 +24,48 @@ export interface StorageOptions {
 }
 
 /**
- * Filter criteria for listing stored states
+ * Filter for listing state entries
  */
 export interface StateFilter {
   /**
-   * Optional prefix that keys must match
+   * Key pattern to match (can include * wildcards)
+   */
+  keyPattern?: string;
+  
+  /**
+   * Key prefix to match
    */
   keyPrefix?: string;
   
   /**
-   * Optional filter function for more complex filtering
+   * Minimum timestamp for creation time
    */
-  filterFn?: (key: string) => boolean;
+  minCreatedAt?: number;
   
   /**
-   * Maximum number of items to return
+   * Maximum timestamp for creation time
+   */
+  maxCreatedAt?: number;
+  
+  /**
+   * Limit number of results
    */
   limit?: number;
   
   /**
-   * Number of items to skip
+   * Offset for pagination
    */
   offset?: number;
+  
+  /**
+   * Custom filter function for additional filtering
+   */
+  filterFn?: (key: string) => boolean;
 }
 
 /**
- * Storage adapter interface
+ * Interface for storage adapters
+ * Provides a consistent interface for different storage backends
  */
 export interface StorageAdapter {
   /**
@@ -58,57 +74,56 @@ export interface StorageAdapter {
   initialize(): Promise<void>;
   
   /**
-   * Store data with an optional TTL override
+   * Store a state entry
    * 
-   * @param key - Unique identifier for the data
-   * @param data - The data to store
-   * @param ttl - Optional TTL in seconds, overrides the default
+   * @param key - Unique key for the state entry
+   * @param value - State data to store (will be serialized if needed)
+   * @param ttl - Optional time-to-live in seconds (0 = no expiration)
    */
-  set(key: string, data: any, ttl?: number): Promise<void>;
+  set(key: string, value: any, ttl?: number): Promise<void>;
   
   /**
-   * Retrieve data by key
+   * Retrieve a state entry
    * 
-   * @param key - Unique identifier for the data
-   * @returns The stored data, or null if not found
+   * @param key - Unique key for the state entry
+   * @returns State data, or null if not found
    */
   get(key: string): Promise<any | null>;
   
   /**
-   * Update existing data (partial update)
-   * This should perform a shallow merge of the new data with existing data
+   * Check if a state entry exists
    * 
-   * @param key - Unique identifier for the data
-   * @param partialData - Partial data to update
-   * @param ttl - Optional TTL in seconds, overrides the default
+   * @param key - Unique key for the state entry
+   * @returns True if the entry exists, false otherwise
    */
-  update(key: string, partialData: any, ttl?: number): Promise<void>;
+  has(key: string): Promise<boolean>;
   
   /**
-   * Delete data by key
+   * Delete a state entry
    * 
-   * @param key - Unique identifier for the data to delete
+   * @param key - Unique key for the state entry
    */
   delete(key: string): Promise<void>;
   
   /**
-   * List keys according to filter criteria
+   * List keys matching a pattern or filter
    * 
-   * @param filter - Optional filter criteria
-   * @returns Array of keys
+   * @param pattern - String pattern or filter object to match keys
+   * @returns Array of matching keys
    */
-  listKeys(filter?: StateFilter): Promise<string[]>;
+  listKeys(pattern: string | StateFilter): Promise<string[]>;
   
   /**
-   * Clear all data in this adapter's namespace
+   * Update existing data (partial update)
+   * 
+   * @param key - Unique key for the state entry
+   * @param partialData - Data to merge with existing data
+   * @param ttl - Optional time-to-live in seconds (0 = no expiration)
    */
-  clear(): Promise<void>;
+  update?(key: string, partialData: any, ttl?: number): Promise<void>;
   
   /**
-   * Check if key exists
-   * 
-   * @param key - Key to check
-   * @returns True if key exists, false otherwise
+   * Clear all data in the adapter's namespace
    */
-  has(key: string): Promise<boolean>;
+  clear?(): Promise<void>;
 } 
