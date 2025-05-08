@@ -11,6 +11,7 @@ import {
   AnalysisTaskStatus,
   ConfidenceLevel,
   MessageType,
+  AgentRole,
 } from '../../interfaces/agent.interface';
 import { MeetingTranscript } from '../../interfaces/state.interface';
 import { BaseMeetingAnalysisAgent } from '../base-meeting-analysis-agent';
@@ -53,6 +54,7 @@ export class SummarySynthesisAgent
   extends BaseMeetingAnalysisAgent
   implements ISpecialistAnalysisAgent
 {
+  public readonly role: AgentRole = AgentRole.WORKER;
   private detailLevels: ('executive' | 'detailed' | 'comprehensive')[];
   private enableAudienceSpecificFormatting: boolean;
   private enableInsightSynthesis: boolean;

@@ -11,6 +11,7 @@ import {
   AnalysisTaskStatus,
   ConfidenceLevel,
   MessageType,
+  AgentRole,
 } from '../../interfaces/agent.interface';
 import { MeetingTranscript } from '../../interfaces/state.interface';
 import { BaseMeetingAnalysisAgent } from '../base-meeting-analysis-agent';
@@ -46,6 +47,7 @@ export class DecisionAnalysisAgent
   extends BaseMeetingAnalysisAgent
   implements ISpecialistAnalysisAgent
 {
+  public readonly role: AgentRole = AgentRole.WORKER;
   private minConfidence: number;
   private enableRationaleExtraction: boolean;
   private enableStakeholderIdentification: boolean;

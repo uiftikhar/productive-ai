@@ -1,4 +1,9 @@
 /**
+ * @deprecated This file is deprecated and will be removed in a future release.
+ * It imports from deprecated adaptive visualization components.
+ * Please use the hierarchical visualization components instead.
+ * See server/src/langgraph/HIERARCHICAL-ARCHITECTURE.md for more information.
+ * 
  * Visualization Services for Agentic Meeting Analysis
  * 
  * This module exports both specialized meeting analysis visualization components
@@ -20,11 +25,8 @@ export { SpecializationOverlapVisualizationImpl } from './team/specialization-ov
 export { AnalysisTimelineVisualizationImpl } from './process/analysis-timeline.service';
 export { InsightDiscoveryVisualizationImpl } from './process/insight-discovery.service';
 export { FocusTransitionVisualizationImpl } from './process/focus-transition.service';
-export { ConfidenceEvolutionVisualizationImpl } from './process/confidence-evolution.service';
-export { ExplorationPathVisualizationImpl } from './process/exploration-path.service';
 
 // Collaborative Dynamics
-export { CommunicationNetworkVisualizationImpl } from './collaborative/communication-network.service';
 export { KnowledgeFlowVisualizationImpl } from './collaborative/knowledge-flow.service';
 export { CollaborationPatternVisualizationImpl } from './collaborative/collaboration-pattern.service';
 export { ConflictResolutionVisualizationImpl } from './collaborative/conflict-resolution.service';
@@ -32,19 +34,12 @@ export { ConsensusBuildingVisualizationImpl } from './collaborative/consensus-bu
 // Content Visualization
 export { TopicRelationshipVisualizationImpl } from './content/topic-relationship.service';
 export { SpeakerParticipationVisualizationImpl } from './content/speaker-participation.service';
-export { DecisionPointVisualizationImpl } from './content/decision-point.service';
 export { SentimentLandscapeVisualizationImpl } from './content/sentiment-landscape.service';
 export { ActionNetworkVisualizationImpl } from './content/action-network.service';
 
 
 // Core visualization services from adaptive framework
 export {
-  DecisionCaptureImpl,
-  ReasoningPathImpl,
-  ConfidenceVisualizationImpl,
-  GraphHistoryImpl,
-  PathHighlightingImpl,
-  RealTimeGraphRendererImpl,
   HumanInterventionImpl,
   InteractiveNodeExplorationImpl
 } from '../../adaptive/visualization';

@@ -1,3 +1,4 @@
+// TODO Deprecate this also?
 /**
  * Conflict Resolution Visualization Service
  * 

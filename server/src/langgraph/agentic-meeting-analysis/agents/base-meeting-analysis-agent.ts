@@ -12,6 +12,7 @@ import {
   ConfidenceLevel,
   AgentMessage,
   MessageType,
+  AgentRole,
 } from '../interfaces/agent.interface';
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
@@ -50,6 +51,7 @@ export class BaseMeetingAnalysisAgent
   public name: string;
   public expertise: AgentExpertise[];
   public capabilities: Set<AnalysisGoalType>;
+  public role: AgentRole = AgentRole.WORKER; // Default role is worker
 
   // Services and utilities
   protected logger: Logger;

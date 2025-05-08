@@ -6,19 +6,7 @@
  * team dynamics, and interactive workflow inspection.
  */
 
-// Dynamic Graph Visualization
-export { RealTimeGraphRendererImpl } from './dynamic-graph/real-time-graph-renderer.service';
-export { PathHighlightingImpl } from './dynamic-graph/path-highlighting.service';
-export { GraphHistoryImpl } from './dynamic-graph/graph-history.service';
 
-// Agent Reasoning Visualization
-export { DecisionCaptureImpl } from './agent-reasoning/decision-capture.service';
-export { ReasoningPathImpl } from './agent-reasoning/reasoning-path.service';
-export { ConfidenceVisualizationImpl } from './agent-reasoning/confidence-visualization.service';
-
-// Team Formation Visualization
-export { AgentRelationshipVisualizationImpl } from './team-formation/agent-relationship.service';
-export { CommunicationFlowVisualizationImpl } from './team-formation/communication-flow.service';
 export { ExpertiseContributionVisualizationImpl } from './team-formation/expertise-contribution.service';
 
 // Interactive Workflow Inspector

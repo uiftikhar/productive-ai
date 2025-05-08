@@ -1,5 +1,24 @@
 # Agentic Meeting Analysis System Architecture
 
+## Important: Architectural Transition to Hierarchical Model
+
+**Note:** The system is transitioning from a flat coordination model to a hierarchical supervisor-manager-worker pattern. The following components are being deprecated in favor of the new architecture:
+
+- Flat communication services
+- Peer-based collaboration protocols
+- Direct agent-to-agent interactions
+- Non-hierarchical team formation
+
+Please refer to `DEPRECATED-FILES.md` for a complete list of deprecated components and migration guidance.
+
+The new hierarchical architecture offers these advantages:
+- True delegation through management layers
+- LangGraph structured routing for decision making
+- Better alignment with organizational expertise mapping
+- Improved scalability for enterprise deployments
+
+New development should use the `EnhancedSupervisorAgent` as the coordination point for the system.
+
 ## Overview
 
 The Agentic Meeting Analysis System is a sophisticated, goal-oriented multi-agent system designed to autonomously analyze meeting transcripts. It leverages LangGraph's agent framework to coordinate a team of specialized agents that collaborate to extract insights, identify action items, track decisions, and generate comprehensive summaries of meetings.

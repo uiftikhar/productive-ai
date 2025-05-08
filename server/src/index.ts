@@ -54,17 +54,17 @@ const startServer = async () => {
     });
 
     // Create ChatService instance for Socket.IO
-    const chatService = new ChatService();
+    // const chatService = new ChatService();
 
     // Get the performance monitor instance
     const performanceMonitor = PerformanceMonitor.getInstance(logger);
 
     // Initialize Socket.IO
-    logger.info('**************Initializing Socket.IO Service**************');
-    const socketService = new SocketService();
-    logger.info(
-      '**************Socket.IO Service Initialization Complete**************',
-    );
+    // logger.info('**************Initializing Socket.IO Service**************');
+    // // const socketService = new SocketService();
+    // logger.info(
+    //   '**************Socket.IO Service Initialization Complete**************',
+    // );
 
     // Initialize API routes
     logger.info('**************Initializing API Routes**************');

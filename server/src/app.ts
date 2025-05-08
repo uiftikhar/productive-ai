@@ -10,7 +10,6 @@ import { authRoutes } from './auth/index';
 import { passportClient } from './database/index';
 import { ticketGeneratorRoutes } from './api/routes/jira-ticket-generator.routes';
 import { initializeApi } from './api/index';
-import transcriptAnalysisRoutes from './routes/transcript-analysis.routes';
 
 // Import dependencies for API initialization
 import { ConsoleLogger } from './shared/logger/console-logger';
@@ -127,8 +126,6 @@ app.use('/api/generate-tickets', ticketGeneratorRoutes);
 // Register visualization routes
 app.use('/api/visualizations', visualizationRoutes);
 
-// Register transcript analysis routes
-app.use('/api/transcript', transcriptAnalysisRoutes);
 
 // Register new API routes
 // app.use('/api', apiRouter);

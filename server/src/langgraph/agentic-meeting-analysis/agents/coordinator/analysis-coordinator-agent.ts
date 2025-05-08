@@ -12,6 +12,10 @@ import {
   ConfidenceLevel,
   MessageType,
   AgentMessage,
+  AgentRole,
+  SynthesisFunction,
+  AgentResultCollection,
+  FinalResult,
 } from '../../interfaces/agent.interface';
 import { MeetingTranscript } from '../../interfaces/state.interface';
 import { BaseMeetingAnalysisAgent } from '../base-meeting-analysis-agent';
@@ -44,6 +48,7 @@ export class AnalysisCoordinatorAgent
   extends BaseMeetingAnalysisAgent
   implements IAnalysisCoordinatorAgent
 {
+  public readonly role: AgentRole = AgentRole.COORDINATOR;
   private maxTeamSize: number;
   private qualityThreshold: number;
   private specialistRegistry: Map<
@@ -554,8 +559,26 @@ export class AnalysisCoordinatorAgent
 
   /**
    * Synthesize final results from multiple task outputs
+   * Implementation of the SynthesisFunction interface for the Coordinator version
    */
-  async synthesizeResults(taskIds: string[]): Promise<AgentOutput> {
+  async synthesizeResults(taskIds: string[]): Promise<AgentOutput>;
+  async synthesizeResults(results: AgentResultCollection[]): Promise<FinalResult>;
+  async synthesizeResults(
+    input: string[] | AgentResultCollection[]
+  ): Promise<AgentOutput | FinalResult> {
+    // If input is string[], call the implementation for task IDs
+    if (typeof input[0] === 'string') {
+      return this.synthesizeFromTaskIds(input as string[]);
+    }
+    
+    // This shouldn't happen in the coordinator but is needed for the interface
+    throw new Error('AnalysisCoordinatorAgent cannot synthesize AgentResultCollection[]');
+  }
+
+  /**
+   * Implementation of synthesis from task IDs
+   */
+  private async synthesizeFromTaskIds(taskIds: string[]): Promise<AgentOutput> {
     this.logger.info(`Synthesizing results from ${taskIds.length} tasks`);
 
     // Collect outputs from all tasks
@@ -698,7 +721,7 @@ Format your response as a structured JSON object with these sections.`;
         (taskId) => tasksData[taskId].status === AnalysisTaskStatus.COMPLETED,
       );
 
-      return await this.synthesizeResults(completedTaskIds);
+      return await this.synthesizeResults(completedTaskIds) as AgentOutput;
     }
 
     // For other task types that the coordinator shouldn't directly handle

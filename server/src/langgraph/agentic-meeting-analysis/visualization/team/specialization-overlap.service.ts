@@ -549,6 +549,7 @@ export class SpecializationOverlapVisualizationImpl implements SpecializationOve
       [AgentExpertise.SENTIMENT_ANALYSIS]: '#1ABC9C', // teal
       [AgentExpertise.PARTICIPANT_DYNAMICS]: '#F39C12', // orange
       [AgentExpertise.CONTEXT_INTEGRATION]: '#7F8C8D', // gray
+      [AgentExpertise.MANAGEMENT]: '#000000',
     };
     
     return colorMap[expertise] || '#000000';

@@ -11,6 +11,7 @@ import {
   AnalysisTaskStatus,
   ConfidenceLevel,
   MessageType,
+  AgentRole,
 } from '../../interfaces/agent.interface';
 import {
   MeetingTranscript,
@@ -46,6 +47,7 @@ export class TopicDiscoveryAgent
   extends BaseMeetingAnalysisAgent
   implements ISpecialistAnalysisAgent
 {
+  public readonly role: AgentRole = AgentRole.WORKER;
   private minTopicRelevance: number;
   private maxTopics: number;
   private enableTopicRelationships: boolean;
