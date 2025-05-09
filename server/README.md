@@ -584,3 +584,64 @@ Run the metacognitive framework test:
 node test-metacognitive-planning.js
 ```
 
+## Action Item Processing
+
+The system now includes a comprehensive Action Item Processing capability that can:
+
+- Extract action items from meeting transcripts using NLP and LLM techniques
+- Detect assignees, deadlines, and priorities
+- Integrate with external project management tools (JIRA, etc.)
+- Track action item status across meetings
+
+### Using Action Item Processing
+
+1. Extract action items from a transcript:
+
+```javascript
+const response = await axios.post('/api/v1/action-items/process', {
+  userId: 'user123',
+  meetingId: 'meeting456',
+  transcript: meetingTranscript,
+  meetingDate: new Date().toISOString(),
+  organizationalData: [...] // Optional organizational data
+});
+```
+
+2. Retrieve action items for a meeting:
+
+```javascript
+const response = await axios.get(`/api/v1/action-items/${userId}/${meetingId}`);
+```
+
+3. Update action item status:
+
+```javascript
+await axios.put(`/api/v1/action-items/${userId}/${actionItemId}/status`, {
+  status: 'completed',
+  meetingId: meetingId
+});
+```
+
+4. Integrate with external systems:
+
+```javascript
+// Setup integration
+await axios.post('/api/v1/action-items/integration/setup', {
+  userId: 'user123',
+  platform: 'jira',
+  credentials: {
+    // Platform-specific credentials
+  }
+});
+
+// Sync action items
+await axios.post('/api/v1/action-items/integration/sync', {
+  userId: 'user123',
+  platform: 'jira',
+  meetingId: 'meeting456',
+  direction: 'bidirectional'
+});
+```
+
+For more details, see the [Action Item Processing documentation](./docs/ACTION-ITEM-PROCESSING.md).
+

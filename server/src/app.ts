@@ -22,6 +22,9 @@ import visualizationRoutes from './api/routes/visualization.routes';
 import { initializeVisualizationWebSocket } from './api/controllers/visualization.controller';
 import { OpenAIConnector } from './connectors/openai-connector';
 
+// Import the Action Item Controller
+import { ActionItemController } from './action-item/action-item.controller';
+
 dotenv.config();
 
 const app = express();
@@ -133,6 +136,20 @@ app.use(securityHeaders());
 
 // Add performance monitoring middleware
 app.use(performanceMonitor.apiMonitoringMiddleware());
+
+// Initialize the Action Item Controller and register routes
+const actionItemController = new ActionItemController({
+  logger,
+  llmConnector: new OpenAIConnector({
+    modelConfig: {
+      model: process.env.OPENAI_MODEL || 'gpt-4',
+      temperature: 0.7,
+      maxTokens: 2000
+    },
+    logger
+  })
+});
+actionItemController.registerRoutes(app);
 
 app.use(
   (
