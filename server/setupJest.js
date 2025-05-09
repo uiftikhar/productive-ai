@@ -20,6 +20,18 @@ beforeEach(() => {
   global.mockLogger = new MockLogger();
 });
 
+// Handle any open handles after all tests complete
+afterAll(async () => {
+  // Ensure all pending timers are executed
+  jest.useRealTimers();
+  
+  // Allow any pending promises to resolve
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // Clear all remaining timeouts
+  jest.clearAllTimers();
+});
+
 // Make jest.spyOn work properly with the mock system
 const originalSpyOn = jest.spyOn;
 jest.spyOn = function (object, methodName) {

@@ -7,6 +7,16 @@ import { MessageStore } from './message-store.service';
 import { TopicExtractionService } from '../interfaces/topic-extraction.interface';
 import { TopicExtractionServiceImpl } from './topic-extraction.service';
 import { TopicVisualizationService } from '../visualization/topic-visualization.service';
+import { 
+  ActionItemExtractionService, 
+  ActionItemTrackingService, 
+  ActionItemIntegrationService, 
+  ActionItemNotificationService 
+} from '../interfaces/action-items.interface';
+import { ActionItemExtractionServiceImpl } from './action-extraction.service';
+import { ActionItemTrackingServiceImpl } from './action-item-tracking.service';
+import { ActionItemIntegrationServiceImpl } from './action-item-integration.service';
+import { ActionItemNotificationServiceImpl } from './action-item-notification.service';
 
 /**
  * Service registry options
@@ -26,6 +36,16 @@ interface ServiceRegistryOptions {
    * Storage path for file storage
    */
   storagePath?: string;
+  
+  /**
+   * Enable real integrations (vs simulations)
+   */
+  enableRealIntegrations?: boolean;
+  
+  /**
+   * Enable notifications
+   */
+  enableNotifications?: boolean;
 }
 
 /**
@@ -39,10 +59,18 @@ export class ServiceRegistry {
   private sessionService: SessionService;
   private messageStore: MessageStore;
   private initialized: boolean = false;
+  private enableRealIntegrations: boolean = false;
+  private enableNotifications: boolean = false;
   
   // Add new service properties
   private topicExtractionService?: TopicExtractionService;
   private topicVisualizationService?: TopicVisualizationService;
+  
+  // Action item services
+  private actionItemExtractionService?: ActionItemExtractionService;
+  private actionItemTrackingService?: ActionItemTrackingService;
+  private actionItemIntegrationService?: ActionItemIntegrationService;
+  private actionItemNotificationService?: ActionItemNotificationService;
   
   /**
    * Get the singleton instance of ServiceRegistry
@@ -60,6 +88,8 @@ export class ServiceRegistry {
    */
   private constructor(options: ServiceRegistryOptions) {
     this.logger = options.logger || new ConsoleLogger();
+    this.enableRealIntegrations = options.enableRealIntegrations === true;
+    this.enableNotifications = options.enableNotifications !== false;
     
     // Initialize supervisor coordination service
     this.supervisorCoordinationService = ServiceFactory.getSupervisorCoordinationService({
@@ -160,5 +190,72 @@ export class ServiceRegistry {
   // Set topic visualization service
   setTopicVisualizationService(service: TopicVisualizationService): void {
     this.topicVisualizationService = service;
+  }
+  
+  // Get action item extraction service
+  getActionItemExtractionService(): ActionItemExtractionService {
+    if (!this.actionItemExtractionService) {
+      this.actionItemExtractionService = new ActionItemExtractionServiceImpl({
+        logger: this.logger
+      });
+    }
+    return this.actionItemExtractionService;
+  }
+  
+  // Get action item tracking service
+  getActionItemTrackingService(): ActionItemTrackingService {
+    if (!this.actionItemTrackingService) {
+      this.actionItemTrackingService = new ActionItemTrackingServiceImpl({
+        logger: this.logger
+      });
+    }
+    return this.actionItemTrackingService;
+  }
+  
+  // Get action item integration service
+  getActionItemIntegrationService(): ActionItemIntegrationService {
+    if (!this.actionItemIntegrationService) {
+      // Create with reference to the tracking service for updates
+      const tracking = this.getActionItemTrackingService();
+      
+      this.actionItemIntegrationService = new ActionItemIntegrationServiceImpl({
+        logger: this.logger,
+        actionItemTrackingService: tracking,
+        enableRealIntegrations: this.enableRealIntegrations
+      });
+    }
+    return this.actionItemIntegrationService;
+  }
+  
+  // Get action item notification service
+  getActionItemNotificationService(): ActionItemNotificationService {
+    if (!this.actionItemNotificationService) {
+      this.actionItemNotificationService = new ActionItemNotificationServiceImpl({
+        logger: this.logger,
+        enableEmailNotifications: this.enableNotifications,
+        enableSlackNotifications: this.enableNotifications
+      });
+    }
+    return this.actionItemNotificationService;
+  }
+  
+  // Set action item extraction service
+  setActionItemExtractionService(service: ActionItemExtractionService): void {
+    this.actionItemExtractionService = service;
+  }
+  
+  // Set action item tracking service
+  setActionItemTrackingService(service: ActionItemTrackingService): void {
+    this.actionItemTrackingService = service;
+  }
+  
+  // Set action item integration service
+  setActionItemIntegrationService(service: ActionItemIntegrationService): void {
+    this.actionItemIntegrationService = service;
+  }
+  
+  // Set action item notification service
+  setActionItemNotificationService(service: ActionItemNotificationService): void {
+    this.actionItemNotificationService = service;
   }
 } 

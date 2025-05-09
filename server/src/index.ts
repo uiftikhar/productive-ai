@@ -1,18 +1,15 @@
 import 'reflect-metadata';
 import dotenv from 'dotenv';
 import http from 'http';
-import { server as httpServer } from './app';
+import { createServer } from './server';
 import { connectDB } from './database/index';
 import { initializePineconeIndexes } from './pinecone/initialize-indexes';
 import { ConsoleLogger } from './shared/logger/console-logger';
 import { SocketService } from './websocket/socket.service';
-import { ChatService } from './chat/chat.service';
 import { UserContextFacade } from './shared/services/user-context/user-context.facade';
 import { OpenAIConnector } from './connectors/openai-connector';
 import { ResourceManager } from './shared/utils/resource-manager';
 import { PerformanceMonitor } from './shared/services/monitoring/performance-monitor';
-import { initializeApi } from './api';
-import express from 'express';
 
 // Create a logger instance
 const logger = new ConsoleLogger();
@@ -41,47 +38,21 @@ const startServer = async () => {
       logger.info('Continuing with server initialization...');
     }
 
-    // Create HTTP server with WebSocket support (imported from app.ts)
-    const server = httpServer;
-
-    // Initialize services for Socket.IO
-    const userContextFacade = new UserContextFacade({ logger });
-    const llmConnector = new OpenAIConnector({
-      modelConfig: {
-        model: process.env.OPENAI_MODEL || 'gpt-4o',
-      },
+    // Create Express app with required services
+    const app = await createServer({
       logger,
+      enableCors: true,
+      enableLogging: true
     });
 
-    // Create ChatService instance for Socket.IO
-    // const chatService = new ChatService();
+    // Create HTTP server
+    const server = http.createServer(app);
 
-    // Get the performance monitor instance
+    // Initialize services
+    const userContextFacade = new UserContextFacade({ logger });
     const performanceMonitor = PerformanceMonitor.getInstance(logger);
 
-    // Initialize Socket.IO
-    // logger.info('**************Initializing Socket.IO Service**************');
-    // // const socketService = new SocketService();
-    // logger.info(
-    //   '**************Socket.IO Service Initialization Complete**************',
-    // );
-
-    // Initialize API routes
-    logger.info('**************Initializing API Routes**************');
-    const apiRouter = initializeApi(
-      userContextFacade,
-      llmConnector,
-      null, // No agent registry needed with new approach
-      logger,
-    );
-    
-    // Add the API router to the Express app
-    const app = server.listeners('request')[0] as express.Application;
-    app.use('/api', apiRouter);
-    
-    logger.info('**************API Routes Initialization Complete**************');
-
-    // Register resources with the ResourceManager in shutdown order (higher priority first)
+    // Get the resource manager
     const resourceManager = ResourceManager.getInstance(logger);
     
     resourceManager.register(
@@ -102,7 +73,7 @@ const startServer = async () => {
       },
     );
 
-    // Start the HTTP server after all initializations are complete
+    // Start the HTTP server
     server.listen(PORT, () => {
       logger.info(`Server is running on port ${PORT}`);
     });
@@ -145,10 +116,10 @@ if (require.main === module) {
   startServer();
 }
 
-// Simple version that directly starts the server for development
+// Simple version for development mode
 if (process.env.NODE_ENV === 'development') {
-  // Start server with WebSocket support
-  httpServer.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  startServer().catch(err => {
+    console.error('Failed to start development server:', err);
+    process.exit(1);
   });
 }

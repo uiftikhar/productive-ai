@@ -299,6 +299,7 @@ interface HierarchicalAnalysisProgress {
  */
 export class SupervisorCoordinationService {
   private logger: Logger;
+  private pendingTimeouts: NodeJS.Timeout[] = []; // Add this to track pending timeouts
   
   /**
    * Create a new supervisor coordination service
@@ -797,7 +798,7 @@ export class SupervisorCoordinationService {
       // For now, we'll simulate the analysis process with a timeout
       this.logger.info(`Starting simulated analysis for session ${session.sessionId}`);
       
-      setTimeout(async () => {
+      const timeoutId = setTimeout(async () => {
         try {
           this.logger.info(`Completing simulated analysis for session ${session.sessionId}`);
           
@@ -862,7 +863,16 @@ export class SupervisorCoordinationService {
             code: 'SIMULATION_ERROR'
           });
         }
+        
+        // Remove the timeout from the tracking array once complete
+        const index = this.pendingTimeouts.indexOf(timeoutId);
+        if (index !== -1) {
+          this.pendingTimeouts.splice(index, 1);
+        }
       }, 2000); // 2 seconds for simulation
+      
+      // Track the timeout
+      this.pendingTimeouts.push(timeoutId);
       
     } catch (error: any) {
       this.logger.error(`Error in analysis process for session ${session.sessionId}`, {
@@ -1431,5 +1441,19 @@ export class SupervisorCoordinationService {
       this.logger.error('Error calculating graph progress:', { error });
       return { overallProgress: 0, goals: [] };
     }
+  }
+
+  /**
+   * Cancel all pending operations and timeouts
+   * This is used primarily for testing to avoid open handles
+   */
+  public async cancelAllPendingOperations(): Promise<void> {
+    // Clear all pending timeouts
+    for (const timeout of this.pendingTimeouts) {
+      clearTimeout(timeout);
+    }
+    this.pendingTimeouts = [];
+    
+    this.logger.info("Cancelled all pending operations in SupervisorCoordinationService");
   }
 } 

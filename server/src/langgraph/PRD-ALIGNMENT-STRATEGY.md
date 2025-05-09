@@ -213,3 +213,6 @@ server/src/langgraph/
 The hierarchical architecture provides a strong foundation for implementing the FollowUp PRD requirements. By focusing first on must-have features while designing for extensibility, we can deliver the core product value quickly while ensuring the system can grow to incorporate should-have features.
 
 The supervisor-manager-worker pattern aligns well with the complexity of meeting intelligence features, providing natural boundaries for feature implementation while maintaining overall system cohesion. With careful attention to state management, integration interfaces, and communication patterns, we can create a robust platform that meets both current and future requirements. 
+
+TODO: RAG Migration guide with Langraph suggestions
+https://langchain-ai.github.io/langgraphjs/tutorials/rag/langgraph_agentic_rag/

@@ -5,6 +5,12 @@
 // Export topic extraction service
 export * from './topic-extraction.service';
 
+// Export action item services
+export * from './action-extraction.service';
+export * from './action-item-tracking.service';
+export * from './action-item-integration.service';
+export * from './action-item-notification.service';
+
 // Export other existing services
 export * from './supervisor-coordination.service';
 export * from './service-registry';

@@ -35,11 +35,35 @@ export function setupMockServices(): ServiceRegistry {
   // Get the service registry instance using the provided options
   const serviceRegistry = ServiceRegistry.getInstance(options);
   
-  // Initialize services synchronously for testing - this is a test helper
-  // so we'll assume the initialize method exists and can be awaited
+  // Initialize services properly with a promise
   try {
-    // Use Promise.resolve to handle the case where initialize returns a promise or not
-    Promise.resolve(serviceRegistry.initialize());
+    // Use a proper initialization approach
+    const initPromise = serviceRegistry.initialize();
+    
+    // Add cleanup method to the serviceRegistry for test teardown
+    (serviceRegistry as any).cleanup = async () => {
+      // Cancel any pending timers or async operations in the services
+      const supervisor = serviceRegistry.getSupervisorCoordinationService();
+      
+      // Use type assertion to access potentially private methods
+      const supervisorAny = supervisor as any;
+      if (supervisorAny && typeof supervisorAny.cancelAllPendingOperations === 'function') {
+        await supervisorAny.cancelAllPendingOperations();
+      }
+      
+      // Clear any test data
+      if ((serviceRegistry as any).initialized) {
+        // Perform any needed cleanup
+        logger.info('Cleaning up test service registry');
+      }
+    };
+    
+    // Wait for initialization to complete
+    initPromise.then(() => {
+      logger.info('Test service registry initialized');
+    }).catch(error => {
+      logger.error('Error initializing test service registry:', error);
+    });
   } catch (error) {
     console.error('Error initializing service registry:', error);
   }

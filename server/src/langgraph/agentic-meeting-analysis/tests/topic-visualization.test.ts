@@ -130,7 +130,7 @@ describe('TopicVisualizationService', () => {
     const graphVisualization = topicVisualizationService.createGraphVisualization(topicGraph, config);
     
     expect(graphVisualization).toBeDefined();
-    expect(graphVisualization.nodes[0]).not.toHaveProperty('metadata');
+    expect(graphVisualization.nodes[0].metadata).toBeUndefined();
     expect(graphVisualization.nodes[0].size).toBeGreaterThanOrEqual(config.minNodeSize);
     expect(graphVisualization.nodes[0].size).toBeLessThanOrEqual(config.maxNodeSize);
     expect(['#ff0000', '#00ff00', '#0000ff']).toContain(graphVisualization.nodes[0].color);

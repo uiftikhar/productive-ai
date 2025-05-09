@@ -9,7 +9,8 @@ import http from 'http';
 import { authRoutes } from './auth/index';
 import { passportClient } from './database/index';
 import { ticketGeneratorRoutes } from './api/routes/jira-ticket-generator.routes';
-import { initializeApi } from './api/index';
+import { chatRouter } from './api/chat/chat.routes';
+import { healthController } from './api/health/health.controller';
 
 // Import dependencies for API initialization
 import { ConsoleLogger } from './shared/logger/console-logger';
@@ -108,15 +109,6 @@ const llmConnector = new OpenAIConnector({
   },
   logger,
 });
-// const agentRegistry = AgentRegistryService.getInstance(logger);
-
-// Initialize and register all API routes
-// const apiRouter = initializeApi(
-//   userContextFacade,
-//   llmConnector,
-//   agentRegistry,
-//   logger,
-// );
 
 // Register auth and existing routes
 app.use('/auth', authRoutes);
@@ -126,13 +118,12 @@ app.use('/api/generate-tickets', ticketGeneratorRoutes);
 // Register visualization routes
 app.use('/api/visualizations', visualizationRoutes);
 
+// Register chat API with proper version prefix
+app.use('/api/v1/chat', chatRouter);
 
-// Register new API routes
-// app.use('/api', apiRouter);
-
-app.get('/api/health', (_req: express.Request, res: express.Response) => {
-  res.json({ status: 'OK' });
-});
+// Health check endpoints
+app.get('/health', healthController.checkHealth);
+app.get('/api/health', healthController.checkHealth);
 
 // Initialize performance monitoring
 const performanceMonitor = PerformanceMonitor.getInstance(logger);

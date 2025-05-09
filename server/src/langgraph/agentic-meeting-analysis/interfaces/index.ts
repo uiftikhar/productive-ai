@@ -22,3 +22,6 @@ export * from './api-compatibility.interface';
 
 // Topic extraction interfaces
 export * from './topic-extraction.interface';
+
+// Action item interfaces
+export * from './action-items.interface';
