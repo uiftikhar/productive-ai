@@ -18,7 +18,7 @@ export default function SessionPage({ params }: { params: { sessionId: string } 
   const router = useRouter();
   
   const [session, setSession] = useState<AnalysisSession | null>(null);
-  const [results, setResults] = useState<AnalysisResultsResponse | null>(null);
+  const [results, setResults] = useState<any | null>(null);
   const [transcript, setTranscript] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +75,7 @@ export default function SessionPage({ params }: { params: { sessionId: string } 
   const loadResults = async () => {
     try {
       const resultsData = await MeetingAnalysisService.getResults(sessionId);
+      console.log('resultsData', resultsData);
       setResults(resultsData);
       
       // If completed but not processed yet, keep polling
@@ -281,7 +282,11 @@ export default function SessionPage({ params }: { params: { sessionId: string } 
       );
     }
     
-    const { topics, actionItems, summary } = results.results;
+    // Extract data from the nested results structure
+    const resultData = results.results.results;
+    const topics = resultData.topics || [];
+    const actionItems = resultData.actionItems || [];
+    const summary = resultData.summary || {};
     
     return (
       <Card>
@@ -293,34 +298,52 @@ export default function SessionPage({ params }: { params: { sessionId: string } 
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold mb-2">Summary</h3>
-              <p className="text-gray-700">{summary}</p>
+              {summary && typeof summary === 'object' ? (
+                <>
+                  <p className="text-gray-700 font-medium">{summary.short}</p>
+                  {summary.detailed && (
+                    <p className="text-gray-600 mt-2 text-sm">{summary.detailed}</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-gray-700">{String(summary)}</p>
+              )}
             </div>
             
             <Separator />
             
             <div>
               <h3 className="text-lg font-semibold mb-2">Topics Discussed</h3>
-              <ul className="list-disc pl-5 space-y-1">
-                {topics.map((topic, index) => (
-                  <li key={index} className="text-gray-700">{topic}</li>
-                ))}
-              </ul>
+              {topics && topics.length > 0 ? (
+                <ul className="list-disc pl-5 space-y-1">
+                  {topics.map((topic: any, index: number) => (
+                    <li key={index} className="text-gray-700">
+                      {typeof topic === 'string' ? topic : topic.name}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-gray-500">No topics identified</p>
+              )}
             </div>
             
             <Separator />
             
             <div>
               <h3 className="text-lg font-semibold mb-2">Action Items</h3>
-              {actionItems.length === 0 ? (
-                <p className="text-gray-500">No action items identified</p>
-              ) : (
+              {actionItems && actionItems.length > 0 ? (
                 <ul className="space-y-3">
-                  {actionItems.map((item, index) => (
+                  {actionItems.map((item: any, index: number) => (
                     <li key={index} className="bg-gray-50 p-3 rounded-md">
                       <div className="font-medium">{item.description}</div>
                       {item.assignee && (
                         <div className="text-sm text-gray-500 mt-1">
                           Assignee: {item.assignee}
+                        </div>
+                      )}
+                      {item.assignees && item.assignees.length > 0 && (
+                        <div className="text-sm text-gray-500 mt-1">
+                          Assignee: {item.assignees.join(', ')}
                         </div>
                       )}
                       {item.dueDate && (
@@ -331,6 +354,8 @@ export default function SessionPage({ params }: { params: { sessionId: string } 
                     </li>
                   ))}
                 </ul>
+              ) : (
+                <p className="text-gray-500">No action items identified</p>
               )}
             </div>
           </div>
