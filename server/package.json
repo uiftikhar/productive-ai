@@ -37,6 +37,7 @@
     "@pinecone-database/pinecone": "^5.1.1",
     "@smithy/eventstream-codec": "^4.0.2",
     "@types/socket.io": "^3.0.2",
+    "@types/uuid": "^10.0.0",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

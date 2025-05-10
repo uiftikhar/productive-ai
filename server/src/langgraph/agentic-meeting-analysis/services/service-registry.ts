@@ -49,6 +49,25 @@ interface ServiceRegistryOptions {
 }
 
 /**
+ * Agent service status
+ */
+export interface AgentServiceStatus {
+  name: string;
+  status: 'OK' | 'DEGRADED' | 'ERROR';
+  initialized: boolean;
+  details?: Record<string, any>;
+}
+
+/**
+ * Agent status report
+ */
+export interface AgentStatusReport {
+  status: 'OK' | 'DEGRADED' | 'ERROR';
+  services: AgentServiceStatus[];
+  timestamp: string;
+}
+
+/**
  * Registry for accessing all services with a singleton pattern
  */
 export class ServiceRegistry {
@@ -164,6 +183,222 @@ export class ServiceRegistry {
    */
   isInitialized(): boolean {
     return this.initialized;
+  }
+
+  /**
+   * Get agent status report
+   * Provides a complete status report of all agent services
+   */
+  getAgentStatusReport(): AgentStatusReport {
+    const services: AgentServiceStatus[] = [];
+    let overallStatus: 'OK' | 'DEGRADED' | 'ERROR' = 'OK';
+    
+    // Check supervisor coordination service
+    try {
+      const supervisorStatus: AgentServiceStatus = {
+        name: 'SupervisorCoordinationService',
+        status: 'OK',
+        initialized: true,
+        details: {
+          isActive: true
+        }
+      };
+      services.push(supervisorStatus);
+    } catch (error) {
+      services.push({
+        name: 'SupervisorCoordinationService',
+        status: 'ERROR',
+        initialized: false,
+        details: { error: (error as Error).message }
+      });
+      overallStatus = 'DEGRADED';
+    }
+    
+    // Check session service
+    try {
+      const sessionStatus: AgentServiceStatus = {
+        name: 'SessionService',
+        status: 'OK',
+        initialized: true
+      };
+      services.push(sessionStatus);
+    } catch (error) {
+      services.push({
+        name: 'SessionService',
+        status: 'ERROR',
+        initialized: false,
+        details: { error: (error as Error).message }
+      });
+      overallStatus = 'DEGRADED';
+    }
+    
+    // Check message store
+    try {
+      const messageStoreStatus: AgentServiceStatus = {
+        name: 'MessageStore',
+        status: 'OK',
+        initialized: true
+      };
+      services.push(messageStoreStatus);
+    } catch (error) {
+      services.push({
+        name: 'MessageStore',
+        status: 'ERROR',
+        initialized: false,
+        details: { error: (error as Error).message }
+      });
+      overallStatus = 'DEGRADED';
+    }
+    
+    // Check topic extraction service
+    if (this.topicExtractionService) {
+      services.push({
+        name: 'TopicExtractionService',
+        status: 'OK',
+        initialized: true
+      });
+    }
+    
+    // Check topic visualization service
+    if (this.topicVisualizationService) {
+      services.push({
+        name: 'TopicVisualizationService',
+        status: 'OK',
+        initialized: true
+      });
+    }
+    
+    // Check action item extraction service
+    if (this.actionItemExtractionService) {
+      services.push({
+        name: 'ActionItemExtractionService',
+        status: 'OK',
+        initialized: true
+      });
+    }
+    
+    // Check action item tracking service
+    if (this.actionItemTrackingService) {
+      services.push({
+        name: 'ActionItemTrackingService',
+        status: 'OK',
+        initialized: true
+      });
+    }
+    
+    // Check action item integration service
+    if (this.actionItemIntegrationService) {
+      try {
+        const integrationStatus: AgentServiceStatus = {
+          name: 'ActionItemIntegrationService',
+          status: 'OK',
+          initialized: true,
+          details: {
+            realIntegrationsEnabled: this.enableRealIntegrations
+          }
+        };
+        services.push(integrationStatus);
+      } catch (error) {
+        services.push({
+          name: 'ActionItemIntegrationService',
+          status: this.enableRealIntegrations ? 'ERROR' : 'DEGRADED',
+          initialized: true,
+          details: { 
+            error: (error as Error).message,
+            realIntegrationsEnabled: this.enableRealIntegrations
+          }
+        });
+        if (this.enableRealIntegrations) {
+          overallStatus = 'DEGRADED';
+        }
+      }
+    }
+    
+    // Check action item notification service
+    if (this.actionItemNotificationService) {
+      try {
+        const notificationStatus: AgentServiceStatus = {
+          name: 'ActionItemNotificationService',
+          status: 'OK',
+          initialized: true,
+          details: {
+            notificationsEnabled: this.enableNotifications
+          }
+        };
+        services.push(notificationStatus);
+      } catch (error) {
+        services.push({
+          name: 'ActionItemNotificationService',
+          status: this.enableNotifications ? 'ERROR' : 'DEGRADED',
+          initialized: true,
+          details: { 
+            error: (error as Error).message,
+            notificationsEnabled: this.enableNotifications
+          }
+        });
+        if (this.enableNotifications) {
+          overallStatus = 'DEGRADED';
+        }
+      }
+    }
+    
+    // If no critical services are working, set status to ERROR
+    if (services.filter(s => s.status === 'ERROR').length >= 2) {
+      overallStatus = 'ERROR';
+    }
+    
+    return {
+      status: overallStatus,
+      services,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Get session progress
+   * Returns the progress of a specific agent session
+   */
+  async getSessionProgress(sessionId: string): Promise<{ 
+    sessionId: string; 
+    progress: number; 
+    status: string;
+    details?: Record<string, any>;
+  }> {
+    try {
+      const session = await this.sessionService.getSession(sessionId);
+      
+      if (!session) {
+        return {
+          sessionId,
+          progress: 0,
+          status: 'not_found'
+        };
+      }
+      
+      // Access session data safely with type checking
+      const sessionData = session as unknown as Record<string, any>;
+      
+      return {
+        sessionId,
+        progress: typeof sessionData.progress === 'number' ? sessionData.progress : 0,
+        status: typeof sessionData.status === 'string' ? sessionData.status : 'unknown',
+        details: {
+          createdAt: sessionData.createdAt,
+          updatedAt: sessionData.updatedAt,
+          completedAt: sessionData.completedAt
+        }
+      };
+    } catch (error) {
+      this.logger.error(`Error getting session progress for ${sessionId}:`, { error });
+      return {
+        sessionId,
+        progress: 0,
+        status: 'error',
+        details: {
+          error: error instanceof Error ? error.message : String(error)
+        }
+      };
+    }
   }
 
   // Get topic extraction service

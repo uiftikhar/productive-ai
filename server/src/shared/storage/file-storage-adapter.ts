@@ -282,4 +282,128 @@ export class FileStorageAdapter {
       throw error;
     }
   }
+
+  /**
+   * Save JSON data to a categorized file
+   */
+  async saveJsonData(category: string, fileId: string, data: any): Promise<void> {
+    // Ensure category directory exists
+    const categoryDir = path.join(this.config.storageDir, category);
+    if (!fs.existsSync(categoryDir)) {
+      fs.mkdirSync(categoryDir, { recursive: true });
+    }
+    
+    const filePath = path.join(categoryDir, `${fileId}.json`);
+    
+    try {
+      const serializedData = JSON.stringify(data, null, 2);
+      await fs.promises.writeFile(filePath, serializedData);
+      
+      this.logger.debug(`Saved JSON data to ${category}/${fileId}`, {
+        filePath,
+        size: serializedData.length
+      });
+    } catch (error) {
+      this.logger.error(`Failed to save JSON data to ${category}/${fileId}`, {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Load JSON data from a categorized file
+   */
+  async loadJsonData(category: string, fileId: string): Promise<any> {
+    const categoryDir = path.join(this.config.storageDir, category);
+    const filePath = path.join(categoryDir, `${fileId}.json`);
+    
+    try {
+      if (!fs.existsSync(filePath)) {
+        this.logger.debug(`No JSON file found at ${category}/${fileId}`);
+        return null;
+      }
+      
+      const content = await fs.promises.readFile(filePath, 'utf8');
+      
+      const data = JSON.parse(content);
+      
+      this.logger.debug(`Loaded JSON data from ${category}/${fileId}`);
+      
+      return data;
+    } catch (error) {
+      this.logger.error(`Failed to load JSON data from ${category}/${fileId}`, {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return null;
+    }
+  }
+
+  /**
+   * List files in a category directory
+   */
+  async listFiles(category: string): Promise<string[]> {
+    const categoryDir = path.join(this.config.storageDir, category);
+    
+    try {
+      if (!fs.existsSync(categoryDir)) {
+        return [];
+      }
+      
+      const files = await fs.promises.readdir(categoryDir);
+      const fileIds = files
+        .filter(file => file.endsWith('.json'))
+        .map(file => file.replace('.json', ''));
+      
+      return fileIds;
+    } catch (error) {
+      this.logger.error(`Failed to list files in category ${category}`, {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Delete a file in a category directory
+   */
+  async deleteFile(category: string, fileId: string): Promise<boolean> {
+    const categoryDir = path.join(this.config.storageDir, category);
+    const filePath = path.join(categoryDir, `${fileId}.json`);
+    
+    try {
+      if (!fs.existsSync(filePath)) {
+        return false;
+      }
+      
+      await fs.promises.unlink(filePath);
+      
+      this.logger.debug(`Deleted file ${category}/${fileId}`);
+      return true;
+    } catch (error) {
+      this.logger.error(`Failed to delete file ${category}/${fileId}`, {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Save text data to a file
+   * 
+   * @param directory Directory to save in
+   * @param id ID to use for the file name
+   * @param data Text content to save
+   * @returns Promise that resolves when the data is saved
+   */
+  async saveTextData(directory: string, id: string, data: string): Promise<void> {
+    const dirPath = path.join(this.config.storageDir, directory);
+    
+    // Ensure directory exists
+    await fs.promises.mkdir(dirPath, { recursive: true });
+    
+    // Save the file
+    const filePath = path.join(dirPath, id);
+    await fs.promises.writeFile(filePath, data, 'utf8');
+  }
 } 

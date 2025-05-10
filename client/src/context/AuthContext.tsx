@@ -1,132 +1,100 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { AuthService } from '../lib/auth/auth.service';
 
-// Define user interface
+// User type
 interface User {
   id: string;
   email: string;
+  name: string;
   role: string;
 }
 
-// Define auth context interface
+// Auth context type
 interface AuthContextType {
   user: User | null;
-  loading: boolean;
-  error: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  checkAuth: () => Promise<void>;
+  logout: () => void;
 }
 
-// Create context with default values
+// Create the auth context
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  loading: false,
-  error: null,
+  isAuthenticated: false,
+  isLoading: true,
   login: async () => {},
-  register: async () => {},
-  logout: async () => {},
-  checkAuth: async () => {},
+  logout: () => {},
 });
 
-// Custom hook to use auth context
-export const useAuth = () => useContext(AuthContext);
+// Auth provider props
+interface AuthProviderProps {
+  children: React.ReactNode;
+}
 
 // Auth provider component
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // API URL - should be loaded from environment variable
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
-
-  // Check authentication status on initial load
+  // Check authentication status on component mount
   useEffect(() => {
     checkAuth();
   }, []);
 
-  // Function to check if user is authenticated
+  // Check if user is authenticated
   const checkAuth = async () => {
+    setIsLoading(true);
+    
     try {
-      setLoading(true);
-      const response = await axios.get(`${API_URL}/auth/protected`, { withCredentials: true });
-      setUser(response.data.user);
-      setError(null);
-    } catch (err) {
+      if (AuthService.isAuthenticated()) {
+        const currentUser = AuthService.getCurrentUser();
+        setUser(currentUser);
+      } else {
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('Error checking authentication:', error);
       setUser(null);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   // Login function
   const login = async (email: string, password: string) => {
+    setIsLoading(true);
     try {
-      setLoading(true);
-      setError(null);
-      const response = await axios.post(
-        `${API_URL}/auth/login`,
-        { email, password },
-        { withCredentials: true }
-      );
-      setUser(response.data.user);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed');
-      throw err;
+      const response = await AuthService.login({ email, password });
+      setUser(response.user);
     } finally {
-      setLoading(false);
-    }
-  };
-
-  // Register function
-  const register = async (email: string, password: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await axios.post(
-        `${API_URL}/auth/register`,
-        { email, password },
-        { withCredentials: true }
-      );
-      // Auto login after registration or redirect to login
-      await login(email, password);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed');
-      throw err;
-    } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   // Logout function
-  const logout = async () => {
-    try {
-      setLoading(true);
-      await axios.get(`${API_URL}/auth/logout`, { withCredentials: true });
-      setUser(null);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Logout failed');
-    } finally {
-      setLoading(false);
-    }
+  const logout = () => {
+    AuthService.logout();
+    setUser(null);
   };
 
-  // Context value
+  // Auth context value
   const value = {
     user,
-    loading,
-    error,
+    isAuthenticated: !!user,
+    isLoading,
     login,
-    register,
     logout,
-    checkAuth,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
+}
+
+// Custom hook to use auth context
+export function useAuth() {
+  return useContext(AuthContext);
+}
 
 export default AuthContext; 

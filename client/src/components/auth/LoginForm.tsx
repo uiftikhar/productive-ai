@@ -1,127 +1,133 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { AuthService, LoginCredentials } from '../../lib/auth/auth.service';
 
-// API URL for auth endpoints
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+interface LoginFormProps {
+  onSuccess?: () => void;
+  onError?: (error: Error) => void;
+}
 
-// Login form validation schema
-const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-});
-
-type LoginFormValues = z.infer<typeof loginSchema>;
-
-const LoginForm: React.FC = () => {
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+export default function LoginForm({ onSuccess, onError }: LoginFormProps) {
+  const [email, setEmail] = useState('abc@gmail.com');
+  const [password, setPassword] = useState('temp123456');
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-  });
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
 
-  const onSubmit = async (data: LoginFormValues) => {
     try {
-      setIsLoading(true);
-      setError(null);
-
-      console.log('Signing in user with:', API_URL);
-
-      const result = await signIn('credentials', {
-        redirect: false,
-        email: data.email,
-        password: data.password,
-      });
-
-      if (result?.error) {
-        console.error('Sign in error:', result.error);
-        setError(result.error);
-        return;
+      const credentials: LoginCredentials = { email, password };
+      await AuthService.login(credentials);
+      
+      if (onSuccess) {
+        onSuccess();
       }
-
-      // Redirect to dashboard on successful login
-      router.push('/dashboard');
-    } catch (err: any) {
-      console.error('Login error details:', err);
-      setError('An unexpected error occurred. Please try again.');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Login failed';
+      setError(errorMessage);
+      
+      if (onError && err instanceof Error) {
+        onError(err);
+      }
     } finally {
-      setIsLoading(false);
+      setLoading(false);
+    }
+  };
+
+  const handleLoginAsDefault = async () => {
+    setEmail('abc@gmail.com');
+    setPassword('temp123456');
+    setLoading(true);
+    setError(null);
+
+    try {
+      const credentials: LoginCredentials = { 
+        email: 'abc@gmail.com', 
+        password: 'temp123456' 
+      };
+      await AuthService.login(credentials);
+      
+      if (onSuccess) {
+        onSuccess();
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Login failed';
+      setError(errorMessage);
+      
+      if (onError && err instanceof Error) {
+        onError(err);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="w-full max-w-md mx-auto p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
-      <h2 className="mb-6 text-2xl font-bold text-center">Login</h2>
+    <div className="w-full max-w-md mx-auto p-6 bg-white rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
       
       {error && (
-        <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
           {error}
         </div>
       )}
       
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div>
-          <label htmlFor="email" className="block mb-2 text-sm font-medium">
+      <form onSubmit={handleSubmit}>
+        <div className="mb-4">
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
             Email
           </label>
           <input
             id="email"
             type="email"
-            {...register('email')}
-            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
           />
-          {errors.email && (
-            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
-          )}
         </div>
         
-        <div>
-          <label htmlFor="password" className="block mb-2 text-sm font-medium">
+        <div className="mb-6">
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
             Password
           </label>
           <input
             id="password"
             type="password"
-            {...register('password')}
-            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
           />
-          {errors.password && (
-            <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
-          )}
         </div>
         
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="w-full py-2 px-4 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-        >
-          {isLoading ? 'Signing in...' : 'Sign in'}
-        </button>
+        <div className="flex flex-col space-y-2">
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 rounded-md text-white font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            {loading ? 'Logging in...' : 'Login'}
+          </button>
+          
+          <button
+            type="button"
+            onClick={handleLoginAsDefault}
+            disabled={loading}
+            className="w-full py-2 px-4 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-800 font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50"
+          >
+            Login as Default User
+          </button>
+        </div>
       </form>
       
-      <div className="mt-4 text-center">
-        <p className="text-sm">
-          Don't have an account?{' '}
-          <a href="/auth/register" className="text-blue-600 hover:underline">
-            Create an account
-          </a>
-        </p>
+      <div className="mt-4 text-center text-sm text-gray-500">
+        <p>Default credentials: abc@gmail.com / temp123456</p>
       </div>
     </div>
   );
-};
-
-export default LoginForm; 
+} 

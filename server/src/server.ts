@@ -1,11 +1,17 @@
-import express, { Express } from 'express';
+import express, { Express, Router } from 'express';
+import session from 'express-session';
+
 import cors from 'cors';
 import { json } from 'body-parser';
 import { chatRouter } from './api/chat/chat.routes';
 import { healthRouter } from './api/health/health.routes';
+import { debugRouter } from './api/debug/debug.routes';
+import { MeetingAnalysisController } from './api/controllers/meeting-analysis.controller';
 import { ConsoleLogger } from './shared/logger/console-logger';
 import { ServiceRegistry } from './langgraph/agentic-meeting-analysis/services/service-registry';
 import { Logger } from './shared/logger/logger.interface';
+import { authRoutes } from './auth/auth.routes';
+import { passportClient } from './database';
 
 /**
  * Server configuration options
@@ -48,24 +54,110 @@ export async function createServer(config: ServerConfig = {}): Promise<Express> 
   
   // Apply middleware
   if (config.enableCors !== false) {
-    app.use(cors());
+    app.use(cors({
+      origin: process.env.CORS_ALLOWED_ORIGINS || ['http://localhost:3000', 'http://localhost:8080'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'x-bypass-auth'],
+      credentials: true,
+    }));
   }
+  app.use(express.urlencoded({ extended: true }));
+
+  app.use(
+    session({
+      secret: process.env.SESSION_SECRET || 'your-secret-key',
+      resave: false,
+      saveUninitialized: false,
+    }),
+  );
+
+  app.use(passportClient.initialize());
+  app.use(passportClient.session());
   app.use(json({ limit: '10mb' })); // Increased limit for transcript uploads
-  
-  // Create versioned API routes
-  const apiV1Router = express.Router();
   
   // Health routes (not versioned for easier monitoring)
   app.use('/', healthRouter);
   
+// Register auth and existing routes
+  app.use('/auth', authRoutes);
+  // Create versioned API routes
+  const apiV1Router = express.Router();
+  
   // Mount API v1 routes
   apiV1Router.use('/chat', chatRouter);
+  
+  // Mount debug routes
+  apiV1Router.use('/debug', debugRouter);
   
   // Use versioned routes
   app.use('/api/v1', apiV1Router);
   // Keep an unversioned path for backward compatibility
   app.use('/api', apiV1Router);
   
+  // Create meeting analysis controller
+  const meetingAnalysisController = new MeetingAnalysisController({
+    logger,
+    storage: {
+      meetingAnalysisDir: process.env.MEETING_ANALYSIS_STORAGE_DIR || 'data/meeting-analysis'
+    }
+  });
+
+  // Register meeting analysis routes directly on both paths
+  const registerMeetingAnalysisRoutes = (router: express.Router, prefix: string) => {
+    logger.info(`Registering meeting analysis routes for ${prefix}`);
+    router.post(`${prefix}/sessions`, meetingAnalysisController.createSession.bind(meetingAnalysisController));
+    router.get(`${prefix}/sessions`, meetingAnalysisController.listSessions.bind(meetingAnalysisController));
+    router.get(`${prefix}/sessions/:sessionId`, meetingAnalysisController.getSessionStatus.bind(meetingAnalysisController));
+    router.delete(`${prefix}/sessions/:sessionId`, meetingAnalysisController.deleteSession.bind(meetingAnalysisController));
+    router.post(`${prefix}/sessions/:sessionId/analyze`, meetingAnalysisController.analyzeTranscript.bind(meetingAnalysisController));
+    router.get(`${prefix}/sessions/:sessionId/results`, meetingAnalysisController.getResults.bind(meetingAnalysisController));
+  };
+
+  // Register routes at both paths
+  registerMeetingAnalysisRoutes(app, '/api/analysis');
+  registerMeetingAnalysisRoutes(app, '/api/v1/analysis');
+
+  // Add a debug route to see all registered routes
+  app.get('/debug/routes', (req, res) => {
+    const routes: Array<{method: string, path: string}> = [];
+    
+    function print(path: string, layer: any) {
+      if (layer.route) {
+        layer.route.stack.forEach((item: any) => {
+          let method = Object.keys(layer.route.methods)[0].toUpperCase();
+          routes.push({
+            method,
+            path: path + layer.route.path
+          });
+        });
+      } else if (layer.name === 'router' && layer.handle.stack) {
+        layer.handle.stack.forEach((item: any) => {
+          print(
+            (path || '') + (layer.regexp ? layer.regexp.toString().replace(/\/\^\\\/(?:([^\/]*(?:\/[^\/]*?)?))\\\/\?\(\?=\\\/\|\$\)\/i/, '/$1').replace(/\\\//g, '/') : ''),
+            item
+          );
+        });
+      }
+    }
+    
+    app._router.stack.forEach((layer: any) => {
+      print('', layer);
+    });
+    
+    res.json({ routes });
+  });
+
+  // Debug logging to verify routes
+  if (config.logger) {
+    config.logger.debug('API routes registered:', {
+      routes: {
+        health: ['/health', '/health/detailed', '/health/service-status'],
+        debug: ['/api/v1/debug/agent-status', '/api/v1/debug/agent-progress/:sessionId'],
+        analysis: ['/api/analysis/sessions', '/api/v1/analysis/sessions']
+      }
+    });
+  }
+
   // General error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
     logger.error('Unhandled error in request', { error: err, path: req.path });
@@ -94,6 +186,15 @@ if (require.main === module) {
       // Start listening
       app.listen(port, () => {
         logger.info(`Server running on port ${port}`);
+        logger.info('Meeting analysis endpoints registered at:');
+        logger.info('- /api/analysis/sessions');
+        logger.info('- /api/analysis/sessions/:sessionId');
+        logger.info('- /api/analysis/sessions/:sessionId/analyze');
+        logger.info('- /api/analysis/sessions/:sessionId/results');
+        logger.info('- /api/v1/analysis/sessions');
+        logger.info('- /api/v1/analysis/sessions/:sessionId');
+        logger.info('- /api/v1/analysis/sessions/:sessionId/analyze');
+        logger.info('- /api/v1/analysis/sessions/:sessionId/results');
       });
     } catch (error) {
       logger.error('Failed to start server', { error });

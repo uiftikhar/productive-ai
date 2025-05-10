@@ -5,6 +5,8 @@ import { NextAuthProvider } from "@/providers/NextAuthProvider";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { ReactQueryProvider } from "@/providers/ReactQueryProvider";
 import { TranscriptProvider } from "@/components/TranscriptProvider";
+import { AuthProvider } from '../context/AuthContext';
+import AutoLogin from '../components/auth/AutoLogin';
 
 const inter = Inter({
   variable: "--font-sans",
@@ -31,20 +33,24 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
       >
-        <NextAuthProvider>
-          <ReactQueryProvider>
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="system"
-              enableSystem
-              disableTransitionOnChange
-            >
-              <TranscriptProvider>
-                {children}
-              </TranscriptProvider>
-            </ThemeProvider>
-          </ReactQueryProvider>
-        </NextAuthProvider>
+        <AuthProvider>
+          <AutoLogin enabled={true}>
+            <NextAuthProvider>
+              <ReactQueryProvider>
+                <ThemeProvider
+                  attribute="class"
+                  defaultTheme="system"
+                  enableSystem
+                  disableTransitionOnChange
+                >
+                  <TranscriptProvider>
+                    {children}
+                  </TranscriptProvider>
+                </ThemeProvider>
+              </ReactQueryProvider>
+            </NextAuthProvider>
+          </AutoLogin>
+        </AuthProvider>
       </body>
     </html>
   );

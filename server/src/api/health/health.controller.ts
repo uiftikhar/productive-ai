@@ -31,5 +31,44 @@ export const healthController = {
     };
 
     return res.status(200).json(health);
+  },
+  
+  /**
+   * Check service status
+   * Checks the status of all required services
+   */
+  async checkServiceStatus(req: Request, res: Response) {
+    try {
+      // Get service registry
+      const serviceRegistry = ServiceRegistry.getInstance();
+      
+      // Get agent status report
+      const agentStatus = serviceRegistry.getAgentStatusReport();
+      
+      // Generate overall service report
+      const serviceStatus = {
+        status: agentStatus.status,
+        timestamp: agentStatus.timestamp,
+        services: agentStatus.services,
+        system: {
+          memory: process.memoryUsage(),
+          cpu: process.cpuUsage(),
+          uptime: process.uptime(),
+          platform: process.platform,
+          nodeVersion: process.version
+        },
+        version: packageInfo.version
+      };
+      
+      return res.status(200).json(serviceStatus);
+    } catch (error) {
+      logger.error('Error checking service status:', {error});
+      return res.status(500).json({
+        status: 'ERROR',
+        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : String(error),
+        services: []
+      });
+    }
   }
 }; 

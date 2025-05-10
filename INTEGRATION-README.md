@@ -64,7 +64,7 @@ The integration consists of:
 
 4. Add the following environment variables to the client `.env.local` file:
    ```
-   NEXT_PUBLIC_API_URL=http://localhost:3001
+   NEXT_PUBLIC_API_URL=http://localhost:3000
    ```
 
 ## Running the System
