@@ -223,4 +223,170 @@ try {
 ## Reference
 
 - [Pinecone Metadata Filtering Documentation](https://docs.pinecone.io/docs/metadata-filtering)
-- [Pinecone TypeScript SDK](https://github.com/pinecone-io/pinecone-ts-client) 
+- [Pinecone TypeScript SDK](https://github.com/pinecone-io/pinecone-ts-client)
+
+# RAG Service Consolidation Plan
+
+## Current State Analysis
+
+The codebase currently has multiple overlapping implementations of RAG (Retrieval Augmented Generation) functionality:
+
+1. **MeetingRAGService** (`server/src/langgraph/agentic-meeting-analysis/services/meeting-rag.service.ts`)
+   - Focused on transcript processing, chunking, embedding, and retrieval
+   - Uses Pinecone for vector storage
+   - Includes metrics tracking and reranking functionality
+   - Relies on SemanticChunkingService for intelligent chunking
+
+2. **RAGContextAgent** (`server/src/langgraph/agentic-meeting-analysis/agents/context/rag-context-agent.ts`)
+   - An agent implementation that uses MeetingRAGService
+   - Provides context-aware analysis capabilities
+   - Formats retrieved context for LLM consumption
+   - Implements agent interface methods
+
+3. **ContextIntegrationAgent** (`server/src/langgraph/agentic-meeting-analysis/agents/context/context-integration-agent.ts`)
+   - Uses RagPromptManager from shared services
+   - Has more comprehensive context integration features
+   - Includes organization context, initiative tracking, etc.
+   - Also implements agent interface
+
+4. **RagPromptManager** (`server/src/shared/services/rag-prompt-manager.service.ts`)
+   - General-purpose RAG functionality
+   - Supports multiple retrieval strategies
+   - Includes template-based prompt management
+   - Can track interactions for future retrieval
+
+5. **SemanticChunkingService** (`server/src/langgraph/agentic-meeting-analysis/services/semantic-chunking.service.ts`)
+   - Specialized in intelligent transcript chunking
+   - Used by MeetingRAGService
+
+## Consolidation Strategy
+
+### 1. Core Services Layer
+
+Create a unified RAG services layer with clear separation of concerns:
+
+- **UnifiedRAGService**: A single entry point for all RAG operations
+  - Combines the functionality of MeetingRAGService and RagPromptManager
+  - Provides consistent interface for all agents and controllers
+  - Eliminates duplicated code for vector operations
+
+- **Advanced Chunking Service**:
+  - Integrate SemanticChunkingService capabilities
+  - Add support for more document types beyond transcripts
+  - Maintain specialized transcript handling
+
+- **Context Processing Pipeline**:
+  - Extract context retrieval and processing from agents
+  - Create reusable strategies for different types of context retrieval
+  - Support cross-context queries (meetings, documents, etc.)
+
+### 2. Agent Implementation Layer
+
+- **ContextAwareAgent Base Class**:
+  - Abstract base class for all context-aware agents
+  - Common methods for context retrieval and processing
+  - Standardize RAG integration patterns
+
+- **Specialized Context Agents**:
+  - RAGContextAgent for basic context integration
+  - ContextIntegrationAgent for advanced features
+  - Clear separation based on feature sets
+
+### 3. Technical Implementation Steps
+
+1. **Refactor MeetingRAGService**:
+   - Extract core RAG functionality into UnifiedRAGService
+   - Keep meeting-specific utilities as extension methods
+   - Ensure backward compatibility for existing code
+
+2. **Enhance RagPromptManager**:
+   - Integrate with UnifiedRAGService
+   - Deprecate overlapping methods
+   - Add new methods for unified access
+
+3. **Update Agent Implementations**:
+   - Modify RAGContextAgent to use UnifiedRAGService
+   - Update ContextIntegrationAgent to leverage the unified service
+   - Ensure all changes maintain current functionality
+
+4. **Standardize Configuration**:
+   - Create consistent configuration objects
+   - Support feature flags for enabling/disabling functionality
+   - Share configuration between components
+
+5. **Consolidate Pinecone Usage**:
+   - Standardize index and namespace usage
+   - Create migration tools for existing data
+   - Implement clear patterns for multi-tenant usage
+
+### 4. Improved Testing Strategy
+
+- Create integration tests for the unified RAG pipeline
+- Test with real meeting transcripts
+- Verify vector embedding quality and retrieval accuracy
+- Benchmark performance before and after consolidation
+
+## Implementation Priorities
+
+1. **Phase 1: Unify Core Services**
+   - Create UnifiedRAGService
+   - Migrate MeetingRAGService to use it
+   - Update chunking service integration
+
+2. **Phase 2: Update Agent Implementations**
+   - Modify RAGContextAgent
+   - Enhance ContextIntegrationAgent
+   - Create common base class
+
+3. **Phase 3: Optimize and Clean Up**
+   - Remove duplicated code
+   - Standardize error handling
+   - Improve logging and metrics
+
+4. **Phase 4: Documentation and Testing**
+   - Document new architecture
+   - Create usage examples
+   - Comprehensive testing
+
+## Architectural Benefits
+
+- **Reduced Duplication**: Eliminate redundant implementations
+- **Consistent Patterns**: Standardize RAG usage across the application
+- **Better Separation of Concerns**: Clear responsibilities for each component
+- **Easier Maintenance**: Less code to maintain, fewer places for bugs
+- **Better Performance**: Shared connection pools and caching
+- **Extensibility**: Easier to add new retrieval strategies or vector providers
+
+## Detailed API Design
+
+### UnifiedRAGService
+
+```typescript
+// Key methods
+async processContent(content: any, metadata: ContentMetadata): Promise<number>;
+async retrieveRelevantContext(query: string, options: RetrievalOptions): Promise<RetrievalResult[]>;
+async generateContextAwarePrompt(query: string, promptTemplate: string, options: PromptOptions): Promise<PromptResult>;
+```
+
+### Context-Aware Agent Base Class
+
+```typescript
+// Key methods
+protected async getRelevantContext(query: string, options?: object): Promise<ContextResult>;
+protected async analyzeWithContext(query: string, context: ContextResult): Promise<AnalysisResult>;
+protected formatContextForAnalysis(context: ContextResult): string;
+```
+
+## Timeline and Resources
+
+- **Estimated Effort**: 2-3 weeks for full implementation
+- **Key Stakeholders**: Meeting analysis team, RAG infrastructure team
+- **Testing Requirements**: Comprehensive testing with real meeting data
+- **Documentation**: Update all relevant documentation and examples
+
+## Immediate Next Steps
+
+1. Create UnifiedRAGService interface and implementation
+2. Begin phased migration of MeetingRAGService
+3. Update team on consolidation plan
+4. Schedule detailed code reviews 

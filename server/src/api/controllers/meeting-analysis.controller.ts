@@ -283,7 +283,9 @@ export class MeetingAnalysisController {
       // Validate analysis goal type
       if (!Object.values(AnalysisGoalType).includes(analysisGoal)) {
         throw new ApiErrorException(
-          `Invalid analysisGoal: ${analysisGoal}. Must be one of: ${Object.values(AnalysisGoalType).join(', ')}`,
+          `Invalid analysisGoal: ${analysisGoal}. Must be one of: ${Object.values(
+            AnalysisGoalType
+          ).join(', ')}`,
           ErrorType.VALIDATION_ERROR,
           HttpStatus.BAD_REQUEST,
           'ERR_INVALID_ANALYSIS_GOAL'
@@ -306,24 +308,24 @@ export class MeetingAnalysisController {
         const validExpertise = [
           ...Object.values(AgentExpertise),
           ...Object.values(AgentExpertise).map(exp => exp.toLowerCase()),
-          // Also allow snake_case versions
-          'topic_analysis',
-          'action_item_extraction',
-          'summary_generation',
-          'sentiment_analysis',
+          // Add extended expertise for backward compatibility
           'participant_dynamics',
           'decision_tracking',
           'context_integration',
-          'management'
+          'PARTICIPANT_DYNAMICS',
+          'DECISION_TRACKING',
+          'CONTEXT_INTEGRATION'
         ];
         
         const invalidExpertise = enabledExpertise.filter(
-          (exp: any) => !validExpertise.includes(exp)
+          (exp: string) => !validExpertise.includes(exp)
         );
         
         if (invalidExpertise.length > 0) {
           throw new ApiErrorException(
-            `Invalid expertise values: ${invalidExpertise.join(', ')}. Valid values are: ${Object.values(AgentExpertise).join(', ')} (or snake_case equivalents)`,
+            `Invalid expertise value(s): ${invalidExpertise.join(
+              ', '
+            )}. Must be one of: ${Object.values(AgentExpertise).join(', ')}`,
             ErrorType.VALIDATION_ERROR,
             HttpStatus.BAD_REQUEST,
             'ERR_INVALID_EXPERTISE'
@@ -331,11 +333,11 @@ export class MeetingAnalysisController {
         }
       }
       
-      this.logger.info(`Creating agent team with analysisGoal: ${analysisGoal}, enabledExpertise: ${JSON.stringify(enabledExpertise)}`);
-      
       try {
+        this.logger.info('Creating agent team...');
+        
         // Create agent team
-        const team = createHierarchicalAgentTeam({
+        const team = await createHierarchicalAgentTeam({
           debugMode: false,
           analysisGoal,
           enabledExpertise
@@ -350,8 +352,6 @@ export class MeetingAnalysisController {
           workerAgents: team.workers,
           analysisGoal
         });
-        
-        this.logger.info(`Successfully created graph for analysis goal: ${analysisGoal}`);
         
         // Create session
         const sessionId = await this.sessionManager.createSession({
@@ -368,28 +368,31 @@ export class MeetingAnalysisController {
         // Initialize visualization
         this.initializeVisualization(sessionId, team);
         
-        const responseData = {
-          sessionId,
-          status: 'created',
-          metadata: {
+        // Return success response with session details
+        return res.status(HttpStatus.CREATED).json({
+          success: true,
+          data: {
+            sessionId,
             analysisGoal,
-            enabledExpertise
+            createdAt: new Date().toISOString(),
+            status: 'created'
+          },
+          meta: {
+            timestamp: new Date().toISOString()
           }
-        };
-        
-        sendSuccess(res, responseData, HttpStatus.CREATED, { requestId: getRequestId(req) });
+        });
       } catch (error) {
-        this.logger.error('Error during team/graph creation:', {error});
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error('Error creating session:', { errorMessage });
         
         if (error instanceof Error) {
           this.logger.error(`Error stack: ${error.stack}`);
         }
         
-        throw error;
+        sendError(res, error, HttpStatus.INTERNAL_SERVER_ERROR);
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.logger.error('Error creating session:', { errorMessage });
+      this.logger.error('Error creating session:', { error: error instanceof Error ? error.message : String(error) });
       
       if (error instanceof Error) {
         this.logger.error(`Error stack: ${error.stack}`);

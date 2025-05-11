@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import { ChatOpenAI, ChatOpenAICallOptions } from '@langchain/openai';
 import { OpenAIEmbeddings } from '@langchain/openai';
 import {
@@ -119,6 +122,7 @@ export class OpenAIConnector implements LanguageModelProvider {
       temperature: modelConfig.temperature,
       maxTokens: modelConfig.maxTokens,
       streaming: modelConfig.streaming,
+      openAIApiKey: process.env.OPENAI_API_KEY
     });
 
     const embeddingConfig: EmbeddingConfig = {
@@ -231,8 +235,16 @@ export class OpenAIConnector implements LanguageModelProvider {
     }
     
     this.tokenUsage.totalCalls++;
+    const startTime = Date.now();
     
     try {
+      this.logger.info('Calling OpenAI API', {
+        modelName: options?.model || this.chatModel.modelName,
+        messageCount: Array.isArray(messages) ? messages.length : 0,
+        responseFormat: options?.responseFormat?.type || 'default',
+        temperature: options?.temperature || this.chatModel.temperature
+      });
+      
       const modelMessages =
         Array.isArray(messages) && messages.length > 0 && 'role' in messages[0]
           ? this.createMessages(messages as MessageConfig[])
@@ -249,9 +261,13 @@ export class OpenAIConnector implements LanguageModelProvider {
         responseFormat = (messages[0] as MessageConfig).responseFormat;
       }
 
-      this.logger.debug('Preparing OpenAI request', {
+      this.logger.debug('OpenAI request details', {
         messageCount: modelMessages.length,
-        responseFormat: responseFormat?.type || 'text'
+        responseFormat: responseFormat?.type || 'text',
+        firstMessagePreview: modelMessages.length > 0 ? 
+          modelMessages[0].content.toString().substring(0, 100) + '...' : '',
+        lastMessagePreview: modelMessages.length > 0 ? 
+          modelMessages[modelMessages.length-1].content.toString().substring(0, 100) + '...' : ''
       });
 
       let model = this.chatModel;
@@ -271,23 +287,49 @@ export class OpenAIConnector implements LanguageModelProvider {
       }
 
       const response = await model.invoke(modelMessages);
+      const endTime = Date.now();
+      const latency = endTime - startTime;
       
       // Update token usage if available
       // Use type assertion since LangChain's types don't include usage but the runtime objects do
       const responseWithUsage = response as any;
+      let promptTokens = 0;
+      let completionTokens = 0;
+      let totalTokens = 0;
+      
       if (responseWithUsage.usage) {
-        this.tokenUsage.promptTokens += responseWithUsage.usage.promptTokens || 0;
-        this.tokenUsage.completionTokens += responseWithUsage.usage.completionTokens || 0;
-        this.tokenUsage.totalTokens += responseWithUsage.usage.totalTokens || 0;
+        promptTokens = responseWithUsage.usage.promptTokens || 0;
+        completionTokens = responseWithUsage.usage.completionTokens || 0;
+        totalTokens = responseWithUsage.usage.totalTokens || 0;
+        
+        this.tokenUsage.promptTokens += promptTokens;
+        this.tokenUsage.completionTokens += completionTokens;
+        this.tokenUsage.totalTokens += totalTokens;
         this.tokenUsage.lastUpdated = Date.now();
       } else {
         // Estimate tokens if not provided
         const tokenEstimate = this.estimateTokenUsage(modelMessages, response.content.toString());
-        this.tokenUsage.promptTokens += tokenEstimate.promptTokens;
-        this.tokenUsage.completionTokens += tokenEstimate.completionTokens;
-        this.tokenUsage.totalTokens += tokenEstimate.totalTokens;
+        promptTokens = tokenEstimate.promptTokens;
+        completionTokens = tokenEstimate.completionTokens;
+        totalTokens = tokenEstimate.totalTokens;
+        
+        this.tokenUsage.promptTokens += promptTokens;
+        this.tokenUsage.completionTokens += completionTokens;
+        this.tokenUsage.totalTokens += totalTokens;
         this.tokenUsage.lastUpdated = Date.now();
       }
+      
+      // Log response details
+      this.logger.info('OpenAI API response received', {
+        latency: `${latency}ms`,
+        model: model.modelName,
+        promptTokens,
+        completionTokens,
+        totalTokens,
+        estimatedCost: this.estimateCost(model.modelName, promptTokens, completionTokens),
+        contentLength: response.content.toString().length,
+        responsePreview: response.content.toString().substring(0, 100) + '...'
+      });
       
       // Handle success in circuit breaker
       this.handleSuccess();
@@ -298,16 +340,23 @@ export class OpenAIConnector implements LanguageModelProvider {
           model: model.modelName,
           temperature: model.temperature,
           responseFormat: responseFormat?.type,
+          latency,
+          promptTokens,
+          completionTokens,
+          totalTokens
         },
       };
     } catch (error) {
       // Handle failure in circuit breaker
       this.handleFailure(error);
+      const endTime = Date.now();
       
-      this.logger.error('Error generating response', {
+      this.logger.error('OpenAI API error', {
         error: error instanceof Error ? error.message : String(error),
+        latency: `${endTime - startTime}ms`,
         circuitBreakerState: CircuitBreakerState[this.circuitBreakerState],
-        failureCount: this.failureCount
+        failureCount: this.failureCount,
+        modelName: options?.model || this.chatModel.modelName
       });
       throw error;
     }
@@ -335,6 +384,30 @@ export class OpenAIConnector implements LanguageModelProvider {
       completionTokens,
       totalTokens: promptTokens + completionTokens
     };
+  }
+
+  /**
+   * Estimate cost based on token usage and model
+   */
+  private estimateCost(model: string, promptTokens: number, completionTokens: number): string {
+    // Simplified pricing model for common OpenAI models (as of 2024)
+    // These rates can be updated as pricing changes
+    const pricing: Record<string, {input: number, output: number}> = {
+      'gpt-4': { input: 0.03 / 1000, output: 0.06 / 1000 },
+      'gpt-4-turbo': { input: 0.01 / 1000, output: 0.03 / 1000 },
+      'gpt-4o': { input: 0.005 / 1000, output: 0.015 / 1000 },
+      'gpt-3.5-turbo': { input: 0.0005 / 1000, output: 0.0015 / 1000 }
+    };
+    
+    // Get pricing for this model or use gpt-4 as fallback
+    const modelPricing = pricing[model] || pricing['gpt-4'];
+    
+    // Calculate cost
+    const inputCost = promptTokens * modelPricing.input;
+    const outputCost = completionTokens * modelPricing.output;
+    const totalCost = inputCost + outputCost;
+    
+    return `$${totalCost.toFixed(4)}`;
   }
 
   /**

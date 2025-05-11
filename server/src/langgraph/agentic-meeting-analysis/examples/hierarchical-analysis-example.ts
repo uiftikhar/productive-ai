@@ -74,7 +74,7 @@ async function runHierarchicalAnalysisExample() {
   
   // 1. Create the agent team using the factory
   logger.info('Creating hierarchical agent team');
-  const team = createHierarchicalAgentTeam({
+  const team = await createHierarchicalAgentTeam({
     debugMode: true,
     analysisGoal: AnalysisGoalType.FULL_ANALYSIS,
     enabledExpertise: [

@@ -12,6 +12,19 @@ import { ConsoleLogger } from '../shared/logger/console-logger';
 import { PineconeConnectionService } from '../pinecone/pinecone-connection.service';
 import { VectorIndexes } from '../pinecone/pinecone-index.service';
 import { VectorRecord, QueryOptions } from '../pinecone/pinecone.type';
+import { performance } from 'perf_hooks';
+
+// Add interface for vector stats tracking
+interface PineconeStats {
+  totalUpserts: number;
+  totalQueries: number;
+  totalDeletes: number;
+  lastBatchSize: number;
+  lastQueryResults: number;
+  totalLatency: number;
+  queryCount: number;
+  averageQueryLatency: number;
+}
 
 /**
  * Connector for PineconeConnectionService that provides a simplified interface
@@ -21,6 +34,16 @@ export class PineconeConnector {
   private pineconeService: PineconeConnectionService;
   private logger: Logger;
   private defaultNamespace: string;
+  private stats: PineconeStats = {
+    totalUpserts: 0,
+    totalQueries: 0,
+    totalDeletes: 0,
+    lastBatchSize: 0,
+    lastQueryResults: 0,
+    totalLatency: 0,
+    queryCount: 0,
+    averageQueryLatency: 0
+  };
 
   constructor(
     options: {
@@ -296,5 +319,190 @@ export class PineconeConnector {
     namespace: string,
   ): Promise<boolean> {
     return this.pineconeService.namespaceExists(indexName, namespace);
+  }
+
+  // Add method to query vectors with enhanced logging
+  async queryVectors(
+    indexName: string,
+    queryEmbedding: number[],
+    topK: number = 5,
+    namespace: string = '',
+    filter: Record<string, any> = {},
+    includeMetadata: boolean = true
+  ): Promise<any> {
+    const startTime = performance.now();
+
+    try {
+      this.logger.info('Pinecone query request', {
+        indexName,
+        namespace: namespace || 'default',
+        topK,
+        hasFilter: Object.keys(filter).length > 0,
+        vectorDimension: queryEmbedding.length,
+        includeMetadata
+      });
+      
+      // Log detailed query parameters
+      this.logger.debug('Pinecone query details', {
+        filterParams: JSON.stringify(filter),
+        embeddingPreview: queryEmbedding.slice(0, 5),
+        embeddingNorm: this.calculateNorm(queryEmbedding)
+      });
+
+      // Use the pineconeService's queryVectors method instead of direct index access
+      const queryOptions = {
+        topK,
+        filter,
+        includeMetadata,
+        includeValues: false
+      };
+      
+      const queryResponse = await this.pineconeService.queryVectors(
+        indexName,
+        queryEmbedding,
+        queryOptions,
+        namespace
+      );
+
+      const endTime = performance.now();
+      const latency = endTime - startTime;
+      
+      // Update stats
+      this.stats.totalQueries += 1;
+      this.stats.lastQueryResults = queryResponse.matches?.length || 0;
+      this.stats.totalLatency += latency;
+      this.stats.queryCount += 1;
+      this.stats.averageQueryLatency = this.stats.totalLatency / this.stats.queryCount;
+
+      // Log response details
+      this.logger.info('Pinecone query response', {
+        indexName,
+        namespace: namespace || 'default',
+        matchCount: queryResponse.matches?.length || 0,
+        latency: `${latency.toFixed(2)}ms`,
+        topScore: queryResponse.matches?.[0]?.score || 'N/A'
+      });
+
+      // Log some sample matches if available
+      if (queryResponse.matches && queryResponse.matches.length > 0) {
+        this.logger.debug('Pinecone query sample matches', {
+          topMatches: queryResponse.matches.slice(0, 3).map((match: { id: string, score?: number, metadata?: any }) => ({
+            id: match.id,
+            score: match.score,
+            metadata: match.metadata ? JSON.stringify(match.metadata).substring(0, 100) + '...' : 'none'
+          }))
+        });
+      }
+
+      return queryResponse;
+    } catch (error) {
+      const endTime = performance.now();
+      const latency = endTime - startTime;
+
+      this.logger.error('Pinecone query error', {
+        indexName,
+        namespace: namespace || 'default',
+        latency: `${latency.toFixed(2)}ms`,
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      throw error;
+    }
+  }
+
+  // Add method for upsert with enhanced logging
+  async upsertVectors(
+    indexName: string,
+    vectors: Array<{
+      id: string;
+      values: number[];
+      metadata?: Record<string, any>;
+    }>,
+    namespace: string = ''
+  ): Promise<any> {
+    const startTime = performance.now();
+
+    try {
+      this.logger.info('Pinecone upsert request', {
+        indexName,
+        namespace: namespace || 'default',
+        vectorCount: vectors.length,
+        vectorDimension: vectors[0]?.values.length || 0
+      });
+
+      // Log detailed operation info
+      this.logger.debug('Pinecone upsert details', {
+        vectorIds: vectors.slice(0, 5).map(v => v.id),
+        metadataSample: vectors[0]?.metadata ? 
+          JSON.stringify(vectors[0].metadata).substring(0, 100) + '...' : 'none',
+        vectorSizeBytes: this.estimateVectorSizeBytes(vectors)
+      });
+
+      // Use the pineconeService's upsertVectors method directly
+      await this.pineconeService.upsertVectors(
+        indexName,
+        vectors,
+        namespace
+      );
+
+      const endTime = performance.now();
+      const latency = endTime - startTime;
+      
+      // Update stats
+      this.stats.totalUpserts += vectors.length;
+      this.stats.lastBatchSize = vectors.length;
+
+      // Log response
+      this.logger.info('Pinecone upsert complete', {
+        indexName,
+        namespace: namespace || 'default',
+        vectorCount: vectors.length,
+        latency: `${latency.toFixed(2)}ms`
+      });
+
+      return { upsertedCount: vectors.length };
+    } catch (error) {
+      const endTime = performance.now();
+      const latency = endTime - startTime;
+
+      this.logger.error('Pinecone upsert error', {
+        indexName,
+        namespace: namespace || 'default',
+        vectorCount: vectors.length,
+        latency: `${latency.toFixed(2)}ms`,
+        error: error instanceof Error ? error.message : String(error),
+        firstVector: vectors.length > 0 ? vectors[0].id : 'none'
+      });
+
+      throw error;
+    }
+  }
+
+  // Add method to get usage statistics
+  getStats(): PineconeStats {
+    return { ...this.stats };
+  }
+
+  // Utility methods
+  private calculateNorm(vector: number[]): number {
+    return Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
+  }
+
+  private estimateVectorSizeBytes(vectors: Array<{
+    id: string;
+    values: number[];
+    metadata?: Record<string, any>;
+  }>): number {
+    // Rough estimation: 4 bytes per float + id (avg ~20 bytes) + metadata
+    let totalSize = 0;
+    for (const vector of vectors) {
+      const valuesSize = vector.values.length * 4; // 4 bytes per float
+      const idSize = vector.id.length * 2; // approximate string size
+      const metadataSize = vector.metadata ? 
+        JSON.stringify(vector.metadata).length * 2 : 0;
+      
+      totalSize += valuesSize + idSize + metadataSize;
+    }
+    return totalSize;
   }
 }

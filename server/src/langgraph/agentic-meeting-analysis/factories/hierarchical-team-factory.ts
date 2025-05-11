@@ -5,7 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { 
   AgentExpertise, 
   AgentRole, 
-  AnalysisGoalType 
+  AnalysisGoalType,
+  AgentOutput 
 } from '../interfaces/agent.interface';
 import { EnhancedSupervisorAgent } from '../agents/coordinator/enhanced-supervisor-agent';
 import { AnalysisManagerAgent } from '../agents/manager/analysis-manager-agent';
@@ -14,17 +15,17 @@ import { ConsoleLogger } from '../../../shared/logger/console-logger';
 import { Logger } from '../../../shared/logger/logger.interface';
 import { AgentConfigService } from '../../../shared/config/agent-config.service';
 import { OpenAIConnector } from '../../../connectors/openai-connector';
+import { ChatOpenAI } from '@langchain/openai';
 
 // Import worker agent implementations
 import { TopicAnalysisAgent } from '../agents/topic/topic-analysis-agent';
-// Mock implementations for missing agents - these would need to be implemented
-// or corrected import paths would need to be provided
-const ActionItemExtractionAgent = SpecialistWorkerAgent;
-const SummarySynthesisAgent = SpecialistWorkerAgent;
-const SentimentAnalysisAgent = SpecialistWorkerAgent;
-const ParticipantDynamicsAgent = SpecialistWorkerAgent;
-const DecisionDetectionAgent = SpecialistWorkerAgent;
-const ContextIntegrationAgent = SpecialistWorkerAgent;
+import { ActionItemSpecialistAgent } from '../agents/action/action-item-specialist-agent';
+import { SummarySynthesisAgent } from '../agents/summary/summary-synthesis-agent';
+import { SentimentAnalysisAgent } from '../agents/sentiment/sentiment-analysis-agent';
+import { ParticipantDynamicsAgent } from '../agents/participation/participant-dynamics-agent';
+import { DecisionAnalysisAgent } from '../agents/decision/decision-analysis-agent';
+import { ContextIntegrationAgent } from '../agents/context/context-integration-agent';
+import { extendSpecialistAgent } from '../agents/workers/specialist-agent-extensions';
 
 // Define extended enum values as string constants
 // This avoids modifying the original enum objects
@@ -129,7 +130,7 @@ export interface HierarchicalTeamResult {
 /**
  * Create a hierarchical agent team structure
  */
-export function createHierarchicalAgentTeam(options: HierarchicalTeamOptions = {}): HierarchicalTeamResult {
+export async function createHierarchicalAgentTeam(options: HierarchicalTeamOptions = {}): Promise<HierarchicalTeamResult> {
   const logger = options.logger || new ConsoleLogger();
   
   // Get configuration from the config service
@@ -158,7 +159,7 @@ export function createHierarchicalAgentTeam(options: HierarchicalTeamOptions = {
     if (useMockMode) {
       return createMockAgentTeam(options);
     } else {
-      return createRealAgentTeam(options, logger, openAiConnector);
+      return await createRealAgentTeam(options, logger, openAiConnector);
     }
   } catch (error) {
     logger.error(`Error creating hierarchical team: ${error instanceof Error ? error.message : String(error)}`);
@@ -172,11 +173,11 @@ export function createHierarchicalAgentTeam(options: HierarchicalTeamOptions = {
 /**
  * Create a real implementation of the hierarchical agent team
  */
-function createRealAgentTeam(
+async function createRealAgentTeam(
   options: HierarchicalTeamOptions,
   logger: Logger,
   openAiConnector: OpenAIConnector
-): HierarchicalTeamResult {
+): Promise<HierarchicalTeamResult> {
   try {
     logger.info(`Starting createRealAgentTeam with options: ${JSON.stringify({
       debugMode: options.debugMode,
@@ -282,81 +283,109 @@ function createRealAgentTeam(
                 openAiConnector,
                 useMockMode: false
               });
-              // Cast to SpecialistWorkerAgent to satisfy the type requirement
+              
+              // Add required SpecialistWorkerAgent properties
+              extendSpecialistAgent(topicAgent, managerId, AgentExpertise.TOPIC_ANALYSIS);
+              
+              // Properly typecast with unknown first
               worker = topicAgent as unknown as SpecialistWorkerAgent;
               break;
               
             case AgentExpertise.ACTION_ITEM_EXTRACTION:
-              logger.info(`Creating ActionItemExtraction worker`);
-              // Using SpecialistWorkerAgent with proper config
-              worker = new SpecialistWorkerAgent({
+              logger.info(`Creating ActionItemSpecialistAgent worker`);
+              const actionItemAgent = new ActionItemSpecialistAgent({
                 id: workerId,
                 name: `Action Item Worker ${i+1}`,
-                expertise: [expertise as AgentExpertise],
-                capabilities: [AnalysisGoalType.EXTRACT_ACTION_ITEMS],
-                managerId,
                 logger,
-                openAiConnector,
-                useMockMode: false
+                llm: new ChatOpenAI({
+                  modelName: 'gpt-4',
+                  temperature: 0.2
+                })
               });
+              
+              // Add required SpecialistWorkerAgent properties
+              extendSpecialistAgent(actionItemAgent, managerId, AgentExpertise.ACTION_ITEM_EXTRACTION);
+              
+              // Properly typecast with unknown first
+              worker = actionItemAgent as unknown as SpecialistWorkerAgent;
               break;
               
             case AgentExpertise.SUMMARY_GENERATION:
-              logger.info(`Creating SummaryGeneration worker`);
-              worker = new SpecialistWorkerAgent({
+              logger.info(`Creating SummarySynthesisAgent worker`);
+              const summaryAgent = new SummarySynthesisAgent({
                 id: workerId,
                 name: `Summary Worker ${i+1}`,
-                expertise: [expertise as AgentExpertise],
-                capabilities: [AnalysisGoalType.GENERATE_SUMMARY],
-                managerId,
                 logger,
-                openAiConnector,
-                useMockMode: false
+                llm: new ChatOpenAI({
+                  modelName: 'gpt-4',
+                  temperature: 0.2
+                })
               });
+              
+              // Add required SpecialistWorkerAgent properties
+              extendSpecialistAgent(summaryAgent, managerId, AgentExpertise.SUMMARY_GENERATION);
+              
+              // Properly typecast with unknown first
+              worker = summaryAgent as unknown as SpecialistWorkerAgent;
               break;
               
             case AgentExpertise.SENTIMENT_ANALYSIS:
               logger.info(`Creating SentimentAnalysis worker`);
-              worker = new SpecialistWorkerAgent({
+              const sentimentAgent = new SentimentAnalysisAgent({
                 id: workerId,
                 name: `Sentiment Analysis Worker ${i+1}`,
-                expertise: [expertise as AgentExpertise],
-                capabilities: [AnalysisGoalType.ANALYZE_SENTIMENT],
-                managerId,
                 logger,
-                openAiConnector,
-                useMockMode: false
+                llm: new ChatOpenAI({
+                  modelName: 'gpt-4',
+                  temperature: 0.3
+                })
               });
+              
+              // Add required SpecialistWorkerAgent properties
+              extendSpecialistAgent(sentimentAgent, managerId, AgentExpertise.SENTIMENT_ANALYSIS);
+              
+              // Properly typecast with unknown first
+              worker = sentimentAgent as unknown as SpecialistWorkerAgent;
               break;
               
             case AgentExpertise.PARTICIPANT_DYNAMICS:
               logger.info(`Creating ParticipantDynamics worker`);
               // This handles both PARTICIPANT_DYNAMICS and the extended PARTICIPATION_ANALYSIS
-              worker = new SpecialistWorkerAgent({
+              const participantAgent = new ParticipantDynamicsAgent({
                 id: workerId,
                 name: `Participant Analysis Worker ${i+1}`,
-                expertise: [expertise as AgentExpertise],
-                capabilities: [AnalysisGoalType.ANALYZE_PARTICIPATION],
-                managerId,
                 logger,
-                openAiConnector,
-                useMockMode: false
+                llm: new ChatOpenAI({
+                  modelName: 'gpt-4',
+                  temperature: 0.2
+                })
               });
+              
+              // Add required SpecialistWorkerAgent properties
+              extendSpecialistAgent(participantAgent, managerId, AgentExpertise.PARTICIPANT_DYNAMICS);
+              
+              // Properly typecast with unknown first
+              worker = participantAgent as unknown as SpecialistWorkerAgent;
               break;
               
             case AgentExpertise.DECISION_TRACKING:
-              logger.info(`Creating DecisionTracking worker`);
+              logger.info(`Creating DecisionAnalysis worker`);
               // This handles both DECISION_TRACKING and the extended DECISION_ANALYSIS
-              worker = new SpecialistWorkerAgent({
+              const decisionAgent = new DecisionAnalysisAgent({
                 id: workerId,
                 name: `Decision Analysis Worker ${i+1}`,
-                expertise: [expertise as AgentExpertise],
-                capabilities: [AnalysisGoalType.EXTRACT_DECISIONS],
-                managerId,
                 logger,
-                openAiConnector,
-                useMockMode: false
+                llm: new ChatOpenAI({
+                  modelName: 'gpt-4',
+                  temperature: 0.2
+                })
               });
+              
+              // Add required SpecialistWorkerAgent properties
+              extendSpecialistAgent(decisionAgent, managerId, AgentExpertise.DECISION_TRACKING);
+              
+              // Properly typecast with unknown first
+              worker = decisionAgent as unknown as SpecialistWorkerAgent;
               break;
               
             default:
@@ -391,6 +420,77 @@ function createRealAgentTeam(
         manager,
         workers: workersForManager
       });
+    }
+    
+    // Create context integration agent
+    if (enabledExpertise.includes(AgentExpertise.CONTEXT_INTEGRATION)) {
+      // First check for RAG context agent
+      try {
+        // Import RAG context agent
+        const { RAGContextAgent } = await import('../agents/context/rag-context-agent');
+        const { PineconeConnector } = await import('../../../connectors/pinecone-connector');
+        
+        // Create Pinecone connector
+        const pineconeConnector = new PineconeConnector({
+          logger,
+          defaultNamespace: 'meeting-analysis'
+        });
+        
+        // Initialize the connector
+        await pineconeConnector.initialize();
+        
+        logger.info('Creating RAG Context Agent with Pinecone integration');
+        
+        // Create the agent with only properties supported by RAGContextAgentConfig
+        const contextAgent = new RAGContextAgent({
+          id: `worker-context_integration-${uuidv4().slice(0, 8)}`,
+          name: 'RAG Context Integration Agent',
+          openAiConnector: openAiConnector,
+          pineconeConnector: pineconeConnector,
+          logger,
+          useMockMode: false
+        });
+        
+        // Add required SpecialistWorkerAgent properties
+        extendSpecialistAgent(contextAgent, managers[0].id, AgentExpertise.CONTEXT_INTEGRATION);
+        
+        // Add to workers list - properly extended to match the SpecialistWorkerAgent type
+        const contextWorker = contextAgent as unknown as SpecialistWorkerAgent;
+        workers.push(contextWorker);
+        teamMap.set(AgentExpertise.CONTEXT_INTEGRATION, {
+          manager: managers[0],
+          workers: [contextWorker]
+        });
+        
+        logger.info('Successfully created RAG Context Integration Agent');
+      } catch (error) {
+        // If RAG context agent fails, fall back to standard context agent
+        logger.warn('Failed to create RAG Context Agent, falling back to standard Context Integration Agent', {
+          error: error instanceof Error ? error.message : String(error)
+        });
+        
+        // Use the actual ContextIntegrationAgent from import
+        const contextAgent = new ContextIntegrationAgent({
+          id: `worker-context_integration-${uuidv4().slice(0, 8)}`,
+          name: 'Context Integration Agent',
+          logger,
+          llm: new ChatOpenAI({
+            modelName: 'gpt-4',
+            temperature: 0.2
+          })
+        });
+        
+        // Add required SpecialistWorkerAgent properties
+        extendSpecialistAgent(contextAgent, managers[0].id, AgentExpertise.CONTEXT_INTEGRATION);
+        
+        // Add to workers list - properly extended
+        const contextWorker = contextAgent as unknown as SpecialistWorkerAgent;
+        workers.push(contextWorker);
+        teamMap.set(AgentExpertise.CONTEXT_INTEGRATION, {
+          manager: managers[0],
+          workers: [contextWorker]
+        });
+      }
     }
     
     logger.info(`Successfully created hierarchical team with ${managers.length} managers and ${workers.length} workers`);
@@ -442,11 +542,13 @@ function createMockAgentTeam(options: HierarchicalTeamOptions): HierarchicalTeam
   
   // Create supervisor agent
   const supervisorId = `supervisor-${uuidv4().slice(0, 8)}`;
-  const supervisor = {
+  
+  // Create a mock supervisor but with extended properties
+  const mockSupervisor = {
     id: supervisorId,
     name: "Analysis Supervisor",
     role: AgentRole.SUPERVISOR,
-    capabilities: [],
+    capabilities: new Set<AnalysisGoalType>(),
     expertise: [AgentExpertise.MANAGEMENT],
     decideNextAgent: async ({ messages }: any) => {
       // Mock implementation for testing
@@ -454,10 +556,21 @@ function createMockAgentTeam(options: HierarchicalTeamOptions): HierarchicalTeam
       return "TopicTeam";
     },
     initialize: async () => Promise.resolve(),
-    handleRequest: async () => Promise.resolve(),
+    handleRequest: async () => Promise.resolve({}),
     on: () => {},
-    sendMessage: async () => Promise.resolve()
-  } as unknown as EnhancedSupervisorAgent;
+    sendMessage: async () => Promise.resolve(),
+    // Add required properties for EnhancedSupervisorAgent compatibility
+    routerTool: {},
+    maxManagersCount: 5,
+    managerRegistry: new Map(),
+    teamStructure: {},
+    supervisorPrompt: "Mock supervisor prompt",
+    instructionTemplates: {},
+    processTask: async () => ({ content: {}, confidence: 0, timestamp: Date.now() })
+  };
+  
+  // Cast to EnhancedSupervisorAgent
+  const supervisor = mockSupervisor as unknown as EnhancedSupervisorAgent;
   
   logger.info(`Initialized mock Analysis Supervisor agent with ID: ${supervisorId}`);
   
@@ -478,21 +591,29 @@ function createMockAgentTeam(options: HierarchicalTeamOptions): HierarchicalTeam
   // Create one manager per expertise area
   for (const expertise of managedExpertiseAreas) {
     const managerId = `manager-${expertise}-${uuidv4().slice(0, 8)}`;
-    const manager = {
+    
+    // Create mock manager with extended properties
+    const mockManager = {
       id: managerId,
       name: `${expertise} Manager`,
       role: AgentRole.MANAGER,
       managedExpertise: [expertise],
       expertise: [expertise, AgentExpertise.MANAGEMENT],
-      capabilities: [],
-      getAvailableWorkers: async () => {
-        // Mock implementation returning worker IDs
-        return workersForManager.map(w => w.id);
-      },
+      capabilities: new Set<AnalysisGoalType>(),
+      getAvailableWorkers: async () => [],
       initialize: async () => Promise.resolve(),
       on: () => {},
-      sendMessage: async () => Promise.resolve()
-    } as unknown as AnalysisManagerAgent;
+      sendMessage: async () => Promise.resolve(),
+      // Add required properties for AnalysisManagerAgent compatibility
+      managedAgents: [],
+      supervisorId,
+      activeWorkers: new Map(),
+      assignedTasks: new Map(),
+      processTask: async () => ({ content: {}, confidence: 0, timestamp: Date.now() })
+    };
+    
+    // Cast to AnalysisManagerAgent
+    const manager = mockManager as unknown as AnalysisManagerAgent;
     
     managers.push(manager);
     
@@ -500,17 +621,31 @@ function createMockAgentTeam(options: HierarchicalTeamOptions): HierarchicalTeam
     const workersForManager: SpecialistWorkerAgent[] = [];
     for (let i = 0; i < 2; i++) {
       const workerId = `worker-${expertise}-${i}-${uuidv4().slice(0, 8)}`;
-      const worker = {
+      
+      // Create mock worker with extended properties
+      const mockWorker = {
         id: workerId,
         name: `${expertise} Worker ${i+1}`,
         role: AgentRole.WORKER,
         expertise: [expertise],
         managerId,
-        capabilities: [],
+        capabilities: new Set<AnalysisGoalType>(),
         initialize: async () => Promise.resolve(),
         on: () => {},
-        sendMessage: async () => Promise.resolve()
-      } as unknown as SpecialistWorkerAgent;
+        sendMessage: async () => Promise.resolve(),
+        // Add required properties for SpecialistWorkerAgent compatibility
+        primaryExpertise: expertise,
+        activeTask: null,
+        analysisResults: new Map(),
+        handleRequest: async () => Promise.resolve(),
+        processTask: async () => ({ content: {}, confidence: 0, timestamp: Date.now() }),
+        analyzeTranscriptSegment: async () => ({ content: {}, confidence: 0, timestamp: Date.now() }),
+        mergeAnalyses: async () => ({ content: {}, confidence: 0, timestamp: Date.now() }),
+        prioritizeInformation: async (info: any) => info
+      };
+      
+      // Cast to SpecialistWorkerAgent
+      const worker = mockWorker as unknown as SpecialistWorkerAgent;
       
       workersForManager.push(worker);
       workers.push(worker);
