@@ -23,8 +23,18 @@ import {
   HumanMessage,
   AIMessage,
 } from '@langchain/core/messages';
+import { OpenAIConnector, OpenAIModelConfig } from '../../../connectors/openai-connector';
+import { MessageConfig } from '../../../connectors/language-model-provider.interface';
 
-
+/**
+ * Token usage tracking interface
+ */
+export interface TokenUsage {
+  prompt: number;
+  completion: number;
+  total: number;
+  lastUpdated: number;
+}
 
 /**
  * Configuration options for BaseMeetingAnalysisAgent
@@ -37,6 +47,9 @@ export interface BaseMeetingAnalysisAgentConfig {
   logger?: Logger;
   llm?: ChatOpenAI;
   systemPrompt?: string;
+  openAiConnector?: OpenAIConnector;
+  maxRetries?: number;
+  useMockMode?: boolean;
 }
 
 /**
@@ -56,11 +69,15 @@ export class BaseMeetingAnalysisAgent
   // Services and utilities
   protected logger: Logger;
   protected llm: ChatOpenAI;
+  protected openAiConnector: OpenAIConnector;
   protected systemPrompt: string;
   protected messageHistory: AgentMessage[] = [];
   protected memoryCache: Map<string, any> = new Map();
   protected memorySubscriptions: Map<string, ((value: any) => void)[]> =
     new Map();
+  protected tokenUsage: TokenUsage;
+  protected maxRetries: number;
+  protected useMockMode: boolean;
 
   /**
    * Create a new meeting analysis agent
@@ -74,14 +91,41 @@ export class BaseMeetingAnalysisAgent
     this.capabilities = new Set(config.capabilities);
 
     this.logger = config.logger || new ConsoleLogger();
+    this.maxRetries = config.maxRetries || 3;
+    
+    // Determine if we should use mock mode
+    this.useMockMode = config.useMockMode ?? 
+      ((process.env.USE_MOCK_IMPLEMENTATIONS === 'true') ||
+      (process.env.NODE_ENV === 'test'));
 
-    // Initialize LLM if provided or use default
-    this.llm =
-      config.llm ||
-      new ChatOpenAI({
-        modelName: process.env.OPENAI_MODEL_NAME || 'gpt-4o',
+    // Initialize token usage tracking
+    this.tokenUsage = {
+      prompt: 0,
+      completion: 0,
+      total: 0,
+      lastUpdated: Date.now()
+    };
+
+    // Initialize OpenAI connector or use provided one
+    if (this.useMockMode) {
+      this.logger.info(`Agent ${this.name} is running in mock mode - LLM calls will be simulated`);
+      // We'll still initialize the OpenAI connector but won't use it in mock mode
+    }
+    
+    this.openAiConnector = config.openAiConnector || new OpenAIConnector({
+      logger: this.logger,
+      modelConfig: {
+        model: process.env.OPENAI_MODEL_NAME || 'gpt-4o',
         temperature: 0.2,
-      });
+        maxTokens: 4000
+      }
+    });
+
+    // For backward compatibility, still initialize the LLM property
+    this.llm = config.llm || new ChatOpenAI({
+      modelName: process.env.OPENAI_MODEL_NAME || 'gpt-4o',
+      temperature: 0.2,
+    });
 
     this.systemPrompt = config.systemPrompt || this.getDefaultSystemPrompt();
 
@@ -421,26 +465,182 @@ export class BaseMeetingAnalysisAgent
   }
 
   /**
-   * Helper to call the LLM
+   * Call the LLM with retry logic and proper error handling
    */
   protected async callLLM(
     instruction: string,
     content: string,
   ): Promise<string> {
-    try {
-      const messages: BaseMessage[] = [
-        new SystemMessage(this.systemPrompt),
-        new HumanMessage(`${instruction}\n\n${content}`),
-      ];
-
-      const response = await this.llm.invoke(messages);
-      return response.content as string;
-    } catch (error) {
-      this.logger.error(
-        `Error calling LLM: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      throw error;
+    if (this.useMockMode) {
+      return this.mockLLMResponse(instruction, content);
     }
+    
+    const messages: MessageConfig[] = [
+      { role: 'system', content: `${this.systemPrompt}\n\n${instruction}` },
+      { role: 'user', content }
+    ];
+    
+    let attempts = 0;
+    let lastError: Error | null = null;
+    
+    while (attempts < this.maxRetries) {
+      try {
+        this.logger.debug(`LLM call attempt ${attempts + 1}/${this.maxRetries} for agent ${this.name}`);
+        
+        const startTime = Date.now();
+        
+        // Use the OpenAIConnector for real API calls
+        const response = await this.openAiConnector.generateChatCompletion(
+          messages,
+          {
+            // Ensure we use JSON output when appropriate
+            responseFormat: this.shouldUseJsonResponse(instruction) 
+              ? { type: 'json_object' } 
+              : undefined
+          }
+        );
+        
+        const endTime = Date.now();
+        
+        // Log completion statistics
+        this.logger.info(`LLM call completed for ${this.name} in ${endTime - startTime}ms`, {
+          agent: this.id,
+          expertiseArea: this.expertise[0],
+          responseLength: response.length,
+          instructionLength: instruction.length,
+          contentLength: content.length,
+          elapsed: endTime - startTime
+        });
+        
+        return response;
+      } catch (error) {
+        attempts++;
+        lastError = error instanceof Error ? error : new Error(String(error));
+        
+        // Check if this is a rate limit error
+        const isRateLimitError = this.isRateLimitError(lastError);
+        
+        this.logger.warn(`LLM call failed (attempt ${attempts}/${this.maxRetries})`, { 
+          error: lastError.message,
+          agent: this.name,
+          isRateLimitError
+        });
+        
+        if (attempts < this.maxRetries) {
+          // Exponential backoff with jitter
+          const baseBackoff = 1000 * Math.pow(2, attempts - 1);
+          const jitter = Math.random() * 1000;
+          const backoffMs = isRateLimitError 
+            ? Math.max(baseBackoff * 2, 5000) + jitter // Longer backoff for rate limits
+            : baseBackoff + jitter;
+            
+          this.logger.info(`Retrying in ${Math.round(backoffMs)}ms...`);
+          await new Promise(resolve => setTimeout(resolve, backoffMs));
+        }
+      }
+    }
+    
+    // If we've exhausted all retries, log a detailed error and throw
+    this.logger.error(`LLM call permanently failed after ${this.maxRetries} attempts`, {
+      agent: this.id,
+      name: this.name,
+      expertise: this.expertise,
+      error: lastError?.message || 'Unknown error',
+      instruction: instruction.substring(0, 100) + '...'
+    });
+    
+    throw lastError || new Error('Failed to call LLM after multiple attempts');
+  }
+  
+  /**
+   * Determine if we should use JSON response format
+   */
+  private shouldUseJsonResponse(instruction: string): boolean {
+    const jsonIndicators = [
+      'JSON',
+      'json format',
+      'structured format',
+      'return JSON',
+      'respond with JSON',
+      'in JSON'
+    ];
+    
+    return jsonIndicators.some(indicator => 
+      instruction.toLowerCase().includes(indicator.toLowerCase())
+    );
+  }
+  
+  /**
+   * Check if an error is a rate limit error
+   */
+  private isRateLimitError(error: Error): boolean {
+    if (!error) return false;
+    
+    const errorMsg = error.message.toLowerCase();
+    return errorMsg.includes('rate limit') || 
+           errorMsg.includes('ratelimit') || 
+           errorMsg.includes('too many requests') ||
+           errorMsg.includes('quota') ||
+           errorMsg.includes('capacity') ||
+           errorMsg.includes('429');
+  }
+  
+  /**
+   * Generate a mock LLM response for testing purposes
+   */
+  protected mockLLMResponse(instruction: string, content: string): string {
+    this.logger.info(`[MOCK] Generating mock response for ${this.name}`);
+    
+    // Use a switch to generate different mock responses based on agent expertise
+    const primaryExpertise = this.expertise[0];
+    
+    switch(primaryExpertise) {
+      case AgentExpertise.TOPIC_ANALYSIS:
+        return JSON.stringify({
+          topics: [
+            { name: "Product Roadmap", relevance: 0.9, keywords: ["mobile", "API", "Q3"] },
+            { name: "Resource Allocation", relevance: 0.8, keywords: ["timeline", "priorities"] },
+            { name: "Customer Communication", relevance: 0.7, keywords: ["announcement", "focus"] }
+          ]
+        });
+        
+      case AgentExpertise.ACTION_ITEM_EXTRACTION:
+        return JSON.stringify({
+          actionItems: [
+            { description: "Prepare mobile implementation plan", assignees: ["Jane"], dueDate: "next week" },
+            { description: "Coordinate with UX team", assignees: ["Tom"], dueDate: "this week" },
+            { description: "Draft customer announcement", assignees: ["Tom"], dueDate: "next week" },
+            { description: "Schedule pricing discussion", assignees: ["Sarah"], dueDate: "end of month" }
+          ]
+        });
+        
+      case AgentExpertise.SUMMARY_GENERATION:
+        return `The meeting focused on Q3 product roadmap planning. The team decided to prioritize mobile improvements over API upgrades based on user feedback and competitive analysis. Jane will prepare an implementation plan with UX team support coordinated by Tom. Sarah will schedule a separate meeting to discuss pricing model changes.`;
+        
+      // Add more cases for other agent types
+        
+      default:
+        return `Mock response for ${this.name} with expertise in ${primaryExpertise}. This is a simulated response for testing purposes.`;
+    }
+  }
+  
+  /**
+   * Get agent token usage statistics
+   */
+  getTokenUsage(): TokenUsage {
+    return { ...this.tokenUsage };
+  }
+  
+  /**
+   * Reset token usage statistics
+   */
+  resetTokenUsage(): void {
+    this.tokenUsage = {
+      prompt: 0,
+      completion: 0,
+      total: 0,
+      lastUpdated: Date.now()
+    };
   }
 
   /**

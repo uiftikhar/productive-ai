@@ -1,8 +1,7 @@
 import express, { Express, Router } from 'express';
 import session from 'express-session';
-
 import cors from 'cors';
-import { json } from 'body-parser';
+import { json, urlencoded } from 'body-parser';
 import { chatRouter } from './api/chat/chat.routes';
 import { healthRouter } from './api/health/health.routes';
 import { debugRouter } from './api/debug/debug.routes';
@@ -12,6 +11,8 @@ import { ServiceRegistry } from './langgraph/agentic-meeting-analysis/services/s
 import { Logger } from './shared/logger/logger.interface';
 import { authRoutes } from './auth/auth.routes';
 import { passportClient } from './database';
+import http from 'http';
+import morgan from 'morgan';
 
 /**
  * Server configuration options
@@ -25,19 +26,19 @@ export interface ServerConfig {
 }
 
 /**
- * Create an Express server with the specified configuration
+ * Create and configure Express server
  */
-export async function createServer(config: ServerConfig = {}): Promise<Express> {
+export async function createServer(config: ServerConfig = {}): Promise<{ app: Express; server: http.Server }> {
   // Initialize logger
   const logger = config.logger || new ConsoleLogger();
-  
+
   // Initialize services if not provided
   const serviceRegistry = config.serviceRegistry || ServiceRegistry.getInstance({
     storageType: 'file',
     storagePath: process.env.STORAGE_PATH || './data',
     logger
   });
-  
+
   // Initialize services if needed
   if (!config.serviceRegistry) {
     try {
@@ -51,17 +52,28 @@ export async function createServer(config: ServerConfig = {}): Promise<Express> 
 
   // Create Express app
   const app = express();
-  
-  // Apply middleware
-  if (config.enableCors !== false) {
+
+  // Create HTTP server
+  const server = http.createServer(app);
+
+  // Configure middleware
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ extended: true, limit: '50mb' }));
+
+  // Enable CORS if specified
+  if (config.enableCors) {
     app.use(cors({
-      origin: process.env.CORS_ALLOWED_ORIGINS || ['http://localhost:3000', 'http://localhost:8080'],
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'x-bypass-auth'],
+      origin: process.env.CORS_ORIGIN || '*',
       credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'x-bypass-auth']
     }));
   }
-  app.use(express.urlencoded({ extended: true }));
+
+  // Enable request logging if specified
+  if (config.enableLogging) {
+    app.use(morgan('dev'));
+  }
 
   app.use(
     session({
@@ -73,27 +85,26 @@ export async function createServer(config: ServerConfig = {}): Promise<Express> 
 
   app.use(passportClient.initialize());
   app.use(passportClient.session());
-  app.use(json({ limit: '10mb' })); // Increased limit for transcript uploads
-  
+
   // Health routes (not versioned for easier monitoring)
   app.use('/', healthRouter);
-  
-// Register auth and existing routes
+
+  // Register auth and existing routes
   app.use('/auth', authRoutes);
   // Create versioned API routes
   const apiV1Router = express.Router();
-  
+
   // Mount API v1 routes
   apiV1Router.use('/chat', chatRouter);
-  
+
   // Mount debug routes
   apiV1Router.use('/debug', debugRouter);
-  
+
   // Use versioned routes
   app.use('/api/v1', apiV1Router);
   // Keep an unversioned path for backward compatibility
   app.use('/api', apiV1Router);
-  
+
   // Create meeting analysis controller
   const meetingAnalysisController = new MeetingAnalysisController({
     logger,
@@ -119,8 +130,8 @@ export async function createServer(config: ServerConfig = {}): Promise<Express> 
 
   // Add a debug route to see all registered routes
   app.get('/debug/routes', (req, res) => {
-    const routes: Array<{method: string, path: string}> = [];
-    
+    const routes: Array<{ method: string, path: string }> = [];
+
     function print(path: string, layer: any) {
       if (layer.route) {
         layer.route.stack.forEach((item: any) => {
@@ -139,11 +150,11 @@ export async function createServer(config: ServerConfig = {}): Promise<Express> 
         });
       }
     }
-    
+
     app._router.stack.forEach((layer: any) => {
       print('', layer);
     });
-    
+
     res.json({ routes });
   });
 
@@ -169,22 +180,22 @@ export async function createServer(config: ServerConfig = {}): Promise<Express> 
       }
     });
   });
-  
-  return app;
+
+  return { app, server };
 }
 
 // Only start the server if this file is run directly
 if (require.main === module) {
   const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
   const logger = new ConsoleLogger();
-  
+
   // Create and start the server
   (async () => {
     try {
-      const app = await createServer({ port, logger });
-      
+      const { app, server } = await createServer({ port, logger });
+
       // Start listening
-      app.listen(port, () => {
+      server.listen(port, () => {
         logger.info(`Server running on port ${port}`);
         logger.info('Meeting analysis endpoints registered at:');
         logger.info('- /api/analysis/sessions');

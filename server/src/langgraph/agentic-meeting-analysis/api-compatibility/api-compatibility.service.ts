@@ -14,6 +14,8 @@ import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
 import { createHierarchicalAgentTeam } from '../factories/hierarchical-team-factory';
 import { createHierarchicalMeetingAnalysisGraph } from '../graph/hierarchical-meeting-analysis-graph';
+import { AgentGraphVisualizationService } from '../visualization/agent-graph-visualization.service';
+import { ServiceRegistry } from '../services/service-registry';
 
 /**
  * Configuration options for ApiCompatibilityService
@@ -40,6 +42,7 @@ export class ApiCompatibilityService implements IApiCompatibilityLayer {
   private communication?: any;
   private teamFormation?: any;
   private initialized: boolean = false;
+  private visualizationService: AgentGraphVisualizationService;
 
   /**
    * Create a new API compatibility service
@@ -58,6 +61,15 @@ export class ApiCompatibilityService implements IApiCompatibilityLayer {
     );
 
     this.logger.info('Initialized ApiCompatibilityService');
+
+    this.visualizationService = new AgentGraphVisualizationService({
+      logger: this.logger,
+      enableRealTimeUpdates: true
+    });
+    
+    // Register with service registry
+    const registry = ServiceRegistry.getInstance();
+    registry.registerAgentVisualizationService(this.visualizationService);
   }
 
   /**

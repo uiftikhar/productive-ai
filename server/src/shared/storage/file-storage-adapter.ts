@@ -326,13 +326,89 @@ export class FileStorageAdapter {
       
       const content = await fs.promises.readFile(filePath, 'utf8');
       
-      const data = JSON.parse(content);
-      
-      this.logger.debug(`Loaded JSON data from ${category}/${fileId}`);
-      
-      return data;
+      try {
+        // Attempt standard JSON parse
+        const data = JSON.parse(content);
+        this.logger.debug(`Loaded JSON data from ${category}/${fileId}`);
+        return data;
+      } catch (parseError) {
+        // If parsing fails, attempt to repair the JSON
+        this.logger.warn(`JSON parse error in ${category}/${fileId}: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+        
+        // Try to repair and reparse
+        const repairedData = await this.repairJsonFile(filePath, content);
+        if (repairedData) {
+          this.logger.info(`Successfully repaired and loaded JSON data from ${category}/${fileId}`);
+          return repairedData;
+        }
+        
+        throw parseError; // Re-throw if repair failed
+      }
     } catch (error) {
       this.logger.error(`Failed to load JSON data from ${category}/${fileId}`, {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return null;
+    }
+  }
+  
+  /**
+   * Attempt to repair a corrupted JSON file
+   * @param filePath Path to the JSON file
+   * @param content The file content that failed to parse
+   * @returns Parsed data if repair successful, null otherwise
+   */
+  private async repairJsonFile(filePath: string, content: string): Promise<any | null> {
+    try {
+      // Common corruption pattern: additional content after valid JSON
+      // Try to find the last valid closing bracket
+      const lastBracketPos = content.lastIndexOf('}');
+      
+      if (lastBracketPos !== -1 && lastBracketPos < content.length - 1) {
+        // Extract what seems to be the valid JSON part
+        const validPart = content.substring(0, lastBracketPos + 1);
+        
+        // Try to parse this extracted portion
+        try {
+          const repaired = JSON.parse(validPart);
+          
+          // If successful, save the repaired version
+          const backupPath = `${filePath}.corrupt.${Date.now()}`;
+          await fs.promises.writeFile(backupPath, content);
+          await fs.promises.writeFile(filePath, JSON.stringify(repaired, null, 2));
+          
+          this.logger.info(`Repaired corrupted JSON file ${filePath}, backup at ${backupPath}`);
+          
+          return repaired;
+        } catch (innerError) {
+          // This attempt failed too
+          this.logger.debug(`Initial repair attempt failed for ${filePath}`);
+        }
+      }
+      
+      // More sophisticated repair: try to find valid JSON object
+      const objectMatch = content.match(/\{[^]*\}/);
+      if (objectMatch && objectMatch[0]) {
+        try {
+          const extractedJson = objectMatch[0];
+          const repaired = JSON.parse(extractedJson);
+          
+          // Save the repaired version
+          const backupPath = `${filePath}.corrupt.${Date.now()}`;
+          await fs.promises.writeFile(backupPath, content);
+          await fs.promises.writeFile(filePath, JSON.stringify(repaired, null, 2));
+          
+          this.logger.info(`Repaired corrupted JSON file ${filePath} using regex, backup at ${backupPath}`);
+          
+          return repaired;
+        } catch (regexError) {
+          this.logger.debug(`Regex-based repair attempt failed for ${filePath}`);
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      this.logger.error(`Failed to repair JSON file ${filePath}`, {
         error: error instanceof Error ? error.message : String(error)
       });
       return null;

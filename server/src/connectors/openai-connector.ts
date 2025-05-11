@@ -38,6 +38,28 @@ export interface EmbeddingConfig {
 }
 
 /**
+ * Token usage statistics
+ */
+export interface TokenUsageStats {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  lastUpdated: number;
+  totalCalls: number;
+  successfulCalls: number;
+  failedCalls: number;
+}
+
+/**
+ * Circuit breaker states
+ */
+enum CircuitBreakerState {
+  CLOSED,   // Normal operation
+  OPEN,     // Failing, don't allow requests
+  HALF_OPEN // Testing if system is back to normal
+}
+
+/**
  * OpenAI connector for the agent framework
  * Provides a simplified interface for OpenAI API interactions
  */
@@ -46,6 +68,25 @@ export class OpenAIConnector implements LanguageModelProvider {
   private embeddings: OpenAIEmbeddings;
   private logger: Logger;
   private resourceManager?: ResourceManager;
+  
+  // Token usage tracking
+  private tokenUsage: TokenUsageStats = {
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    lastUpdated: Date.now(),
+    totalCalls: 0,
+    successfulCalls: 0,
+    failedCalls: 0
+  };
+  
+  // Circuit breaker pattern
+  private circuitBreakerState: CircuitBreakerState = CircuitBreakerState.CLOSED;
+  private failureCount: number = 0;
+  private circuitBreakerThreshold: number = 5; // Number of failures before opening circuit
+  private circuitRecoveryTimeout: number = 30000; // Time before trying to close circuit (ms)
+  private lastFailureTime: number = 0;
+  private maxConsecutiveFailures: number = 3;
 
   constructor(
     options: {
@@ -87,6 +128,9 @@ export class OpenAIConnector implements LanguageModelProvider {
     this.embeddings = new OpenAIEmbeddings({
       model: embeddingConfig.model,
     });
+    
+    // Log successful initialization
+    this.logger.info(`OpenAIConnector initialized with model: ${modelConfig.model}, embedding model: ${embeddingConfig.model}`);
   }
 
   /**
@@ -116,6 +160,63 @@ export class OpenAIConnector implements LanguageModelProvider {
   }
 
   /**
+   * Check if the circuit breaker allows requests
+   * @returns True if requests are allowed, false otherwise
+   */
+  private canMakeRequest(): boolean {
+    const now = Date.now();
+    
+    // If circuit is OPEN, check if we should go to HALF_OPEN
+    if (this.circuitBreakerState === CircuitBreakerState.OPEN) {
+      if (now - this.lastFailureTime > this.circuitRecoveryTimeout) {
+        this.logger.info('Circuit breaker transitioning from OPEN to HALF_OPEN');
+        this.circuitBreakerState = CircuitBreakerState.HALF_OPEN;
+      } else {
+        return false; // Circuit is OPEN, don't allow requests
+      }
+    }
+    
+    return true;
+  }
+  
+  /**
+   * Handle successful request in circuit breaker
+   */
+  private handleSuccess(): void {
+    if (this.circuitBreakerState === CircuitBreakerState.HALF_OPEN) {
+      this.logger.info('Circuit breaker transitioning from HALF_OPEN to CLOSED');
+      this.circuitBreakerState = CircuitBreakerState.CLOSED;
+    }
+    
+    this.failureCount = 0;
+    this.tokenUsage.successfulCalls++;
+  }
+  
+  /**
+   * Handle failed request in circuit breaker
+   */
+  private handleFailure(error: any): void {
+    this.failureCount++;
+    this.lastFailureTime = Date.now();
+    this.tokenUsage.failedCalls++;
+    
+    // If we've reached the threshold in CLOSED state, open the circuit
+    if (this.circuitBreakerState === CircuitBreakerState.CLOSED && 
+        this.failureCount >= this.circuitBreakerThreshold) {
+      this.logger.warn(`Circuit breaker opening after ${this.failureCount} failures`, {
+        lastError: error instanceof Error ? error.message : String(error)
+      });
+      this.circuitBreakerState = CircuitBreakerState.OPEN;
+    }
+    
+    // If we failed in HALF_OPEN state, go back to OPEN
+    if (this.circuitBreakerState === CircuitBreakerState.HALF_OPEN) {
+      this.logger.warn('Circuit breaker transitioning from HALF_OPEN back to OPEN');
+      this.circuitBreakerState = CircuitBreakerState.OPEN;
+    }
+  }
+
+  /**
    * Generate a response using the language model
    * @param messages Array of messages for the conversation
    * @param options Additional model options
@@ -124,6 +225,13 @@ export class OpenAIConnector implements LanguageModelProvider {
     messages: BaseMessage[] | MessageConfig[],
     options?: Partial<OpenAIModelConfig>,
   ): Promise<ModelResponse> {
+    // Check if circuit breaker allows requests
+    if (!this.canMakeRequest()) {
+      throw new Error('OpenAI service temporarily unavailable (circuit breaker open)');
+    }
+    
+    this.tokenUsage.totalCalls++;
+    
     try {
       const modelMessages =
         Array.isArray(messages) && messages.length > 0 && 'role' in messages[0]
@@ -141,9 +249,9 @@ export class OpenAIConnector implements LanguageModelProvider {
         responseFormat = (messages[0] as MessageConfig).responseFormat;
       }
 
-      this.logger.info('********* Model Messages *********', {
-        messages: modelMessages,
-        responseFormat,
+      this.logger.debug('Preparing OpenAI request', {
+        messageCount: modelMessages.length,
+        responseFormat: responseFormat?.type || 'text'
       });
 
       let model = this.chatModel;
@@ -163,6 +271,27 @@ export class OpenAIConnector implements LanguageModelProvider {
       }
 
       const response = await model.invoke(modelMessages);
+      
+      // Update token usage if available
+      // Use type assertion since LangChain's types don't include usage but the runtime objects do
+      const responseWithUsage = response as any;
+      if (responseWithUsage.usage) {
+        this.tokenUsage.promptTokens += responseWithUsage.usage.promptTokens || 0;
+        this.tokenUsage.completionTokens += responseWithUsage.usage.completionTokens || 0;
+        this.tokenUsage.totalTokens += responseWithUsage.usage.totalTokens || 0;
+        this.tokenUsage.lastUpdated = Date.now();
+      } else {
+        // Estimate tokens if not provided
+        const tokenEstimate = this.estimateTokenUsage(modelMessages, response.content.toString());
+        this.tokenUsage.promptTokens += tokenEstimate.promptTokens;
+        this.tokenUsage.completionTokens += tokenEstimate.completionTokens;
+        this.tokenUsage.totalTokens += tokenEstimate.totalTokens;
+        this.tokenUsage.lastUpdated = Date.now();
+      }
+      
+      // Handle success in circuit breaker
+      this.handleSuccess();
+      
       return {
         content: response.content.toString(),
         metadata: {
@@ -172,11 +301,40 @@ export class OpenAIConnector implements LanguageModelProvider {
         },
       };
     } catch (error) {
+      // Handle failure in circuit breaker
+      this.handleFailure(error);
+      
       this.logger.error('Error generating response', {
         error: error instanceof Error ? error.message : String(error),
+        circuitBreakerState: CircuitBreakerState[this.circuitBreakerState],
+        failureCount: this.failureCount
       });
       throw error;
     }
+  }
+  
+  /**
+   * Estimate token usage for a conversation
+   */
+  private estimateTokenUsage(messages: BaseMessage[], response: string): { 
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number; 
+  } {
+    // Rough heuristic estimation: ~4 chars per token
+    const estimateTokens = (text: string) => Math.ceil(text.length / 4);
+    
+    const promptTokens = messages.reduce((total, msg) => {
+      return total + estimateTokens(msg.content.toString());
+    }, 0);
+    
+    const completionTokens = estimateTokens(response);
+    
+    return {
+      promptTokens,
+      completionTokens,
+      totalTokens: promptTokens + completionTokens
+    };
   }
 
   /**
@@ -190,6 +348,13 @@ export class OpenAIConnector implements LanguageModelProvider {
     streamHandler: StreamHandler,
     options?: Partial<OpenAIModelConfig>,
   ): Promise<void> {
+    // Check if circuit breaker allows requests
+    if (!this.canMakeRequest()) {
+      throw new Error('OpenAI service temporarily unavailable (circuit breaker open)');
+    }
+    
+    this.tokenUsage.totalCalls++;
+    
     try {
       const modelMessages =
         Array.isArray(messages) && messages.length > 0 && 'role' in messages[0]
@@ -201,45 +366,57 @@ export class OpenAIConnector implements LanguageModelProvider {
         modelName: options?.model || this.chatModel.modelName,
         temperature: options?.temperature ?? this.chatModel.temperature,
         maxTokens: options?.maxTokens || this.chatModel.maxTokens,
-        streaming: true,
+        streaming: true, // Force streaming to be enabled
+        callbacks: [
+          {
+            handleLLMNewToken(token: string) {
+              streamHandler.onToken(token);
+            },
+          },
+        ],
       });
 
-      // Track the full response
-      let fullResponse = '';
-
-      const wrappedCallbacks = {
-        handleLLMNewToken(token: string) {
-          fullResponse += token;
-          streamHandler.onToken(token);
-        },
-      };
-
-      try {
-        // Stream the response
-        await streamingModel.invoke(modelMessages, {
-          callbacks: [wrappedCallbacks],
-        } as ChatOpenAICallOptions);
-
-        // Call the completion handler with the full response
-        streamHandler.onComplete(fullResponse);
-      } catch (error) {
-        streamHandler.onError(
-          error instanceof Error ? error : new Error(String(error)),
-        );
-        throw error;
+      let responseFormat = options?.responseFormat;
+      if (responseFormat) {
+        // @ts-expect-error - responseFormat is not in types
+        streamingModel.responseFormat = responseFormat;
       }
+
+      // Start tracking estimated token usage
+      const startTime = Date.now();
+      const promptText = modelMessages.map(m => m.content.toString()).join(' ');
+      const estimatedPromptTokens = Math.ceil(promptText.length / 4);
+      
+      // Call the streaming model
+      const response = await streamingModel.invoke(modelMessages);
+      streamHandler.onComplete(response.content.toString());
+      
+      // Estimate token usage for streaming case
+      const responseText = response.content.toString();
+      const estimatedCompletionTokens = Math.ceil(responseText.length / 4);
+      
+      // Update token usage estimates
+      this.tokenUsage.promptTokens += estimatedPromptTokens;
+      this.tokenUsage.completionTokens += estimatedCompletionTokens;
+      this.tokenUsage.totalTokens += (estimatedPromptTokens + estimatedCompletionTokens);
+      this.tokenUsage.lastUpdated = Date.now();
+      
+      // Handle success in circuit breaker
+      this.handleSuccess();
     } catch (error) {
-      this.logger.error('Error generating streaming response', {
+      // Handle failure in circuit breaker
+      this.handleFailure(error);
+      
+      this.logger.error('Error in streaming response', {
         error: error instanceof Error ? error.message : String(error),
       });
-      throw error;
+      streamHandler.onError(error instanceof Error ? error : new Error(String(error)));
     }
   }
 
   /**
-   * Generate a chat completion
-   * @param messages Array of messages for the conversation
-   * @param options Additional model options
+   * Generate a chat completion response
+   * Simplified interface for chat completions
    */
   async generateChatCompletion(
     messages: MessageConfig[],
@@ -250,36 +427,32 @@ export class OpenAIConnector implements LanguageModelProvider {
   }
 
   /**
-   * Generate a chat completion with streaming
-   * @param messages Array of messages for the conversation
-   * @param streamHandler Handler for streaming responses
-   * @param options Additional model options
+   * Generate a streaming chat completion
+   * Simplified interface for streaming
    */
   async generateChatCompletionStream(
     messages: MessageConfig[],
     streamHandler: StreamHandler,
     options?: Partial<OpenAIModelConfig>,
   ): Promise<void> {
-    return this.generateStreamingResponse(messages, streamHandler, options);
+    await this.generateStreamingResponse(messages, streamHandler, options);
   }
 
   /**
-   * Generate embeddings for text
-   * @param text Text to generate embeddings for
+   * Generate an embedding for a text
    */
   async generateEmbedding(text: string): Promise<number[]> {
-    return this.generateEmbeddings(text);
-  }
-
-  /**
-   * Generate embeddings for text
-   * @param text Text to generate embeddings for
-   */
-  async generateEmbeddings(text: string): Promise<number[]> {
+    if (!this.canMakeRequest()) {
+      throw new Error('OpenAI service temporarily unavailable (circuit breaker open)');
+    }
+    
     try {
-      return this.embeddings.embedQuery(text);
+      const embeddings = await this.embeddings.embedQuery(text);
+      this.handleSuccess();
+      return embeddings;
     } catch (error) {
-      this.logger.error('Error generating embeddings', {
+      this.handleFailure(error);
+      this.logger.error('Error generating embedding', {
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
@@ -287,15 +460,30 @@ export class OpenAIConnector implements LanguageModelProvider {
   }
 
   /**
+   * Generate embeddings for a text
+   * Legacy method for backward compatibility
+   */
+  async generateEmbeddings(text: string): Promise<number[]> {
+    return this.generateEmbedding(text);
+  }
+
+  /**
    * Generate embeddings for multiple texts
-   * @param texts Array of texts to generate embeddings for
    */
   async generateBatchEmbeddings(texts: string[]): Promise<number[][]> {
+    if (!this.canMakeRequest()) {
+      throw new Error('OpenAI service temporarily unavailable (circuit breaker open)');
+    }
+    
     try {
-      return this.embeddings.embedDocuments(texts);
+      const results = await this.embeddings.embedDocuments(texts);
+      this.handleSuccess();
+      return results;
     } catch (error) {
+      this.handleFailure(error);
       this.logger.error('Error generating batch embeddings', {
         error: error instanceof Error ? error.message : String(error),
+        textCount: texts.length
       });
       throw error;
     }
@@ -303,9 +491,6 @@ export class OpenAIConnector implements LanguageModelProvider {
 
   /**
    * Create a prompt template
-   * @param systemTemplate System message template
-   * @param humanTemplate Human message template
-   * @param inputVariables Variables to use in the template
    */
   createPromptTemplate(
     systemTemplate: string,
@@ -319,9 +504,7 @@ export class OpenAIConnector implements LanguageModelProvider {
   }
 
   /**
-   * Format a prompt template with variable values
-   * @param template Prompt template
-   * @param variables Variable values
+   * Format a prompt template with variables
    */
   async formatPromptTemplate(
     template: ChatPromptTemplate,
@@ -329,14 +512,59 @@ export class OpenAIConnector implements LanguageModelProvider {
   ): Promise<BaseMessage[]> {
     return template.formatMessages(variables);
   }
+  
+  /**
+   * Get token usage statistics
+   */
+  getTokenUsage(): TokenUsageStats {
+    return { ...this.tokenUsage };
+  }
+  
+  /**
+   * Reset token usage statistics
+   */
+  resetTokenUsage(): void {
+    this.tokenUsage = {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      lastUpdated: Date.now(),
+      totalCalls: 0,
+      successfulCalls: 0,
+      failedCalls: 0
+    };
+  }
+  
+  /**
+   * Get circuit breaker status
+   */
+  getCircuitBreakerStatus(): {
+    state: string;
+    failureCount: number;
+    lastFailureTime: number | null;
+  } {
+    return {
+      state: CircuitBreakerState[this.circuitBreakerState],
+      failureCount: this.failureCount,
+      lastFailureTime: this.lastFailureTime > 0 ? this.lastFailureTime : null
+    };
+  }
+  
+  /**
+   * Reset circuit breaker
+   */
+  resetCircuitBreaker(): void {
+    this.circuitBreakerState = CircuitBreakerState.CLOSED;
+    this.failureCount = 0;
+    this.lastFailureTime = 0;
+    this.logger.info('Circuit breaker manually reset to CLOSED state');
+  }
 
   /**
-   * Cleanup method to release resources when the connector is no longer needed
+   * Clean up any resources
    */
   public cleanup(): void {
-    // Abort any ongoing requests if applicable
-    // No active timers to clear in the current implementation
-
-    this.logger.info('OpenAIConnector resources cleaned up');
+    // Nothing to clean up for OpenAI connector
+    this.logger.debug('OpenAI connector cleanup called');
   }
 }

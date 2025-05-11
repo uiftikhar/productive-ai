@@ -17,9 +17,10 @@ import {
   MessageType,
   AgentMessage,
 } from '../../interfaces/agent.interface';
-import { BaseMeetingAnalysisAgent } from '../base-meeting-analysis-agent';
+import { BaseMeetingAnalysisAgent, BaseMeetingAnalysisAgentConfig } from '../base-meeting-analysis-agent';
 import { Logger } from '../../../../shared/logger/logger.interface';
 import { ChatOpenAI } from '@langchain/openai';
+import { OpenAIConnector } from '../../../../connectors/openai-connector';
 
 /**
  * Configuration options for SpecialistWorkerAgent
@@ -32,6 +33,11 @@ export interface SpecialistWorkerAgentConfig {
   systemPrompt?: string;
   expertise: AgentExpertise[];
   managerId: string;
+  // Add these properties to match what's being used in the hierarchy factory
+  capabilities?: AnalysisGoalType[];
+  openAiConnector?: OpenAIConnector;
+  useMockMode?: boolean;
+  maxRetries?: number; 
 }
 
 /**
@@ -146,7 +152,7 @@ export class SpecialistWorkerAgent
     }
 
     // Map expertise to appropriate goal types
-    const goalTypes = config.expertise.map(exp => {
+    const goalTypes = config.capabilities || config.expertise.map(exp => {
       switch (exp) {
         case AgentExpertise.TOPIC_ANALYSIS:
           return AnalysisGoalType.EXTRACT_TOPICS;
@@ -167,8 +173,8 @@ export class SpecialistWorkerAgent
       }
     });
     
-    // Set up expertise and capabilities for worker
-    super({
+    // Create the base agent configuration
+    const baseConfig: BaseMeetingAnalysisAgentConfig = {
       id: config.id,
       name: config.name || `${config.expertise[0]} Specialist`,
       expertise: config.expertise,
@@ -176,7 +182,13 @@ export class SpecialistWorkerAgent
       logger: config.logger,
       llm: config.llm,
       systemPrompt: config.systemPrompt,
-    });
+      openAiConnector: config.openAiConnector,
+      useMockMode: config.useMockMode,
+      maxRetries: config.maxRetries
+    };
+    
+    // Initialize base agent
+    super(baseConfig);
 
     this.managerId = config.managerId;
     this.primaryExpertise = config.expertise[0];
@@ -556,9 +568,14 @@ export class SpecialistWorkerAgent
       return analyses[0];
     }
     
+    // Get expertise name, handling undefined case
+    const expertiseName = this.primaryExpertise 
+      ? this.primaryExpertise.replace(/_/g, ' ') 
+      : 'meeting analysis';
+    
     // Create a merge prompt
     const mergePrompt = `
-      You are a specialist in ${this.primaryExpertise.replace('_', ' ')}.
+      You are a specialist in ${expertiseName}.
       
       You need to merge multiple analysis results into a single coherent output.
       
@@ -572,7 +589,7 @@ export class SpecialistWorkerAgent
       1. Combining non-overlapping information
       2. Resolving conflicts when present
       3. Organizing information logically
-      4. Maintaining the structured format appropriate for ${this.primaryExpertise.replace('_', ' ')}
+      4. Maintaining the structured format appropriate for ${expertiseName}
       
       Return your merged analysis in a structured JSON format.
     `;
@@ -645,9 +662,14 @@ export class SpecialistWorkerAgent
    * Prioritize information in output (part of IMeetingAnalysisAgent interface)
    */
   async prioritizeInformation(output: any): Promise<any> {
+    // Get expertise name, handling undefined case
+    const expertiseName = this.primaryExpertise 
+      ? this.primaryExpertise.replace(/_/g, ' ') 
+      : 'meeting analysis';
+    
     // Create a prioritization prompt
     const prioritizePrompt = `
-      You are a specialist in ${this.primaryExpertise.replace('_', ' ')}.
+      You are a specialist in ${expertiseName}.
       
       Prioritize and reorganize the following analysis output to highlight the most important information first:
       
@@ -657,7 +679,7 @@ export class SpecialistWorkerAgent
       1. Identifying the most critical or impactful elements
       2. Organizing information from most to least important
       3. Maintaining the original content but restructuring for priority
-      4. Preserving the structured format appropriate for ${this.primaryExpertise.replace('_', ' ')}
+      4. Preserving the structured format appropriate for ${expertiseName}
       
       Return the prioritized output in a structured JSON format.
     `;
@@ -676,8 +698,13 @@ export class SpecialistWorkerAgent
    * Enhanced system prompt for the worker
    */
   protected getDefaultSystemPrompt(): string {
+    // Get expertise name, handling undefined case
+    const expertiseName = this.primaryExpertise 
+      ? this.primaryExpertise.replace(/_/g, ' ') 
+      : 'meeting analysis';
+    
     return `
-      You are a Specialist Worker Agent in ${this.primaryExpertise.replace('_', ' ')}.
+      You are a Specialist Worker Agent in ${expertiseName}.
       
       Your primary responsibilities are:
       1. Analyzing meeting transcripts with focus on your area of expertise
@@ -688,7 +715,7 @@ export class SpecialistWorkerAgent
       You are part of a hierarchical team structure:
       - Supervisor agent at the top level
       - Manager agents coordinating different expertise areas
-      - You, as a worker agent specializing in ${this.primaryExpertise.replace('_', ' ')}
+      - You, as a worker agent specializing in ${expertiseName}
       
       Focus on producing detailed, accurate analysis within your specific domain of expertise.
       Always structure your output appropriately for easy integration with other analyses.

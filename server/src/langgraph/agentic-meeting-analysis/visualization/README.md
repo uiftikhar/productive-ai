@@ -1,153 +1,153 @@
-# Agentic Meeting Analysis Visualization Framework
-
-This document explains the visualization architecture used in the Agentic Meeting Analysis system.
+# Meeting Analysis Visualization Module
 
 ## Overview
 
-The visualization framework consists of specialized components built on top of core visualization services. This layered approach enables domain-specific visualizations while leveraging reusable foundational components.
+This module provides real-time visualization capabilities for the hierarchical agent meeting analysis system. It allows users to observe the interactions between different agents, the tasks they perform, and the results they generate during the analysis of meeting transcripts.
 
-```
-┌───────────────────────────────────────────────────────────────────┐
-│                   Agentic Meeting Analysis                        │
-│                   Visualization Components                        │
-│  ┌──────────────┐ ┌──────────────┐ ┌────────────────┐ ┌────────┐ │
-│  │     Team     │ │   Process    │ │  Collaborative │ │Content │ │
-│  │ Visualization│ │ Visualization│ │   Dynamics     │ │  Viz   │ │
-│  └──────────────┘ └──────────────┘ └────────────────┘ └────────┘ │
-└───────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌───────────────────────────────────────────────────────────────────┐
-│                        Core Visualization                         │
-│                         Services (Adaptive)                       │
-│ ┌─────────────────┐ ┌────────────────────┐ ┌───────────────────┐ │
-│ │ Agent Reasoning │ │    Dynamic Graph   │ │    Interactive    │ │
-│ │  Visualization  │ │    Visualization   │ │   Visualization   │ │
-│ └─────────────────┘ └────────────────────┘ └───────────────────┘ │
-└───────────────────────────────────────────────────────────────────┘
-```
+## Key Components
 
-## Visualization Components
+### AgentGraphVisualizationService
 
-### Team Visualization
-- **TeamRosterVisualization**: Displays agent roster and capabilities
-- **RoleDistributionVisualization**: Shows distribution of roles during analysis
-- **TeamEvolutionVisualization**: Tracks team composition changes over time
-- **AgentActivityVisualization**: Visualizes agent activity timelines
-- **SpecializationOverlapVisualization**: Maps areas of expertise overlap
+The core service that maintains the graph structure of agent interactions and activities. It:
 
-### Process Visualization
-- **AnalysisTimelineVisualization**: Shows progression of analysis phases
-- **InsightDiscoveryVisualization**: Tracks insight discovery process
-- **FocusTransitionVisualization**: Visualizes topic focus transitions
-- **ConfidenceEvolutionVisualization**: Tracks changes in agent confidence
-- **ExplorationPathVisualization**: Visualizes agent exploration paths
+- Creates and manages nodes representing agents, tasks, topics, and other entities
+- Establishes connections between nodes to represent relationships and communications
+- Broadcasts state changes to clients via WebSocket
+- Generates static HTML visualizations for persistence
 
-### Collaborative Dynamics
-- **CommunicationNetworkVisualization**: Maps agent communication patterns
-- **KnowledgeFlowVisualization**: Tracks information exchange between agents
-- **CollaborationPatternVisualization**: Identifies collaboration patterns
-- **ConflictResolutionVisualization**: Tracks conflict resolution processes
-- **ConsensusBuildingVisualization**: Maps consensus building activities
+### TopicVisualizationService
 
-### Content Visualization
-- **TopicRelationshipVisualization**: Maps relationships between topics
-- **SpeakerParticipationVisualization**: Tracks speaker engagement metrics
-- **SentimentLandscapeVisualization**: Maps sentiment across conversations
-- **DecisionPointVisualization**: Highlights decision points in conversation
-- **ActionNetworkVisualization**: Maps relationships between action items
+A specialized service for visualizing topic relationships and hierarchies extracted from meeting transcripts.
 
-## Core Visualization Services
+## Architecture
 
-The meeting analysis components are built on top of core visualization services from the adaptive framework:
+The visualization system follows a reactive architecture:
 
-### Agent Reasoning Visualization
-- **ConfidenceVisualization**: Tracks agent confidence levels
-- **DecisionCapture**: Records and visualizes agent decisions
-- **ReasoningPath**: Tracks agent reasoning processes
+1. Events from the agent system (messages, task assignments, results) trigger updates to the graph
+2. Graph updates are broadcasted to connected clients in real-time
+3. Clients render the graph using React Flow
+4. Static snapshots can be generated at key points for later reference
 
-### Dynamic Graph Visualization
-- **GraphHistory**: Records graph state over time
-- **PathHighlighting**: Highlights important paths in a graph
-- **RealTimeGraphRenderer**: Renders dynamic graphs in real-time
+## Data Model
 
-### Interactive Visualization
-- **HumanIntervention**: Enables human-in-the-loop interventions
-- **InteractiveNodeExploration**: Allows exploration of graph nodes
+### Graph Elements
 
-## Visualization Data Model
+- **Nodes**: Represent entities like agents, tasks, topics, action items
+  - Each node has a type, label, state, and custom properties
+  - Node state (active, inactive, highlighted, selected) reflects its current status
 
-All visualization components use a common data model for visualization:
+- **Connections**: Represent relationships between nodes
+  - Types include communication, collaboration, assignment, dependency
+  - Can be animated to show real-time activity
+  - Can be temporary or permanent
 
-```
-┌───────────────────────────────────────────┐
-│            VisualizationGraph             │
-│                                           │
-│  - elements: VisualizationElement[]       │
-│  - connections: VisualizationConnection[] │
-│  - layout: string                         │
-│  - metadata: Record<string, any>          │
-└───────────────────────────────────────────┘
-                 │         │
-     ┌───────────┘         └────────────┐
-     ▼                                  ▼
-┌────────────────────┐      ┌─────────────────────────┐
-│VisualizationElement│      │VisualizationConnection  │
-│                    │      │                         │
-│- id: string        │      │- id: string             │
-│- type: ElementType │      │- type: ConnectionType   │
-│- label: string     │      │- sourceId: string       │
-│- properties: obj   │      │- targetId: string       │
-│- state: State      │      │- label: string          │
-│- position?: Point  │      │- properties: obj        │
-└────────────────────┘      └─────────────────────────┘
+### WebSocket Protocol
+
+The WebSocket server uses a simple JSON-based protocol:
+
+```json
+// Client subscription
+{
+  "type": "subscribe",
+  "runId": "session-123"
+}
+
+// Server state update
+{
+  "type": "stateUpdate",
+  "runId": "session-123",
+  "state": {
+    "nodes": [...],
+    "edges": [...]
+  },
+  "timestamp": "2023-11-10T12:34:56.789Z"
+}
 ```
 
-## Implementation Pattern
+## Integration Points
 
-Each visualization component follows a common implementation pattern:
+### ServiceRegistry
 
-1. **Data Collection**: Record events/entities specific to the component domain
-2. **Indexing**: Maintain efficient indices for quick retrieval
-3. **Transformation**: Convert domain-specific data to visualization elements/connections
-4. **Rendering**: Generate visualization graphs suitable for rendering
-5. **Analysis**: Provide analytical capabilities to extract insights from visualizations
+The visualization services are registered with the ServiceRegistry to make them accessible throughout the application.
 
-## Usage Example
+### MeetingAnalysisController
+
+The controller initializes visualization, tracks agent communications, and updates visualization with analysis results.
+
+### MessageStore
+
+The visualization connects to the message store to monitor agent communications.
+
+## Implementation Details
+
+### Node Types
+
+1. **Agent Nodes**: Represent supervisor, manager, and worker agents with their expertise and roles
+2. **Task Nodes**: Represent specific tasks assigned between agents
+3. **Topic Nodes**: Key discussion topics identified in the meeting
+4. **Action Item Nodes**: Tasks that need to be done after the meeting
+5. **Result Nodes**: Final analysis outputs (summaries, topic collections, etc.)
+
+### Positioning Algorithm
+
+Nodes are positioned automatically using a simplified force-directed layout:
+- Supervisor at the top center
+- Managers in a row below
+- Workers distributed below managers
+- Results and insights arranged around the periphery
+
+### Scaling Considerations
+
+For very large agent teams or complex analyses:
+- Graph can be filtered by node type or agent
+- Graph can be zoomed and panned to focus on areas of interest
+- Performance is maintained by limiting animations and using efficient data structures
+
+## Usage
+
+### Initialization
 
 ```typescript
-// Create a visualization service
-const teamRoster = new TeamRosterVisualizationImpl();
-
-// Record domain events
-teamRoster.recordAgentJoin(meetingId, {
-  agentId: 'agent-123',
-  role: 'facilitator',
-  timestamp: new Date()
+// Register the service
+const visualizationService = new AgentGraphVisualizationService({
+  logger,
+  enableRealTimeUpdates: true
 });
+serviceRegistry.registerAgentVisualizationService(visualizationService);
 
-// Generate visualization data
-const visualization = teamRoster.visualizeTeamRoster(meetingId);
-
-// Analyze the data
-const composition = teamRoster.analyzeTeamComposition(meetingId);
+// Initialize for a session
+visualizationService.initializeVisualization(sessionId, team);
 ```
 
-## Integration with Agentic System
+### Tracking Communications
 
-The visualization components are designed to:
+```typescript
+// Add a communication event
+visualizationService.addCommunicationEvent(
+  sessionId,
+  sourceAgentId,
+  targetAgentId,
+  MessageType.TASK,
+  taskContent
+);
+```
 
-1. Integrate with the agentic meeting analysis system
-2. Provide real-time visual feedback on meeting dynamics
-3. Support decision-making through visual data representations
-4. Enable analysis of multi-agent interactions
-5. Facilitate understanding of complex meeting data
+### Adding Results
 
-## Integration Methods
+```typescript
+// Add analysis results
+visualizationService.addResultNode(
+  sessionId,
+  'summary',
+  summaryContent,
+  generatorAgentId
+);
+```
 
-The visualization services are integrated with the agent system in several ways:
+## Future Enhancements
 
-1. **Observer Pattern**: Visualization components observe agent events
-2. **Direct Instrumentation**: Agents call visualization methods directly
-3. **Post-Processing**: Visualization components analyze logs and artifacts
-4. **Interactive Queries**: Agents query visualization services for insights 
+1. **Persistent Storage**: Save graph state to database for recovery after server restart
+2. **Advanced Layouts**: Implement more sophisticated graph layout algorithms
+3. **Filtering Controls**: Add client-side controls to filter by node type or time
+4. **Recording/Playback**: Record the evolution of the graph for later playback
+5. **Agent Reasoning Visualization**: Visualize the reasoning process within individual agents 

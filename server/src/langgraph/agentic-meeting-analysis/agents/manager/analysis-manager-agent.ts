@@ -24,6 +24,7 @@ import {
 import { BaseMeetingAnalysisAgent } from '../base-meeting-analysis-agent';
 import { Logger } from '../../../../shared/logger/logger.interface';
 import { ChatOpenAI } from '@langchain/openai';
+import { OpenAIConnector } from '../../../../connectors/openai-connector';
 
 /**
  * Configuration options for AnalysisManagerAgent
@@ -38,6 +39,11 @@ export interface AnalysisManagerAgentConfig {
   supervisorId: string;
   maxWorkers?: number;
   taskDecompositionStrategy?: 'simple' | 'balanced' | 'complex';
+  capabilities?: AnalysisGoalType[];
+  managedExpertise?: AgentExpertise[];
+  openAiConnector?: OpenAIConnector;
+  useMockMode?: boolean;
+  maxRetries?: number;
 }
 
 /**
@@ -1109,6 +1115,11 @@ export class AnalysisManagerAgent
    * Enhanced system prompt for the manager with task decomposition focus
    */
   protected getDefaultSystemPrompt(): string {
+    // Make sure managedExpertise is defined and has elements before using join
+    const expertise = this.managedExpertise && this.managedExpertise.length > 0
+      ? this.managedExpertise.join(', ')
+      : 'meeting analysis';
+    
     return `
       You are an Analysis Manager Agent, responsible for leading a team of specialist workers
       to analyze meeting transcripts. Your key responsibilities include:
@@ -1127,7 +1138,7 @@ export class AnalysisManagerAgent
       - Maintain high quality standards in your team's output
       - Communicate clearly with both workers and supervisor
 
-      You specialize in: ${this.managedExpertise.join(', ')}
+      You specialize in: ${expertise}
       
       Maintain objectivity and focus on producing accurate, comprehensive meeting analyses.
     `;

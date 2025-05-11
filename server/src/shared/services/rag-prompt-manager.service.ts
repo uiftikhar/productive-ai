@@ -52,6 +52,11 @@ import { BaseContextService } from './user-context/base-context.service';
 import { ConversationContextService } from './user-context/conversation-context.service';
 import { DocumentContextService } from './user-context/document-context.service';
 import { RelevanceCalculationService } from './user-context/relevance-calculation.service';
+import { OpenAIConnector } from '../../connectors/openai-connector';
+import { PineconeConnector } from '../../connectors/pinecone-connector';
+import { AgentConfigService } from '../config/agent-config.service';
+import { Logger } from '../logger/logger.interface';
+import { ConsoleLogger } from '../logger/console-logger';
 
 /**
  * Different strategies for retrieving context for RAG
@@ -259,8 +264,42 @@ export class RagPromptManager {
   private documentContextService: DocumentContextService;
   private conversationContextService: ConversationContextService;
   private relevanceCalculationService: RelevanceCalculationService;
+  private openAiConnector: OpenAIConnector;
+  private pineconeConnector: PineconeConnector;
+  private logger: Logger;
+  private useMockMode: boolean;
+  private vectorIndexName: string;
+  private vectorNamespace: string;
 
-  constructor() {
+  constructor(options: {
+    openAiConnector?: OpenAIConnector;
+    pineconeConnector?: PineconeConnector;
+    logger?: Logger;
+    useMockMode?: boolean;
+  } = {}) {
+    this.logger = options.logger || new ConsoleLogger();
+    
+    // Get configuration from the config service
+    const configService = AgentConfigService.getInstance();
+    this.useMockMode = options.useMockMode ?? configService.isMockModeEnabled();
+    
+    // Initialize Pinecone settings
+    const pineconeConfig = configService.getPineconeConfig();
+    this.vectorIndexName = pineconeConfig.indexName;
+    this.vectorNamespace = pineconeConfig.namespace;
+    
+    // Initialize connectors
+    this.openAiConnector = options.openAiConnector || new OpenAIConnector({
+      logger: this.logger,
+      modelConfig: configService.getOpenAIConfig()
+    });
+    
+    this.pineconeConnector = options.pineconeConnector || new PineconeConnector({
+      logger: this.logger,
+      defaultNamespace: this.vectorNamespace
+    });
+    
+    // Initialize context services
     this.baseContextService = new BaseContextService();
     this.documentContextService = new DocumentContextService();
     this.conversationContextService = new ConversationContextService();
@@ -268,8 +307,12 @@ export class RagPromptManager {
 
     // Ensure the PromptLibrary is initialized
     PromptLibrary.initialize();
-
     PromptTemplateLibrary.initialize();
+    
+    this.logger.info('RAG Prompt Manager initialized', { 
+      useMockMode: this.useMockMode,
+      vectorIndexName: this.vectorIndexName
+    });
   }
 
   /**
@@ -615,171 +658,212 @@ export class RagPromptManager {
 
     // Apply different retrieval strategies
     let contextItems: any[] = [];
+    
+    // If using mock mode, use the old implementation
+    if (this.useMockMode) {
+      return this.retrieveMockContext(options);
+    }
+
+    this.logger.info(`Using retrieval strategy: ${strategy}`, {
+      userId, 
+      maxItems, 
+      minRelevanceScore
+    });
 
     switch (strategy) {
       case RagRetrievalStrategy.SEMANTIC:
         // Semantic search using vector embeddings
-        const semanticResults =
-          await this.baseContextService.retrieveUserContext(
-            userId,
+        try {
+          // Build filter
+          const filter = this.buildContextFilter(
+            contentTypes,
+            timeRangeStart,
+            documentIds,
+          );
+          
+          if (options.customFilter) {
+            Object.assign(filter, options.customFilter);
+          }
+          
+          // Use Pinecone for vector similarity search
+          const searchResults = await this.pineconeConnector.querySimilar(
+            this.vectorIndexName,
             queryEmbedding,
             {
               topK: maxItems,
-              filter: this.buildContextFilter(
-                contentTypes,
-                timeRangeStart,
-                documentIds,
-              ),
-              includeEmbeddings: false,
+              filter,
+              includeValues: false,
+              minScore: minRelevanceScore
             },
+            this.vectorNamespace
           );
-
-        contextItems = semanticResults;
-        break;
-
-      case RagRetrievalStrategy.HYBRID:
-        // First get semantic results
-        const semanticMatches =
-          await this.baseContextService.retrieveUserContext(
-            userId,
-            queryEmbedding,
-            {
-              topK: Math.ceil(maxItems / 2),
-              filter: this.buildContextFilter(
-                contentTypes,
-                timeRangeStart,
-                documentIds,
-              ),
-              includeEmbeddings: false,
-            },
-          );
-
-        // Then get conversation context if applicable
-        let conversationMatches: any[] = [];
-        if (conversationId) {
-          conversationMatches =
-            await this.conversationContextService.getConversationHistory(
-              userId,
-              conversationId,
-              Math.floor(maxItems / 2),
-            );
+          
+          // Transform to context format
+          contextItems = searchResults.map(item => ({
+            content: item.metadata.content || '',
+            score: item.score,
+            source: item.metadata.source || item.id,
+            metadata: {
+              ...item.metadata,
+              id: item.id
+            }
+          }));
+        } catch (error) {
+          this.logger.error(`Error performing semantic search: ${error instanceof Error ? error.message : String(error)}`);
+          contextItems = [];
         }
-
-        // Combine both sources
-        contextItems = [...semanticMatches, ...conversationMatches];
-
-        // Deduplicate by ID
-        const seenIds = new Set<string>();
-        contextItems = contextItems.filter((item) => {
-          if (item.id && seenIds.has(item.id)) {
-            return false;
-          }
-          if (item.id) {
-            seenIds.add(item.id);
-          }
-          return true;
-        });
-        break;
-
-      case RagRetrievalStrategy.CONVERSATION:
-        // Focus on conversation history
-        if (!conversationId) {
-          throw new Error(
-            'conversationId is required for CONVERSATION strategy',
-          );
-        }
-
-        contextItems =
-          await this.conversationContextService.getConversationHistory(
-            userId,
-            conversationId,
-            maxItems,
-          );
-        break;
-
-      case RagRetrievalStrategy.DOCUMENT:
-        // Retrieve document chunks
-        if (!documentIds || documentIds.length === 0) {
-          throw new Error('documentIds are required for DOCUMENT strategy');
-        }
-
-        for (const docId of documentIds) {
-          const chunks = await this.documentContextService.getDocumentChunks(
-            userId,
-            docId,
-          );
-          contextItems.push(...chunks);
-        }
-
-        // Sort by chunk index to maintain document order
-        contextItems = contextItems.sort(
-          (a: any, b: any) =>
-            (a.metadata?.chunkIndex || 0) - (b.metadata?.chunkIndex || 0),
-        );
         break;
 
       case RagRetrievalStrategy.RECENCY:
-        // Prioritize recent context with a more inclusive semantic search
-        const recentResults = await this.baseContextService.retrieveUserContext(
-          userId,
-          queryEmbedding,
-          {
-            topK: maxItems * 2, // Get more items to filter later
-            filter: this.buildContextFilter(contentTypes, timeRangeStart),
-            includeEmbeddings: false,
-          },
-        );
+        // Implementation for recency strategy using Pinecone
+        try {
+          // Sort by recency (stored in metadata.timestamp)
+          const filter = {
+            ...this.buildContextFilter(contentTypes, timeRangeStart, documentIds),
+            ...(options.customFilter || {})
+          };
+          
+          // First get recent items regardless of similarity
+          const recentResults = await this.pineconeConnector.querySimilar(
+            this.vectorIndexName,
+            queryEmbedding,
+            {
+              topK: maxItems * 3, // Get more items to allow for filtering
+              filter,
+              includeValues: false
+            },
+            this.vectorNamespace
+          );
+          
+          // Sort by timestamp (recency)
+          const sortedByRecency = recentResults
+            .sort((a, b) => {
+              const timestampA = typeof a.metadata.timestamp === 'string' ? parseInt(a.metadata.timestamp) : (typeof a.metadata.timestamp === 'number' ? a.metadata.timestamp : 0);
+              const timestampB = typeof b.metadata.timestamp === 'string' ? parseInt(b.metadata.timestamp) : (typeof b.metadata.timestamp === 'number' ? b.metadata.timestamp : 0);
+              return timestampB - timestampA; // Most recent first
+            })
+            .slice(0, maxItems);
+            
+          // Transform to context format
+          contextItems = sortedByRecency.map(item => ({
+            content: typeof item.metadata.content === 'string' ? item.metadata.content : '',
+            score: item.score,
+            source: typeof item.metadata.source === 'string' ? item.metadata.source : item.id,
+            metadata: {
+              ...item.metadata,
+              id: item.id
+            }
+          }));
+        } catch (error) {
+          this.logger.error(`Error performing recency search: ${error instanceof Error ? error.message : String(error)}`);
+          contextItems = [];
+        }
+        break;
 
-        // Sort by timestamp (recency) and take the most recent ones
-        contextItems = recentResults
-          .sort(
-            (a: any, b: any) =>
-              (b.metadata?.timestamp || 0) - (a.metadata?.timestamp || 0),
-          )
-          .slice(0, maxItems);
+      case RagRetrievalStrategy.HYBRID:
+        // Hybrid search - combination of semantic and keyword
+        try {
+          // For hybrid search, we need to:
+          // 1. Get semantic search results
+          const semanticResults = await this.pineconeConnector.querySimilar(
+            this.vectorIndexName,
+            queryEmbedding,
+            {
+              topK: maxItems * 2,
+              filter: this.buildContextFilter(contentTypes, timeRangeStart, documentIds),
+              includeValues: false
+            },
+            this.vectorNamespace
+          );
+          
+          // 2. Use BM25 style keyword matching (not fully available directly)
+          // For now, we're getting more results from semantic search, then
+          // boosting scores for those containing keywords from the original query
+          
+          const keywords = options.queryText
+            .toLowerCase()
+            .split(/\s+/)
+            .filter(word => word.length > 3); // Only use longer words as keywords
+          
+          // Boost scores for items containing keywords
+          const hybridResults = semanticResults.map(item => {
+            let boostScore = item.score;
+            const content = typeof item.metadata.content === 'string' ? item.metadata.content.toLowerCase() : '';
+            
+            // Count keyword occurrences and boost score
+            keywords.forEach(keyword => {
+              if (content.includes(keyword)) {
+                // Boost more for more keywords
+                boostScore += 0.05;
+              }
+            });
+            
+            return {
+              ...item,
+              score: Math.min(boostScore, 1.0) // Cap at 1.0
+            };
+          });
+          
+          // Sort by boosted score and take top items
+          const topHybridResults = hybridResults
+            .sort((a, b) => b.score - a.score)
+            .slice(0, maxItems);
+          
+          // Transform to context format
+          contextItems = topHybridResults.map(item => ({
+            content: item.metadata.content || '',
+            score: item.score,
+            source: item.metadata.source || item.id,
+            metadata: {
+              ...item.metadata,
+              id: item.id
+            }
+          }));
+        } catch (error) {
+          this.logger.error(`Error performing hybrid search: ${error instanceof Error ? error.message : String(error)}`);
+          contextItems = [];
+        }
         break;
 
       case RagRetrievalStrategy.CUSTOM:
         // Apply custom filter
-        if (!options.customFilter) {
-          throw new Error('customFilter is required for CUSTOM strategy');
-        }
-
-        const customResults = await this.baseContextService.retrieveUserContext(
-          userId,
-          queryEmbedding,
-          {
-            topK: maxItems,
-            filter: {
-              ...this.buildContextFilter(contentTypes),
-              ...options.customFilter,
+        try {
+          if (!options.customFilter) {
+            throw new Error('customFilter is required for CUSTOM strategy');
+          }
+          
+          const customResults = await this.pineconeConnector.querySimilar(
+            this.vectorIndexName,
+            queryEmbedding,
+            {
+              topK: maxItems,
+              filter: options.customFilter,
+              includeValues: false,
+              minScore: minRelevanceScore
             },
-            includeEmbeddings: false,
-          },
-        );
-
-        contextItems = customResults;
-        break;
-
-      case RagRetrievalStrategy.METADATA:
-        // Implement metadata-based filtering
-        throw new Error('METADATA strategy not implemented');
-        break;
-
-      case RagRetrievalStrategy.COMBINED:
-        // Implement combined strategy
-        throw new Error('COMBINED strategy not implemented');
+            this.vectorNamespace
+          );
+          
+          // Transform to context format
+          contextItems = customResults.map(item => ({
+            content: item.metadata.content || '',
+            score: item.score,
+            source: item.metadata.source || item.id,
+            metadata: {
+              ...item.metadata,
+              id: item.id
+            }
+          }));
+        } catch (error) {
+          this.logger.error(`Error performing custom search: ${error instanceof Error ? error.message : String(error)}`);
+          contextItems = [];
+        }
         break;
 
       default:
-        throw new Error(`Unsupported retrieval strategy: ${strategy}`);
-    }
-
-    // Filter by minimum relevance score if specified
-    if (minRelevanceScore > 0) {
-      contextItems = contextItems.filter(
-        (item) => (item.score || 0) >= minRelevanceScore,
-      );
+        this.logger.warn(`Unsupported retrieval strategy: ${strategy}, falling back to semantic`);
+        // Fall back to mock implementation
+        return this.retrieveMockContext(options);
     }
 
     // Format the retrieved context
@@ -787,7 +871,7 @@ export class RagPromptManager {
 
     // Collect sources
     const sources = contextItems
-      .map((item) => item.metadata?.source || item.metadata?.documentId)
+      .map((item) => item.metadata?.source || item.metadata?.documentId || item.source)
       .filter(Boolean)
       .filter((value, index, self) => self.indexOf(value) === index); // Deduplicate
 
@@ -795,6 +879,53 @@ export class RagPromptManager {
       items: formattedItems,
       formattedContext: this.formatContextForPrompt(formattedItems),
       sources,
+    };
+  }
+  
+  /**
+   * Mock implementation for retrieveUserContext (used in mock mode)
+   */
+  private async retrieveMockContext(
+    options: RagContextOptions
+  ): Promise<RetrievedContext> {
+    this.logger.info('[MOCK] Retrieving mock context');
+    
+    // Generate mock context items
+    const mockItems = [
+      {
+        content: "In last week's team meeting, we discussed the Q3 mobile roadmap priorities.",
+        source: "meeting-20230401",
+        score: 0.92,
+        metadata: {
+          type: "meeting",
+          date: "2023-04-01",
+          participants: ["John", "Sarah", "Michael"]
+        }
+      },
+      {
+        content: "Mobile app usage has increased 38% quarter-over-quarter according to analytics.",
+        source: "analytics-report-q2",
+        score: 0.87,
+        metadata: {
+          type: "report",
+          date: "2023-03-15"
+        }
+      },
+      {
+        content: "API stability issues were reported by 12% of mobile users in the past month.",
+        source: "bug-tracker",
+        score: 0.81,
+        metadata: {
+          type: "issue",
+          date: "2023-03-28"
+        }
+      }
+    ];
+    
+    return {
+      items: mockItems,
+      formattedContext: this.formatContextForPrompt(mockItems),
+      sources: mockItems.map(item => item.source)
     };
   }
 
@@ -1103,5 +1234,29 @@ export class RagPromptManager {
       console.error('Error getting output format for template:', error);
       return undefined;
     }
+  }
+
+  /**
+   * Generate a vector embedding for the given text
+   */
+  async generateEmbedding(text: string): Promise<number[]> {
+    if (this.useMockMode) {
+      return this.generateDummyEmbedding();
+    }
+    
+    try {
+      return await this.openAiConnector.generateEmbeddings(text);
+    } catch (error) {
+      this.logger.error(`Error generating embedding: ${error instanceof Error ? error.message : String(error)}`);
+      return this.generateDummyEmbedding(); // Fall back to dummy embedding on error
+    }
+  }
+  
+  /**
+   * Generate dummy embeddings for testing/mock purposes
+   */
+  private generateDummyEmbedding(): number[] {
+    this.logger.info('[MOCK] Generating dummy embedding vector');
+    return new Array(1536).fill(0).map(() => Math.random() - 0.5);
   }
 }

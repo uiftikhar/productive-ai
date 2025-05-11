@@ -10,6 +10,14 @@ import { UserContextFacade } from './shared/services/user-context/user-context.f
 import { OpenAIConnector } from './connectors/openai-connector';
 import { ResourceManager } from './shared/utils/resource-manager';
 import { PerformanceMonitor } from './shared/services/monitoring/performance-monitor';
+import { ServiceRegistry } from './langgraph/agentic-meeting-analysis/services/service-registry';
+import { AgentGraphVisualizationService } from './langgraph/agentic-meeting-analysis/visualization/agent-graph-visualization.service';
+import { initializeVisualizationWebSocket } from './api/controllers/visualization.controller';
+import meetingAnalysisRoutes from './api/routes/meeting-analysis.routes';
+import visualizationRoutes from './api/routes/visualization.routes';
+import express from 'express';
+import path from 'path';
+import fs from 'fs';
 
 // Create a logger instance
 const logger = new ConsoleLogger();
@@ -39,14 +47,36 @@ const startServer = async () => {
     }
 
     // Create Express app with required services
-    const app = await createServer({
+    const { app, server } = await createServer({
       logger,
       enableCors: true,
       enableLogging: true
     });
 
-    // Create HTTP server
-    const server = http.createServer(app);
+    // Initialize WebSocket server for visualizations
+    initializeVisualizationWebSocket(server);
+
+    // Register global services
+    const serviceRegistry = ServiceRegistry.getInstance();
+    serviceRegistry.registerAgentVisualizationService(new AgentGraphVisualizationService({
+      logger,
+      enableRealTimeUpdates: true
+    }));
+
+    // Register API routes
+    
+    app.use('/api/v1/analysis', meetingAnalysisRoutes);
+    app.use('/api/v1/visualizations', visualizationRoutes);
+
+    // Create visualizations directory if it doesn't exist
+    const visualizationsPath = path.join(process.cwd(), 'visualizations');
+    if (!fs.existsSync(visualizationsPath)) {
+      fs.mkdirSync(visualizationsPath, { recursive: true });
+      logger.info(`Created visualizations directory at ${visualizationsPath}`);
+    }
+
+    // Serve visualizations as static files
+    app.use('/visualizations', express.static('visualizations'));
 
     // Initialize services
     const userContextFacade = new UserContextFacade({ logger });
@@ -75,7 +105,8 @@ const startServer = async () => {
 
     // Start the HTTP server
     server.listen(PORT, () => {
-      logger.info(`Server is running on port ${PORT}`);
+      logger.info(`Server started on port ${PORT}`);
+      logger.info(`http://localhost:${PORT}`);
     });
 
     // Handle graceful shutdown using ResourceManager

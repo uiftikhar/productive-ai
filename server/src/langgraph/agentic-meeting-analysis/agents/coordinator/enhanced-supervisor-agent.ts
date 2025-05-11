@@ -33,6 +33,7 @@ import {
   formatRoutingPrompt 
 } from '../supervisor/supervisor-routing';
 import { ResultSynthesisService } from './result-synthesis.service';
+import { OpenAIConnector } from '../../../../connectors/openai-connector';
 
 /**
  * Configuration options for EnhancedSupervisorAgent
@@ -47,6 +48,12 @@ export interface EnhancedSupervisorAgentConfig {
   qualityThreshold?: number;
   maxManagersCount?: number; // Maximum number of manager agents
   resultSynthesisService?: ResultSynthesisService;
+  // Add OpenAI integration properties
+  capabilities?: AnalysisGoalType[];
+  expertise?: AgentExpertise[];
+  openAiConnector?: OpenAIConnector;
+  useMockMode?: boolean;
+  maxRetries?: number;
 }
 
 /**

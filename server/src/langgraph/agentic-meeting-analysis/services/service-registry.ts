@@ -17,6 +17,7 @@ import { ActionItemExtractionServiceImpl } from './action-extraction.service';
 import { ActionItemTrackingServiceImpl } from './action-item-tracking.service';
 import { ActionItemIntegrationServiceImpl } from './action-item-integration.service';
 import { ActionItemNotificationServiceImpl } from './action-item-notification.service';
+import { AgentGraphVisualizationService } from '../visualization/agent-graph-visualization.service';
 
 /**
  * Service registry options
@@ -68,7 +69,21 @@ export interface AgentStatusReport {
 }
 
 /**
- * Registry for accessing all services with a singleton pattern
+ * Session progress information
+ */
+export interface SessionProgress {
+  sessionId: string;
+  progress: number; // 0-100
+  status: 'processing' | 'completed' | 'failed';
+  statusMessage?: string;
+  startTime: number;
+  lastUpdateTime: number;
+}
+
+/**
+ * Service Registry for the Agentic Meeting Analysis System
+ * 
+ * Provides a central location to register and access various services
  */
 export class ServiceRegistry {
   private static instance: ServiceRegistry;
@@ -84,12 +99,16 @@ export class ServiceRegistry {
   // Add new service properties
   private topicExtractionService?: TopicExtractionService;
   private topicVisualizationService?: TopicVisualizationService;
+  private agentVisualizationService?: AgentGraphVisualizationService;
   
   // Action item services
   private actionItemExtractionService?: ActionItemExtractionService;
   private actionItemTrackingService?: ActionItemTrackingService;
   private actionItemIntegrationService?: ActionItemIntegrationService;
   private actionItemNotificationService?: ActionItemNotificationService;
+  
+  // Session data
+  private sessionProgress: Map<string, SessionProgress> = new Map();
   
   /**
    * Get the singleton instance of ServiceRegistry
@@ -355,10 +374,10 @@ export class ServiceRegistry {
   }
 
   /**
-   * Get session progress
-   * Returns the progress of a specific agent session
+   * Fetch session progress from the session service
+   * Returns the progress of a specific agent session from external service
    */
-  async getSessionProgress(sessionId: string): Promise<{ 
+  async fetchSessionProgressFromService(sessionId: string): Promise<{ 
     sessionId: string; 
     progress: number; 
     status: string;
@@ -492,5 +511,72 @@ export class ServiceRegistry {
   // Set action item notification service
   setActionItemNotificationService(service: ActionItemNotificationService): void {
     this.actionItemNotificationService = service;
+  }
+
+  /**
+   * Register an agent visualization service
+   */
+  public registerAgentVisualizationService(service: AgentGraphVisualizationService): void {
+    this.agentVisualizationService = service;
+    this.logger.debug('Agent visualization service registered');
+  }
+  
+  /**
+   * Get the agent visualization service
+   */
+  public getAgentVisualizationService(): AgentGraphVisualizationService | null {
+    return this.agentVisualizationService || null;
+  }
+
+  /**
+   * Register a message store
+   */
+  public registerMessageStore(store: any): void {
+    this.messageStore = store;
+    this.logger.debug('Message store registered');
+  }
+  
+  /**
+   * Update session progress
+   */
+  public updateSessionProgress(sessionId: string, progress: Partial<SessionProgress>): void {
+    const existingProgress = this.sessionProgress.get(sessionId);
+    
+    if (existingProgress) {
+      // Update existing progress
+      const updatedProgress = {
+        ...existingProgress,
+        ...progress,
+        lastUpdateTime: Date.now()
+      };
+      
+      this.sessionProgress.set(sessionId, updatedProgress);
+    } else {
+      // Initialize new progress
+      const newProgress: SessionProgress = {
+        sessionId,
+        progress: progress.progress || 0,
+        status: progress.status || 'processing',
+        statusMessage: progress.statusMessage,
+        startTime: progress.startTime || Date.now(),
+        lastUpdateTime: Date.now()
+      };
+      
+      this.sessionProgress.set(sessionId, newProgress);
+    }
+  }
+  
+  /**
+   * Get session progress
+   */
+  public getSessionProgress(sessionId: string): SessionProgress | null {
+    return this.sessionProgress.get(sessionId) || null;
+  }
+  
+  /**
+   * Clear progress for a session
+   */
+  public clearSessionProgress(sessionId: string): void {
+    this.sessionProgress.delete(sessionId);
   }
 } 

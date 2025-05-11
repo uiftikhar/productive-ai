@@ -11,7 +11,8 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { AlertCircle, CheckCircle, Clock, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ScrollArea } from '@/components/ui/scroll-area';
+// import { ScrollArea } from '@/components/ui/scroll-area';
+// import AgentVisualization from './agent-visualization';
 
 export default function SessionPage({ params }: { params: { sessionId: string } }) {
   const { sessionId } = params;
@@ -222,44 +223,46 @@ export default function SessionPage({ params }: { params: { sessionId: string } 
     );
   };
   
-  // Render transcript submission form
+  // Render transcript submission form with visualization
   const renderTranscriptForm = () => {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Submit Transcript</CardTitle>
-          <CardDescription>
-            Paste your meeting transcript below for analysis
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            placeholder="Paste your meeting transcript here..."
-            className="min-h-[300px]"
-            value={transcript}
-            onChange={(e) => setTranscript(e.target.value)}
-            disabled={isSubmitting || session?.status === 'processing' || session?.status === 'completed'}
-          />
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button variant="outline" onClick={() => router.push('/meeting-analysis')}>
-            Back
-          </Button>
-          <Button 
-            onClick={handleSubmitTranscript} 
-            disabled={isSubmitting || !transcript.trim() || session?.status === 'processing' || session?.status === 'completed'}
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Submitting
-              </>
-            ) : (
-              'Submit for Analysis'
-            )}
-          </Button>
-        </CardFooter>
-      </Card>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Submit Transcript</CardTitle>
+            <CardDescription>
+              Paste your meeting transcript below for analysis
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              placeholder="Paste your meeting transcript here..."
+              className="min-h-[300px]"
+              value={transcript}
+              onChange={(e) => setTranscript(e.target.value)}
+              disabled={isSubmitting || session?.status === 'processing' || session?.status === 'completed'}
+            />
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button variant="outline" onClick={() => router.push('/meeting-analysis')}>
+              Back
+            </Button>
+            <Button 
+              onClick={handleSubmitTranscript} 
+              disabled={isSubmitting || !transcript.trim() || session?.status === 'processing' || session?.status === 'completed'}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting
+                </>
+              ) : (
+                'Submit for Analysis'
+              )}
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
     );
   };
   
@@ -359,6 +362,17 @@ export default function SessionPage({ params }: { params: { sessionId: string } 
               )}
             </div>
           </div>
+          {/* <Card>
+            <CardHeader>
+              <CardTitle>Visualization</CardTitle>
+              <CardDescription>
+                Real-time visualization of the analysis process
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AgentVisualization sessionId={sessionId} />
+            </CardContent>
+          </Card> */}
         </CardContent>
         <CardFooter>
           <Button variant="outline" onClick={() => router.push('/meeting-analysis')}>
@@ -417,7 +431,7 @@ export default function SessionPage({ params }: { params: { sessionId: string } 
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="transcript">Transcript</TabsTrigger>
           <TabsTrigger value="status">Status</TabsTrigger>
-          <TabsTrigger value="results" disabled={session.status !== 'completed'}>Results</TabsTrigger>
+          <TabsTrigger value="results" disabled={session?.status !== 'completed'}>Results</TabsTrigger>
         </TabsList>
         
         <TabsContent value="transcript" className="mt-6">

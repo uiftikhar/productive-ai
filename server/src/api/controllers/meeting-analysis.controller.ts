@@ -19,6 +19,7 @@ import { getRequestId } from '../../shared/api/request-id';
 import { ServiceRegistry } from '../../langgraph/agentic-meeting-analysis/services/service-registry';
 import { ApiCompatibilityService } from '../../langgraph/agentic-meeting-analysis/api-compatibility/api-compatibility.service';
 import { AgenticMeetingAnalysisRequest } from '../../langgraph/agentic-meeting-analysis/interfaces/api-compatibility.interface';
+import { AgentGraphVisualizationService } from '../../langgraph/agentic-meeting-analysis/visualization/agent-graph-visualization.service';
 
 /**
  * Agent team structure
@@ -230,6 +231,7 @@ export class MeetingAnalysisController {
   private logger: Logger;
   private dynamicGraphService: EnhancedDynamicGraphService;
   private analysisProcesses: Map<string, any> = new Map();
+  private visualizationService: AgentGraphVisualizationService;
   
   constructor(config: MeetingAnalysisControllerConfig = {}) {
     this.logger = config.logger || new ConsoleLogger();
@@ -240,6 +242,10 @@ export class MeetingAnalysisController {
     this.dynamicGraphService = new EnhancedDynamicGraphService({
       logger: this.logger,
       storageAdapter: this.storageAdapter
+    });
+    this.visualizationService = new AgentGraphVisualizationService({
+      logger: this.logger,
+      enableRealTimeUpdates: true
     });
   }
   
@@ -261,6 +267,8 @@ export class MeetingAnalysisController {
     this.logger.info('Creating new analysis session');
     try {
       const { analysisGoal, enabledExpertise } = req.body;
+      
+      this.logger.info(`Received request with analysisGoal: ${analysisGoal}, enabledExpertise: ${JSON.stringify(enabledExpertise)}`);
       
       // Validate input
       if (!analysisGoal) {
@@ -294,12 +302,28 @@ export class MeetingAnalysisController {
       
       if (enabledExpertise && enabledExpertise.length > 0) {
         // Validate each expertise value
-        const validExpertise = Object.values(AgentExpertise);
-        const invalidExpertise = enabledExpertise.filter((exp: any) => !validExpertise.includes(exp as AgentExpertise));
+        // Support both snake_case and UPPER_CASE formats
+        const validExpertise = [
+          ...Object.values(AgentExpertise),
+          ...Object.values(AgentExpertise).map(exp => exp.toLowerCase()),
+          // Also allow snake_case versions
+          'topic_analysis',
+          'action_item_extraction',
+          'summary_generation',
+          'sentiment_analysis',
+          'participant_dynamics',
+          'decision_tracking',
+          'context_integration',
+          'management'
+        ];
+        
+        const invalidExpertise = enabledExpertise.filter(
+          (exp: any) => !validExpertise.includes(exp)
+        );
         
         if (invalidExpertise.length > 0) {
           throw new ApiErrorException(
-            `Invalid expertise values: ${invalidExpertise.join(', ')}. Valid values are: ${validExpertise.join(', ')}`,
+            `Invalid expertise values: ${invalidExpertise.join(', ')}. Valid values are: ${Object.values(AgentExpertise).join(', ')} (or snake_case equivalents)`,
             ErrorType.VALIDATION_ERROR,
             HttpStatus.BAD_REQUEST,
             'ERR_INVALID_EXPERTISE'
@@ -307,45 +331,70 @@ export class MeetingAnalysisController {
         }
       }
       
-      // Create agent team
-      const team = createHierarchicalAgentTeam({
-        debugMode: false,
-        analysisGoal,
-        enabledExpertise
-      });
+      this.logger.info(`Creating agent team with analysisGoal: ${analysisGoal}, enabledExpertise: ${JSON.stringify(enabledExpertise)}`);
       
-      // Create graph
-      const graph = createHierarchicalMeetingAnalysisGraph({
-        supervisorAgent: team.supervisor,
-        managerAgents: team.managers,
-        workerAgents: team.workers,
-        analysisGoal
-      });
-      
-      // Create session
-      const sessionId = await this.sessionManager.createSession({
-        graph,
-        team,
-        metadata: {
-          createdAt: Date.now(),
-          analysisGoal,
-          enabledExpertise,
-          status: 'created'
-        }
-      });
-      
-      const responseData = {
-        sessionId,
-        status: 'created',
-        metadata: {
+      try {
+        // Create agent team
+        const team = createHierarchicalAgentTeam({
+          debugMode: false,
           analysisGoal,
           enabledExpertise
+        });
+        
+        this.logger.info(`Successfully created team with supervisor: ${team.supervisor.id}, managers: ${team.managers.length}, workers: ${team.workers.length}`);
+        
+        // Create graph
+        const graph = createHierarchicalMeetingAnalysisGraph({
+          supervisorAgent: team.supervisor,
+          managerAgents: team.managers,
+          workerAgents: team.workers,
+          analysisGoal
+        });
+        
+        this.logger.info(`Successfully created graph for analysis goal: ${analysisGoal}`);
+        
+        // Create session
+        const sessionId = await this.sessionManager.createSession({
+          graph,
+          team,
+          metadata: {
+            createdAt: Date.now(),
+            analysisGoal,
+            enabledExpertise,
+            status: 'created'
+          }
+        });
+        
+        // Initialize visualization
+        this.initializeVisualization(sessionId, team);
+        
+        const responseData = {
+          sessionId,
+          status: 'created',
+          metadata: {
+            analysisGoal,
+            enabledExpertise
+          }
+        };
+        
+        sendSuccess(res, responseData, HttpStatus.CREATED, { requestId: getRequestId(req) });
+      } catch (error) {
+        this.logger.error('Error during team/graph creation:', {error});
+        
+        if (error instanceof Error) {
+          this.logger.error(`Error stack: ${error.stack}`);
         }
-      };
-      
-      sendSuccess(res, responseData, HttpStatus.CREATED, { requestId: getRequestId(req) });
+        
+        throw error;
+      }
     } catch (error) {
-      this.logger.error('Error creating session:', { error });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error creating session:', { errorMessage });
+      
+      if (error instanceof Error) {
+        this.logger.error(`Error stack: ${error.stack}`);
+      }
+      
       sendError(res, error, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
@@ -776,6 +825,14 @@ export class MeetingAnalysisController {
             defaultFeatureFlag: true
           });
           
+          // Setup message listener for visualization updates
+          const messageStore = ServiceRegistry.getInstance().getMessageStore();
+          
+          // Hook into message store to visualize communications
+          if (messageStore) {
+            this.setupMessageVisualization(sessionId, messageStore);
+          }
+          
           // Prepare the request for the agent system
           const agentRequest: AgenticMeetingAnalysisRequest = {
             meetingId: sessionId,
@@ -812,11 +869,20 @@ export class MeetingAnalysisController {
             this.logger.warn(`Agent system failed for session ${sessionId}, falling back to mock results`);
             await this.generateMockResults(sessionId, transcript);
           }
+          
+          // Visualize the completed analysis
+          this.visualizeAnalysisResults(sessionId, analysisResponse.results);
+          
         } catch (agentError) {
           // If the agent system fails, fall back to mock results
           this.logger.error(`Error in agent system for session ${sessionId}:`, { agentError });
           this.logger.info(`Falling back to mock results for session ${sessionId}`);
-          await this.generateMockResults(sessionId, transcript);
+          
+          // Generate mock results...
+          const mockResults = await this.generateMockResults(sessionId, transcript);
+          
+          // Visualize mock results
+          this.visualizeAnalysisResults(sessionId, mockResults.results);
         }
         
         // Clear progress tracking interval if it's still running
@@ -1070,6 +1136,172 @@ export class MeetingAnalysisController {
   }
   
   /**
+   * Get agent visualization data for a session
+   * 
+   * @param req Express request object
+   * @param res Express response object
+   * 
+   * @returns HTTP 200 with visualization data
+   * 
+   * @throws ApiErrorException
+   *  - ERR_SESSION_NOT_FOUND (404): session not found
+   */
+  async getVisualizationData(req: Request, res: Response) {
+    const { sessionId } = req.params;
+    
+    try {
+      // Validate session exists
+      const session = await this.sessionManager.getSession(sessionId);
+      if (!session) {
+        throw new ApiErrorException(
+          `Session ${sessionId} not found`,
+          ErrorType.RESOURCE_NOT_FOUND,
+          HttpStatus.NOT_FOUND,
+          'ERR_SESSION_NOT_FOUND'
+        );
+      }
+      
+      // Generate static visualization
+      const visualizationPath = this.visualizationService.generateStaticVisualization(sessionId);
+      
+      if (!visualizationPath) {
+        throw new ApiErrorException(
+          `Visualization for session ${sessionId} not available`,
+          ErrorType.RESOURCE_NOT_FOUND,
+          HttpStatus.NOT_FOUND,
+          'ERR_VISUALIZATION_NOT_FOUND'
+        );
+      }
+      
+      const responseData = {
+        sessionId,
+        visualizationUrl: visualizationPath,
+        message: 'Visualization generated successfully'
+      };
+      
+      sendSuccess(res, responseData, HttpStatus.OK, { requestId: getRequestId(req) });
+    } catch (error) {
+      this.logger.error('Error getting visualization data:', { error });
+      sendError(res, error);
+    }
+  }
+  
+  /**
+   * Initialize visualization for a new session
+   */
+  private initializeVisualization(sessionId: string, team: AgentTeam): void {
+    try {
+      this.visualizationService.initializeVisualization(sessionId, team);
+      this.logger.debug(`Visualization initialized for session ${sessionId}`);
+    } catch (error) {
+      this.logger.error(`Error initializing visualization for session ${sessionId}:`, { error });
+      // Non-critical error, continue without visualization
+    }
+  }
+  
+  /**
+   * Set up message visualization by monitoring the message store
+   */
+  private setupMessageVisualization(sessionId: string, messageStore: any): void {
+    if (!messageStore || typeof messageStore.onMessage !== 'function') {
+      this.logger.warn(`Cannot set up message visualization for session ${sessionId}: message store does not support onMessage`);
+      return;
+    }
+    
+    const handler = (message: any) => {
+      if (message.sessionId !== sessionId) return;
+      
+      try {
+        this.visualizationService.addCommunicationEvent(
+          `vis-${sessionId}`,
+          message.sender || 'system',
+          message.recipients?.[0] || 'system',
+          message.type || 'message',
+          message.content || ''
+        );
+        
+        // If this is a task message, add a task node
+        if (message.type === 'task' && message.sender && message.recipients?.[0]) {
+          this.visualizationService.addTaskNode(
+            `vis-${sessionId}`,
+            message.content || 'Unknown task',
+            message.sender,
+            message.recipients[0]
+          );
+        }
+      } catch (error) {
+        this.logger.error(`Error visualizing message for session ${sessionId}:`, { error });
+        // Non-critical error, continue without visualization
+      }
+    };
+    
+    // Register message handler
+    messageStore.onMessage(handler);
+  }
+  
+  /**
+   * Visualize analysis results
+   */
+  private visualizeAnalysisResults(sessionId: string, results: any): void {
+    if (!results) return;
+    
+    try {
+      // Add summary node
+      if (results.summary) {
+        this.visualizationService.addResultNode(
+          `vis-${sessionId}`,
+          'summary',
+          results.summary,
+          'summary-agent'
+        );
+      }
+      
+      // Add topics
+      if (results.topics && Array.isArray(results.topics)) {
+        this.visualizationService.addResultNode(
+          `vis-${sessionId}`,
+          'topics',
+          results.topics,
+          'topic-agent'
+        );
+        
+        // Add individual topic nodes
+        results.topics.forEach((topic: any) => {
+          const topicName = typeof topic === 'string' ? topic : (topic.name || 'Unknown topic');
+          this.visualizationService.addTopicNode(
+            `vis-${sessionId}`,
+            topicName
+          );
+        });
+      }
+      
+      // Add action items
+      if (results.actionItems && Array.isArray(results.actionItems)) {
+        this.visualizationService.addResultNode(
+          `vis-${sessionId}`,
+          'action_items',
+          results.actionItems,
+          'action-item-agent'
+        );
+        
+        // Add individual action item nodes
+        results.actionItems.forEach((item: any) => {
+          if (item && item.description) {
+            this.visualizationService.addActionItemNode(
+              `vis-${sessionId}`,
+              item.description,
+              item.assignee || (item.assignees && item.assignees.length > 0 ? item.assignees[0] : undefined)
+            );
+          }
+        });
+      }
+    } catch (error) {
+      this.logger.error(`Error visualizing results for session ${sessionId}:`, { error });
+      // Non-critical error, continue without visualization
+    }
+  }
+  
+  /**
    * Register routes with Express app
    * 
    * @param router Express router
@@ -1081,5 +1313,6 @@ export class MeetingAnalysisController {
     router.delete('/sessions/:sessionId', this.deleteSession.bind(this));
     router.post('/sessions/:sessionId/analyze', this.analyzeTranscript.bind(this));
     router.get('/sessions/:sessionId/results', this.getResults.bind(this));
+    router.get('/sessions/:sessionId/visualization', this.getVisualizationData.bind(this));
   }
 } 

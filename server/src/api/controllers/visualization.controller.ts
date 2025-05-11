@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
+import { ServiceRegistry } from '../../langgraph/agentic-meeting-analysis/services/service-registry';
 
 // Define WebSocket interfaces instead of module augmentation
 interface WebSocket {
@@ -39,10 +40,19 @@ const logger = new ConsoleLogger();
  * Initialize WebSocket server for real-time visualization updates
  */
 export function initializeVisualizationWebSocket(server: http.Server) {
-  const wss = new WebSocket.Server({ server, path: '/ws/visualization' });
+  // Create WebSocket server with just the basic options
+  const wss = new WebSocket.Server({ 
+    server,
+    path: '/ws/visualization'
+  });
+
+  // Log all connections for debugging
+  logger.info('WebSocket server for visualizations initialized at /ws/visualization');
 
   wss.on('connection', (ws: WebSocket) => {
     let runId: string | null = null;
+    
+    logger.info('New WebSocket connection established');
 
     // Handle messages from clients
     ws.on('message', (message: string) => {
@@ -214,6 +224,69 @@ export const listVisualizations = async (req: Request, res: Response) => {
     res.status(500).json({
       error: 'Server error',
       message: 'An error occurred while listing visualizations',
+    });
+  }
+};
+
+/**
+ * Get agent graph data for a specific session
+ */
+export const getAgentGraphData = async (req: Request, res: Response) => {
+  try {
+    const sessionId = req.params.sessionId;
+    
+    if (!sessionId) {
+      return res.status(400).json({
+        error: 'Invalid request',
+        message: 'Session ID is required'
+      });
+    }
+    
+    // Get the visualization service from the registry
+    const registry = ServiceRegistry.getInstance();
+    const visualizationService = registry.getAgentVisualizationService();
+    
+    if (!visualizationService) {
+      logger.info('Agent visualization service not available, creating empty response');
+      // Return empty graph data rather than error
+      return res.json({
+        sessionId,
+        timestamp: new Date().toISOString(),
+        nodes: [],
+        edges: []
+      });
+    }
+    
+    // Get current graph data for the session
+    const graphData = visualizationService.getGraphData(sessionId);
+    
+    if (!graphData) {
+      logger.info(`No graph data found for session ${sessionId}, returning empty graph`);
+      // Return empty graph data rather than 404 error
+      return res.json({
+        sessionId,
+        timestamp: new Date().toISOString(),
+        nodes: [],
+        edges: []
+      });
+    }
+    
+    // Return the graph data
+    return res.json({
+      sessionId,
+      timestamp: new Date().toISOString(),
+      nodes: graphData.nodes || [],
+      edges: graphData.edges || []
+    });
+  } catch (error) {
+    logger.error('Error serving graph data', { error });
+    // Return empty graph instead of error
+    return res.json({
+      sessionId: req.params.sessionId,
+      timestamp: new Date().toISOString(),
+      error: 'An error occurred while serving the graph data',
+      nodes: [],
+      edges: []
     });
   }
 };
