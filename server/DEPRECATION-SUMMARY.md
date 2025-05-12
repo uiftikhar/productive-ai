@@ -108,4 +108,80 @@ To support the migration to the hierarchical architecture, the following documen
 
 - **Phase 1 (Completed)**: Audit and initial deprecation annotations
 - **Phase 2 (In Progress)**: Refactoring core components to hierarchical model
-- **Phase 3 (Upcoming)**: Complete refactoring of all components and remove deprecated files 
+- **Phase 3 (Upcoming)**: Complete refactoring of all components and remove deprecated files
+
+# API Deprecation Summary
+
+## Recently Removed Components
+
+### Meeting Analysis API Compatibility Layer (Removed)
+
+The following components have been completely removed in the latest update:
+
+1. `ApiCompatibilityService` - The compatibility layer for meeting analysis has been removed
+2. `MeetingAnalysisController` - Legacy controller has been removed
+3. `meeting-analysis.routes.ts` - Legacy routes file has been removed
+4. `MigrationController` - The transitional component for feature flag control has been removed
+
+These components have been replaced by the Agent Protocol implementation, which provides a standardized interface for meeting analysis.
+
+### New Endpoints
+
+The meeting analysis API endpoints are now:
+
+- **POST** `/api/analysis/meetings/analyze` - Start meeting analysis
+- **GET** `/api/analysis/meetings/:meetingId/status` - Get analysis status
+- **GET** `/api/analysis/meetings/:meetingId/result` - Get analysis results
+- **POST** `/api/analysis/meetings/:meetingId/cancel` - Cancel analysis
+
+For more details on the migration, see `docs/MIGRATION-TO-AGENT-PROTOCOL.md`.
+
+## Migration Guide
+
+If you were using the legacy API endpoints (`/api/analysis/sessions/*`), you should update your code to use the new Agent Protocol endpoints (`/api/analysis/meetings/*`).
+
+The key differences are:
+
+1. Session creation and transcript analysis are now combined in a single endpoint
+2. Results retrieval requires an execution ID (runId)
+3. Status checks require an execution ID (runId)
+4. Cancel operation now available
+
+### Example Migration
+
+#### Old API:
+```javascript
+// Create session
+const sessionResponse = await fetch('/api/analysis/sessions', {
+  method: 'POST'
+});
+const { sessionId } = await sessionResponse.json();
+
+// Analyze transcript
+await fetch(`/api/analysis/sessions/${sessionId}/analyze`, {
+  method: 'POST',
+  body: JSON.stringify({ transcript: '...' })
+});
+
+// Get results
+const results = await fetch(`/api/analysis/sessions/${sessionId}/results`);
+```
+
+#### New API:
+```javascript
+// Create session and analyze in one step
+const analysisResponse = await fetch('/api/analysis/meetings/analyze', {
+  method: 'POST',
+  body: JSON.stringify({
+    meetingId: 'unique-meeting-id',
+    transcript: '...'
+  })
+});
+const { executionId } = await analysisResponse.json();
+
+// Check status
+const status = await fetch(`/api/analysis/meetings/unique-meeting-id/status?executionId=${executionId}`);
+
+// Get results
+const results = await fetch(`/api/analysis/meetings/unique-meeting-id/result?executionId=${executionId}`);
+``` 

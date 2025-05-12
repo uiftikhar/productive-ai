@@ -12,6 +12,7 @@ export enum VectorIndexes {
   USER_CONTEXT = 'user-context',
   USER_FEEDBACK = 'user-feedback',
   TRANSCRIPT_EMBEDDINGS = 'transcript-embeddings',
+  MEETING_ANALYSIS = 'meeting-analysis',
 }
 
 export interface IndexConfig {

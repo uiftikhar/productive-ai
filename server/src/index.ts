@@ -13,8 +13,8 @@ import { PerformanceMonitor } from './shared/services/monitoring/performance-mon
 import { ServiceRegistry } from './langgraph/agentic-meeting-analysis/services/service-registry';
 import { AgentGraphVisualizationService } from './langgraph/agentic-meeting-analysis/visualization/agent-graph-visualization.service';
 import { initializeVisualizationWebSocket } from './api/controllers/visualization.controller';
-import meetingAnalysisRoutes from './api/routes/meeting-analysis.routes';
 import visualizationRoutes from './api/routes/visualization.routes';
+import agentProtocolRoutes from './api/agent-protocol.routes';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -97,9 +97,11 @@ const startServer = async () => {
     }
 
     // Register API routes
+    app.use('/api/visualizations', visualizationRoutes);
     
-    app.use('/api/v1/analysis', meetingAnalysisRoutes);
-    app.use('/api/v1/visualizations', visualizationRoutes);
+    // Register the Agent Protocol routes as the primary meeting analysis API
+    app.use('/api/analysis', agentProtocolRoutes);
+    app.use('/api/v1/analysis', agentProtocolRoutes);
 
     // Create visualizations directory if it doesn't exist
     const visualizationsPath = path.join(process.cwd(), 'visualizations');
@@ -140,6 +142,15 @@ const startServer = async () => {
     server.listen(PORT, () => {
       logger.info(`Server started on port ${PORT}`);
       logger.info(`http://localhost:${PORT}`);
+      logger.info('Meeting analysis endpoints registered at:');
+      logger.info('- /api/analysis/meetings/analyze');
+      logger.info('- /api/analysis/meetings/:meetingId/status');
+      logger.info('- /api/analysis/meetings/:meetingId/result');
+      logger.info('- /api/analysis/meetings/:meetingId/cancel');
+      logger.info('- /api/v1/analysis/meetings/analyze');
+      logger.info('- /api/v1/analysis/meetings/:meetingId/status');
+      logger.info('- /api/v1/analysis/meetings/:meetingId/result');
+      logger.info('- /api/v1/analysis/meetings/:meetingId/cancel');
     });
 
     // Handle graceful shutdown using ResourceManager
