@@ -25,6 +25,7 @@ import {
 } from '@langchain/core/messages';
 import { OpenAIConnector, OpenAIModelConfig } from '../../../connectors/openai-connector';
 import { MessageConfig } from '../../../connectors/language-model-provider.interface';
+import { MeetingRAGService } from '../services/meeting-rag.service';
 
 /**
  * Token usage tracking interface
@@ -78,6 +79,9 @@ export class BaseMeetingAnalysisAgent
   protected tokenUsage: TokenUsage;
   protected maxRetries: number;
   protected useMockMode: boolean;
+
+  // Add MeetingRAGService support
+  protected meetingRagService?: MeetingRAGService;
 
   /**
    * Create a new meeting analysis agent
@@ -676,5 +680,126 @@ ${Array.from(this.capabilities)
   .join('\n')}
 
 Respond in clear, structured formats as requested.`;
+  }
+
+  /**
+   * Set the MeetingRAGService for this agent
+   * This allows the agent to leverage vector search capabilities
+   */
+  public setMeetingRagService(ragService: MeetingRAGService): void {
+    this.meetingRagService = ragService;
+    this.logger.info(`RAG service set for agent ${this.id}`);
+  }
+
+  /**
+   * Check if this agent has RAG capabilities
+   */
+  public hasRagCapabilities(): boolean {
+    return !!this.meetingRagService;
+  }
+
+  /**
+   * Get relevant context from the transcript using RAG
+   * 
+   * @param query The query for retrieving relevant content
+   * @param meetingId The meeting ID
+   * @param maxResults Maximum number of results to retrieve
+   * @returns An array of relevant content chunks
+   */
+  protected async retrieveRelevantContext(
+    query: string,
+    meetingId: string,
+    maxResults: number = 5
+  ): Promise<any[]> {
+    if (!this.meetingRagService) {
+      this.logger.warn('RAG service not available for context retrieval', {
+        agentId: this.id,
+        query: query.substring(0, 50) + (query.length > 50 ? '...' : ''),
+      });
+      return [];
+    }
+
+    try {
+      const startTime = Date.now();
+      const results = await this.meetingRagService.retrieveRelevantChunks(
+        query,
+        meetingId
+      );
+
+      // Apply maxResults filter after receiving results
+      const limitedResults = results.slice(0, maxResults);
+
+      const duration = Date.now() - startTime;
+      this.logger.info('Retrieved relevant context using RAG', {
+        agentId: this.id,
+        query: query.substring(0, 50) + (query.length > 50 ? '...' : ''),
+        resultCount: limitedResults.length,
+        topScore: limitedResults.length > 0 ? limitedResults[0].score.toFixed(2) : 'N/A',
+        durationMs: duration
+      });
+
+      return limitedResults;
+    } catch (error) {
+      this.logger.error('Error retrieving relevant context', {
+        agentId: this.id,
+        query: query.substring(0, 50) + (query.length > 50 ? '...' : ''),
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Create an enhanced prompt with relevant context from RAG
+   * 
+   * @param task The current task
+   * @param transcript The meeting transcript
+   * @param query The query for context retrieval
+   * @returns An enhanced prompt with RAG-retrieved context
+   */
+  protected async createRagEnhancedPrompt(
+    task: any, // Fix: Use 'any' type for now since we don't know exact AnalysisTask structure
+    transcript: string,
+    query: string
+  ): Promise<string> {
+    // Base prompt without RAG enhancement
+    let prompt = `Analyze the following meeting transcript:\n\n`;
+    
+    // Add RAG-retrieved context if available
+    if (this.meetingRagService) {
+      // Fix: Use task.id for meetingId if available, or fall back to a default
+      const meetingId = task.meetingId || task.id || 'unknown-meeting';
+      
+      const relevantChunks = await this.retrieveRelevantContext(
+        query,
+        meetingId,
+        5  // Get top 5 relevant chunks
+      );
+      
+      if (relevantChunks.length > 0) {
+        prompt += "Based on the most relevant parts of the transcript:\n\n";
+        
+        for (let i = 0; i < relevantChunks.length; i++) {
+          const chunk = relevantChunks[i];
+          prompt += `EXCERPT ${i+1} (Relevance: ${chunk.score.toFixed(2)}):\n${chunk.content}\n\n`;
+        }
+        
+        prompt += "Using the information from these relevant excerpts, ";
+      }
+    }
+    
+    // Complete the prompt with instructions
+    // Fix: Use task.goal or task.description if available, otherwise use generic text
+    const taskDescription = task.goal || task.description || "analyze the meeting content";
+    prompt += `${taskDescription}\n\n`;
+    
+    // Add the original transcript if it's short or if we couldn't get RAG content
+    if (transcript.length < 4000 || !this.meetingRagService) {
+      prompt += `FULL TRANSCRIPT:\n${transcript}\n\n`;
+    } else {
+      prompt += `Focus on the provided excerpts for your analysis. If you need more context, mention that in your response.\n\n`;
+    }
+    
+    return prompt;
   }
 }

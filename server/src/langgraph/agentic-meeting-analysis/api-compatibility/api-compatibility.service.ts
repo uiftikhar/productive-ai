@@ -12,10 +12,30 @@ import {
 import { AgentExpertise, AnalysisGoalType } from '../interfaces/agent.interface';
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
-import { createHierarchicalAgentTeam } from '../factories/hierarchical-team-factory';
+import { createHierarchicalAgentTeam, HierarchicalTeamOptions } from '../factories/hierarchical-team-factory';
 import { createHierarchicalMeetingAnalysisGraph } from '../graph/hierarchical-meeting-analysis-graph';
 import { AgentGraphVisualizationService } from '../visualization/agent-graph-visualization.service';
 import { ServiceRegistry } from '../services/service-registry';
+import { MeetingRAGIntegrator } from './meeting-rag-integrator';
+
+// Define the extended goal type literals that are accepted by HierarchicalTeamOptions
+type ExtendedGoalLiteral = 
+  | 'PARTICIPANT_ENGAGEMENT'
+  | 'DECISION_TRACKING'
+  | 'CONTEXT_AWARE_ANALYSIS'
+  | 'EXTRACT_TOPICS'
+  | 'EXTRACT_ACTION_ITEMS'
+  | 'EXTRACT_DECISIONS'
+  | 'ANALYZE_SENTIMENT'
+  | 'ANALYZE_PARTICIPATION'
+  | 'GENERATE_SUMMARY'
+  | 'INTEGRATE_CONTEXT'
+  | 'FULL_ANALYSIS'
+  | 'SUMMARY_ONLY'
+  | 'ACTION_ITEMS_ONLY'
+  | 'DECISIONS_ONLY'
+  | 'COORDINATE'
+  | 'INTEGRATE_CONTEXT';
 
 /**
  * Configuration options for ApiCompatibilityService
@@ -43,6 +63,7 @@ export class ApiCompatibilityService implements IApiCompatibilityLayer {
   private teamFormation?: any;
   private initialized: boolean = false;
   private visualizationService: AgentGraphVisualizationService;
+  private meetingRagIntegrator?: MeetingRAGIntegrator;
 
   /**
    * Create a new API compatibility service
@@ -99,6 +120,36 @@ export class ApiCompatibilityService implements IApiCompatibilityLayer {
     
     if (!this.teamFormation) {
       this.logger.warn('TeamFormation service not provided to ApiCompatibilityService');
+    }
+    
+    // Initialize the Meeting RAG Integrator if we have the dependencies
+    if (this.initialized && !this.meetingRagIntegrator) {
+      try {
+        // Get required services from registry
+        const registry = ServiceRegistry.getInstance();
+        const openAiConnector = registry.getOpenAIConnector();
+        const pineconeConnector = registry.getPineconeConnector();
+        
+        if (openAiConnector && pineconeConnector) {
+          this.meetingRagIntegrator = new MeetingRAGIntegrator({
+            logger: this.logger,
+            openAiConnector,
+            pineconeConnector,
+            config: {
+              enabled: process.env.ENABLE_RAG !== 'false', // Enable by default unless explicitly disabled
+              indexName: process.env.PINECONE_TRANSCRIPT_INDEX || 'transcript-embeddings'
+            }
+          });
+          
+          this.logger.info('Meeting RAG Integrator initialized');
+        } else {
+          this.logger.warn('Could not initialize Meeting RAG Integrator: missing dependencies');
+        }
+      } catch (error) {
+        this.logger.error('Failed to initialize Meeting RAG Integrator', {
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
     }
     
     this.initialized = true;
@@ -346,8 +397,30 @@ export class ApiCompatibilityService implements IApiCompatibilityLayer {
       // Parse the transcript to determine the format
       const transcriptFormat = this.detectTranscriptFormat(request.transcript);
       
+      // Process transcript with RAG if available
+      if (this.meetingRagIntegrator && request.transcript) {
+        await this.meetingRagIntegrator.processTranscript(
+          request.meetingId,
+          request.transcript,
+          executionId
+        );
+      }
+      
       // Create agent team using the team formation service
       const team = await this.createAgentTeam(request, transcriptFormat);
+      
+      // Enhance team with RAG capabilities if available
+      if (this.meetingRagIntegrator) {
+        // Collect all agents (supervisor, managers, workers)
+        const allAgents = [
+          team.supervisor,
+          ...(team.managers || []),
+          ...(team.workers || [])
+        ].filter(agent => agent !== undefined);
+        
+        // Enhance agents with RAG
+        this.meetingRagIntegrator.enhanceAgentTeam(allAgents, request.meetingId);
+      }
       
       // Store the team information in the state repository
       await this.storeTeamInfo(request.meetingId, executionId, team);
@@ -468,17 +541,52 @@ export class ApiCompatibilityService implements IApiCompatibilityLayer {
    * Create agent team for analysis
    */
   private async createAgentTeam(request: AgenticMeetingAnalysisRequest, transcriptFormat: string) {
-    // Create a hierarchical team
+    // Create a hierarchical team with options
+    // Use type assertion to bypass type checking issues
     const teamOptions = {
-      analysisGoal: request.goals?.[0] || AnalysisGoalType.FULL_ANALYSIS,
+      analysisGoal: this.mapToExtendedGoalType(request.goals?.[0] || AnalysisGoalType.FULL_ANALYSIS),
       enabledExpertise: request.options?.teamComposition?.requiredExpertise as AgentExpertise[] || undefined,
       maxWorkers: request.options?.teamComposition?.maxTeamSize || 10,
       maxManagers: 3,
       debugMode: process.env.NODE_ENV === 'development'
-    };
+    } as HierarchicalTeamOptions;
     
     // Use the team factory to create the team
     return createHierarchicalAgentTeam(teamOptions);
+  }
+  
+  /**
+   * Map AnalysisGoalType to the appropriate extended goal type string value
+   * This ensures compatibility with the hierarchical team factory
+   */
+  private mapToExtendedGoalType(goal: AnalysisGoalType): string {
+    // Map the goal to a string value that matches the expected ExtendedGoalType
+    switch (goal) {
+      case AnalysisGoalType.EXTRACT_TOPICS:
+        return 'EXTRACT_TOPICS';
+      case AnalysisGoalType.EXTRACT_ACTION_ITEMS:
+        return 'EXTRACT_ACTION_ITEMS';
+      case AnalysisGoalType.EXTRACT_DECISIONS:
+        return 'EXTRACT_DECISIONS';
+      case AnalysisGoalType.ANALYZE_SENTIMENT:
+        return 'ANALYZE_SENTIMENT';
+      case AnalysisGoalType.ANALYZE_PARTICIPATION:
+        return 'ANALYZE_PARTICIPATION';
+      case AnalysisGoalType.GENERATE_SUMMARY:
+        return 'GENERATE_SUMMARY';
+      case AnalysisGoalType.INTEGRATE_CONTEXT:
+        return 'INTEGRATE_CONTEXT';
+      case AnalysisGoalType.FULL_ANALYSIS:
+        return 'FULL_ANALYSIS';
+      case AnalysisGoalType.SUMMARY_ONLY:
+        return 'SUMMARY_ONLY';
+      case AnalysisGoalType.ACTION_ITEMS_ONLY:
+        return 'ACTION_ITEMS_ONLY';
+      case AnalysisGoalType.DECISIONS_ONLY:
+        return 'DECISIONS_ONLY';
+      default:
+        return 'FULL_ANALYSIS';
+    }
   }
   
   /**

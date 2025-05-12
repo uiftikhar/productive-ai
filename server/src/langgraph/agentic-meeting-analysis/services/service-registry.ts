@@ -18,6 +18,9 @@ import { ActionItemTrackingServiceImpl } from './action-item-tracking.service';
 import { ActionItemIntegrationServiceImpl } from './action-item-integration.service';
 import { ActionItemNotificationServiceImpl } from './action-item-notification.service';
 import { AgentGraphVisualizationService } from '../visualization/agent-graph-visualization.service';
+import { v4 as uuidv4 } from 'uuid';
+import { OpenAIConnector } from '../../../connectors/openai-connector';
+import { PineconeConnector } from '../../../connectors/pinecone-connector';
 
 /**
  * Service registry options
@@ -81,9 +84,11 @@ export interface SessionProgress {
 }
 
 /**
- * Service Registry for the Agentic Meeting Analysis System
+ * Service Registry for Meeting Analysis Services
  * 
- * Provides a central location to register and access various services
+ * This singleton registry manages shared services across the meeting
+ * analysis system. It allows services to register themselves and
+ * be discovered by other components.
  */
 export class ServiceRegistry {
   private static instance: ServiceRegistry;
@@ -110,24 +115,21 @@ export class ServiceRegistry {
   // Session data
   private sessionProgress: Map<string, SessionProgress> = new Map();
   
-  /**
-   * Get the singleton instance of ServiceRegistry
-   */
-  static getInstance(options: ServiceRegistryOptions = {}): ServiceRegistry {
-    if (!this.instance) {
-      this.instance = new ServiceRegistry(options);
-    }
-    return this.instance;
-  }
+  private openAIConnector?: OpenAIConnector;
+  private pineconeConnector?: PineconeConnector;
+  private services: Map<string, any> = new Map();
+  private id: string;
   
   /**
-   * Create a new service registry
-   * Private constructor to enforce singleton pattern
+   * Private constructor for singleton pattern
    */
   private constructor(options: ServiceRegistryOptions) {
     this.logger = options.logger || new ConsoleLogger();
     this.enableRealIntegrations = options.enableRealIntegrations === true;
     this.enableNotifications = options.enableNotifications !== false;
+    
+    this.id = uuidv4();
+    this.logger.debug('Created Service Registry instance', { id: this.id });
     
     // Initialize supervisor coordination service
     this.supervisorCoordinationService = ServiceFactory.getSupervisorCoordinationService({
@@ -149,6 +151,16 @@ export class ServiceRegistry {
     });
     
     this.logger.info('Service registry initialized');
+  }
+  
+  /**
+   * Get the singleton instance
+   */
+  public static getInstance(options: ServiceRegistryOptions = {}): ServiceRegistry {
+    if (!this.instance) {
+      this.instance = new ServiceRegistry(options);
+    }
+    return this.instance;
   }
   
   /**
@@ -518,14 +530,14 @@ export class ServiceRegistry {
    */
   public registerAgentVisualizationService(service: AgentGraphVisualizationService): void {
     this.agentVisualizationService = service;
-    this.logger.debug('Agent visualization service registered');
+    this.logger.debug('Registered AgentGraphVisualizationService');
   }
   
   /**
    * Get the agent visualization service
    */
-  public getAgentVisualizationService(): AgentGraphVisualizationService | null {
-    return this.agentVisualizationService || null;
+  public getAgentVisualizationService(): AgentGraphVisualizationService | undefined {
+    return this.agentVisualizationService;
   }
 
   /**
@@ -578,5 +590,71 @@ export class ServiceRegistry {
    */
   public clearSessionProgress(sessionId: string): void {
     this.sessionProgress.delete(sessionId);
+  }
+
+  /**
+   * Register an OpenAI connector
+   */
+  public registerOpenAIConnector(connector: OpenAIConnector): void {
+    this.openAIConnector = connector;
+    this.logger.debug('Registered OpenAIConnector');
+  }
+
+  /**
+   * Get the OpenAI connector
+   */
+  public getOpenAIConnector(): OpenAIConnector | undefined {
+    return this.openAIConnector;
+  }
+
+  /**
+   * Register a Pinecone connector
+   */
+  public registerPineconeConnector(connector: PineconeConnector): void {
+    this.pineconeConnector = connector;
+    this.logger.debug('Registered PineconeConnector');
+  }
+
+  /**
+   * Get the Pinecone connector
+   */
+  public getPineconeConnector(): PineconeConnector | undefined {
+    return this.pineconeConnector;
+  }
+
+  /**
+   * Register a generic service
+   */
+  public registerService(name: string, service: any): void {
+    this.services.set(name, service);
+    this.logger.debug(`Registered service: ${name}`);
+  }
+
+  /**
+   * Get a generic service
+   */
+  public getService(name: string): any {
+    return this.services.get(name);
+  }
+
+  /**
+   * Check if a service is registered
+   */
+  public hasService(name: string): boolean {
+    return this.services.has(name);
+  }
+
+  /**
+   * Get all registered service names
+   */
+  public getServiceNames(): string[] {
+    return Array.from(this.services.keys());
+  }
+
+  /**
+   * Reset the registry (primarily for testing)
+   */
+  public static resetInstance(): void {
+    ServiceRegistry.instance = new ServiceRegistry({});
   }
 } 

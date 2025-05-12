@@ -183,6 +183,39 @@ export class SummarySynthesisAgent
         context: contextAnalysis || {},
       };
 
+      // Check if we have RAG capabilities
+      if (this.hasRagCapabilities()) {
+        this.logger.info(`Using RAG capabilities for summary generation task: ${task.id}`);
+        
+        // Enhance each phase with RAG
+        if (this.enableInsightSynthesis) {
+          const ragQuery = "What are the key insights, patterns, and connections from this meeting?";
+          await this.retrieveRelevantContext(
+            ragQuery,
+            metadata?.meetingId || transcript.meetingId,
+            5
+          );
+        }
+        
+        if (this.enableHighlightExtraction) {
+          const ragQuery = "What are the most important highlights and key moments from this meeting?";
+          await this.retrieveRelevantContext(
+            ragQuery,
+            metadata?.meetingId || transcript.meetingId,
+            5
+          );
+        }
+        
+        if (this.enableActionableRecommendations) {
+          const ragQuery = "What actionable recommendations can be made based on this meeting?";
+          await this.retrieveRelevantContext(
+            ragQuery,
+            metadata?.meetingId || transcript.meetingId,
+            5
+          );
+        }
+      }
+
       // Synthesize insights from specialist outputs
       let insights = null;
       if (this.enableInsightSynthesis) {
@@ -259,6 +292,7 @@ export class SummarySynthesisAgent
         metadata: {
           taskId: task.id,
           meetingId: metadata?.meetingId || 'unknown',
+          usedRag: this.hasRagCapabilities(),
         },
         timestamp: Date.now(),
       };
@@ -628,7 +662,7 @@ export class SummarySynthesisAgent
   }
 
   /**
-   * Generate summary at specified detail level
+   * Generate a summary at the specified detail level
    */
   private async generateSummary(
     level: 'executive' | 'detailed' | 'comprehensive',
@@ -638,132 +672,94 @@ export class SummarySynthesisAgent
   ): Promise<string> {
     this.logger.info(`Generating ${level} summary`);
 
-    // Create a RAG-optimized prompt for summary generation
-    let instructionTemplate;
-
-    switch (level) {
-      case 'executive':
-        // Use FINAL_MEETING_SUMMARY template with shorter format
-        instructionTemplate = InstructionTemplateNameEnum.FINAL_MEETING_SUMMARY;
-        break;
-      case 'detailed':
-        // Use FINAL_MEETING_SUMMARY template with detailed format
-        instructionTemplate = InstructionTemplateNameEnum.FINAL_MEETING_SUMMARY;
-        break;
-      case 'comprehensive':
-        // Use MEETING_ANALYSIS_CHUNK template for more comprehensive output
-        instructionTemplate =
-          InstructionTemplateNameEnum.MEETING_ANALYSIS_CHUNK;
-        break;
-      default:
-        instructionTemplate = InstructionTemplateNameEnum.FINAL_MEETING_SUMMARY;
-    }
-
-    // Create audience-specific instructions based on detail level
-    let detailInstructions = '';
-
-    switch (level) {
-      case 'executive':
-        detailInstructions = `
-          Create a concise executive summary (250-500 words) focusing on:
-          - Key decisions made
-          - Critical action items with owners
-          - High-level insights
-          - Strategic implications
-          
-          Use an executive-friendly tone and highlight only the most important points.
-        `;
-        break;
-      case 'detailed':
-        detailInstructions = `
-          Create a detailed summary (500-1000 words) including:
-          - Meeting objectives and context
-          - All key topics discussed with brief summaries
-          - All decisions with rationales
-          - All action items with owners and deadlines
-          - Team dynamics and participation patterns
-          - Key insights and recommendations
-          
-          Balance comprehensiveness with readability.
-        `;
-        break;
-      case 'comprehensive':
-        detailInstructions = `
-          Create a comprehensive record of the meeting (1000+ words) with:
-          - Full context and background
-          - Detailed discussion of each topic
-          - All decisions with full rationales and stakeholder concerns
-          - Complete list of action items with all details
-          - Thorough analysis of team dynamics and participation
-          - Complete insights, connections to previous meetings
-          - All recommendations with implementation details
-          
-          Prioritize completeness over brevity.
-        `;
-        break;
-    }
-
-    const instructionContent = `
-      ${detailInstructions}
+    // If we have RAG capabilities, use enhanced prompt generation
+    if (this.hasRagCapabilities()) {
+      const meetingId = metadata?.meetingId || transcript.meetingId;
       
-      MEETING METADATA:
-      Title: ${metadata?.title || 'Meeting'}
-      Date: ${metadata?.date || new Date().toISOString()}
-      Participants: ${metadata?.participants?.map((p: any) => p.name || p.id).join(', ') || 'Unknown'}
+      // Create a query specific to this level of summary
+      let ragQuery = "";
+      switch (level) {
+        case 'executive':
+          ragQuery = "What are the key decisions, action items, and strategic insights for an executive summary?";
+          break;
+        case 'detailed':
+          ragQuery = "What are all topics discussed, decisions made, and action items assigned in this meeting?";
+          break;
+        case 'comprehensive':
+          ragQuery = "Provide a full detailed analysis of all content, discussions, and outcomes from this meeting";
+          break;
+      }
       
-      ANALYSIS OUTPUTS:
-      Topics: ${analyses.topics?.length || 0} topics identified
-      Action Items: ${analyses.actionItems?.length || 0} action items identified
-      Decisions: ${analyses.decisions?.length || 0} decisions recorded
+      // Create a task-like object for the RAG-enhanced prompt
+      const summaryTask = {
+        id: `summary-${level}-${Date.now()}`,
+        meetingId: meetingId,
+        goal: `Generate a ${level} summary of the meeting`
+      };
+      
+      // Use the base class rag-enhanced prompt method
+      const enhancedPrompt = await this.createRagEnhancedPrompt(
+        summaryTask,
+        transcript.segments.map(s => s.content).join("\n\n"),
+        ragQuery
+      );
+      
+      // Let's adapt the default summary generation with our RAG-enhanced prompt
+      return this.generateSummaryWithRAG(level, analyses, enhancedPrompt, metadata);
+    }
+    
+    // Add a fallback to the original implementation
+    // Create a basic prompt for summary generation
+    const fallbackPrompt = `Please provide a ${level} summary of the meeting with the following characteristics:
+      ${level === 'executive' ? '- Concise (250-500 words), focusing on decisions, action items, and strategic implications' : ''}
+      ${level === 'detailed' ? '- Comprehensive (500-1000 words), including all topics, decisions, and action items' : ''}
+      ${level === 'comprehensive' ? '- Complete (1000+ words), with full context and detailed discussion of all aspects' : ''}
     `;
-
-    // Generate dummy embedding for simplicity
-    const dummyEmbedding = new Array(1536)
-      .fill(0)
-      .map(() => Math.random() - 0.5);
-
-    // Create RAG options
-    const ragOptions = {
-      userId: 'system',
-      queryText: `Generate ${level} meeting summary`,
-      queryEmbedding: dummyEmbedding,
-      strategy: RagRetrievalStrategy.CUSTOM,
-    };
+    
+    // Call LLM with the basic prompt
+    return this.callLLM(`Generate ${level} summary`, fallbackPrompt);
+  }
+  
+  /**
+   * Generate a summary using RAG-enhanced prompts
+   */
+  private async generateSummaryWithRAG(
+    level: 'executive' | 'detailed' | 'comprehensive',
+    analyses: any,
+    enhancedPrompt: string,
+    metadata: any
+  ): Promise<string> {
+    // Build a message from our analyses and the RAG-enhanced prompt
+    const messages = [
+      { role: 'system', content: this.systemPrompt },
+      {
+        role: 'user',
+        content: `
+          ${enhancedPrompt}
+          
+          ANALYSES:
+          ${JSON.stringify(analyses, null, 2)}
+          
+          MEETING METADATA:
+          ${JSON.stringify(metadata, null, 2)}
+          
+          Synthesize this information into a ${level} summary following these guidelines:
+          - Executive: Concise (250-500 words), focusing on decisions, action items, and strategic implications
+          - Detailed: Comprehensive (500-1000 words), including all topics, decisions, and action items
+          - Comprehensive: Complete (1000+ words), with full context and detailed discussion of all aspects
+        `,
+      },
+    ];
 
     try {
-      // Use RAG prompt manager
-      const ragPrompt = await this.ragPromptManager.createRagPrompt(
-        SystemRoleEnum.FINAL_SUMMARY_GENERATOR,
-        instructionTemplate,
-        instructionContent,
-        ragOptions,
-      );
-
-      // Call LLM with the RAG-optimized prompt
-      const response = await this.callLLM(
-        `Generate ${level} summary`,
-        ragPrompt.messages[0].content,
-      );
-
-      // Process response - may be JSON or plain text depending on the template
-      try {
-        const parsedResponse = JSON.parse(response);
-        return parsedResponse.summary || parsedResponse.content || response;
-      } catch (error) {
-        // Not JSON, return as is
-        return response;
-      }
-    } catch (error) {
-      this.logger.error(
-        `Error generating ${level} summary: ${error instanceof Error ? error.message : String(error)}`,
-      );
-
-      // Fall back to direct prompt
-      const fallbackPrompt = `Please provide a ${level} summary of the meeting.`;
+      // Use the callLLM method that exists in the class
       return await this.callLLM(
-        `Generate ${level} summary (fallback)`,
-        fallbackPrompt,
+        `Generate ${level} summary with RAG`,
+        messages[1].content
       );
+    } catch (error) {
+      this.logger.error(`Error generating ${level} summary with RAG: ${error}`);
+      return `Failed to generate ${level} summary due to an error.`;
     }
   }
 

@@ -18,6 +18,7 @@ import visualizationRoutes from './api/routes/visualization.routes';
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import { PineconeConnector } from './connectors/pinecone-connector';
 
 // Create a logger instance
 const logger = new ConsoleLogger();
@@ -62,6 +63,38 @@ const startServer = async () => {
       logger,
       enableRealTimeUpdates: true
     }));
+
+    // Initialize and register OpenAI connector
+    try {
+      const openAiConnector = new OpenAIConnector({
+        logger,
+        modelConfig: {
+          model: process.env.OPENAI_MODEL || 'gpt-4o',
+          temperature: 0.2,
+          maxTokens: 4000,
+          streaming: true
+        },
+        embeddingConfig: {
+          model: process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-large'
+        }
+      });
+      
+      await openAiConnector.initialize();
+      serviceRegistry.registerOpenAIConnector(openAiConnector);
+      logger.info('OpenAI connector registered with ServiceRegistry');
+    } catch (error) {
+      logger.error('Failed to initialize OpenAI connector', { error });
+    }
+
+    // Initialize and register Pinecone connector
+    try {
+      const pineconeConnector = new PineconeConnector({ logger });
+      await pineconeConnector.initialize();
+      serviceRegistry.registerPineconeConnector(pineconeConnector);
+      logger.info('Pinecone connector registered with ServiceRegistry');
+    } catch (error) {
+      logger.error('Failed to initialize Pinecone connector', { error });
+    }
 
     // Register API routes
     

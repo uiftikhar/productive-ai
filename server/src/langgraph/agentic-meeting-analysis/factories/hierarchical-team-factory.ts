@@ -27,6 +27,13 @@ import { DecisionAnalysisAgent } from '../agents/decision/decision-analysis-agen
 import { ContextIntegrationAgent } from '../agents/context/context-integration-agent';
 import { extendSpecialistAgent } from '../agents/workers/specialist-agent-extensions';
 
+// Import RAG components
+import { UnifiedRAGService } from '../../../rag/core/unified-rag.service';
+import { MeetingContextProvider } from '../../../rag/context/meeting-context-provider';
+import { DocumentContextProvider } from '../../../rag/context/document-context-provider';
+import { ConversationMemoryService } from '../../../rag/memory/conversation-memory.service';
+import { MeetingContextAgent } from '../../../rag/agents/meeting-context-agent';
+
 // Define extended enum values as string constants
 // This avoids modifying the original enum objects
 const ExtendedAgentExpertise = {
@@ -34,70 +41,61 @@ const ExtendedAgentExpertise = {
   PARTICIPATION_ANALYSIS: 'PARTICIPATION_ANALYSIS',
   DECISION_ANALYSIS: 'DECISION_ANALYSIS',
   CONTEXT_INTEGRATION: 'CONTEXT_INTEGRATION',
+  CONTEXT_AWARENESS: 'CONTEXT_AWARENESS'
+} as const;
+
+// Create a derived type for the extended enum
+type ExtendedExpertise = typeof AgentExpertise[keyof typeof AgentExpertise] | 
+  'PARTICIPATION_ANALYSIS' | 'DECISION_ANALYSIS' | 'CONTEXT_INTEGRATION' | 'CONTEXT_AWARENESS';
+
+// Extend the AnalysisGoalType enum with new values
+const ExtendedGoalType = {
+  ...AnalysisGoalType,
+  PARTICIPANT_ENGAGEMENT: 'PARTICIPANT_ENGAGEMENT',
+  DECISION_TRACKING: 'DECISION_TRACKING',
+  CONTEXT_AWARE_ANALYSIS: 'CONTEXT_AWARE_ANALYSIS'
 } as const;
 
 // Define extended analysis goal types
 const ExtendedAnalysisGoalType = {
   ...AnalysisGoalType,
   COORDINATE: 'COORDINATE',
-  MANAGE_TEAM: 'MANAGE_TEAM', 
   ANALYZE_PARTICIPATION: 'ANALYZE_PARTICIPATION',
-  EXTRACT_DECISIONS: 'EXTRACT_DECISIONS',
-  INTEGRATE_CONTEXT: 'INTEGRATE_CONTEXT',
+  INTEGRATE_CONTEXT: 'INTEGRATE_CONTEXT'
 } as const;
 
+// Create a derived type for the extended enum
+type ExtendedGoalType = keyof typeof ExtendedGoalType;
+
 /**
- * Helper function to normalize expertise values
- * Converts snake_case inputs (from API) to UPPER_SNAKE_CASE (for enum values)
+ * Maps specialties to the appropriate agent classes
  */
-function normalizeExpertise(expertise: string | null | undefined): AgentExpertise {
-  if (!expertise) {
-    return AgentExpertise.TOPIC_ANALYSIS; // Default to topic analysis
-  }
-  
-  // Simple mapping for common formats
-  const mapping: Record<string, AgentExpertise> = {
-    // Snake case formats from API
-    'topic_analysis': AgentExpertise.TOPIC_ANALYSIS,
-    'action_item_extraction': AgentExpertise.ACTION_ITEM_EXTRACTION,
-    'summary_generation': AgentExpertise.SUMMARY_GENERATION,
-    'sentiment_analysis': AgentExpertise.SENTIMENT_ANALYSIS,
-    'participant_dynamics': AgentExpertise.PARTICIPANT_DYNAMICS,
-    'decision_tracking': AgentExpertise.DECISION_TRACKING,
-    'management': AgentExpertise.MANAGEMENT,
-    // Uppercase formats (from enum)
-    'TOPIC_ANALYSIS': AgentExpertise.TOPIC_ANALYSIS,
-    'ACTION_ITEM_EXTRACTION': AgentExpertise.ACTION_ITEM_EXTRACTION,
-    'SUMMARY_GENERATION': AgentExpertise.SUMMARY_GENERATION,
-    'SENTIMENT_ANALYSIS': AgentExpertise.SENTIMENT_ANALYSIS,
-    'PARTICIPANT_DYNAMICS': AgentExpertise.PARTICIPANT_DYNAMICS,
-    'DECISION_TRACKING': AgentExpertise.DECISION_TRACKING,
-    'MANAGEMENT': AgentExpertise.MANAGEMENT,
-    // Handle extended types by mapping to standard types for compatibility
-    'participation_analysis': AgentExpertise.PARTICIPANT_DYNAMICS,
-    'PARTICIPATION_ANALYSIS': AgentExpertise.PARTICIPANT_DYNAMICS,
-    'decision_analysis': AgentExpertise.DECISION_TRACKING,
-    'DECISION_ANALYSIS': AgentExpertise.DECISION_TRACKING,
-    'context_integration': AgentExpertise.SUMMARY_GENERATION,
-    'CONTEXT_INTEGRATION': AgentExpertise.SUMMARY_GENERATION
-  };
-  
-  return mapping[expertise] || AgentExpertise.TOPIC_ANALYSIS;
-}
+const expertiseAgentMap = {
+  [AgentExpertise.TOPIC_ANALYSIS]: TopicAnalysisAgent,
+  [AgentExpertise.ACTION_ITEM_EXTRACTION]: ActionItemSpecialistAgent,
+  [AgentExpertise.SUMMARY_GENERATION]: SummarySynthesisAgent,
+  [AgentExpertise.SENTIMENT_ANALYSIS]: SentimentAnalysisAgent,
+  [ExtendedAgentExpertise.PARTICIPATION_ANALYSIS]: ParticipantDynamicsAgent,
+  [ExtendedAgentExpertise.DECISION_ANALYSIS]: DecisionAnalysisAgent,
+  [ExtendedAgentExpertise.CONTEXT_INTEGRATION]: ContextIntegrationAgent,
+  [ExtendedAgentExpertise.CONTEXT_AWARENESS]: MeetingContextAgent
+};
 
-// Type for both original and extended expertise values
-type ExtendedExpertise = AgentExpertise | 
-  typeof ExtendedAgentExpertise.PARTICIPATION_ANALYSIS | 
-  typeof ExtendedAgentExpertise.DECISION_ANALYSIS | 
-  typeof ExtendedAgentExpertise.CONTEXT_INTEGRATION;
-
-// Type for both original and extended goal types
-type ExtendedGoalType = AnalysisGoalType | 
-  typeof ExtendedAnalysisGoalType.COORDINATE | 
-  typeof ExtendedAnalysisGoalType.MANAGE_TEAM |
-  typeof ExtendedAnalysisGoalType.ANALYZE_PARTICIPATION |
-  typeof ExtendedAnalysisGoalType.EXTRACT_DECISIONS |
-  typeof ExtendedAnalysisGoalType.INTEGRATE_CONTEXT;
+/**
+ * Maps expertise areas to the appropriate manager areas
+ */
+const expertiseManagerMap: Record<string, string> = {
+  [AgentExpertise.TOPIC_ANALYSIS]: 'TopicTeam',
+  [AgentExpertise.ACTION_ITEM_EXTRACTION]: 'ActionTeam',
+  [AgentExpertise.SUMMARY_GENERATION]: 'SummaryTeam',
+  [AgentExpertise.SENTIMENT_ANALYSIS]: 'SentimentTeam',
+  [ExtendedAgentExpertise.PARTICIPATION_ANALYSIS]: 'ParticipationTeam',
+  [ExtendedAgentExpertise.DECISION_ANALYSIS]: 'DecisionTeam',
+  [ExtendedAgentExpertise.CONTEXT_INTEGRATION]: 'ContextTeam',
+  [ExtendedAgentExpertise.CONTEXT_AWARENESS]: 'ContextTeam',
+  [AgentExpertise.MANAGEMENT]: 'SupervisorTeam',
+  'TOOL_USE': 'ToolTeam' // Use string literal instead of enum
+};
 
 /**
  * Options for creating a hierarchical team
@@ -112,6 +110,15 @@ export interface HierarchicalTeamOptions {
   useMockMode?: boolean;
   logger?: Logger;
   openAiConnector?: OpenAIConnector;
+  meetingId?: string;
+  organizationId?: string;
+  enableRAG?: boolean;
+  ragOptions?: {
+    useConversationMemory?: boolean;
+    maxContextLength?: number;
+    defaultPromptTemplate?: string;
+    indexName?: string;
+  };
 }
 
 /**
@@ -125,6 +132,7 @@ export interface HierarchicalTeamResult {
     manager: AnalysisManagerAgent;
     workers: SpecialistWorkerAgent[];
   }>;
+  ragService?: UnifiedRAGService;
 }
 
 /**
@@ -142,7 +150,9 @@ export async function createHierarchicalAgentTeam(options: HierarchicalTeamOptio
       analysisGoal: options.analysisGoal,
       enabledExpertise: options.enabledExpertise,
       maxWorkers: options.maxWorkers,
-      maxManagers: options.maxManagers
+      maxManagers: options.maxManagers,
+      enableRAG: options.enableRAG,
+      meetingId: options.meetingId
     })}`);
     
     // Determine if we should use mock mode
@@ -185,6 +195,58 @@ async function createRealAgentTeam(
       enabledExpertiseCount: options.enabledExpertise ? options.enabledExpertise.length : 0
     })}`);
     
+    // Initialize RAG components if enabled
+    let ragService: UnifiedRAGService | undefined;
+    
+    if (options.enableRAG) {
+      logger.info('Initializing RAG components for context-aware analysis');
+      
+      // Create context providers
+      const meetingContextProvider = new MeetingContextProvider({
+        logger,
+        openAiConnector,
+        indexName: options.ragOptions?.indexName
+      });
+      
+      const documentContextProvider = new DocumentContextProvider({
+        logger,
+        openAiConnector
+      });
+      
+      // Set up conversation memory if requested
+      let conversationMemory: ConversationMemoryService | undefined;
+      
+      if (options.ragOptions?.useConversationMemory) {
+        conversationMemory = new ConversationMemoryService({
+          logger,
+          openAiConnector
+        });
+        
+        logger.info('Conversation memory system initialized');
+      }
+      
+      // Create unified RAG service
+      ragService = new UnifiedRAGService({
+        logger,
+        openAiConnector,
+        contextProviders: {
+          meeting_transcript: meetingContextProvider,
+          document: documentContextProvider
+        },
+        conversationMemory
+      });
+      
+      logger.info('RAG service initialized successfully');
+      
+      // Ensure CONTEXT_AWARENESS is in the enabled expertise if RAG is enabled
+      if (!options.enabledExpertise?.includes(ExtendedAgentExpertise.CONTEXT_AWARENESS as ExtendedExpertise)) {
+        options.enabledExpertise = [
+          ...(options.enabledExpertise || []),
+          ExtendedAgentExpertise.CONTEXT_AWARENESS as ExtendedExpertise
+        ];
+      }
+    }
+    
     // Create supervisor agent
     const supervisorId = `supervisor-${uuidv4().slice(0, 8)}`;
     // Create supervisor with proper config
@@ -211,7 +273,7 @@ async function createRealAgentTeam(
     logger.info(`Default expertise array: ${defaultExpertise.join(', ')}`);
     
     // Normalize expertise values or use defaults
-    let enabledExpertise;
+    let enabledExpertise: ExtendedExpertise[];
     if (options.enabledExpertise && options.enabledExpertise.length > 0) {
       logger.info(`Normalizing provided expertise: ${options.enabledExpertise.join(', ')}`);
       enabledExpertise = options.enabledExpertise.map(exp => {
@@ -416,7 +478,7 @@ async function createRealAgentTeam(
       
       // Store team mapping
       logger.info(`Storing team mapping for expertise: ${expertise}`);
-      teamMap.set(expertise, {
+      teamMap.set(expertise as ExtendedExpertise, {
         manager,
         workers: workersForManager
       });
@@ -457,7 +519,7 @@ async function createRealAgentTeam(
         // Add to workers list - properly extended to match the SpecialistWorkerAgent type
         const contextWorker = contextAgent as unknown as SpecialistWorkerAgent;
         workers.push(contextWorker);
-        teamMap.set(AgentExpertise.CONTEXT_INTEGRATION, {
+        teamMap.set('CONTEXT_INTEGRATION' as ExtendedExpertise, {
           manager: managers[0],
           workers: [contextWorker]
         });
@@ -486,11 +548,39 @@ async function createRealAgentTeam(
         // Add to workers list - properly extended
         const contextWorker = contextAgent as unknown as SpecialistWorkerAgent;
         workers.push(contextWorker);
-        teamMap.set(AgentExpertise.CONTEXT_INTEGRATION, {
+        teamMap.set('CONTEXT_INTEGRATION' as ExtendedExpertise, {
           manager: managers[0],
           workers: [contextWorker]
         });
       }
+    }
+    
+    // Handle special case for MeetingContextAgent with RAG capabilities
+    if (enabledExpertise.includes('CONTEXT_AWARENESS') && ragService) {
+      const workerId = `worker-${ExtendedAgentExpertise.CONTEXT_AWARENESS}-${uuidv4().slice(0, 8)}`;
+      
+      const contextAgent = new MeetingContextAgent({
+        // id  : workerId,
+        
+        ragService,
+        meetingId: options.meetingId,
+        organizationId: options.organizationId,
+        logger,
+        openAIConnector: openAiConnector,
+        agentConfig: {
+          id: workerId,
+          useConversationMemory: true,
+          maxContextLength: 1000,
+          defaultPromptTemplate: 'You are a helpful assistant that can answer questions about the meeting.',
+          indexName: 'meeting-analysis',
+          name: "Meeting Context Agent",
+        }
+      });
+      
+      // Fix workersForManager reference
+      const workersForThisManager = teamMap.get('CONTEXT_AWARENESS' as ExtendedExpertise)?.workers || [];
+      workersForThisManager.push(contextAgent as any as SpecialistWorkerAgent);
+      workers.push(contextAgent as any as SpecialistWorkerAgent);
     }
     
     logger.info(`Successfully created hierarchical team with ${managers.length} managers and ${workers.length} workers`);
@@ -499,7 +589,8 @@ async function createRealAgentTeam(
       supervisor,
       managers,
       workers,
-      teamMap
+      teamMap,
+      ragService
     };
   } catch (error) {
     logger.error(`Error in createRealAgentTeam: ${error instanceof Error ? error.message : String(error)}`);
@@ -508,6 +599,45 @@ async function createRealAgentTeam(
     }
     throw error;
   }
+}
+
+/**
+ * Helper function to normalize expertise values
+ * Converts snake_case inputs (from API) to UPPER_SNAKE_CASE (for enum values)
+ */
+function normalizeExpertise(expertise: string | null | undefined): AgentExpertise {
+  if (!expertise) {
+    return AgentExpertise.TOPIC_ANALYSIS; // Default to topic analysis
+  }
+  
+  // Simple mapping for common formats
+  const mapping: Record<string, AgentExpertise> = {
+    // Snake case formats from API
+    'topic_analysis': AgentExpertise.TOPIC_ANALYSIS,
+    'action_item_extraction': AgentExpertise.ACTION_ITEM_EXTRACTION,
+    'summary_generation': AgentExpertise.SUMMARY_GENERATION,
+    'sentiment_analysis': AgentExpertise.SENTIMENT_ANALYSIS,
+    'participant_dynamics': AgentExpertise.PARTICIPANT_DYNAMICS,
+    'decision_tracking': AgentExpertise.DECISION_TRACKING,
+    'management': AgentExpertise.MANAGEMENT,
+    // Uppercase formats (from enum)
+    'TOPIC_ANALYSIS': AgentExpertise.TOPIC_ANALYSIS,
+    'ACTION_ITEM_EXTRACTION': AgentExpertise.ACTION_ITEM_EXTRACTION,
+    'SUMMARY_GENERATION': AgentExpertise.SUMMARY_GENERATION,
+    'SENTIMENT_ANALYSIS': AgentExpertise.SENTIMENT_ANALYSIS,
+    'PARTICIPANT_DYNAMICS': AgentExpertise.PARTICIPANT_DYNAMICS,
+    'DECISION_TRACKING': AgentExpertise.DECISION_TRACKING,
+    'MANAGEMENT': AgentExpertise.MANAGEMENT,
+    // Handle extended types by mapping to standard types for compatibility
+    'participation_analysis': AgentExpertise.PARTICIPANT_DYNAMICS,
+    'PARTICIPATION_ANALYSIS': AgentExpertise.PARTICIPANT_DYNAMICS,
+    'decision_analysis': AgentExpertise.DECISION_TRACKING,
+    'DECISION_ANALYSIS': AgentExpertise.DECISION_TRACKING,
+    'context_integration': AgentExpertise.SUMMARY_GENERATION,
+    'CONTEXT_INTEGRATION': AgentExpertise.SUMMARY_GENERATION
+  };
+  
+  return mapping[expertise] || AgentExpertise.TOPIC_ANALYSIS;
 }
 
 /**
@@ -652,7 +782,7 @@ function createMockAgentTeam(options: HierarchicalTeamOptions): HierarchicalTeam
     }
     
     // Store team mapping
-    teamMap.set(expertise, {
+    teamMap.set(expertise as ExtendedExpertise, {
       manager,
       workers: workersForManager
     });

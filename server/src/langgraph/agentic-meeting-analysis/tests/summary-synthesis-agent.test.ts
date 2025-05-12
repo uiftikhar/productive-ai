@@ -14,12 +14,17 @@ import {
 } from '../interfaces/agent.interface';
 import { MeetingTranscript } from '../interfaces/state.interface';
 
-// Mock dependencies
+// Mock OpenAI modules
 jest.mock('@langchain/openai', () => ({
   ChatOpenAI: jest.fn().mockImplementation(() => ({
     invoke: jest.fn().mockResolvedValue({ content: 'Mock LLM response' }),
     temperature: 0,
     modelName: 'gpt-4-turbo-mock'
+  })),
+  OpenAIEmbeddings: jest.fn().mockImplementation(() => ({
+    embedQuery: jest.fn().mockResolvedValue([0.1, 0.2, 0.3, 0.4]),
+    embedDocuments: jest.fn().mockResolvedValue([[0.1, 0.2, 0.3, 0.4], [0.5, 0.6, 0.7, 0.8]]),
+    MemoryVectorStore: jest.fn()
   }))
 }));
 

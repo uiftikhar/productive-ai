@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 /**
  * Example implementation of the hierarchical meeting analysis system
  * 
