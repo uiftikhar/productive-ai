@@ -36,20 +36,37 @@ export interface AnalysisResultResponse {
   meetingId: string;
   status: string;
   results: {
-    summary?: {
-      short?: string;
-      detailed?: string;
-    };
+    meetingTitle?: string;
+    summary?: string;
+    decisions?: Array<{
+      title: string;
+      content: string;
+    }>;
+    
     topics?: Array<{
       name: string;
       description?: string;
+      keywords?: string[];
+      relevanceScore?: number;
     } | string>;
+    
     actionItems?: Array<{
       description: string;
-      assignee?: string;
       assignees?: string[];
       dueDate?: string;
+      priority?: string;
+      status?: string;
     }>;
+    
+    questions?: Array<{
+      question: string;
+      answered: boolean;
+      answer?: string;
+    }>;
+    keyTopics?: string[];
+    
+    error?: string;
+    error_details?: string;
   };
   message: string;
   runId: string;
