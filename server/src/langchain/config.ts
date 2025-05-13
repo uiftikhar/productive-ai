@@ -9,7 +9,7 @@ export const LangChainConfig = {
     streaming: process.env.OPENAI_STREAMING === 'true',
   },
   embeddings: {
-    model: process.env.EMBEDDING_MODEL || 'text-embedding-3-large',
+    model: process.env.EMBEDDING_MODEL || 'llama-text-embed-v2',
   },
   agents: {
     maxIterations: parseInt(process.env.MAX_AGENT_ITERATIONS || '10'),

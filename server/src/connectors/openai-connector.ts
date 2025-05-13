@@ -131,6 +131,7 @@ export class OpenAIConnector implements LanguageModelProvider {
 
     this.embeddings = new OpenAIEmbeddings({
       model: embeddingConfig.model,
+      dimensions: 1024,
     });
     
     // Log successful initialization
@@ -525,7 +526,7 @@ export class OpenAIConnector implements LanguageModelProvider {
       return embeddings;
     } catch (error) {
       this.handleFailure(error);
-      this.logger.error('Error generating embedding', {
+      this.logger.error('OPENAI-CONNECTOR: Error generating embedding', {
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
@@ -554,7 +555,7 @@ export class OpenAIConnector implements LanguageModelProvider {
       return results;
     } catch (error) {
       this.handleFailure(error);
-      this.logger.error('Error generating batch embeddings', {
+      this.logger.error('OPENAI-CONNECTOR: Error generating batch embeddings', {
         error: error instanceof Error ? error.message : String(error),
         textCount: texts.length
       });

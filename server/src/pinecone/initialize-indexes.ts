@@ -10,42 +10,94 @@ import { ConsoleLogger } from '../shared/logger/console-logger';
  */
 async function initializePineconeIndexes(): Promise<void> {
   const logger = new ConsoleLogger();
-  const indexService = new PineconeIndexService();
+  const indexService = new PineconeIndexService({ logger });
 
   logger.info('Initializing Pinecone indexes...');
 
-  try {
-    // Common configuration for all indexes
-    const baseConfig: IndexConfig = {
-      dimension: 3072, // For OpenAI text-embedding-3-large (3072 dimensions)
-      metric: 'cosine',
-      serverless: true,
-      cloud: process.env.PINECONE_CLOUD || 'aws',
-      region: process.env.PINECONE_REGION || 'us-west-2',
-      embeddingModel: 'text-embedding-3-large', // This is just for Pinecone's managed embeddings
-      tags: { project: 'productive-ai' },
-    };
+  // Common configuration for all indexes
+  const baseConfig: IndexConfig = {
+    dimension: 4096, // For llama-text-embed-v2 (4096 dimensions)
+    metric: 'cosine',
+    serverless: true,
+    cloud: process.env.PINECONE_CLOUD || 'aws',
+    region: process.env.PINECONE_REGION || 'us-west-2',
+    embeddingModel: 'llama-text-embed-v2', // Changed to supported model
+    tags: { project: 'productive-ai' },
+  };
 
-    // Initialize all required indexes
+  // Initialize all required indexes
+  let successCount = 0;
+  let errorCount = 0;
+  
+  try {
     await indexService.ensureIndexExists(
       VectorIndexes.USER_CONTEXT,
       baseConfig,
     );
+    logger.info(`Index ${VectorIndexes.USER_CONTEXT} initialized successfully`);
+    successCount++;
+  } catch (error) {
+    logger.error(`Failed to initialize ${VectorIndexes.USER_CONTEXT} index`, {
+      error: error instanceof Error ? error.message : String(error),
+      config: {
+        model: baseConfig.embeddingModel,
+        dimension: baseConfig.dimension
+      }
+    });
+    errorCount++;
+    // Continue with other indexes
+  }
+
+  try {
     await indexService.ensureIndexExists(
       VectorIndexes.USER_FEEDBACK,
       baseConfig,
     );
+    logger.info(`Index ${VectorIndexes.USER_FEEDBACK} initialized successfully`);
+    successCount++;
+  } catch (error) {
+    logger.error(`Failed to initialize ${VectorIndexes.USER_FEEDBACK} index`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    errorCount++;
+    // Continue with other indexes
+  }
+
+  try {
     await indexService.ensureIndexExists(
       VectorIndexes.TRANSCRIPT_EMBEDDINGS,
       baseConfig,
     );
-
-    logger.info('Successfully initialized all Pinecone indexes');
+    logger.info(`Index ${VectorIndexes.TRANSCRIPT_EMBEDDINGS} initialized successfully`);
+    successCount++;
   } catch (error) {
-    logger.error('Failed to initialize Pinecone indexes', {
+    logger.error(`Failed to initialize ${VectorIndexes.TRANSCRIPT_EMBEDDINGS} index`, {
       error: error instanceof Error ? error.message : String(error),
     });
-    throw error;
+    errorCount++;
+    // Continue with other indexes
+  }
+
+  try {
+    await indexService.ensureIndexExists(
+      VectorIndexes.MEETING_ANALYSIS,
+      baseConfig,
+    );
+    logger.info(`Index ${VectorIndexes.MEETING_ANALYSIS} initialized successfully`);
+    successCount++;
+  } catch (error) {
+    logger.error(`Failed to initialize ${VectorIndexes.MEETING_ANALYSIS} index`, {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    errorCount++;
+    // Continue with other indexes
+  }
+
+  logger.info(`Pinecone index initialization completed. Success: ${successCount}, Errors: ${errorCount}`);
+  
+  // Throw error if no indexes were successfully initialized
+  if (successCount === 0 && errorCount > 0) {
+    throw new Error('Failed to initialize any Pinecone indexes');
   }
 }
 

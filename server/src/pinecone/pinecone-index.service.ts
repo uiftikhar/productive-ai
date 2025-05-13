@@ -7,6 +7,8 @@ import {
   ServerlessSpecCloudEnum,
 } from '@pinecone-database/pinecone';
 import { PineconeConfig } from './pincone-config.service';
+import { Logger } from '../shared/logger/logger.interface';
+import { ConsoleLogger } from '../shared/logger/console-logger';
 
 export enum VectorIndexes {
   USER_CONTEXT = 'user-context',
@@ -16,7 +18,7 @@ export enum VectorIndexes {
 }
 
 export interface IndexConfig {
-  dimension: number;
+  dimension?: number;
   metric?: 'cosine' | 'euclidean' | 'dotproduct';
   serverless: boolean;
   cloud: string; // e.g., 'aws' or 'gcp'
@@ -25,15 +27,18 @@ export interface IndexConfig {
     | 'multilingual-e5-large'
     | 'pinecone-sparse-english-v0'
     | 'text-embedding-3-large'
-    | 'text-embedding-ada-002';
+    | 'text-embedding-ada-002'
+    | 'llama-text-embed-v2';
   tags?: Record<string, string>;
 }
 
 export class PineconeIndexService {
   private pinecone: Pinecone;
+  private logger: Logger;
 
-  constructor() {
+  constructor(options: { logger?: Logger } = {}) {
     this.pinecone = PineconeConfig.getInstance();
+    this.logger = options.logger || new ConsoleLogger();
   }
 
   /**
@@ -63,9 +68,9 @@ export class PineconeIndexService {
     const exists = await this.indexExists(indexName);
 
     if (!exists) {
-      console.log(`Creating Pinecone index: ${indexName}`);
+      this.logger.info(`Creating Pinecone index: ${indexName}`);
 
-      // Use createIndexForModel with proper typing
+
       await this.pinecone.createIndexForModel({
         name: indexName,
         cloud: config.cloud as ServerlessSpecCloudEnum,
@@ -81,9 +86,9 @@ export class PineconeIndexService {
         tags: config.tags || { project: 'transcript-analysis' },
       });
 
-      console.log(`Index ${indexName} created and ready.`);
+      this.logger.info(`Index ${indexName} created and ready.`);
     } else {
-      console.log(`Index ${indexName} already exists.`);
+      this.logger.info(`Index ${indexName} already exists.`);
     }
   }
 
@@ -102,9 +107,9 @@ export class PineconeIndexService {
 
     if (exists) {
       await this.pinecone.deleteIndex(indexName);
-      console.log(`Index ${indexName} deleted.`);
+      this.logger.info(`Index ${indexName} deleted.`);
     } else {
-      console.log(`Index ${indexName} does not exist, nothing to delete.`);
+      this.logger.info(`Index ${indexName} does not exist, nothing to delete.`);
     }
   }
 

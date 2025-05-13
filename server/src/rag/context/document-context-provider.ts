@@ -457,7 +457,7 @@ export class DocumentContextProvider implements ContextProvider {
       
       return allEmbeddings;
     } catch (error) {
-      this.logger.error('Error generating embeddings', {
+      this.logger.error('DOCUMENT-CONTEXT-PROVIDER: Error generating embeddings', {
         error: error instanceof Error ? error.message : String(error)
       });
       throw error;

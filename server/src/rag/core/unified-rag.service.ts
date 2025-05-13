@@ -476,7 +476,7 @@ export class UnifiedRAGService implements IUnifiedRAGService {
     try {
       return await this.openAiConnector.generateEmbedding(text);
     } catch (error) {
-      this.logger.error('Error generating embedding', {
+      this.logger.error('UNIFIED-RAG-SERVICE-generateEmbedding: Error generating embedding', {
         error: error instanceof Error ? error.message : String(error),
         textLength: text.length
       });
@@ -514,7 +514,7 @@ export class UnifiedRAGService implements IUnifiedRAGService {
       
       return allEmbeddings;
     } catch (error) {
-      this.logger.error('Error generating embeddings', {
+      this.logger.error('UNIFIED-RAG-SERVICE-generateEmbeddings: Error generating embeddings', {
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;

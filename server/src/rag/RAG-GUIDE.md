@@ -1,6 +1,3 @@
-# TODO MUSTDO WE have this API Compatibility Layer: Bridge between legacy and new agentic implementations. We need to remove this and any legacy code
-
-
 # RAG Migration Guide: Using Dynamic Graph Service
 
 ## Overview
@@ -482,11 +479,14 @@ The next steps as outlined in NEXT-STEPS.md are:
    - Provide migration examples for team members
 
 4. **Performance Optimization**
-   - Implement caching for frequent vector queries
-   - Optimize chunking strategies
-   - Implement batching for API calls
+   - Optimize vector search
+   - Implement caching for frequent queries
+   - Add optimized chunking strategies
+   - Add support for hybrid search (semantic + keyword)
 
-
+- **Reduce API calls**
+  - Implement batching for embeddings generation
+  - Add caching layer for common queries
 
 ## Conclusion
 

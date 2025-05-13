@@ -10,7 +10,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { Logger } from '../shared/logger/logger.interface';
 import { ConsoleLogger } from '../shared/logger/console-logger';
 import { UserContextFacade } from '../shared/services/user-context/user-context.facade';
-import { IApiCompatibilityLayer } from '../langgraph/agentic-meeting-analysis/interfaces/api-compatibility.interface';
 import {
   ChatSession,
   ChatMessage,

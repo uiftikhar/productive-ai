@@ -685,6 +685,13 @@ export class RagPromptManager {
             Object.assign(filter, options.customFilter);
           }
           
+          // Ensure filter has at least one key-value pair (required by Pinecone)
+          // If no filter has been specified, use a generic filter that matches all documents
+          if (Object.keys(filter).length === 0) {
+            filter.type = { $exists: true }; // Match documents that have a 'type' field (which all should have)
+            this.logger.debug('Added default filter for empty filter object', { filter });
+          }
+          
           // Use Pinecone for vector similarity search
           const searchResults = await this.pineconeConnector.querySimilar(
             this.vectorIndexName,
@@ -722,6 +729,12 @@ export class RagPromptManager {
             ...this.buildContextFilter(contentTypes, timeRangeStart, documentIds),
             ...(options.customFilter || {})
           };
+          
+          // Ensure filter has at least one key-value pair (required by Pinecone)
+          if (Object.keys(filter).length === 0) {
+            filter.type = { $exists: true }; // Match documents that have a 'type' field
+            this.logger.debug('Added default filter for empty filter object in RECENCY strategy', { filter });
+          }
           
           // First get recent items regardless of similarity
           const recentResults = await this.pineconeConnector.querySimilar(
@@ -765,12 +778,20 @@ export class RagPromptManager {
         try {
           // For hybrid search, we need to:
           // 1. Get semantic search results
+          const filter = this.buildContextFilter(contentTypes, timeRangeStart, documentIds);
+          
+          // Ensure filter has at least one key-value pair (required by Pinecone)
+          if (Object.keys(filter).length === 0) {
+            filter.type = { $exists: true }; // Match documents that have a 'type' field
+            this.logger.debug('Added default filter for empty filter object in HYBRID strategy', { filter });
+          }
+          
           const semanticResults = await this.pineconeConnector.querySimilar(
             this.vectorIndexName,
             queryEmbedding,
             {
               topK: maxItems * 2,
-              filter: this.buildContextFilter(contentTypes, timeRangeStart, documentIds),
+              filter,
               includeValues: false
             },
             this.vectorNamespace
@@ -830,6 +851,14 @@ export class RagPromptManager {
         try {
           if (!options.customFilter) {
             throw new Error('customFilter is required for CUSTOM strategy');
+          }
+          
+          // Ensure custom filter has at least one key-value pair
+          if (Object.keys(options.customFilter).length === 0) {
+            options.customFilter.type = { $exists: true }; // Add a default filter condition
+            this.logger.debug('Added default condition to empty customFilter in CUSTOM strategy', { 
+              filter: options.customFilter 
+            });
           }
           
           const customResults = await this.pineconeConnector.querySimilar(
@@ -1247,7 +1276,7 @@ export class RagPromptManager {
     try {
       return await this.openAiConnector.generateEmbeddings(text);
     } catch (error) {
-      this.logger.error(`Error generating embedding: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(`RAG-PROMPT-MANAGER-SERVICE: Error generating embedding: ${error instanceof Error ? error.message : String(error)}`);
       return this.generateDummyEmbedding(); // Fall back to dummy embedding on error
     }
   }

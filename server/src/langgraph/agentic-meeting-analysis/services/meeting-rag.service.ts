@@ -75,6 +75,14 @@ interface PineconeMatch {
   values?: number[];
 }
 
+// Add RelevantInformation interface before the class
+export interface RelevantInformation {
+  content: string;
+  source: string;
+  confidence: number;
+  metadata: Record<string, any>;
+}
+
 /**
  * Service for Meeting Transcript RAG operations
  * Handles processing, storing, and retrieving transcript chunks
@@ -279,7 +287,7 @@ export class MeetingRAGService {
       
       return embedding;
     } catch (error) {
-      this.logger.error('Error generating embedding', {
+      this.logger.error('MEETING-RAG-SERVICE: Error generating embedding', {
         error: error instanceof Error ? error.message : String(error),
         textLength: text.length
       });
@@ -288,11 +296,7 @@ export class MeetingRAGService {
   }
 
   /**
-   * Retrieve relevant transcript chunks for a query
-   * @param query Query text
-   * @param meetingId Optional meeting ID to filter
-   * @param sessionId Optional session ID to filter
-   * @returns Retrieval results
+   * Retrieves relevant chunks of information
    */
   async retrieveRelevantChunks(
     query: string,
@@ -305,14 +309,11 @@ export class MeetingRAGService {
       // Generate embedding for the query
       const queryEmbedding = await this.generateEmbedding(query);
       
-      // Build filter if meetingId or sessionId is provided
-      let filter: Record<string, any> = {};
-      if (meetingId) {
-        filter.meetingId = meetingId;
-      }
-      if (sessionId) {
-        filter.sessionId = sessionId;
-      }
+      // Use our helper method to create a proper filter
+      const filter = this.createFilterObject({
+        meetingId,
+        sessionId
+      });
       
       // Query Pinecone for similar vectors
       const queryResponse = await this.pineconeConnector.queryVectors(
@@ -520,5 +521,105 @@ export class MeetingRAGService {
    */
   getUsageStats() {
     return { ...this.usageStats };
+  }
+
+  /**
+   * Helper method to create a proper filter object for Pinecone queries
+   * @param options Filter options
+   * @returns A properly formatted filter object
+   */
+  private createFilterObject(options: {
+    meetingId?: string;
+    sessionId?: string;
+    documentType?: string;
+    timestampRange?: { start?: number; end?: number };
+    chunkIndexRange?: { min?: number; max?: number };
+  }): Record<string, any> {
+    const filter: Record<string, any> = {};
+    
+    // Add meetingId filter if provided
+    if (options.meetingId) {
+      filter.meetingId = options.meetingId;
+    }
+    
+    // Add sessionId filter if provided
+    if (options.sessionId) {
+      filter.sessionId = options.sessionId;
+    }
+    
+    // Add document type filter if provided
+    if (options.documentType) {
+      filter.type = options.documentType;
+    }
+    
+    // Add timestamp range filter if provided
+    if (options.timestampRange) {
+      filter.timestamp = {};
+      if (options.timestampRange.start !== undefined) {
+        filter.timestamp.$gte = options.timestampRange.start;
+      }
+      if (options.timestampRange.end !== undefined) {
+        filter.timestamp.$lte = options.timestampRange.end;
+      }
+    }
+    
+    // Add chunk index range filter if provided
+    if (options.chunkIndexRange) {
+      filter.chunkIndex = {};
+      if (options.chunkIndexRange.min !== undefined) {
+        filter.chunkIndex.$gte = options.chunkIndexRange.min;
+      }
+      if (options.chunkIndexRange.max !== undefined) {
+        filter.chunkIndex.$lte = options.chunkIndexRange.max;
+      }
+    }
+    
+    // Ensure filter is never empty (Pinecone requires at least one key-value pair)
+    if (Object.keys(filter).length === 0) {
+      // If no specific filters are provided, use a generic filter
+      // that will match all documents but still satisfy Pinecone's requirement
+      filter.chunkIndex = { $exists: true };
+      this.logger.debug('Added default filter property because filter was empty', { filter });
+    }
+    
+    // Log the created filter
+    this.logger.debug('Created Pinecone filter', { filter });
+    
+    return filter;
+  }
+
+  /**
+   * Query for relevant information using vector similarity search
+   */
+  async queryForRelevantInformation(
+    query: string,
+    meetingId: string,
+    options: {
+      topK?: number;
+      minScore?: number;
+      includeRaw?: boolean;
+    } = {},
+  ): Promise<RelevantInformation[]> {
+    try {
+      // Get relevant chunks using our retrieval method
+      const chunks = await this.retrieveRelevantChunks(
+        query,
+        meetingId
+      );
+      
+      // Convert RetrievalResult to RelevantInformation
+      return chunks.map(chunk => ({
+        content: chunk.content,
+        source: chunk.metadata?.meetingId || meetingId,
+        confidence: chunk.score,
+        metadata: chunk.metadata
+      }));
+    } catch (error) {
+      this.logger.error('Error in queryForRelevantInformation', {
+        error: error instanceof Error ? error.message : String(error),
+        meetingId
+      });
+      return [];
+    }
   }
 } 

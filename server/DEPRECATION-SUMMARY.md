@@ -125,6 +125,17 @@ The following components have been completely removed in the latest update:
 
 These components have been replaced by the Agent Protocol implementation, which provides a standardized interface for meeting analysis.
 
+### RAG Implementation Consolidation (Updated)
+
+To simplify our codebase and eliminate duplication, we've consolidated the RAG (Retrieval Augmented Generation) implementations:
+
+1. Standardized on `UnifiedRAGService` as the primary RAG implementation
+2. Removed references to deprecated API compatibility interfaces
+3. Completed migration from `RAGGraphFactory` to `DynamicRAGGraphFactory`
+4. Maintained the `MeetingRAGIntegrator` for integration with Agent Protocol
+
+See `RAG-CONSOLIDATION-SUMMARY.md` for complete details on this consolidation.
+
 ### New Endpoints
 
 The meeting analysis API endpoints are now:
