@@ -14,6 +14,8 @@ export enum InstructionTemplateNameEnum {
   PARTICIPANT_DYNAMICS = 'PARTICIPANT_DYNAMICS',
   CONTEXT_INTEGRATION = 'CONTEXT_INTEGRATION',
   SUMMARY_SYNTHESIS = 'SUMMARY_SYNTHESIS',
+  EMOTION_ANALYSIS = 'EMOTION_ANALYSIS',
+  PARTICIPANT_DYNAMICS_ANALYSIS = 'PARTICIPANT_DYNAMICS_ANALYSIS',
 }
 export type InstructionTemplateName =
   | InstructionTemplateNameEnum.TICKET_GENERATION
@@ -28,7 +30,9 @@ export type InstructionTemplateName =
   | InstructionTemplateNameEnum.TOPIC_DISCOVERY
   | InstructionTemplateNameEnum.PARTICIPANT_DYNAMICS
   | InstructionTemplateNameEnum.CONTEXT_INTEGRATION
-  | InstructionTemplateNameEnum.SUMMARY_SYNTHESIS;
+  | InstructionTemplateNameEnum.SUMMARY_SYNTHESIS
+  | InstructionTemplateNameEnum.EMOTION_ANALYSIS
+  | InstructionTemplateNameEnum.PARTICIPANT_DYNAMICS_ANALYSIS;
 
 export const InstructionTemplates: Record<
   InstructionTemplateName,
@@ -667,5 +671,193 @@ Skip any preamble and provide only the JSON response.
       'Balance between strategic and tactical insights',
       'Clear distinction between facts and interpretations',
     ],
+  },
+  EMOTION_ANALYSIS: {
+    format: {
+      requiredSections: [
+        'overallSentiment',
+        'emotionalProgression',
+        'engagementLevel',
+        'participantEmotions',
+      ],
+      outputFormat: 'json_object',
+      jsonSchema: {
+        properties: {
+          overallSentiment: {
+            type: 'object',
+            description: 'Overall emotional tone of the meeting',
+            properties: {
+              primary: { type: 'string' },
+              secondary: { type: 'string' },
+              intensity: { type: 'number' },
+              description: { type: 'string' }
+            }
+          },
+          emotionalProgression: {
+            type: 'array',
+            description: 'How emotions evolved throughout the meeting',
+            items: {
+              type: 'object',
+              properties: {
+                segment: { type: 'string' },
+                dominantEmotion: { type: 'string' },
+                trigger: { type: 'string' },
+                timestamp: { type: 'number' }
+              }
+            }
+          },
+          engagementLevel: {
+            type: 'object',
+            description: 'Assessment of participant engagement',
+            properties: {
+              overall: { type: 'number' },
+              variance: { type: 'number' },
+              disengagementPoints: { type: 'array' }
+            }
+          },
+          participantEmotions: {
+            type: 'array',
+            description: 'Emotional analysis per participant',
+            items: {
+              type: 'object',
+              properties: {
+                participantId: { type: 'string' },
+                dominantEmotions: { type: 'array' },
+                emotionalShifts: { type: 'array' },
+                engagementScore: { type: 'number' }
+              }
+            }
+          },
+          emotionalTriggers: {
+            type: 'array',
+            description: 'Topics or moments that triggered significant emotional responses',
+            items: {
+              type: 'object',
+              properties: {
+                trigger: { type: 'string' },
+                resultingEmotion: { type: 'string' },
+                intensity: { type: 'number' },
+                participants: { type: 'array' }
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: [
+      'Analyze the emotional tone throughout the entire meeting',
+      'Track emotional progression and shifts',
+      'Identify moments of high engagement or disengagement',
+      'Assess individual participant emotional states',
+      'Recognize emotional triggers and responses',
+      'Identify emotional patterns in discussions',
+      'Note emotional reactions to specific topics or decisions',
+      'Assess consensus or discord through emotional indicators',
+      'Evaluate overall meeting emotional health'
+    ],
+    outputRequirements: [
+      'Provide objective emotional analysis without judgment',
+      'Use specific evidence from the transcript to support observations',
+      'Maintain participant privacy and respect in emotional assessments',
+      'Focus on emotional patterns rather than isolated incidents',
+      'Quantify emotional intensity on a 0.0-1.0 scale',
+      'The output should be only be a valid json object',
+      'The output should not include any other text or formatting'
+    ]
+  },
+  PARTICIPANT_DYNAMICS_ANALYSIS: {
+    format: {
+      requiredSections: [
+        'participantProfiles',
+        'interactionPatterns',
+        'collaborationMetrics',
+        'dominanceAnalysis'
+      ],
+      outputFormat: 'json_object',
+      jsonSchema: {
+        properties: {
+          participantProfiles: {
+            type: 'array',
+            description: 'Analysis of individual participants',
+            items: {
+              type: 'object',
+              properties: {
+                participantId: { type: 'string' },
+                name: { type: 'string' },
+                role: { type: 'string' },
+                contributionLevel: { type: 'number' },
+                speakingTime: { type: 'number' },
+                topicalFocus: { type: 'array' },
+                interactionStyle: { type: 'string' }
+              }
+            }
+          },
+          interactionPatterns: {
+            type: 'array',
+            description: 'Patterns of interaction between participants',
+            items: {
+              type: 'object',
+              properties: {
+                participants: { type: 'array' },
+                type: { type: 'string' },
+                frequency: { type: 'number' },
+                context: { type: 'string' }
+              }
+            }
+          },
+          collaborationMetrics: {
+            type: 'object',
+            description: 'Metrics of team collaboration',
+            properties: {
+              overallCollaboration: { type: 'number' },
+              turntakingBalance: { type: 'number' },
+              crossParticipantReferences: { type: 'number' },
+              ideaBuildingInstances: { type: 'number' }
+            }
+          },
+          dominanceAnalysis: {
+            type: 'object',
+            description: 'Analysis of conversation dominance',
+            properties: {
+              dominantParticipants: { type: 'array' },
+              dominanceScore: { type: 'number' },
+              silentParticipants: { type: 'array' },
+              interruptionPatterns: { type: 'array' }
+            }
+          },
+          groupDynamics: {
+            type: 'object',
+            description: 'Overall group dynamics assessment',
+            properties: {
+              cohesionLevel: { type: 'number' },
+              decisionMakingPattern: { type: 'string' },
+              communicationIssues: { type: 'array' },
+              strengths: { type: 'array' }
+            }
+          }
+        }
+      }
+    },
+    rules: [
+      'Track speaking time and frequency for each participant',
+      'Identify patterns of interaction between participants',
+      'Analyze conversation flow and turn-taking behavior',
+      'Detect dominant and passive participation patterns',
+      'Map relationship dynamics between team members',
+      'Assess collaboration effectiveness and challenges',
+      'Identify roles participants naturally take in the conversation',
+      'Analyze how ideas are built upon or rejected',
+      'Track resolution of disagreements or conflicts',
+      'Map communication networks within the team'
+    ],
+    outputRequirements: [
+      'Base all observations on quantifiable metrics where possible',
+      'Provide specific examples from the transcript for key insights',
+      'Balance individual and group-level analysis',
+      'Maintain neutrality in assessing participation styles',
+      'Present both strengths and challenges in team dynamics',
+      'The output should be only be a valid json object',
+      'The output should not include any other text or formatting'
+    ]
   },
 };

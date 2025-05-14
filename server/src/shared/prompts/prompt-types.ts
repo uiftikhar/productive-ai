@@ -24,17 +24,22 @@ export type TicketFormat = {
   outputFormat: 'json_array' | 'json_object';
 };
 
+// JsonSchemaProperty interface to support nested properties
+export interface JsonSchemaProperty {
+  type: string;
+  description: string;
+  properties?: Record<string, JsonSchemaProperty>;
+  items?: {
+    type: string;
+    properties?: Record<string, JsonSchemaProperty>;
+  };
+}
+
 export type MeetingSummaryFormat = {
   requiredSections: string[];
   outputFormat: 'json_object';
   jsonSchema: {
-    properties: Record<
-      string,
-      {
-        type: string;
-        description: string;
-      }
-    >;
+    properties: Record<string, JsonSchemaProperty>;
   };
 };
 
@@ -42,13 +47,7 @@ export type ClassifierFormat = {
   requiredSections: string[];
   outputFormat: 'json_object';
   jsonSchema: {
-    properties: Record<
-      string,
-      {
-        type: string;
-        description: string;
-      }
-    >;
+    properties: Record<string, JsonSchemaProperty>;
   };
 };
 

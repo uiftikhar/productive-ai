@@ -17,12 +17,6 @@ import {
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
 import { ChatOpenAI } from '@langchain/openai';
-import {
-  BaseMessage,
-  SystemMessage,
-  HumanMessage,
-  AIMessage,
-} from '@langchain/core/messages';
 import { OpenAIConnector, OpenAIModelConfig } from '../../../connectors/openai-connector';
 import { MessageConfig } from '../../../connectors/language-model-provider.interface';
 import { MeetingRAGService } from '../services/meeting-rag.service';

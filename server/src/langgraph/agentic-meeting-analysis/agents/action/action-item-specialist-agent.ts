@@ -8,6 +8,7 @@ import {
   AgentOutput,
   AnalysisGoalType,
   AnalysisTask,
+  // TODO: Why is this oimported? Should this be used in the agent interface?
   AnalysisTaskStatus,
   ConfidenceLevel,
   MessageType,

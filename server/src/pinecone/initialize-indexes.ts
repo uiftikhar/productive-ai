@@ -16,7 +16,8 @@ async function initializePineconeIndexes(): Promise<void> {
 
   // Common configuration for all indexes
   const baseConfig: IndexConfig = {
-    dimension: 4096, // For llama-text-embed-v2 (4096 dimensions)
+    // CreateInforForModel does not take dimenasion as an argument
+    // dimension: 1024, // For llama-text-embed-v2 (4096 dimensions)
     metric: 'cosine',
     serverless: true,
     cloud: process.env.PINECONE_CLOUD || 'aws',

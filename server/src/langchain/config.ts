@@ -1,3 +1,12 @@
+// TODO LangSmith¶ tracing
+// set up LangSmith for best-in-class observability. Setup is simple - add the following variables to your environment and update the LANGCHAIN_API_KEY value with your API key.
+
+
+// Optional, add tracing in LangSmith
+// process.env.LANGCHAIN_API_KEY = "ls__...";
+// process.env.LANGCHAIN_CALLBACKS_BACKGROUND = "true";
+// process.env.LANGCHAIN_TRACING_V2 = "true";
+// process.env.LANGCHAIN_PROJECT = "Quickstart: LangGraphJS";
 /**
  * LangChain configuration
  */
@@ -16,3 +25,4 @@ export const LangChainConfig = {
     maxRetries: parseInt(process.env.MAX_AGENT_RETRIES || '3'),
   },
 };
+

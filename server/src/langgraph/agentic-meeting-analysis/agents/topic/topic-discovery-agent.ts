@@ -8,18 +8,20 @@ import {
   AgentOutput,
   AnalysisGoalType,
   AnalysisTask,
-  AnalysisTaskStatus,
   ConfidenceLevel,
   MessageType,
   AgentRole,
 } from '../../interfaces/agent.interface';
 import {
   MeetingTranscript,
-  TranscriptSegment,
 } from '../../interfaces/state.interface';
 import { BaseMeetingAnalysisAgent } from '../base-meeting-analysis-agent';
 import { Logger } from '../../../../shared/logger/logger.interface';
 import { ChatOpenAI } from '@langchain/openai';
+import { InstructionTemplateService } from '../../../../shared/services/instruction-template.service';
+import { OpenAIConnector } from '../../../../connectors/openai-connector';
+import { MessageConfig } from '../../../../connectors/language-model-provider.interface';
+import { RagRetrievalStrategy } from '../../../../shared/services/rag-prompt-manager.service';
 
 /**
  * Configuration options for TopicDiscoveryAgent
@@ -33,6 +35,8 @@ export interface TopicDiscoveryAgentConfig {
   minTopicRelevance?: number;
   maxTopics?: number;
   enableTopicRelationships?: boolean;
+  openAiConnector?: OpenAIConnector;
+  instructionTemplateService?: InstructionTemplateService;
 }
 
 /**
@@ -51,6 +55,7 @@ export class TopicDiscoveryAgent
   private minTopicRelevance: number;
   private maxTopics: number;
   private enableTopicRelationships: boolean;
+  private instructionTemplateService: InstructionTemplateService;
 
   /**
    * Create a new Topic Discovery Agent
@@ -64,11 +69,18 @@ export class TopicDiscoveryAgent
       logger: config.logger,
       llm: config.llm,
       systemPrompt: config.systemPrompt,
+      openAiConnector: config.openAiConnector
     });
 
     this.minTopicRelevance = config.minTopicRelevance || 0.4;
     this.maxTopics = config.maxTopics || 10;
     this.enableTopicRelationships = config.enableTopicRelationships !== false;
+
+    // Initialize instruction template service
+    this.instructionTemplateService = config.instructionTemplateService || new InstructionTemplateService({
+      openAiConnector: this.openAiConnector,
+      logger: this.logger
+    });
 
     this.logger.info(
       `Initialized ${this.name} with max topics: ${this.maxTopics}`,
@@ -198,62 +210,100 @@ export class TopicDiscoveryAgent
     // Combine all segments for full-text analysis
     const fullText = transcript.segments.map((s) => s.content).join('\n');
 
-    const prompt = `
-      Extract the main discussion topics from the following meeting transcript.
-      
-      For each topic:
-      1. Provide a concise name (2-5 words)
-      2. Write a brief description (1-2 sentences)
-      3. List key terms/keywords associated with this topic (4-8 terms)
-      4. Assign a relevance score (0.0 to 1.0) indicating how important this topic was to the meeting
-      
-      Identify only distinct, meaningful topics with relevance above ${this.minTopicRelevance}.
-      Limit to a maximum of ${this.maxTopics} topics.
-      
-      Also identify which segments of the transcript (by segment ID) correspond to each topic.
-      
-      Return your analysis as a JSON object with 'topics' and 'topicSegments' properties.
-      
-      TRANSCRIPT:
-      ${fullText}
-      
-      TRANSCRIPT SEGMENT IDS:
-      ${transcript.segments.map((s) => `${s.id}: ${s.content.substring(0, 50)}...`).join('\n')}
-    `;
-
-    const response = await this.callLLM(
-      'Extract topics from transcript',
-      prompt,
-    );
-
+    // Generate an embedding for the query
+    let queryEmbedding: number[];
     try {
-      const analysisResult = JSON.parse(response);
+      const queryText = `Extract main topics from meeting transcript`;
+      queryEmbedding = await this.openAiConnector.generateEmbedding(queryText);
+    } catch (error) {
+      this.logger.error('Error generating embeddings for topic extraction', { error });
+      // Create a fallback dummy embedding
+      queryEmbedding = new Array(1536).fill(0).map(() => Math.random() - 0.5);
+    }
 
-      // Ensure each topic has an ID
-      analysisResult.topics = analysisResult.topics.map((topic: any) => ({
-        ...topic,
-        id: topic.id || `topic-${uuidv4().substring(0, 8)}`,
-      }));
+    // Create transcript segments for context
+    const segmentContext = transcript.segments.slice(0, 10).map((s) => 
+      `${s.id}: ${s.content.substring(0, 50)}...`
+    ).join('\n');
 
-      // Filter by minimum relevance
-      analysisResult.topics = analysisResult.topics.filter(
-        (topic: any) => topic.relevance >= this.minTopicRelevance,
-      );
-
-      // Limit to max topics
-      if (analysisResult.topics.length > this.maxTopics) {
-        analysisResult.topics = analysisResult.topics
-          .sort((a: any, b: any) => b.relevance - a.relevance)
-          .slice(0, this.maxTopics);
+    // Use the template service to create a specialized prompt
+    const promptResult = await this.instructionTemplateService.createSpecializedPrompt(
+      'topic_discovery',
+      fullText,
+      {
+        segmentContext,
+        minTopicRelevance: this.minTopicRelevance,
+        maxTopics: this.maxTopics,
+        meetingId: transcript.meetingId,
+        ragOptions: {
+          userId: 'system',
+          queryEmbedding,
+          strategy: RagRetrievalStrategy.SEMANTIC,
+          maxItems: 5,
+          filters: { type: { $exists: true } }
+        }
       }
+    );
+    
+    try {
+      // Call the language model with the specialized prompt
+      const response = await this.openAiConnector.generateResponse(
+        promptResult.messages as MessageConfig[],
+        {
+          temperature: 0.3,
+          maxTokens: 2000,
+        }
+      );
+      
+      const responseText = response.content || response.toString();
+      
+      try {
+        const analysisResult = JSON.parse(responseText);
 
-      return analysisResult;
+        // Ensure each topic has an ID
+        analysisResult.topics = analysisResult.topics.map((topic: any) => ({
+          ...topic,
+          id: topic.id || `topic-${uuidv4().substring(0, 8)}`,
+        }));
+
+        // Filter by minimum relevance
+        analysisResult.topics = analysisResult.topics.filter(
+          (topic: any) => topic.relevance >= this.minTopicRelevance,
+        );
+
+        // Limit to max topics
+        if (analysisResult.topics.length > this.maxTopics) {
+          analysisResult.topics = analysisResult.topics
+            .sort((a: any, b: any) => b.relevance - a.relevance)
+            .slice(0, this.maxTopics);
+        }
+
+        return analysisResult;
+      } catch (error) {
+        this.logger.error(
+          `Error parsing topic extraction response: ${error instanceof Error ? error.message : String(error)}`,
+        );
+
+        // Return a minimal valid result if parsing fails
+        return {
+          topics: [
+            {
+              id: `topic-${uuidv4().substring(0, 8)}`,
+              name: 'Meeting Discussion',
+              description: 'General discussion topics from the meeting.',
+              keywords: ['meeting', 'discussion'],
+              relevance: 1.0,
+            },
+          ],
+          topicSegments: {},
+        };
+      }
     } catch (error) {
       this.logger.error(
-        `Error parsing topic extraction response: ${error instanceof Error ? error.message : String(error)}`,
+        `Error calling LLM for topic extraction: ${error instanceof Error ? error.message : String(error)}`,
       );
-
-      // Return a minimal valid result if parsing fails
+      
+      // Return a minimal valid result in case of LLM error
       return {
         topics: [
           {

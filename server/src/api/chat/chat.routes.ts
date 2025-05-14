@@ -1,3 +1,5 @@
+// TODO: THere is a chat routes in /server/src/api/routes/chat.routes.ts
+// There is a duplication either here or in the chat.controller.ts file
 import { Router, Request, Response, NextFunction } from 'express';
 import { chatController } from './chat.controller';
 import { ServiceRegistry } from '../../langgraph/agentic-meeting-analysis/services/service-registry';

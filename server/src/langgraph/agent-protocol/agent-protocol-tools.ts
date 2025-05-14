@@ -12,7 +12,9 @@ import { SystemRoleEnum } from '../../shared/prompts/prompt-types';
 import { TopicExtractionServiceImpl } from '../agentic-meeting-analysis/services/topic-extraction.service';
 import { ActionItemExtractionServiceImpl } from '../agentic-meeting-analysis/services/action-extraction.service';
 import { RagPromptManager, RagRetrievalStrategy } from '../../shared/services/rag-prompt-manager.service';
-import { InstructionTemplates } from '../../shared/prompts/instruction-templates';
+import { InstructionTemplateService, ResponseFormatType } from '../../shared/services/instruction-template.service';
+import { MessageConfig } from '../../connectors/language-model-provider.interface';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Configuration for Agent Protocol Tools
@@ -34,6 +36,7 @@ export class AgentProtocolTools {
   private topicExtractionService?: TopicExtractionServiceImpl;
   private actionItemExtractionService?: ActionItemExtractionServiceImpl;
   private ragPromptManager: RagPromptManager;
+  private instructionTemplateService: InstructionTemplateService;
   
   /**
    * Create a new Agent Protocol Tools instance
@@ -70,6 +73,13 @@ export class AgentProtocolTools {
     });
     this.ragPromptManager = new RagPromptManager({
       openAiConnector: this.openAiConnector,
+      logger: this.logger
+    });
+    
+    // Initialize instruction template service
+    this.instructionTemplateService = new InstructionTemplateService({
+      openAiConnector: this.openAiConnector,
+      ragPromptManager: this.ragPromptManager,
       logger: this.logger
     });
     
@@ -248,139 +258,131 @@ export class AgentProtocolTools {
   }
   
   /**
-   * Extract topics from meeting transcript
+   * Extract topics from a transcript
    */
   private async extractTopics(parameters: { transcript: string }): Promise<any> {
+    this.logger.info('Extracting topics from transcript');
     const { transcript } = parameters;
     
-    if (!transcript) {
-      throw new Error('Transcript is required');
+    if (!transcript || typeof transcript !== 'string' || transcript.trim().length === 0) {
+      return {
+        error: 'Invalid or empty transcript provided',
+        topics: []
+      };
     }
     
     try {
-      // Use the topic extraction service if available
-      if (this.topicExtractionService) {
-        const meetingId = `meeting-${Date.now()}`;
-        const result = await this.topicExtractionService.extractTopics(meetingId, {
-          minConfidenceThreshold: 0.6,
-          maxTopicsPerMeeting: 10
-        });
-        
-        return {
-          topics: result.topics.map(topic => ({
-            name: topic.name,
-            description: topic.description || '',
-            keywords: topic.keywords,
-            relevanceScore: topic.relevanceScore,
-            confidence: topic.confidence
-          }))
-        };
-      }
-      
-      // Build instruction content for topic extraction
-      const instructionContent = `
-        Extract the main topics discussed in this meeting transcript.
-        Follow the required JSON schema for topic extraction.
-        Each topic should have a name, description, keywords, and relevanceScore.
-        
-        TRANSCRIPT:
-        ${transcript.substring(0, 8000)}
-      `;
-      
-      // Generate real embeddings using OpenAI
+      // Generate query embedding for RAG
       let queryEmbedding: number[];
       try {
-        // Create a concise version of the query for embedding
         const queryText = `Extract topics from: ${transcript.substring(0, 500)}`;
         queryEmbedding = await this.openAiConnector.generateEmbedding(queryText);
         this.logger.info('Generated real embeddings for topic extraction query');
       } catch (error) {
         this.logger.error('Error generating embeddings for topic extraction', { error });
-        // Fallback to dummy embeddings if generation fails
+        // Fallback to dummy embeddings
         queryEmbedding = new Array(1536).fill(0).map(() => Math.random() - 0.5);
         this.logger.warn('Using fallback dummy embeddings due to error');
       }
       
-      // Create RAG options with real embeddings
-      const ragOptions = {
-        userId: 'system',
-        queryText: 'Extract main topics from meeting transcript',
-        queryEmbedding,
-        strategy: RagRetrievalStrategy.SEMANTIC,
-      };
-      
-      // Get the instruction template details
-      const templateDetails = InstructionTemplates.TOPIC_DISCOVERY;
-      
-      // Create specialized system message with template details
-      const systemMessage = `You are a topic extraction specialist who identifies key topics from meeting transcripts.
-
-REQUIRED JSON SCHEMA:
-{
-  "topics": [
-    {
-      "name": "Topic name",
-      "description": "Detailed description of the topic",
-      "keywords": ["keyword1", "keyword2", ...],
-      "relevanceScore": 0.95
-    },
-    ...
-  ]
-}
-
-RULES:
-${templateDetails.rules?.map(rule => `- ${rule}`).join('\n') || '- Identify main discussion topics and subtopics'}
-
-OUTPUT REQUIREMENTS:
-${templateDetails.outputRequirements?.map(req => `- ${req}`).join('\n') || '- Topics should be specific and descriptive'}
-
-Your output should strictly follow the JSON schema provided. Return ONLY a valid JSON object with no additional text or formatting.`;
-      
-      // Use RAG prompt manager with the proper template
-      const ragPrompt = await this.ragPromptManager.createRagPrompt(
-        SystemRoleEnum.MEETING_ANALYST,
-        InstructionTemplateNameEnum.TOPIC_DISCOVERY,
-        instructionContent,
-        ragOptions
+      // Use the instruction template service to create a specialized prompt
+      const promptResult = await this.instructionTemplateService.createSpecializedPrompt(
+        'topic_discovery',
+        transcript,
+        {
+          userId: 'system',
+          transcript: transcript.substring(0, 2000),
+          // Use RAG context retrieval with proper options
+          ragOptions: {
+            userId: 'system',
+            queryEmbedding: queryEmbedding,
+            strategy: RagRetrievalStrategy.SEMANTIC,
+            maxItems: 3,
+            filters: { type: { $exists: true } }
+          }
+        }
       );
       
-      // Define response format
-      const responseFormat: { type: "json_object" | "json_array" | "text" } = { type: 'json_object' };
-      
-      // Call OpenAI with the RAG-optimized prompt
-      const response = await this.openAiConnector.generateResponse([
-        { role: 'system', content: systemMessage },
-        { role: 'user', content: ragPrompt.messages[0].content || instructionContent }
-      ], {
-        temperature: 0.2,
-        maxTokens: 2000,
-        responseFormat: responseFormat
-      });
-      
-      // Parse the response
+      // Call to language model to extract topics
       try {
-        const result = JSON.parse(response.content);
-        return result;
-      } catch (error) {
-        this.logger.error('Error parsing topics JSON', { 
-          error,
-          responseContent: response.content.substring(0, 500) // Log part of the response for debugging
+        const response = await this.openAiConnector.generateResponse(
+          promptResult.messages as MessageConfig[],
+          {
+            temperature: 0.3,
+            model: process.env.OPENAI_TOPICS_MODEL || process.env.OPENAI_MODEL_NAME || 'gpt-4o',
+            maxTokens: 2000,
+            responseFormat: 
+              promptResult.responseFormat === ResponseFormatType.JSON_OBJECT 
+                ? { type: 'json_object' } 
+                : undefined
+          }
+        );
+        
+        const responseText = response.content || response.toString();
+        
+        // Parse JSON safely with proper error handling
+        try {
+          // Extract JSON from the response if it's not pure JSON
+          const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/) || 
+                          responseText.match(/```\s*([\s\S]*?)\s*```/) ||
+                          responseText.match(/{[\s\S]*}/);
+          
+          let parsedResponse;
+          if (jsonMatch) {
+            parsedResponse = JSON.parse(jsonMatch[0].startsWith('{') ? jsonMatch[0] : jsonMatch[1]);
+          } else {
+            parsedResponse = JSON.parse(responseText);
+          }
+          
+          // Validate and ensure the response has the correct structure
+          if (!parsedResponse.topics || !Array.isArray(parsedResponse.topics)) {
+            parsedResponse.topics = [];
+          }
+          
+          // Ensure each topic has an ID and all required fields
+          parsedResponse.topics = parsedResponse.topics.map((topic: any) => ({
+            id: topic.id || `topic-${uuidv4().substring(0, 8)}`,
+            name: topic.name || 'Undefined Topic',
+            description: topic.description || 'No description provided',
+            keywords: Array.isArray(topic.keywords) ? topic.keywords : [],
+            relevance: typeof topic.relevance === 'number' ? 
+              Math.min(Math.max(topic.relevance, 0), 1) : 0.5
+          }));
+          
+          return parsedResponse;
+        } catch (jsonError) {
+          this.logger.error('Error parsing JSON response', {
+            error: jsonError instanceof Error ? jsonError.message : String(jsonError),
+            response: responseText
+          });
+          
+          // Return a structured error response
+          return {
+            error: 'Failed to parse topic extraction results',
+            topics: [],
+            rawResponse: responseText
+          };
+        }
+      } catch (llmError) {
+        this.logger.error('Error calling OpenAI for topic extraction', {
+          error: llmError instanceof Error ? llmError.message : String(llmError)
         });
         
-        // Return a properly formatted error response
-        return { 
-          topics: [], 
-          error: 'Failed to parse topics JSON',
-          error_details: error instanceof Error ? error.message : String(error)
+        // Fallback response
+        return {
+          error: 'Failed to extract topics due to LLM error',
+          topics: [],
+          errorDetails: llmError instanceof Error ? llmError.message : String(llmError)
         };
       }
     } catch (error) {
-      this.logger.error('Error extracting topics', { error });
-      
-      // Return a properly formatted error response
-      return { 
-        topics: [], 
+      this.logger.error('Unexpected error in topic extraction', {
         error: error instanceof Error ? error.message : String(error)
+      });
+      
+      return {
+        error: 'Unexpected error in topic extraction process',
+        topics: []
       };
     }
   }
@@ -418,17 +420,6 @@ Your output should strictly follow the JSON schema provided. Return ONLY a valid
         };
       }
       
-      // Build instruction content for action item extraction
-      const instructionContent = `
-        Analyze this meeting transcript to extract structured information.
-        Follow the required JSON schema with actionItems, decisions, questions, and keyTopics fields.
-        
-        ${topics && topics.length > 0 ? `TOPICS DISCUSSED: ${JSON.stringify(topics)}` : ''}
-        
-        TRANSCRIPT:
-        ${transcript.substring(0, 8000)}
-      `;
-      
       // Generate real embeddings using OpenAI
       let queryEmbedding: number[];
       try {
@@ -443,79 +434,38 @@ Your output should strictly follow the JSON schema provided. Return ONLY a valid
         this.logger.warn('Using fallback dummy embeddings due to error');
       }
       
-      // Create RAG options with real embeddings
-      const ragOptions = {
-        userId: 'system',
-        queryText: 'Extract action items and key information from meeting transcript',
-        queryEmbedding,
-        strategy: RagRetrievalStrategy.SEMANTIC,
-      };
-      
-      // Get the instruction template details
-      const templateDetails = InstructionTemplates.MEETING_ANALYSIS_CHUNK;
-      
-      // Create specialized system message with template details
-      const systemMessage = `You are a meeting analysis assistant that extracts structured data from meeting transcripts.
-
-REQUIRED JSON SCHEMA:
-{
-  "actionItems": [
-    {
-      "description": "Detailed description of the action item",
-      "assignees": ["Person Name", "Another Person"],
-      "dueDate": "2023-06-15",
-      "priority": "high"
-    },
-    ...
-  ],
-  "decisions": [
-    "Decision 1",
-    "Decision 2",
-    ...
-  ],
-  "questions": [
-    {
-      "question": "What is the question?",
-      "answered": true/false,
-      "answer": "The answer if available"
-    },
-    ...
-  ],
-  "keyTopics": [
-    "Topic 1",
-    "Topic 2",
-    ...
-  ]
-}
-
-RULES:
-${templateDetails.rules?.map(rule => `- ${rule}`).join('\n') || '- Extract all action items with assignees and due dates'}
-
-OUTPUT REQUIREMENTS:
-${templateDetails.outputRequirements?.map(req => `- ${req}`).join('\n') || '- Complete structured data in JSON format'}
-
-Your output should strictly follow the JSON schema provided. Return ONLY a valid JSON object with no additional text or formatting.`;
-      
-      // Use RAG prompt manager with MEETING_ANALYSIS_CHUNK template
-      const ragPrompt = await this.ragPromptManager.createRagPrompt(
-        SystemRoleEnum.MEETING_ANALYST,
-        InstructionTemplateNameEnum.MEETING_ANALYSIS_CHUNK,
-        instructionContent,
-        ragOptions
+      // Use the instruction template service to create a specialized prompt
+      const promptResult = await this.instructionTemplateService.createSpecializedPrompt(
+        'action_item_extraction',
+        transcript,
+        {
+          userId: 'system',
+          topics: topics,
+          transcript: transcript.substring(0, 2000),
+          // Use RAG context retrieval with proper options
+          ragOptions: {
+            userId: 'system',
+            queryEmbedding: queryEmbedding,
+            queryText: 'Extract action items and key information from meeting transcript',
+            strategy: RagRetrievalStrategy.SEMANTIC,
+            maxItems: 3,
+            filters: { type: { $exists: true } }
+          }
+        }
       );
       
-      // Define response format to match template
-      const responseFormat: { type: "json_object" | "json_array" | "text" } = { type: 'json_object' };
-      
-      // Call OpenAI with the RAG-optimized prompt
-      const response = await this.openAiConnector.generateResponse([
-        { role: 'system', content: systemMessage },
-        { role: 'user', content: ragPrompt.messages[0].content || instructionContent }
-      ], {
-        temperature: 0.2,
-        maxTokens: 2000,
-        responseFormat: responseFormat
-      });
+      // Call OpenAI with the specialized prompt
+      const response = await this.openAiConnector.generateResponse(
+        promptResult.messages as MessageConfig[], 
+        {
+          temperature: 0.2,
+          maxTokens: 2000,
+          responseFormat: 
+            promptResult.responseFormat === ResponseFormatType.JSON_OBJECT 
+              ? { type: 'json_object' } 
+              : undefined
+        }
+      );
       
       // Parse the response
       try {
@@ -561,23 +511,6 @@ Your output should strictly follow the JSON schema provided. Return ONLY a valid
     }
     
     try {
-      // Build instruction content that directly incorporates the transcript
-      let instructionContent = `
-        Generate a comprehensive summary of this meeting based on the following transcript.
-        Follow the required JSON schema with meetingTitle, summary, and decisions fields.
-        
-        TRANSCRIPT:
-        ${transcript.substring(0, 8000)}
-      `;
-      
-      if (topics && topics.length > 0) {
-        instructionContent += `\n\nTOPICS DISCUSSED:\n${JSON.stringify(topics)}`;
-      }
-      
-      if (action_items && action_items.length > 0) {
-        instructionContent += `\n\nACTION ITEMS:\n${JSON.stringify(action_items)}`;
-      }
-      
       // Generate real embeddings using OpenAI instead of dummy ones
       let queryEmbedding: number[];
       try {
@@ -592,62 +525,38 @@ Your output should strictly follow the JSON schema provided. Return ONLY a valid
         this.logger.warn('Using fallback dummy embeddings due to error');
       }
       
-      // Create RAG options with real embeddings
-      const ragOptions = {
-        userId: 'system',
-        queryText: 'Generate comprehensive meeting summary',
-        queryEmbedding,
-        strategy: RagRetrievalStrategy.SEMANTIC,
-      };
-      
-      // Get the instruction template details to construct a more specialized system message
-      const templateDetails = InstructionTemplates.FINAL_MEETING_SUMMARY;
-      
-      // Include template rules and output requirements in system message
-      const systemMessage = `You are a meeting analysis assistant that produces structured JSON output in the exact format required.
-
-REQUIRED JSON SCHEMA:
-{
-  "meetingTitle": "A concise, descriptive title for the meeting",
-  "summary": "Comprehensive meeting summary with speaker details and discussion flow",
-  "decisions": [
-    {
-      "title": "Decision title",
-      "content": "Detailed explanation of the decision including context and contributors"
-    },
-    ...
-  ]
-}
-
-RULES:
-${templateDetails.rules?.map(rule => `- ${rule}`).join('\n') || '- Follow the required JSON schema'}
-
-OUTPUT REQUIREMENTS:
-${templateDetails.outputRequirements?.map(req => `- ${req}`).join('\n') || '- Return only a valid JSON object'}
-
-Your output should strictly follow the JSON schema provided. Return ONLY a valid JSON object with no additional text or formatting.`;
-      
-      // Use RAG prompt manager with FINAL_MEETING_SUMMARY template
-      const ragPrompt = await this.ragPromptManager.createRagPrompt(
-        SystemRoleEnum.MEETING_ANALYST,
-        InstructionTemplateNameEnum.FINAL_MEETING_SUMMARY,
-        instructionContent,
-        ragOptions
+      // Use the instruction template service to create a specialized prompt
+      const promptResult = await this.instructionTemplateService.createSpecializedPrompt(
+        'meeting_summary',
+        transcript,
+        {
+          userId: 'system',
+          topics: topics,
+          actionItems: action_items,
+          // Use RAG context retrieval with proper options
+          ragOptions: {
+            userId: 'system',
+            queryEmbedding: queryEmbedding,
+            queryText: 'Generate comprehensive meeting summary',
+            strategy: RagRetrievalStrategy.SEMANTIC,
+            maxItems: 3,
+            filters: { type: { $exists: true } }
+          }
+        }
       );
       
-      // Get the appropriate response format from the template definition
-      const responseFormat: { type: "json_object" | "json_array" | "text" } = { type: 'json_object' };
-      
-      // Call OpenAI with the RAG-optimized prompt
-      // Pass both the system message with detailed schema requirements AND the user message containing the transcript
-      const response = await this.openAiConnector.generateResponse([
-        { role: 'system', content: systemMessage },
-        { role: 'user', content: ragPrompt.messages[0].content || instructionContent }
-      ], {
-        temperature: 0.3,
-        maxTokens: 2000,
-        responseFormat: responseFormat
-      });
+      // Call OpenAI with the specialized prompt
+      const response = await this.openAiConnector.generateResponse(
+        promptResult.messages as MessageConfig[],
+        {
+          temperature: 0.3,
+          maxTokens: 2000,
+          responseFormat: 
+            promptResult.responseFormat === ResponseFormatType.JSON_OBJECT 
+              ? { type: 'json_object' } 
+              : undefined
+        }
+      );
       
       // Parse the response
       try {

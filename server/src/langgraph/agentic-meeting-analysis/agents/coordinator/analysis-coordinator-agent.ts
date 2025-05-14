@@ -13,6 +13,7 @@ import {
   MessageType,
   AgentMessage,
   AgentRole,
+  // TODO: Why is this oimported? Should this be used in the agent interface?
   SynthesisFunction,
   AgentResultCollection,
   FinalResult,

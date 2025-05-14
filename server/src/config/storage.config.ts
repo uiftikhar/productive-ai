@@ -1,3 +1,6 @@
+// TODO: Is this used anywhere? Is this duplicated
+//  This is a duplicate of the storage config in the langgraph project
+// We should move this to a shared location
 import * as path from 'path';
 
 /**

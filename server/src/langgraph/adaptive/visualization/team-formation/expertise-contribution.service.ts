@@ -1,4 +1,6 @@
-import { v4 as uuidv4 } from 'uuid';
+//  Is this used anywhere?
+// This should be deprecated and removed most likely
+import * as uuid from 'uuid';
 import { Logger } from '../../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../../shared/logger/console-logger';
 import {
@@ -58,7 +60,7 @@ export class ExpertiseContributionVisualizationImpl
       }
 
       // Generate ID and create the complete contribution object
-      const id = uuidv4();
+      const id = uuid.v4();
       const completeContribution: ExpertiseContribution = {
         id,
         ...contribution,
