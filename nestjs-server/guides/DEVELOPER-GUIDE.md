@@ -1070,6 +1070,233 @@ const graphViz = await workflow.drawMermaid("full");
 console.log(graphViz);
 ```
 
+# 8. Retrieval Augmented Generation (RAG) Implementation
+
+## 8.1 RAG Architecture in LangGraph
+
+Retrieval Augmented Generation (RAG) enhances LLM responses by providing relevant context from external knowledge sources. In our meeting analysis system, RAG enables agents to:
+
+- Reference historical meeting information
+- Retrieve relevant context from transcripts
+- Support agents with domain-specific knowledge
+- Provide evidence-based responses
+
+### Key Components of RAG
+
+```mermaid
+graph TD
+    A[User Query/Transcript] --> B[Query Analysis]
+    B --> C[Vector Embedding Generation]
+    C --> D[Similarity Search in Vector DB]
+    D --> E[Context Retrieval]
+    E --> F[Context Integration]
+    F --> G[LLM Response Generation]
+    G --> H[Response Delivery]
+    
+    I[Document Processing] -.-> J[Document Chunking]
+    J -.-> K[Embedding Generation]
+    K -.-> L[Vector Storage]
+    L -.-> D
+```
+
+### RAG Implementation Patterns
+
+LangGraph supports several RAG implementation patterns:
+
+1. **Basic RAG**: Simple retrieval and generation
+2. **Adaptive RAG**: Dynamically decides retrieval strategy
+3. **Agentic RAG**: Uses agents to process and enhance retrieval
+4. **CRAG (Critic RAG)**: Uses a critic to evaluate and refine retrievals
+5. **Self-RAG**: The model evaluates and improves its own retrievals
+
+## 8.2 RAG Integration with Agents
+
+In our system, RAG is integrated with the agent architecture through:
+
+```typescript
+// Define RAG-enabled state in LangGraph
+const MeetingAnalysisWithRAGState = Annotation.Root({
+  messages: Annotation<BaseMessage[]>({
+    reducer: (x, y) => x.concat(y),
+  }),
+  transcript: Annotation<string>({
+    reducer: (x, y) => y ?? x,
+  }),
+  topics: Annotation<Topic[]>({
+    reducer: (x, y) => [...x, ...y],
+    default: () => [],
+  }),
+  context: Annotation<RetrievedContext[]>({
+    reducer: (x, y) => [...x, ...y],
+    default: () => [],
+  }),
+  // Other state properties
+});
+
+// Example of agent node with RAG capability
+const topicExtractionWithContextNode = async (state: typeof MeetingAnalysisWithRAGState.State) => {
+  // 1. Extract potential search terms from transcript
+  const searchTerms = extractSearchTerms(state.transcript);
+  
+  // 2. Retrieve context for each search term
+  const context = await ragService.retrieveContext(searchTerms);
+  
+  // 3. Extract topics with enhanced context
+  const topics = await topicAgent.extractTopicsWithContext(state.transcript, context);
+  
+  // 4. Update state with topics and context
+  return {
+    ...state,
+    topics,
+    context,
+  };
+};
+```
+
+## 8.3 Pinecone Integration for RAG
+
+Pinecone serves as our vector database for RAG implementation. It stores:
+
+1. **Meeting Transcript Embeddings**: Vector representations of transcript chunks
+2. **User Context Embeddings**: Contextual information specific to users
+3. **Previous Analysis Results**: Embeddings of summaries, topics, action items
+4. **Domain Knowledge**: Industry-specific information to support analysis
+
+### Setting Up Pinecone Service in NestJS
+
+```typescript
+@Injectable()
+export class PineconeService {
+  private readonly indexes: Record<string, Index>;
+  
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly logger: Logger
+  ) {
+    this.initializeIndexes();
+  }
+  
+  private async initializeIndexes() {
+    // Initialize Pinecone client and indexes
+  }
+  
+  async storeEmbeddings(indexName: string, documents: Document[]): Promise<void> {
+    // Store document embeddings in Pinecone
+  }
+  
+  async retrieveSimilar(indexName: string, query: string, options?: QueryOptions): Promise<Document[]> {
+    // Retrieve similar documents from Pinecone
+  }
+}
+```
+
+## 8.4 Dynamic RAG Graph Implementation
+
+Our meeting analysis system uses a dynamic graph approach for RAG:
+
+```typescript
+@Injectable()
+export class DynamicRAGService {
+  constructor(
+    private readonly pineconeService: PineconeService,
+    private readonly embeddingService: EmbeddingService,
+    private readonly stateService: StateService,
+    private readonly logger: LoggerService
+  ) {}
+  
+  async createRAGGraph(): Promise<DynamicGraphService<RAGState>> {
+    const graph = new DynamicGraphService<RAGState>();
+    
+    // Add query analysis node
+    await graph.applyModification({
+      id: uuidv4(),
+      type: GraphModificationType.ADD_NODE,
+      timestamp: Date.now(),
+      node: {
+        id: 'queryAnalysis',
+        type: 'processor',
+        label: 'Query Analysis',
+        handler: this.queryAnalysisNode.bind(this)
+      }
+    });
+    
+    // Add context retrieval node
+    await graph.applyModification({
+      id: uuidv4(),
+      type: GraphModificationType.ADD_NODE,
+      timestamp: Date.now(),
+      node: {
+        id: 'contextRetrieval',
+        type: 'processor',
+        label: 'Context Retrieval',
+        handler: this.contextRetrievalNode.bind(this)
+      }
+    });
+    
+    // Add response generation node
+    await graph.applyModification({
+      id: uuidv4(),
+      type: GraphModificationType.ADD_NODE,
+      timestamp: Date.now(),
+      node: {
+        id: 'responseGeneration',
+        type: 'processor',
+        label: 'Response Generation',
+        handler: this.responseGenerationNode.bind(this)
+      }
+    });
+    
+    // Add edges connecting nodes
+    await graph.applyModification({
+      id: uuidv4(),
+      type: GraphModificationType.ADD_EDGE,
+      timestamp: Date.now(),
+      edge: {
+        id: 'start_to_query',
+        source: START,
+        target: 'queryAnalysis',
+        label: 'Start → Query Analysis'
+      }
+    });
+    
+    // Add remaining edges
+    // ...
+    
+    return graph;
+  }
+  
+  // Node handler implementations
+  // ...
+}
+```
+
+## 8.5 RAG Implementation Best Practices
+
+1. **Chunk Documents Intelligently**:
+   - Use semantic chunking based on meaning, not just token count
+   - Maintain context between chunks
+   - Create overlapping chunks to avoid missing information at boundaries
+
+2. **Optimize Embedding Strategy**:
+   - Use appropriate embedding models for your domain
+   - Consider hybrid search (combining semantic and keyword search)
+   - Use dimension reduction techniques for better performance
+
+3. **Implement Caching**:
+   - Cache embeddings to reduce API calls
+   - Cache frequent query results
+   - Implement TTL for cache entries
+
+4. **Context Integration**:
+   - Use citation-aware prompting techniques
+   - Sort retrieved context by relevance
+   - Limit context size to balance relevance and token consumption
+
+5. **Evaluate RAG Performance**:
+   - Track retrieval precision and recall
+   - Measure end-to-end response quality
+   - Compare different chunking and embedding strategies
+
 ### Performance Optimization
 
 Optimize performance through parallelization and caching:

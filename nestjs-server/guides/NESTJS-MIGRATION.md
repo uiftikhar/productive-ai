@@ -74,29 +74,29 @@ We'll create a new NestJS application at `server/nestJs/` rather than refactorin
 
 ### Milestone 3.1: Specialist Agent Implementation
 
-- [ ] Implement domain-specific agent modules:
-  - [ ] Topic discovery and analysis
-  - [ ] Action item extraction
-  - [ ] Context integration
-  - [ ] Sentiment analysis
-  - [ ] Participation dynamics
-  - [ ] Summary synthesis
-- [ ] Create specialized prompts and tools for each agent type
-- [ ] Build proper injection for agent-specific dependencies
+- [x] Implement domain-specific agent modules:
+  - [x] Topic discovery and analysis
+  - [x] Action item extraction
+  - [x] Context integration
+  - [x] Sentiment analysis
+  - [x] Participation dynamics
+  - [x] Summary synthesis
+- [x] Create specialized prompts and tools for each agent type
+- [x] Build proper injection for agent-specific dependencies
 
 ### Milestone 3.2: Supervisor Architecture
 
-- [ ] Implement supervisor module
-- [ ] Create routing service for agent coordination
-- [ ] Design supervisor state management
-- [ ] Implement enhanced supervisor capabilities
+- [x] Implement supervisor module
+- [x] Create routing service for agent coordination
+- [x] Design supervisor state management
+- [x] Implement enhanced supervisor capabilities
 
 ### Milestone 3.3: Team Formation
 
-- [ ] Create team module for agent composition
-- [ ] Implement team formation services
-- [ ] Build dynamic team configuration
-- [ ] Set up inter-team communication
+- [x] Create team module for agent composition
+- [x] Implement team formation services
+- [x] Build dynamic team configuration
+- [x] Set up inter-team communication
 
 ## Phase 4: Graph Construction and Workflow (2-3 weeks)
 
@@ -166,6 +166,204 @@ We'll create a new NestJS application at `server/nestJs/` rather than refactorin
 - [ ] Document internal architecture
 - [ ] Provide example usage patterns
 - [ ] Create developer guides for extensions
+
+## Phase 7: RAG Integration (3-4 weeks)
+
+### Milestone 7.1: Vector Database Integration
+
+- [ ] Create Pinecone module for NestJS
+- [ ] Implement PineconeService with proper dependency injection
+- [ ] Set up index management and configuration
+- [ ] Create migration utilities for existing vector data
+
+### Milestone 7.2: Embedding Services
+
+- [ ] Implement EmbeddingService for vectorizing content
+- [ ] Create chunk management utilities
+- [ ] Implement caching strategies for embeddings
+- [ ] Set up batch processing for efficient embedding generation
+
+### Milestone 7.3: RAG Service Implementation
+
+- [ ] Implement RAGService with DynamicGraphService integration
+- [ ] Create specialized retrieval strategies for different content types
+- [ ] Implement context integration utilities
+- [ ] Create metrics tracking for retrieval quality
+
+### Milestone 7.4: Agent Integration
+
+- [ ] Update specialized agents to leverage RAG capabilities
+- [ ] Implement context-aware processing for all agents
+- [ ] Create feedback loops for improving retrieval quality
+- [ ] Integrate RAG with all stages of meeting analysis
+
+## RAG Migration Guide
+
+### Current vs. New Implementation
+
+| Aspect | Current Implementation | NestJS Implementation |
+|--------|------------------------|------------------------|
+| Architecture | Factory-based RAGGraphFactory | NestJS module with dependency injection |
+| State Management | Direct StateGraph implementation | DynamicGraphService for runtime modifications |
+| Vector Storage | Direct Pinecone client usage | PineconeService with proper abstraction |
+| Embedding Generation | Manual embedding calls | Injectable EmbeddingService |
+| Error Handling | Basic try/catch blocks | Proper NestJS exception filters and logging |
+| Monitoring | Custom logging implementation | NestJS logging module integration |
+| Caching | Limited or non-existent | Comprehensive caching strategy |
+
+### Migration Steps
+
+1. **PineconeService Implementation**
+
+```typescript
+// Current approach
+const pineconeConnector = new PineconeConnector({
+  logger: new ConsoleLogger()
+});
+
+// NestJS approach
+@Injectable()
+export class PineconeService {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly logger: LoggerService
+  ) {}
+  
+  async initialize() {
+    // Initialize Pinecone
+  }
+  
+  async storeVectors() {
+    // Store vectors
+  }
+  
+  async querySimilar() {
+    // Query similar vectors
+  }
+}
+```
+
+2. **EmbeddingService Implementation**
+
+```typescript
+// Current approach
+const embeddings = await generateEmbeddings(text);
+
+// NestJS approach
+@Injectable()
+export class EmbeddingService {
+  constructor(
+    private readonly llmService: LlmService,
+    private readonly cacheManager: Cache
+  ) {}
+  
+  async generateEmbeddings(text: string): Promise<number[]> {
+    // Check cache first
+    const cacheKey = `embedding:${hash(text)}`;
+    const cached = await this.cacheManager.get(cacheKey);
+    
+    if (cached) {
+      return cached as number[];
+    }
+    
+    // Generate embeddings using the LLM service
+    const embeddings = await this.llmService.generateEmbeddings(text);
+    
+    // Cache the result
+    await this.cacheManager.set(cacheKey, embeddings, 3600);
+    
+    return embeddings;
+  }
+}
+```
+
+3. **RAGService Implementation**
+
+```typescript
+// Current approach
+const graphFactory = new RAGGraphFactory(ragService);
+const result = await graphFactory.execute(query, config, metadata);
+
+// NestJS approach
+@Injectable()
+export class RagService {
+  constructor(
+    private readonly pineconeService: PineconeService,
+    private readonly embeddingService: EmbeddingService,
+    private readonly llmService: LlmService,
+    private readonly stateService: StateService
+  ) {}
+  
+  async retrieveContext(query: string, options?: RetrievalOptions): Promise<Document[]> {
+    // Implement retrieval logic
+  }
+  
+  async processWithRAG(query: string, options?: RAGOptions): Promise<RAGResult> {
+    // Create and execute RAG graph
+    const graphService = await this.createRAGGraph();
+    const initialState = this.createInitialState(query, options);
+    return await graphService.invoke(initialState);
+  }
+}
+```
+
+### Testing your RAG Migration
+
+1. **Unit Testing**
+
+```typescript
+describe('RagService', () => {
+  let ragService: RagService;
+  let pineconeService: PineconeService;
+  let embeddingService: EmbeddingService;
+  
+  beforeEach(async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        RagService,
+        {
+          provide: PineconeService,
+          useValue: mockedPineconeService,
+        },
+        {
+          provide: EmbeddingService,
+          useValue: mockedEmbeddingService,
+        },
+        {
+          provide: LlmService,
+          useValue: mockedLlmService,
+        },
+        {
+          provide: StateService,
+          useValue: mockedStateService,
+        },
+      ],
+    }).compile();
+    
+    ragService = moduleRef.get<RagService>(RagService);
+    pineconeService = moduleRef.get<PineconeService>(PineconeService);
+    embeddingService = moduleRef.get<EmbeddingService>(EmbeddingService);
+  });
+  
+  it('should retrieve context successfully', async () => {
+    // Test implementation
+  });
+});
+```
+
+2. **Integration Testing with Real Pinecone**
+
+Create an end-to-end test that verifies the entire RAG pipeline with actual Pinecone integration using a test dataset.
+
+### Advanced RAG Features
+
+1. **Hybrid RAG**: Combine different retrieval strategies (semantic, keyword, knowledge graph)
+2. **Multi-vector Retrieval**: Use multiple embedding models for broader context
+3. **Recursive Retrieval**: Use initial results to guide subsequent retrievals
+4. **User Feedback Loop**: Incorporate user feedback to improve retrieval quality
+5. **Cross-document Reasoning**: Connect information across multiple sources
+
+These features can be implemented incrementally after the basic migration is complete.
 
 ## Implementation Details
 

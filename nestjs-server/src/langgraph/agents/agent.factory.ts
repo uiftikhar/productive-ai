@@ -1,19 +1,89 @@
 import { Injectable } from '@nestjs/common';
 import { LlmService } from '../llm/llm.service';
 import { BaseAgent, AgentConfig } from './base-agent';
+import { TopicExtractionAgent } from './topic-extraction.agent';
+import { ActionItemAgent } from './action-item.agent';
+import { SentimentAnalysisAgent } from './sentiment-analysis.agent';
+import { SummaryAgent } from './summary.agent';
+import { ParticipationAgent } from './participation.agent';
+import { ContextIntegrationAgent } from './context-integration.agent';
 
 /**
  * Factory for creating different types of agents
  */
 @Injectable()
 export class AgentFactory {
-  constructor(private readonly llmService: LlmService) {}
+  constructor(
+    private readonly llmService: LlmService,
+    private readonly topicExtractionAgent: TopicExtractionAgent,
+    private readonly actionItemAgent: ActionItemAgent,
+    private readonly sentimentAnalysisAgent: SentimentAnalysisAgent,
+    private readonly summaryAgent: SummaryAgent,
+    private readonly participationAgent: ParticipationAgent,
+    private readonly contextIntegrationAgent: ContextIntegrationAgent,
+  ) {}
 
   /**
    * Create a base agent instance
    */
   createBaseAgent(config: AgentConfig): BaseAgent {
     return new BaseAgent(this.llmService, config);
+  }
+
+  /**
+   * Get the topic extraction agent
+   */
+  getTopicExtractionAgent(): TopicExtractionAgent {
+    return this.topicExtractionAgent;
+  }
+
+  /**
+   * Get the action item agent
+   */
+  getActionItemAgent(): ActionItemAgent {
+    return this.actionItemAgent;
+  }
+
+  /**
+   * Get the sentiment analysis agent
+   */
+  getSentimentAnalysisAgent(): SentimentAnalysisAgent {
+    return this.sentimentAnalysisAgent;
+  }
+
+  /**
+   * Get the summary agent
+   */
+  getSummaryAgent(): SummaryAgent {
+    return this.summaryAgent;
+  }
+
+  /**
+   * Get the participation agent
+   */
+  getParticipationAgent(): ParticipationAgent {
+    return this.participationAgent;
+  }
+
+  /**
+   * Get the context integration agent
+   */
+  getContextIntegrationAgent(): ContextIntegrationAgent {
+    return this.contextIntegrationAgent;
+  }
+
+  /**
+   * Get all analysis agents
+   */
+  getAllAnalysisAgents(): BaseAgent[] {
+    return [
+      this.topicExtractionAgent,
+      this.actionItemAgent,
+      this.sentimentAnalysisAgent,
+      this.summaryAgent,
+      this.participationAgent,
+      this.contextIntegrationAgent,
+    ];
   }
 
   /**
