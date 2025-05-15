@@ -1,10 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { StateGraph } from '@langchain/langgraph';
 import { StateService } from '../state/state.service';
 import { AgentFactory } from '../agents/agent.factory';
 import { Topic } from '../agents/topic-extraction.agent';
 import { ActionItem } from '../agents/action-item.agent';
 import { SentimentAnalysis } from '../agents/sentiment-analysis.agent';
 import { MeetingSummary } from '../agents/summary.agent';
+import { MeetingAnalysisState, MeetingAnalysisStateType, createInitialState } from './state/meeting-analysis-state';
 
 /**
  * Result interface for meeting analysis
@@ -17,11 +19,15 @@ interface MeetingAnalysisResult {
   summary: MeetingSummary | null;
   errors: Array<{
     step: string;
-    message: string;
+    error: string;
     timestamp: string;
   }>;
   currentPhase: string;
 }
+
+// LangGraph constants
+const START = '__start__';
+const END = '__end__';
 
 /**
  * Service for creating and managing LangGraph StateGraphs
@@ -36,94 +42,193 @@ export class GraphService {
   ) {}
 
   /**
-   * Create a new graph for meeting analysis
-   * Instead of using StateGraph directly, we'll use the agents directly in a workflow pattern
+   * Create a new graph for meeting analysis using the LangGraph StateGraph
    */
   async analyzeMeeting(transcript: string): Promise<MeetingAnalysisResult> {
-    this.logger.debug('Running meeting analysis workflow');
+    this.logger.debug('Creating and running meeting analysis graph');
     
-    // Initialize result object
-    const result: MeetingAnalysisResult = {
-      transcript,
-      topics: [],
-      actionItems: [],
-      sentiment: null,
-      summary: null,
-      errors: [],
-      currentPhase: 'initialization',
-    };
+    // Create the StateGraph with the defined state structure
+    const graph: any = new StateGraph(MeetingAnalysisState);
     
-    // Step 1: Extract topics
+    // Add agent nodes to the graph
+    this.addAgentNodes(graph);
+    
+    // Add sequential flow edges
+    this.addSequentialEdges(graph);
+    
+    // Compile the graph
+    const compiledGraph = graph.compile();
+    
+    // Create initial state
+    const initialState = createInitialState(transcript);
+    
     try {
-      result.currentPhase = 'topic_extraction';
-      const topicAgent = this.agentFactory.getTopicExtractionAgent();
-      result.topics = await topicAgent.extractTopics(transcript);
-    } catch (error) {
-      this.logger.error(`Topic extraction failed: ${error.message}`);
-      result.errors.push({
-        step: 'topic_extraction',
-        message: error.message,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    // Step 2: Extract action items
-    try {
-      result.currentPhase = 'action_item_extraction';
-      const actionItemAgent = this.agentFactory.getActionItemAgent();
-      result.actionItems = await actionItemAgent.extractActionItems(transcript);
-    } catch (error) {
-      this.logger.error(`Action item extraction failed: ${error.message}`);
-      result.errors.push({
-        step: 'action_item_extraction',
-        message: error.message,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    // Step 3: Analyze sentiment
-    try {
-      result.currentPhase = 'sentiment_analysis';
-      const sentimentAgent = this.agentFactory.getSentimentAnalysisAgent();
-      result.sentiment = await sentimentAgent.analyzeSentiment(transcript);
-    } catch (error) {
-      this.logger.error(`Sentiment analysis failed: ${error.message}`);
-      result.errors.push({
-        step: 'sentiment_analysis',
-        message: error.message,
-        timestamp: new Date().toISOString()
-      });
-    }
-    
-    // Step 4: Generate summary
-    try {
-      result.currentPhase = 'summary_generation';
-      const summaryAgent = this.agentFactory.getSummaryAgent();
-      result.summary = await summaryAgent.generateSummary(
-        transcript,
-        result.topics,
-        result.actionItems,
-        result.sentiment
+      // Run the graph
+      this.logger.debug('Executing meeting analysis graph');
+      const finalState = await compiledGraph.invoke(initialState);
+      
+      // Save result
+      await this.stateService.saveState(
+        'latest', 
+        'meeting_analysis', 
+        finalState
       );
+      
+      // Convert to result format
+      return this.stateToResult(finalState);
     } catch (error) {
-      this.logger.error(`Summary generation failed: ${error.message}`);
-      result.errors.push({
-        step: 'summary_generation',
-        message: error.message,
-        timestamp: new Date().toISOString()
-      });
+      this.logger.error(`Graph execution failed: ${error.message}`, error.stack);
+      
+      // Return error result
+      return {
+        transcript,
+        topics: [],
+        actionItems: [],
+        sentiment: null,
+        summary: null,
+        errors: [{
+          step: 'graph_execution',
+          error: error.message,
+          timestamp: new Date().toISOString()
+        }],
+        currentPhase: 'failed',
+      };
     }
-    
-    // Set final phase
-    result.currentPhase = 'completed';
-    
-    // Save result if needed
-    await this.stateService.saveState(
-      'latest', 
-      'meeting_analysis', 
-      result
-    );
-    
-    return result;
+  }
+  
+  /**
+   * Add agent nodes to the graph
+   */
+  private addAgentNodes(graph: any): void {
+    // Topic extraction node
+    graph.addNode('topic_extraction', async (state: MeetingAnalysisStateType) => {
+      try {
+        this.logger.debug('Executing topic extraction node');
+        const topicAgent = this.agentFactory.getTopicExtractionAgent();
+        const topics = await topicAgent.extractTopics(state.transcript);
+        
+        return {
+          topics,
+          completed_steps: ['topic_extraction'],
+          currentPhase: 'topic_extraction_completed',
+        };
+      } catch (error) {
+        this.logger.error(`Topic extraction failed: ${error.message}`);
+        return {
+          errors: [{
+            step: 'topic_extraction',
+            error: error.message,
+            timestamp: new Date().toISOString(),
+          }],
+        };
+      }
+    });
+
+    // Action item extraction node
+    graph.addNode('action_item_extraction', async (state: MeetingAnalysisStateType) => {
+      try {
+        this.logger.debug('Executing action item extraction node');
+        const actionItemAgent = this.agentFactory.getActionItemAgent();
+        const actionItems = await actionItemAgent.extractActionItems(state.transcript);
+        
+        return {
+          actionItems,
+          completed_steps: ['action_item_extraction'],
+          currentPhase: 'action_item_extraction_completed',
+        };
+      } catch (error) {
+        this.logger.error(`Action item extraction failed: ${error.message}`);
+        return {
+          errors: [{
+            step: 'action_item_extraction',
+            error: error.message,
+            timestamp: new Date().toISOString(),
+          }],
+        };
+      }
+    });
+
+    // Sentiment analysis node
+    graph.addNode('sentiment_analysis', async (state: MeetingAnalysisStateType) => {
+      try {
+        this.logger.debug('Executing sentiment analysis node');
+        const sentimentAgent = this.agentFactory.getSentimentAnalysisAgent();
+        const sentiment = await sentimentAgent.analyzeSentiment(state.transcript);
+        
+        return {
+          sentiment,
+          completed_steps: ['sentiment_analysis'],
+          currentPhase: 'sentiment_analysis_completed',
+        };
+      } catch (error) {
+        this.logger.error(`Sentiment analysis failed: ${error.message}`);
+        return {
+          errors: [{
+            step: 'sentiment_analysis',
+            error: error.message,
+            timestamp: new Date().toISOString(),
+          }],
+        };
+      }
+    });
+
+    // Summary generation node
+    graph.addNode('summary_generation', async (state: MeetingAnalysisStateType) => {
+      try {
+        this.logger.debug('Executing summary generation node');
+        const summaryAgent = this.agentFactory.getSummaryAgent();
+        const summary = await summaryAgent.generateSummary(
+          state.transcript,
+          state.topics,
+          state.actionItems,
+          state.sentiment
+        );
+        
+        return {
+          summary,
+          completed_steps: ['summary_generation'],
+          currentPhase: 'completed',
+        };
+      } catch (error) {
+        this.logger.error(`Summary generation failed: ${error.message}`);
+        return {
+          errors: [{
+            step: 'summary_generation',
+            error: error.message,
+            timestamp: new Date().toISOString(),
+          }],
+        };
+      }
+    });
+  }
+  
+  /**
+   * Add sequential edges to the graph
+   */
+  private addSequentialEdges(graph: any): void {
+    graph.addEdge(START, 'topic_extraction');
+    graph.addEdge('topic_extraction', 'action_item_extraction');
+    graph.addEdge('action_item_extraction', 'sentiment_analysis');
+    graph.addEdge('sentiment_analysis', 'summary_generation');
+    graph.addEdge('summary_generation', END);
+  }
+  
+  /**
+   * Convert state to result format
+   */
+  private stateToResult(state: MeetingAnalysisStateType): MeetingAnalysisResult {
+    return {
+      transcript: state.transcript,
+      topics: state.topics || [],
+      actionItems: state.actionItems || [],
+      sentiment: state.sentiment || null,
+      summary: state.summary || null,
+      errors: state.errors?.map(err => ({
+        step: err.step,
+        error: err.error,
+        timestamp: err.timestamp
+      })) || [],
+      currentPhase: state.currentPhase || 'completed',
+    };
   }
 } 
