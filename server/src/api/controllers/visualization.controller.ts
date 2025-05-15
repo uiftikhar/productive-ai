@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as http from 'http';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
-import { ServiceRegistry } from '../../langgraph/agentic-meeting-analysis/services/service-registry';
+import { MeetingAnalysisServiceRegistry } from '../../langgraph/agentic-meeting-analysis/services/service-registry';
 
 // Define WebSocket interfaces instead of module augmentation
 interface WebSocket {
@@ -243,7 +243,7 @@ export const getAgentGraphData = async (req: Request, res: Response) => {
     }
     
     // Get the visualization service from the registry
-    const registry = ServiceRegistry.getInstance();
+    const registry = MeetingAnalysisServiceRegistry.getInstance();
     const visualizationService = registry.getAgentVisualizationService();
     
     if (!visualizationService) {

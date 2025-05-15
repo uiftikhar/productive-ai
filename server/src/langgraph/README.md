@@ -320,6 +320,81 @@ For teams migrating from legacy patterns:
 4. Implement proper error handling with conditional edges
 5. Use the tracing capabilities for visibility into workflow execution
 
+## LangGraph Integration
+
+This directory contains the implementation of the LangGraph integration for meeting analysis.
+
+## Architecture
+
+The LangGraph integration uses a hierarchical approach to agent coordination:
+
+- Supervisor agents coordinate high-level analysis
+- Manager agents handle specific domains
+- Worker agents perform specialized tasks
+
+## Usage
+
+To use the LangGraph-based meeting analysis:
+
+```typescript
+const service = new MeetingAnalysisSupervisorService();
+const result = await service.startHierarchicalAnalysis(
+  meetingId,
+  analysisSessionId,
+  transcript,
+  {
+    analysisGoal: "Identify all action items and key discussion points",
+    onProgress: (progress) => {
+      console.log(`Analysis progress: ${progress.overallProgress}%`);
+    }
+  }
+);
+```
+
+## Progress Tracking
+
+LangGraph provides progress tracking through callbacks rather than event listeners.
+
+When invoking a graph, you can pass callbacks that handle node execution events:
+
+```typescript
+// Define callbacks for tracking progress
+const callbacks = [
+  {
+    handleNodeStart: (nodeName: string) => {
+      console.log(`Starting node: ${nodeName}`);
+    },
+    handleNodeEnd: (nodeName: string) => {
+      console.log(`Completed node: ${nodeName}`);
+    }
+  }
+];
+
+// Execute the graph with callbacks
+const result = await graph.invoke(initialState, { callbacks });
+```
+
+The supported callback events are:
+- `handleNodeStart`: Called when a node begins execution
+- `handleNodeEnd`: Called when a node completes execution
+
+To track overall progress, maintain counters for visited and completed nodes, and 
+calculate the percentage of completion based on the total number of nodes in the graph.
+
+## Real-time Visualization
+
+For real-time visualization of the graph execution:
+
+1. Use progress callbacks to track node execution
+2. Update your frontend with the current execution state
+3. Render the graph with appropriate styling to show completed and active nodes
+
+**Note**: Future updates will include built-in support for visualization data streaming.
+
+## Error Handling
+
+All graph operations should use the enhanced error logging utilities from `shared/utils/error-utils.ts` to ensure consistent error reporting and debugging.
+
 ---
 
 **Status**: STABLE (Core), EXPERIMENTAL (Some Components)

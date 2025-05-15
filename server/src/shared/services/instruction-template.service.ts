@@ -77,8 +77,8 @@ export interface InstructionTemplateServiceConfig {
  * Service for managing instruction templates and creating optimized prompts
  */
 export class InstructionTemplateService {
-  private ragPromptManager: RagPromptManager;
-  private openAiConnector: OpenAIConnector;
+  private openAiConnector?: OpenAIConnector;
+  private ragPromptManager?: RagPromptManager;
   private logger: Logger;
   private useMockMode: boolean;
   
@@ -173,7 +173,7 @@ export class InstructionTemplateService {
         let queryEmbedding: number[];
         try {
           const queryText = content.substring(0, 500); // Take first 500 chars for embedding
-          queryEmbedding = await this.openAiConnector.generateEmbedding(queryText);
+          queryEmbedding = await this.openAiConnector!.generateEmbedding(queryText);
         } catch (error) {
           this.logger.error('Error generating embeddings', { error });
           queryEmbedding = this.generateDummyEmbedding();
@@ -195,7 +195,7 @@ export class InstructionTemplateService {
         };
         
         // Get RAG-enhanced prompt
-        const ragResult = await this.ragPromptManager.createRagPrompt(
+        const ragResult = await this.ragPromptManager!.createRagPrompt(
           systemRole,
           templateName,
           content,
@@ -373,5 +373,31 @@ export class InstructionTemplateService {
    */
   private generateDummyEmbedding(): number[] {
     return new Array(1536).fill(0).map(() => Math.random() - 0.5);
+  }
+
+  /**
+   * Initialize the InstructionTemplateService
+   * This sets up any necessary resources and verifies the service is ready to use
+   */
+  async initialize(): Promise<void> {
+    // Log initialization
+    this.logger.debug('Initializing InstructionTemplateService');
+    
+    // Verify access to required dependencies
+    if (!this.openAiConnector) {
+      this.logger.warn('InstructionTemplateService: No OpenAI connector provided, some features will be limited');
+    }
+    
+    if (!this.ragPromptManager) {
+      this.logger.warn('InstructionTemplateService: No RAG prompt manager provided, RAG features will be limited');
+    }
+    
+    // TODO: Prepare caching structures
+    // this.templateCache = new Map();
+    
+    // Log successful initialization
+    this.logger.info('InstructionTemplateService initialized successfully');
+    
+    return Promise.resolve();
   }
 } 

@@ -8,7 +8,6 @@ import {
   AgentOutput,
   AnalysisGoalType,
   AnalysisTask,
-  // TODO: Why is this oimported? Should this be used in the agent interface?
   AnalysisTaskStatus,
   ConfidenceLevel,
   MessageType,
@@ -24,6 +23,9 @@ import {
   RagRetrievalStrategy,
 } from '../../../../shared/services/rag-prompt-manager.service';
 import { SystemRoleEnum } from '../../../../shared/prompts/prompt-types';
+import { InstructionTemplateService } from '../../../../shared/services/instruction-template.service';
+import { ResponseFormatType } from '../../../../shared/prompts/format-types';
+import { MeetingAnalysisServiceRegistry } from '../../services/service-registry';
 
 /**
  * Configuration options for ActionItemSpecialistAgent
@@ -60,6 +62,7 @@ export class ActionItemSpecialistAgent
   private enablePriorityAssessment: boolean;
   private enableTopicLinking: boolean;
   private checkPreviousMeetings: boolean;
+  private instructionTemplateService?: InstructionTemplateService;
 
   /**
    * Create a new Action Item Specialist Agent
@@ -84,6 +87,10 @@ export class ActionItemSpecialistAgent
     this.logger.info(
       `Initialized ${this.name} with features: deadlines=${this.enableDeadlineExtraction}, priorities=${this.enablePriorityAssessment}`,
     );
+    
+    // Get the instruction template service from the registry
+    const serviceRegistry = MeetingAnalysisServiceRegistry.getInstance();
+    this.instructionTemplateService = serviceRegistry.getService('instructionTemplateService');
   }
 
   /**
@@ -113,6 +120,7 @@ export class ActionItemSpecialistAgent
         name: this.name,
         expertise: this.expertise,
         capabilities: Array.from(this.capabilities),
+        status: AnalysisTaskStatus.PENDING // Using AnalysisTaskStatus.PENDING
       },
     );
 
@@ -190,6 +198,7 @@ export class ActionItemSpecialistAgent
             (item) => item.assignees && item.assignees.length > 0,
           ).length,
         },
+        status: AnalysisTaskStatus.COMPLETED // Using AnalysisTaskStatus.COMPLETED
       };
 
       // Assess confidence in the analysis
@@ -208,18 +217,23 @@ export class ActionItemSpecialistAgent
           actionItemCount: actionItems.length,
           meetingId: metadata?.meetingId || 'unknown',
         },
-        timestamp: Date.now(),
+        timestamp: Date.now()
       };
 
-      // Notify coordinator of task completion
+      // Notify task completion
       await this.notifyTaskCompletion(task.id, output);
 
       return output;
     } catch (error) {
-      this.logger.error(
-        `Error processing action item extraction: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      throw error;
+      this.logger.error(`Error processing action item task: ${error instanceof Error ? error.message : String(error)}`);
+      
+      return {
+        content: {
+          error: error instanceof Error ? error.message : String(error)
+        },
+        confidence: ConfidenceLevel.LOW,
+        timestamp: Date.now()
+      };
     }
   }
 
@@ -247,25 +261,25 @@ export class ActionItemSpecialistAgent
   > {
     this.logger.info('Extracting action items from transcript');
 
-    // Combine segments for context, but keep segment IDs for reference
+    // Create full text of the transcript for analysis
     const fullText = transcript.segments
       .map(
         (s) =>
-          `[SEGMENT: ${s.id} | SPEAKER: ${s.speakerName || s.speakerId}]\n${s.content}`,
+          `[SPEAKER: ${s.speakerName || s.speakerId}] [TIME: ${s.startTime}-${s.endTime}] [ID: ${s.id}]\n${s.content}`,
       )
       .join('\n\n');
 
-    // Get participant information
-    const participants = metadata?.participants || [];
-    const participantInfo =
-      participants.length > 0
-        ? `MEETING PARTICIPANTS:\n${participants.map((p: any) => `- ${p.name || p.id} (ID: ${p.id}${p.role ? `, Role: ${p.role}` : ''})`).join('\n')}`
-        : 'No specific participant information available.';
+    // Create participant information
+    const participantInfo = `PARTICIPANTS:\n${transcript.segments
+      .map((s) => s.speakerId)
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .map((id) => {
+        const segment = transcript.segments.find((s) => s.speakerId === id);
+        return `- ${segment?.speakerName || id}`;
+      })
+      .join('\n')}`;
 
-    // Initialize RAG Prompt Manager
-    const ragPromptManager = new RagPromptManager();
-
-    // Create instruction content
+    // Create instruction content for the model
     const instructionContent = `
       Extract all action items from the following meeting transcript.
       
@@ -285,146 +299,211 @@ export class ActionItemSpecialistAgent
       Only include action items with a confidence score of at least ${this.minConfidence}.
     `;
 
-    // Generate dummy embedding for simplicity
-    // In a real implementation, you would generate proper embeddings
-    const dummyEmbedding = new Array(1536)
-      .fill(0)
-      .map(() => Math.random() - 0.5);
-
-    // Create RAG options - using a custom retrieval strategy since we already have the transcript
-    const ragOptions = {
-      userId: metadata.userId || 'system',
-      queryText: 'Extract action items from meeting transcript',
-      queryEmbedding: dummyEmbedding,
-      strategy: RagRetrievalStrategy.CUSTOM,
-      customFilter: {
-        meetingId: metadata.meetingId,
-      },
-    };
-
     try {
-      // Use RAG prompt manager to create an optimized prompt
-      // TODO Use this rag prompt in the agent, it is defined but not used
-      const ragPrompt = await ragPromptManager.createRagPrompt(
-        SystemRoleEnum.MEETING_ANALYST,
-        InstructionTemplateNameEnum.MEETING_ANALYSIS_CHUNK,
-        instructionContent,
-        ragOptions,
-      );
-
-      // Add transcript as context
-      const content = `${instructionContent}\n\nTRANSCRIPT:\n${fullText}`;
-
-      // Call LLM with optimized prompt
-      const response = await this.callLLM(
-        'Extract action items from transcript',
-        content,
-      );
-
-      try {
-        let actionItems = JSON.parse(response);
-
-        // If the response is wrapped in an object with 'actionItems' field, extract it
-        if (actionItems.actionItems && Array.isArray(actionItems.actionItems)) {
-          actionItems = actionItems.actionItems;
+      // Use the instruction template service if available
+      if (this.instructionTemplateService) {
+        // Generate embedding for the transcript summary
+        const serviceRegistry = MeetingAnalysisServiceRegistry.getInstance();
+        const openAiConnector = serviceRegistry.getOpenAIConnector();
+        
+        let queryEmbedding;
+        try {
+          const queryText = `Extract action items from: ${transcript.segments.slice(0, 3).map(s => s.content).join(' ')}...`;
+          queryEmbedding = openAiConnector ? await openAiConnector.generateEmbedding(queryText) : null;
+        } catch (error) {
+          this.logger.warn(`Error generating embedding for action item extraction: ${error}`);
+          // Continue with null embedding, the service will handle this case
+          queryEmbedding = null;
         }
+        
+        // Create RAG context options
+        const ragOptions = {
+          maxItems: 5,
+          minRelevanceScore: 0.7,
+          includeSources: true,
+          filters: {
+            meetingId: metadata.meetingId,
+            type: 'action_item'
+          },
+          embedding: queryEmbedding
+        };
+        
+//  await this.instructionTemplateService.createSpecializedPrompt(
+//       'topic_discovery',
+//       fullText,
+//       {
+//         segmentContext,
+//         minTopicRelevance: this.minTopicRelevance,
+//         maxTopics: this.maxTopics,
+//         meetingId: transcript.meetingId,
+//         ragOptions: {
+//           userId: 'system',
+//           queryEmbedding,
+//           strategy: RagRetrievalStrategy.SEMANTIC,
+//           maxItems: 5,
+//           filters: { type: { $exists: true } }
+//         }
+//       }
+//     );
+    
 
-        // Ensure each action item has an ID and required fields
-        actionItems = actionItems.map((item: any) => ({
-          id: item.id || `action-${uuidv4().substring(0, 8)}`,
-          description: item.description,
-          assignees: item.assignees || [],
-          status: item.status || 'pending',
-          explicit: !!item.explicit,
-          segmentId: item.segmentId,
-          confidenceScore: item.confidenceScore || this.minConfidence,
-          // These fields will be populated later if enabled
-          dueDate: item.dueDate,
-          priority: item.priority,
-          relatedTopics: item.relatedTopics || [],
-          isFollowUp: false,
-        }));
-
-        // Filter by minimum confidence
-        actionItems = actionItems.filter(
-          (item: any) => item.confidenceScore >= this.minConfidence,
+    // TODO: Update prompt result and createSpecializedPrompt to use the new prompt result
+    const promptResult = await this.instructionTemplateService.createSpecializedPrompt(
+          // InstructionTemplateNameEnum.ACTION_ITEM_EXTRACTION, 
+          'action_item_extraction',
+          fullText,
+          {
+            ragOptions,
+            responseFormat: ResponseFormatType.JSON_OBJECT,
+          }
+        );
+        // Create the prompt with RAG context
+        // const promptResult = await this.instructionTemplateService.createSpecializedPrompt({
+        //     templateName: 'action_item_extraction',
+        //     systemRole: SystemRoleEnum.MEETING_ANALYST,
+        //     userContent: `${instructionContent}\n\nTRANSCRIPT:\n${fullText}`,
+        //     ragOptions,
+        //     responseFormat: ResponseFormatType.JSON_OBJECT,
+        //     jsonSchema: {
+        //       type: 'array',
+        //       items: {
+        //         type: 'object',
+        //         properties: {
+        //           id: { type: 'string' },
+        //           description: { type: 'string' },
+        //           assignees: { 
+        //             type: 'array',
+        //             items: { type: 'string' }
+        //           },
+        //           status: { 
+        //             type: 'string',
+        //             enum: ['pending', 'in_progress', 'completed']
+        //           },
+        //           explicit: { type: 'boolean' },
+        //           segmentId: { type: 'string' },
+        //           confidenceScore: { 
+        //             type: 'number',
+        //             minimum: 0,
+        //             maximum: 1
+        //           }
+        //         },
+        //         required: ['description', 'assignees', 'explicit', 'segmentId', 'confidenceScore']
+        //       }
+        //     }
+        // });
+        
+        // Call LLM with the enhanced prompt
+        const response = await this.callLLM(
+          'Extract action items from transcript',
+          promptResult.messages.map(m => m.content).join('\n\n')
         );
 
-        return actionItems;
-      } catch (error) {
-        this.logger.error(
-          `Error parsing action item extraction response: ${error instanceof Error ? error.message : String(error)}`,
+        try {
+          let actionItems = JSON.parse(response);
+
+          // If the response is wrapped in an object with 'actionItems' field, extract it
+          if (actionItems.actionItems && Array.isArray(actionItems.actionItems)) {
+            actionItems = actionItems.actionItems;
+          }
+
+          // Ensure each action item has an ID and required fields
+          actionItems = actionItems.map((item: any) => ({
+            id: item.id || `action-${uuidv4().substring(0, 8)}`,
+            description: item.description,
+            assignees: item.assignees || [],
+            status: item.status || 'pending',
+            explicit: !!item.explicit,
+            segmentId: item.segmentId,
+            confidenceScore: item.confidenceScore || this.minConfidence,
+            // These fields will be populated later if enabled
+            dueDate: item.dueDate,
+            priority: item.priority,
+            relatedTopics: item.relatedTopics || [],
+            isFollowUp: false,
+          }));
+
+          // Filter by minimum confidence
+          actionItems = actionItems.filter(
+            (item: any) => item.confidenceScore >= this.minConfidence,
+          );
+
+          return actionItems;
+        } catch (error) {
+          this.logger.error(
+            `Error parsing action item extraction response: ${error instanceof Error ? error.message : String(error)}`,
+          );
+
+          // Return a minimal valid result if parsing fails
+          return [];
+        }
+      } else {
+        // Fall back to direct LLM call if instruction template service is not available
+        const fallbackPrompt = `
+          Extract all action items from the following meeting transcript.
+          
+          ${participantInfo}
+          
+          Identify both:
+          1. Explicit action items (clearly stated tasks assigned to individuals)
+          2. Implicit action items (implied responsibilities or next steps)
+          
+          For each action item:
+          - Provide a clear, concise description of what needs to be done
+          - Identify the assignee(s) by name or ID (from the participants list)
+          - Note the segment ID where the action item appears
+          - Determine if it's an explicit or implicit action item
+          - Assess a confidence score (0.0 to 1.0) for each identified action item
+          
+          Only include action items with a confidence score of at least ${this.minConfidence}.
+          
+          TRANSCRIPT:
+          ${fullText}
+          
+          Return your analysis as a JSON array of action item objects.
+        `;
+
+        const fallbackResponse = await this.callLLM(
+          'Extract action items from transcript',
+          fallbackPrompt
         );
 
-        // Return a minimal valid result if parsing fails
-        return [];
+        try {
+          let actionItems = JSON.parse(fallbackResponse);
+
+          // Ensure each action item has an ID and required fields
+          actionItems = actionItems.map((item: any) => ({
+            id: item.id || `action-${uuidv4().substring(0, 8)}`,
+            description: item.description,
+            assignees: item.assignees || [],
+            status: item.status || 'pending',
+            explicit: !!item.explicit,
+            segmentId: item.segmentId,
+            confidenceScore: item.confidenceScore || this.minConfidence,
+            // These fields will be populated later if enabled
+            dueDate: item.dueDate,
+            priority: item.priority,
+            relatedTopics: item.relatedTopics || [],
+            isFollowUp: false,
+          }));
+
+          // Filter by minimum confidence
+          actionItems = actionItems.filter(
+            (item: any) => item.confidenceScore >= this.minConfidence,
+          );
+
+          return actionItems;
+        } catch (error) {
+          this.logger.error(
+            `Error parsing fallback response: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          return [];
+        }
       }
     } catch (error) {
       this.logger.error(
-        `Error using RAG prompt manager: ${error instanceof Error ? error.message : String(error)}`,
+        `Error in action item extraction: ${error instanceof Error ? error.message : String(error)}`,
       );
-
-      // Fall back to direct LLM call if RAG fails
-      const fallbackPrompt = `
-        Extract all action items from the following meeting transcript.
-        
-        ${participantInfo}
-        
-        Identify both:
-        1. Explicit action items (clearly stated tasks assigned to individuals)
-        2. Implicit action items (implied responsibilities or next steps)
-        
-        For each action item:
-        - Provide a clear, concise description of what needs to be done
-        - Identify the assignee(s) by name or ID (from the participants list)
-        - Note the segment ID where the action item appears
-        - Determine if it's an explicit or implicit action item
-        - Assess a confidence score (0.0 to 1.0) for each identified action item
-        
-        Only include action items with a confidence score of at least ${this.minConfidence}.
-        
-        TRANSCRIPT:
-        ${fullText}
-        
-        Return your analysis as a JSON array of action item objects.
-      `;
-
-      const fallbackResponse = await this.callLLM(
-        'Extract action items from transcript',
-        fallbackPrompt,
-      );
-
-      try {
-        let actionItems = JSON.parse(fallbackResponse);
-
-        // Ensure each action item has an ID and required fields
-        actionItems = actionItems.map((item: any) => ({
-          id: item.id || `action-${uuidv4().substring(0, 8)}`,
-          description: item.description,
-          assignees: item.assignees || [],
-          status: item.status || 'pending',
-          explicit: !!item.explicit,
-          segmentId: item.segmentId,
-          confidenceScore: item.confidenceScore || this.minConfidence,
-          // These fields will be populated later if enabled
-          dueDate: item.dueDate,
-          priority: item.priority,
-          relatedTopics: item.relatedTopics || [],
-          isFollowUp: false,
-        }));
-
-        // Filter by minimum confidence
-        actionItems = actionItems.filter(
-          (item: any) => item.confidenceScore >= this.minConfidence,
-        );
-
-        return actionItems;
-      } catch (error) {
-        this.logger.error(
-          `Error parsing fallback response: ${error instanceof Error ? error.message : String(error)}`,
-        );
-        return [];
-      }
+      return [];
     }
   }
 

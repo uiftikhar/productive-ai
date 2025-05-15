@@ -766,10 +766,34 @@ export class EnhancedSupervisorAgent
   ): Promise<FinalResult> {
     this.logger.info(`Synthesizing results from ${results.length} collections`);
     
-    // Use the new synthesis service for better task reassembly
-    // const meetingId = results[0].meetingId; // Assume all results are from the same meeting
-    // TODO: Fix this
-    const meetingId = 'test-meeting-1'; // Assume all results are from the same meeting
+    // Determine the meeting ID from results metadata or use a default
+    let meetingId = 'unknown-meeting';
+    
+    // Try to find a meetingId in the results metadata
+    for (const collection of results) {
+      for (const result of collection.results) {
+        if (result.metadata?.meetingId) {
+          meetingId = result.metadata.meetingId;
+          break;
+        }
+      }
+      if (meetingId !== 'unknown-meeting') break;
+    }
+    
+    // If not found, try to find it in task context
+    if (meetingId === 'unknown-meeting') {
+      // Look through our managed subtasks
+      for (const collection of results) {
+        const taskId = collection.taskId;
+        const subTask = this.subTasks.get(taskId);
+        if (subTask?.input?.meetingId) {
+          meetingId = subTask.input.meetingId;
+          break;
+        }
+      }
+    }
+    
+    this.logger.info(`Using meetingId: ${meetingId} for result synthesis`);
     
     // Register intermediate results with the synthesis service
     for (const collection of results) {

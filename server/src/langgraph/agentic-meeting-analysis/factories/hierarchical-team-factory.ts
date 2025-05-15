@@ -6,6 +6,7 @@ import {
   AgentExpertise, 
   AgentRole, 
   AnalysisGoalType,
+  // TODO: Why is this oimported? Should this be used in the agent interface?
   AgentOutput 
 } from '../interfaces/agent.interface';
 import { EnhancedSupervisorAgent } from '../agents/coordinator/enhanced-supervisor-agent';
@@ -171,12 +172,35 @@ export async function createHierarchicalAgentTeam(options: HierarchicalTeamOptio
     } else {
       return await createRealAgentTeam(options, logger, openAiConnector);
     }
-  } catch (error) {
-    logger.error(`Error creating hierarchical team: ${error instanceof Error ? error.message : String(error)}`);
-    if (error instanceof Error && error.stack) {
-      logger.error(`Stack trace: ${error.stack}`);
-    }
-    throw error;
+  } catch (error: any) {
+    // Enhanced error logging with details
+    const errorDetails = {
+      message: error.message || 'Unknown error creating hierarchical team',
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      options: {
+        debugMode: options.debugMode,
+        analysisGoal: options.analysisGoal,
+        enabledExpertiseCount: options.enabledExpertise?.length,
+        useMockMode: options.useMockMode,
+        enableRAG: options.enableRAG
+      }
+    };
+    
+    logger.error(`Error creating hierarchical team: ${errorDetails.message}`, { error: errorDetails });
+    
+    // Create and throw an enhanced error with more context
+    const enhancedError = new Error(`Failed to create hierarchical agent team: ${error.message}`);
+    (enhancedError as any).originalError = error;
+    (enhancedError as any).teamCreationOptions = {
+      debugMode: options.debugMode,
+      analysisGoal: options.analysisGoal,
+      enabledExpertise: options.enabledExpertise,
+      meetingId: options.meetingId
+    };
+    
+    throw enhancedError;
   }
 }
 
@@ -188,6 +212,16 @@ async function createRealAgentTeam(
   logger: Logger,
   openAiConnector: OpenAIConnector
 ): Promise<HierarchicalTeamResult> {
+  // Variables that we want to access in the catch block need to be defined outside the try block
+  let ragService: UnifiedRAGService | undefined;
+  let supervisor: EnhancedSupervisorAgent;
+  let managers: AnalysisManagerAgent[] = [];
+  let workers: SpecialistWorkerAgent[] = [];
+  let teamMap = new Map<ExtendedExpertise, {
+    manager: AnalysisManagerAgent;
+    workers: SpecialistWorkerAgent[];
+  }>();
+  
   try {
     logger.info(`Starting createRealAgentTeam with options: ${JSON.stringify({
       debugMode: options.debugMode,
@@ -196,8 +230,6 @@ async function createRealAgentTeam(
     })}`);
     
     // Initialize RAG components if enabled
-    let ragService: UnifiedRAGService | undefined;
-    
     if (options.enableRAG) {
       logger.info('Initializing RAG components for context-aware analysis');
       
@@ -237,14 +269,6 @@ async function createRealAgentTeam(
       });
       
       logger.info('RAG service initialized successfully');
-      
-      // Ensure CONTEXT_AWARENESS is in the enabled expertise if RAG is enabled
-      if (!options.enabledExpertise?.includes(ExtendedAgentExpertise.CONTEXT_AWARENESS as ExtendedExpertise)) {
-        options.enabledExpertise = [
-          ...(options.enabledExpertise || []),
-          ExtendedAgentExpertise.CONTEXT_AWARENESS as ExtendedExpertise
-        ];
-      }
     }
     
     // Create supervisor agent
@@ -287,13 +311,6 @@ async function createRealAgentTeam(
     }
     
     logger.info(`Final expertise array: ${enabledExpertise.join(', ')}`);
-    
-    const managers: AnalysisManagerAgent[] = [];
-    const workers: SpecialistWorkerAgent[] = [];
-    const teamMap = new Map<ExtendedExpertise, {
-      manager: AnalysisManagerAgent;
-      workers: SpecialistWorkerAgent[];
-    }>();
     
     // Create manager and workers for each expertise area
     for (const expertise of enabledExpertise) {
@@ -583,21 +600,79 @@ async function createRealAgentTeam(
       workers.push(contextAgent as any as SpecialistWorkerAgent);
     }
     
-    logger.info(`Successfully created hierarchical team with ${managers.length} managers and ${workers.length} workers`);
-    
-    return {
+    // Return the result when successfully completed
+    const result: HierarchicalTeamResult = {
       supervisor,
       managers,
       workers,
       teamMap,
       ragService
     };
-  } catch (error) {
-    logger.error(`Error in createRealAgentTeam: ${error instanceof Error ? error.message : String(error)}`);
-    if (error instanceof Error && error.stack) {
-      logger.error(`Stack trace: ${error.stack}`);
+    
+    logger.info(`Successfully created hierarchical team with ${managers.length} managers and ${workers.length} workers`);
+    
+    return result;
+  } catch (error: any) {
+    // Enhanced error logging with detailed diagnostic information
+    const errorDetails: {
+      message: string;
+      stack?: string;
+      name?: string;
+      code?: string;
+      phase: string;
+      componentType: string;
+      options: {
+        analysisGoal?: any;
+        enabledExpertise?: string;
+        maxWorkers?: number;
+        maxManagers?: number;
+        enableRAG?: boolean;
+      };
+      currentState?: {
+        hasRagService: boolean;
+        managerCount: number;
+        workerCount: number;
+      };
+    } = {
+      message: error.message || 'Unknown error in createRealAgentTeam',
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      phase: error.phase || 'unknown', // Additional context about which part of team creation failed
+      componentType: error.componentType || 'unknown', // Which component was being created (supervisor, manager, worker)
+      options: {
+        analysisGoal: options.analysisGoal,
+        enabledExpertise: options.enabledExpertise?.join(','),
+        maxWorkers: options.maxWorkers,
+        maxManagers: options.maxManagers,
+        enableRAG: options.enableRAG
+      }
+    };
+    
+    logger.error(`Failed to create real agent team: ${errorDetails.message}`, { error: errorDetails });
+    
+    // Add phase information to help diagnose where in the process the failure occurred
+    if (ragService) {
+      errorDetails.phase = 'post_rag_initialization';
     }
-    throw error;
+    
+    // Provide current team creation state for better debugging
+    errorDetails.currentState = {
+      hasRagService: !!ragService,
+      managerCount: managers?.length || 0,
+      workerCount: workers?.length || 0
+    };
+    
+    // Rethrow with enhanced context
+    const enhancedError = new Error(`Failed to create real agent team: ${error.message}`);
+    (enhancedError as any).originalError = error;
+    (enhancedError as any).phase = errorDetails.phase;
+    (enhancedError as any).teamDetails = {
+      analysisGoal: options.analysisGoal,
+      enabledExpertise: options.enabledExpertise
+    };
+    
+    throw enhancedError;
   }
 }
 

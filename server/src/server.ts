@@ -6,23 +6,28 @@ import { chatRouter } from './api/chat/chat.routes';
 import { healthRouter } from './api/health/health.routes';
 import { debugRouter } from './api/debug/debug.routes';
 import { ConsoleLogger } from './shared/logger/console-logger';
-import { ServiceRegistry } from './langgraph/agentic-meeting-analysis/services/service-registry';
+import { MeetingAnalysisServiceRegistry } from './langgraph/agentic-meeting-analysis/services/service-registry';
 import { Logger } from './shared/logger/logger.interface';
 import { authRoutes } from './auth/auth.routes';
 import { passportClient } from './database';
 import http from 'http';
 import morgan from 'morgan';
-import agentProtocolRoutes from './api/agent-protocol.routes';
+import hierarchicalAgentRoutes from './api/routes/hierarchical-agent.routes';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Server configuration options
  */
 export interface ServerConfig {
-  serviceRegistry?: ServiceRegistry;
+  serviceRegistry?: MeetingAnalysisServiceRegistry;
   port?: number;
   enableCors?: boolean;
   enableLogging?: boolean;
   logger?: Logger;
+  routes?: {
+    visualizationRoutes?: express.Router;
+  };
 }
 
 /**
@@ -33,7 +38,7 @@ export async function createServer(config: ServerConfig = {}): Promise<{ app: Ex
   const logger = config.logger || new ConsoleLogger();
 
   // Initialize services if not provided
-  const serviceRegistry = config.serviceRegistry || ServiceRegistry.getInstance({
+  const serviceRegistry = config.serviceRegistry || MeetingAnalysisServiceRegistry.getInstance({
     storageType: 'file',
     storagePath: process.env.STORAGE_PATH || './data',
     logger
@@ -97,15 +102,29 @@ export async function createServer(config: ServerConfig = {}): Promise<{ app: Ex
 
   // Mount API v1 routes
   apiV1Router.use('/chat', chatRouter);
+  apiV1Router.use('/health', healthRouter);
   apiV1Router.use('/debug', debugRouter);
+  apiV1Router.use('/auth', authRoutes);
+  apiV1Router.use('/analysis', hierarchicalAgentRoutes);
   
-  // Register Agent Protocol routes
-  apiV1Router.use('/analysis', agentProtocolRoutes);
+  // Register visualization routes if provided
+  if (config.routes?.visualizationRoutes) {
+    apiV1Router.use('/visualizations', config.routes.visualizationRoutes);
+    // Also register at unversioned path for backward compatibility
+    app.use('/api/visualizations', config.routes.visualizationRoutes);
+    logger.info('Visualization routes registered');
+  }
 
   // Use versioned routes
   app.use('/api/v1', apiV1Router);
   // Keep an unversioned path for backward compatibility
   app.use('/api', apiV1Router);
+
+  // Serve static files from the visualizations directory if it exists
+  if (fs.existsSync(path.join(process.cwd(), 'visualizations'))) {
+    app.use('/visualizations', express.static('visualizations'));
+    logger.info('Serving visualization static files from /visualizations');
+  }
 
   // Add a debug route to see all registered routes
   app.get('/debug/routes', (req, res) => {
@@ -144,10 +163,12 @@ export async function createServer(config: ServerConfig = {}): Promise<{ app: Ex
         health: ['/health', '/health/detailed', '/health/service-status'],
         debug: ['/api/v1/debug/agent-status', '/api/v1/debug/agent-progress/:sessionId'],
         analysis: [
-          '/api/v1/analysis/meetings/analyze',
-          '/api/v1/analysis/meetings/:meetingId/status',
-          '/api/v1/analysis/meetings/:meetingId/result',
-          '/api/v1/analysis/meetings/:meetingId/cancel'
+          '/api/analysis/create',
+          '/api/analysis/:sessionId/analyze',
+          '/api/analysis/:sessionId/status',
+          '/api/analysis/:sessionId/result',
+          '/api/analysis/:sessionId/cancel',
+          '/api/analysis/meetings/analyze'
         ]
       }
     });
@@ -167,33 +188,3 @@ export async function createServer(config: ServerConfig = {}): Promise<{ app: Ex
 
   return { app, server };
 }
-
-// Only start the server if this file is run directly
-if (require.main === module) {
-  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
-  const logger = new ConsoleLogger();
-
-  // Create and start the server
-  (async () => {
-    try {
-      const { app, server } = await createServer({ port, logger });
-
-      // Start listening
-      server.listen(port, () => {
-        logger.info(`Server running on port ${port}`);
-        logger.info('Meeting analysis endpoints registered at:');
-        logger.info('- /api/analysis/meetings/analyze');
-        logger.info('- /api/analysis/meetings/:meetingId/status');
-        logger.info('- /api/analysis/meetings/:meetingId/result');
-        logger.info('- /api/analysis/meetings/:meetingId/cancel');
-        logger.info('- /api/v1/analysis/meetings/analyze');
-        logger.info('- /api/v1/analysis/meetings/:meetingId/status');
-        logger.info('- /api/v1/analysis/meetings/:meetingId/result');
-        logger.info('- /api/v1/analysis/meetings/:meetingId/cancel');
-      });
-    } catch (error) {
-      logger.error('Failed to start server', { error });
-      process.exit(1);
-    }
-  })();
-} 

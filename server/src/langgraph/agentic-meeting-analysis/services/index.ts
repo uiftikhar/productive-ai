@@ -12,7 +12,8 @@ export * from './action-item-integration.service';
 export * from './action-item-notification.service';
 
 // Export other existing services
-export * from './supervisor-coordination.service';
+export * from './meeting-analysis-supervisor.service';
+export * from './meeting-analysis-instruction-template.service';
 export * from './service-registry';
 export * from './session.service';
 export * from './message-store.service'; 

@@ -131,7 +131,6 @@ export class ResultSynthesisService {
     const resultCollection: AgentResultCollection = {
       taskId: taskIds.join(','),
       metadata: {
-        // TODO: FIx this
         workerIds: taskIds,
         startTime: Date.now(),
         endTime: Date.now()
@@ -168,6 +167,15 @@ export class ResultSynthesisService {
     this.logger.info(`Synthesizing ${resultCollection.results.length} results for meeting ${meetingId}`);
     
     try {
+      // Handle empty result collections
+      if (!resultCollection.results || resultCollection.results.length === 0) {
+        this.logger.warn(`No results to synthesize for meeting ${meetingId}`);
+        return this.createFallbackResult({ 
+          ...resultCollection, 
+          results: resultCollection.results || [] 
+        }, meetingId);
+      }
+      
       // Group results by component type
       const resultsByType: Record<string, AgentOutput[]> = {};
       
@@ -234,12 +242,24 @@ Return your response as a valid JSON object with the following structure:
 }
 `;
       
+      // Check if LLM is available
+      if (!this.llm) {
+        this.logger.error(`LLM not available for synthesis for meeting ${meetingId}`);
+        return this.createFallbackResult(resultCollection, meetingId);
+      }
+      
       // Call the LLM for synthesis
       const response = await this.llm.invoke([
         { type: 'human', content: synthesisPrompt }
       ]);
       
       const responseContent = response.content as string;
+      
+      // Check for empty or invalid response
+      if (!responseContent) {
+        this.logger.warn(`Empty response from LLM for meeting ${meetingId}`);
+        return this.createFallbackResult(resultCollection, meetingId);
+      }
       
       // Extract JSON from response
       const jsonMatch = responseContent.match(/```json\n([\s\S]*?)\n```/) || 
@@ -253,19 +273,25 @@ Return your response as a valid JSON object with the following structure:
           synthesisResult = JSON.parse(jsonMatch[1] || jsonMatch[0]);
         } catch (e) {
           // Try to clean and parse the entire response
-          const cleanedJson = responseContent
-            .replace(/```json/g, '')
-            .replace(/```/g, '')
-            .trim();
-          synthesisResult = JSON.parse(cleanedJson);
+          try {
+            const cleanedJson = responseContent
+              .replace(/```json/g, '')
+              .replace(/```/g, '')
+              .trim();
+            synthesisResult = JSON.parse(cleanedJson);
+          } catch (parseError) {
+            this.logger.error(`Failed to parse JSON response: ${parseError}`);
+            return this.createFallbackResult(resultCollection, meetingId);
+          }
         }
       } else {
-        throw new Error('Failed to extract valid JSON from LLM response');
+        this.logger.error(`Failed to extract valid JSON from LLM response`);
+        return this.createFallbackResult(resultCollection, meetingId);
       }
       
       // Convert to FinalResult format
       const finalResult: FinalResult = {
-        summary: synthesisResult.summary,
+        summary: synthesisResult.summary || "No summary available",
         sections: synthesisResult.sections || {},
         insights: synthesisResult.insights || [],
         confidence: (synthesisResult.confidence as ConfidenceLevel) || ConfidenceLevel.MEDIUM,
@@ -279,7 +305,7 @@ Return your response as a valid JSON object with the following structure:
       
       return finalResult;
     } catch (error) {
-      this.logger.error(`Error synthesizing results: ${error}`);
+      this.logger.error(`Error synthesizing results: ${error instanceof Error ? error.message : String(error)}`);
       
       // Return a fallback result
       return this.createFallbackResult(resultCollection, meetingId);

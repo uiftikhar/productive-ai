@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AnalysisResults, AnalysisResultsResponse, AnalysisSession, MeetingAnalysisService, SubmitAnalysisParams } from '@/lib/api/meeting-analysis-service';
+import { 
+  AnalysisResults, 
+  AnalysisResultsResponse, 
+  AnalysisSession, 
+  MeetingAnalysisService, 
+  AnalysisParams 
+} from '@/lib/api/meeting-analysis-service';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -11,6 +17,9 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { AlertCircle, CheckCircle, Clock, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 // import { ScrollArea } from '@/components/ui/scroll-area';
 // import AgentVisualization from './agent-visualization';
 
@@ -30,7 +39,10 @@ export default function SessionPage({ params }: { params: { sessionId: string } 
   useEffect(() => {
     const loadSession = async () => {
       try {
-        const sessionData = await MeetingAnalysisService.getSessionStatus(sessionId);
+        // Ensure sessionId has the correct format
+        const formattedSessionId = sessionId.startsWith('session-') ? sessionId : `session-${sessionId}`;
+        
+        const sessionData = await MeetingAnalysisService.getSessionStatus(formattedSessionId);
         setSession(sessionData);
         
         // Check if we need to start polling for results
@@ -47,14 +59,22 @@ export default function SessionPage({ params }: { params: { sessionId: string } 
     loadSession();
   }, [sessionId]);
   
+  // Store form values
+  const [meetingTitle, setMeetingTitle] = useState('Meeting Transcript Analysis');
+  const [analysisGoal, setAnalysisGoal] = useState('comprehensive_analysis');
+  const [participants, setParticipants] = useState<string[]>([]);
+  
   // Poll for results if needed
   useEffect(() => {
     if (!isPolling) return;
     
     const pollInterval = setInterval(async () => {
       try {
+        // Ensure sessionId has the correct format
+        const formattedSessionId = sessionId.startsWith('session-') ? sessionId : `session-${sessionId}`;
+        
         // Check session status
-        const sessionData = await MeetingAnalysisService.getSessionStatus(sessionId);
+        const sessionData = await MeetingAnalysisService.getSessionStatus(formattedSessionId);
         setSession(sessionData);
         
         // If completed, get results and stop polling
@@ -75,7 +95,10 @@ export default function SessionPage({ params }: { params: { sessionId: string } 
   // Load results if available
   const loadResults = async () => {
     try {
-      const resultsData = await MeetingAnalysisService.getResults(sessionId);
+      // Ensure sessionId has the correct format
+      const formattedSessionId = sessionId.startsWith('session-') ? sessionId : `session-${sessionId}`;
+      
+      const resultsData = await MeetingAnalysisService.getResults(formattedSessionId);
       console.log('resultsData', resultsData);
       setResults(resultsData);
       
@@ -102,16 +125,18 @@ export default function SessionPage({ params }: { params: { sessionId: string } 
     setError(null);
     
     try {
-      const params: SubmitAnalysisParams = {
+      // Use the new API for transcript analysis
+      const response = await MeetingAnalysisService.analyzeTranscript({
         transcript,
-        message: 'Please analyze this meeting transcript',
-      };
+        options: {
+          title: meetingTitle,
+          analysisGoal: analysisGoal,
+          participants: participants.map(p => ({ id: p, name: p }))
+        }
+      });
       
-      await MeetingAnalysisService.analyzeTranscript(sessionId, params);
-      
-      // Update session and start polling
-      const updatedSession = await MeetingAnalysisService.getSessionStatus(sessionId);
-      setSession(updatedSession);
+      // Update the local state with the response data
+      setSession(response);
       setIsPolling(true);
       setActiveTab('status');
     } catch (err: any) {
@@ -124,7 +149,10 @@ export default function SessionPage({ params }: { params: { sessionId: string } 
   // Delete session and go back
   const handleDeleteSession = async () => {
     try {
-      await MeetingAnalysisService.deleteSession(sessionId);
+      // Ensure sessionId has the correct format
+      const formattedSessionId = sessionId.startsWith('session-') ? sessionId : `session-${sessionId}`;
+      
+      await MeetingAnalysisService.cancelAnalysis(formattedSessionId);
       router.push('/meeting-analysis');
     } catch (err: any) {
       setError(err.message || 'Failed to delete session');
@@ -235,13 +263,42 @@ export default function SessionPage({ params }: { params: { sessionId: string } 
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Textarea
-              placeholder="Paste your meeting transcript here..."
-              className="min-h-[300px]"
-              value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              disabled={isSubmitting || session?.status === 'processing' || session?.status === 'completed'}
-            />
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Meeting Title</Label>
+                <Input 
+                  placeholder="Enter meeting title"
+                  value={meetingTitle}
+                  onChange={(e) => setMeetingTitle(e.target.value)}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Analysis Goal</Label>
+                <Select 
+                  value={analysisGoal} 
+                  onValueChange={setAnalysisGoal}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select analysis goal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="comprehensive_analysis">Comprehensive Analysis</SelectItem>
+                    <SelectItem value="action_items_only">Action Items Only</SelectItem>
+                    <SelectItem value="summary_only">Summary Only</SelectItem>
+                    <SelectItem value="topics_only">Topics Only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <Textarea
+                placeholder="Paste your meeting transcript here..."
+                className="min-h-[300px]"
+                value={transcript}
+                onChange={(e) => setTranscript(e.target.value)}
+                disabled={isSubmitting || session?.status === 'processing' || session?.status === 'completed'}
+              />
+            </div>
           </CardContent>
           <CardFooter className="flex justify-between">
             <Button variant="outline" onClick={() => router.push('/meeting-analysis')}>
@@ -268,7 +325,7 @@ export default function SessionPage({ params }: { params: { sessionId: string } 
   
   // Render analysis results
   const renderResults = () => {
-    if (!results || !results.results) {
+    if (!results || !results.results || !results.results.results) {
       return (
         <Card>
           <CardHeader>
@@ -287,6 +344,26 @@ export default function SessionPage({ params }: { params: { sessionId: string } 
     
     // Extract data from the nested results structure
     const resultData = results.results.results;
+    
+    // Handle error case
+    if (resultData.error) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>Analysis Failed</CardTitle>
+            <CardDescription>There was an error during the analysis</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{resultData.error}</AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      );
+    }
+    
     const topics = resultData.topics || [];
     const actionItems = resultData.actionItems || [];
     const summary = resultData.summary || {};

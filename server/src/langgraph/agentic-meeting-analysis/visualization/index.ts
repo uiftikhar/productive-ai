@@ -40,9 +40,13 @@ export { ActionNetworkVisualizationImpl } from './content/action-network.service
 
 // Core visualization services from adaptive framework
 export {
-  HumanInterventionImpl,
-  InteractiveNodeExplorationImpl
-} from '../../adaptive/visualization';
+  AgentVisualization,
+  TeamVisualization,
+  MeetingProcessVisualization,
+  ContentVisualization,
+  CollaborationVisualization,
+  VisualizationGraph
+} from '../interfaces/visualization.interface';
 
 /**
  * This module provides comprehensive visualization capabilities by combining:
@@ -68,4 +72,14 @@ export {
  */
 
 // Export topic visualization service
-export * from './topic-visualization.service'; 
+export * from './topic-visualization.service';
+
+// Update the import path
+import {
+  AgentVisualization,
+  TeamVisualization,
+  MeetingProcessVisualization,
+  ContentVisualization,
+  CollaborationVisualization,
+  VisualizationGraph
+} from '../interfaces/visualization.interface'; 

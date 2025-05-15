@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { CreateSessionParams, MeetingAnalysisService } from '@/lib/api/meeting-analysis-service';
+import { MeetingAnalysisService, AnalysisParams } from '@/lib/api/meeting-analysis-service';
+import { Textarea } from '@/components/ui/textarea';
 
 interface CreateSessionFormProps {
   onSessionCreated: (sessionId: string) => void;
@@ -19,6 +20,9 @@ export function CreateSessionForm({ onSessionCreated }: CreateSessionFormProps) 
   const router = useRouter();
   
   const [analysisGoal, setAnalysisGoal] = useState('full_analysis');
+  const [transcript, setTranscript] = useState('');
+  const [participants, setParticipants] = useState('');
+  const [meetingTitle, setMeetingTitle] = useState('');
   const [enabledExpertise, setEnabledExpertise] = useState<string[]>([
     'topic_analysis', 
     'action_item_extraction', 
@@ -45,22 +49,24 @@ export function CreateSessionForm({ onSessionCreated }: CreateSessionFormProps) 
     }
   };
   
-  // Create a new session
+  // Create and analyze in one step
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!transcript.trim()) {
+      setError('Please enter a transcript to analyze');
+      return;
+    }
+    
     setIsLoading(true);
     setError(null);
     
     try {
-      const params: CreateSessionParams = {
-        analysisGoal,
-        enabledExpertise
-      };
-      
-      const session = await MeetingAnalysisService.createSession(params);
-      onSessionCreated(session.sessionId);
+      // Just notify parent that user wants to create a session
+      // The actual session creation will happen in the parent component
+      onSessionCreated("");
     } catch (err: any) {
-      setError(err.message || 'Failed to create session');
+      setError(err.message || 'Failed to analyze transcript');
       setIsLoading(false);
     }
   };
@@ -74,6 +80,26 @@ export function CreateSessionForm({ onSessionCreated }: CreateSessionFormProps) 
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+      
+      <div className="space-y-2">
+        <Label htmlFor="meetingTitle">Meeting Title (Optional)</Label>
+        <Input 
+          id="meetingTitle" 
+          value={meetingTitle} 
+          onChange={(e) => setMeetingTitle(e.target.value)} 
+          placeholder="Enter meeting title" 
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="participants">Participants (Optional, comma-separated)</Label>
+        <Input 
+          id="participants" 
+          value={participants} 
+          onChange={(e) => setParticipants(e.target.value)} 
+          placeholder="John Doe, Jane Smith" 
+        />
+      </div>
       
       <div className="space-y-2">
         <Label htmlFor="analysisGoal">Analysis Goal</Label>
@@ -90,8 +116,20 @@ export function CreateSessionForm({ onSessionCreated }: CreateSessionFormProps) 
         </Select>
       </div>
       
+      <div className="space-y-2">
+        <Label htmlFor="transcript">Meeting Transcript</Label>
+        <Textarea 
+          id="transcript" 
+          value={transcript} 
+          onChange={(e) => setTranscript(e.target.value)} 
+          placeholder="Paste your meeting transcript here..." 
+          className="min-h-[200px]"
+          required 
+        />
+      </div>
+      
       <div className="space-y-3">
-        <Label>Enabled Expertise</Label>
+        <Label>Enabled Expertise (Optional)</Label>
         <div className="grid grid-cols-2 gap-2">
           {expertiseOptions.map((option) => (
             <div key={option.id} className="flex items-center space-x-2">
@@ -110,10 +148,10 @@ export function CreateSessionForm({ onSessionCreated }: CreateSessionFormProps) 
         {isLoading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Creating Session
+            Analyzing Transcript
           </>
         ) : (
-          'Create Analysis Session'
+          'Analyze Transcript'
         )}
       </Button>
     </form>

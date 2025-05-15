@@ -21,10 +21,7 @@ import {
   VisualizationConnectionType,
   VisualizationElementState
 } from '../../interfaces/visualization.interface';
-
-// NOTE: These imports refer to deprecated modules that will be removed.
-// The linting errors are expected and will be resolved when this file is removed.
-import { GraphNodeState } from '../../../adaptive/interfaces/visualization.interface';
+import { GraphNodeState } from '../../interfaces/visualization.interface';
 
 // Using any as temporary type to avoid linting errors in deprecated code
 type RealTimeGraphRendererType = any;

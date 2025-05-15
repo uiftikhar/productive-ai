@@ -7,7 +7,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
-import { ServiceRegistry } from '../services/service-registry';
+import { MeetingAnalysisServiceRegistry } from '../services/service-registry';
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
 
@@ -38,7 +38,7 @@ export interface AgentGraphVisualizationConfig {
   logger?: Logger;
   enableRealTimeUpdates?: boolean;
   visualizationsPath?: string;
-  serviceRegistry?: ServiceRegistry;
+  serviceRegistry?: MeetingAnalysisServiceRegistry;
 }
 
 /**
@@ -48,7 +48,7 @@ export class AgentGraphVisualizationService {
   private logger: Logger;
   private enableRealTimeUpdates: boolean;
   private visualizationsPath: string;
-  private serviceRegistry: ServiceRegistry;
+  private serviceRegistry: MeetingAnalysisServiceRegistry;
   private graphData: Map<string, {
     elements: Map<string, VisualizationElement>;
     connections: Map<string, VisualizationConnection>;
@@ -62,7 +62,7 @@ export class AgentGraphVisualizationService {
     this.logger = config.logger || new ConsoleLogger();
     this.enableRealTimeUpdates = config.enableRealTimeUpdates !== false;
     this.visualizationsPath = config.visualizationsPath || 'visualizations';
-    this.serviceRegistry = config.serviceRegistry || ServiceRegistry.getInstance();
+    this.serviceRegistry = config.serviceRegistry || MeetingAnalysisServiceRegistry.getInstance();
     
     this.logger.info('Agent Graph Visualization Service initialized');
   }

@@ -2,14 +2,14 @@
 // There is a duplication either here or in the chat.controller.ts file
 import { Router, Request, Response, NextFunction } from 'express';
 import { chatController } from './chat.controller';
-import { ServiceRegistry } from '../../langgraph/agentic-meeting-analysis/services/service-registry';
+import { MeetingAnalysisServiceRegistry } from '../../langgraph/agentic-meeting-analysis/services/service-registry';
 
 export const chatRouter = Router();
 
 // Middleware to ensure services are initialized
 const ensureInitialized = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const serviceRegistry = ServiceRegistry.getInstance();
+    const serviceRegistry = MeetingAnalysisServiceRegistry.getInstance();
     if (!serviceRegistry.isInitialized()) {
       await serviceRegistry.initialize();
     }

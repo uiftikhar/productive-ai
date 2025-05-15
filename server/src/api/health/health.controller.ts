@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { ServiceRegistry } from '../../langgraph/agentic-meeting-analysis/services/service-registry';
+import { MeetingAnalysisServiceRegistry } from '../../langgraph/agentic-meeting-analysis/services/service-registry';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import * as os from 'os';
 
@@ -40,7 +40,7 @@ export const healthController = {
   async checkServiceStatus(req: Request, res: Response) {
     try {
       // Get service registry
-      const serviceRegistry = ServiceRegistry.getInstance();
+      const serviceRegistry = MeetingAnalysisServiceRegistry.getInstance();
       
       // Get agent status report
       const agentStatus = serviceRegistry.getAgentStatusReport();

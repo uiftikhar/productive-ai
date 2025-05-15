@@ -468,6 +468,11 @@ export class BaseMeetingAnalysisAgent
   protected async callLLM(
     instruction: string,
     content: string,
+    responseOptions?: {
+      responseFormat?: { type: 'text' | 'json_object' | 'json_array' },
+      temperature?: number,
+      maxTokens?: number
+    }
   ): Promise<string> {
     if (this.useMockMode) {
       return this.mockLLMResponse(instruction, content);
@@ -492,9 +497,10 @@ export class BaseMeetingAnalysisAgent
           messages,
           {
             // Ensure we use JSON output when appropriate
-            responseFormat: this.shouldUseJsonResponse(instruction) 
-              ? { type: 'json_object' } 
-              : undefined
+            responseFormat: responseOptions?.responseFormat || 
+              (this.shouldUseJsonResponse(instruction) ? { type: 'json_object' } : undefined),
+            temperature: responseOptions?.temperature,
+            maxTokens: responseOptions?.maxTokens
           }
         );
         

@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CreateSessionForm } from '@/components/meeting-analysis/create-session-form';
 import { SessionList } from '@/components/meeting-analysis/session-list';
+import { MeetingAnalysisService } from '@/lib/api/meeting-analysis-service';
 
 export default function MeetingAnalysisPage() {
   const [activeTab, setActiveTab] = useState('new');
@@ -21,9 +22,17 @@ export default function MeetingAnalysisPage() {
   };
 
   // Handle new session creation
-  const handleSessionCreated = (sessionId: string) => {
-    setSelectedSessionId(sessionId);
-    router.push(`/meeting-analysis/${sessionId}`);
+  const handleSessionCreated = async (sessionId: string) => {
+    try {
+      // Create a new session via the API
+      const response = await MeetingAnalysisService.createSession();
+      
+      // Navigate to the session page with the new sessionId
+      router.push(`/meeting-analysis/${response.sessionId}`);
+    } catch (error) {
+      console.error("Failed to create session:", error);
+      alert("Failed to create session. Please try again.");
+    }
   };
 
   return (

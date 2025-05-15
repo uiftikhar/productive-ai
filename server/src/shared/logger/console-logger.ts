@@ -61,6 +61,14 @@ export class ConsoleLogger implements Logger {
    * Log at error level
    */
   error(message: string, meta?: Record<string, any>): void {
+    // Format any error objects in the metadata
+    if (meta && meta.error) {
+      meta = {
+        ...meta,
+        error: this.formatErrorForLogging(meta.error)
+      };
+    }
+    
     this.log(LogLevel.ERROR, message, meta);
   }
   
@@ -159,9 +167,33 @@ export class ConsoleLogger implements Logger {
    * Safe JSON.stringify replacer that handles circular references
    */
   private safeStringify(_key: string, value: any): any {
+    // Use a circular reference detection Set
     const seen = new Set();
+    
+    // Special handling for Error objects 
+    if (value instanceof Error) {
+      return {
+        message: value.message,
+        name: value.name,
+        stack: value.stack,
+        ...(value as any) // Include non-standard properties
+      };
+    }
+    
+    // Handle circular references
     return (function replacer(_key: string, value: any): any {
       if (typeof value === 'object' && value !== null) {
+        // Handle Error objects (including those in nested properties)
+        if (value instanceof Error) {
+          return {
+            message: value.message,
+            name: value.name,
+            stack: value.stack,
+            ...(value as any) // Include non-standard properties
+          };
+        }
+        
+        // Detect circular references
         if (seen.has(value)) {
           return '[Circular]';
         }
@@ -169,5 +201,66 @@ export class ConsoleLogger implements Logger {
       }
       return value;
     })('', value);
+  }
+  
+  /**
+   * Enhanced error logging with stack trace formatting
+   */
+  formatErrorForLogging(error: any): any {
+    if (!error) return 'Unknown error';
+    
+    // If it's already an object with the right properties, return it
+    if (typeof error === 'object' && error !== null && 
+        (error.message || error.stack)) {
+      return {
+        message: error.message || 'Unknown error',
+        name: error.name || 'Error',
+        stack: this.formatStack(error.stack),
+        code: error.code,
+        ...this.extractCustomErrorProperties(error)
+      };
+    }
+    
+    // Convert string errors to proper format
+    if (typeof error === 'string') {
+      return {
+        message: error,
+        name: 'Error'
+      };
+    }
+    
+    // Handle unexpected error types
+    return {
+      message: String(error),
+      name: 'UnknownError'
+    };
+  }
+  
+  /**
+   * Format stack trace for better readability
+   */
+  private formatStack(stack?: string): string | undefined {
+    if (!stack) return undefined;
+    
+    // Take first 20 lines maximum to avoid excessively long logs
+    return stack.split('\n').slice(0, 20).join('\n');
+  }
+  
+  /**
+   * Extract custom properties from error objects
+   */
+  private extractCustomErrorProperties(error: any): Record<string, any> {
+    if (typeof error !== 'object' || error === null) return {};
+    
+    const standardProps = ['message', 'name', 'stack', 'code'];
+    const customProps: Record<string, any> = {};
+    
+    Object.keys(error).forEach(key => {
+      if (!standardProps.includes(key)) {
+        customProps[key] = error[key];
+      }
+    });
+    
+    return customProps;
   }
 }

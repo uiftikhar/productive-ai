@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { ServiceRegistry } from '../../langgraph/agentic-meeting-analysis/services/service-registry';
+import { MeetingAnalysisServiceRegistry } from '../../langgraph/agentic-meeting-analysis/services/service-registry';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { getRequestId } from '../../shared/api/request-id';
 import { sendSuccess, sendError } from '../../shared/api/response';
@@ -17,7 +17,7 @@ export const debugController = {
    */
   async getAgentStatus(req: Request, res: Response) {
     try {
-      const serviceRegistry = ServiceRegistry.getInstance();
+      const serviceRegistry = MeetingAnalysisServiceRegistry.getInstance();
       const agentStatus = serviceRegistry.getAgentStatusReport();
 
       sendSuccess(res, agentStatus, HttpStatus.OK, { requestId: getRequestId(req) });
@@ -44,7 +44,7 @@ export const debugController = {
         );
       }
 
-      const serviceRegistry = ServiceRegistry.getInstance();
+      const serviceRegistry = MeetingAnalysisServiceRegistry.getInstance();
       const progress = await serviceRegistry.getSessionProgress(sessionId);
 
       sendSuccess(res, progress, HttpStatus.OK, { requestId: getRequestId(req) });
@@ -71,7 +71,7 @@ export const debugController = {
         );
       }
 
-      const serviceRegistry = ServiceRegistry.getInstance();
+      const serviceRegistry = MeetingAnalysisServiceRegistry.getInstance();
       const messageStore = serviceRegistry.getMessageStore();
 
       // Using getMessagesForSession which returns an array of ChatMessage

@@ -228,6 +228,17 @@ export interface SentimentAnalysis {
   confidence: number; // 0-1 scale
 }
 
+/**
+ * Graph node state type (for compatibility with legacy code)
+ */
+export enum GraphNodeState {
+  PROCESSING = 'processing',
+  COMPLETED = 'completed',
+  IDLE = 'idle',
+  ERROR = 'error',
+  WAITING = 'waiting'
+}
+
 // Team Visualization Interfaces
 
 /**
@@ -678,4 +689,61 @@ export interface ActionNetworkVisualization {
     dependencyComplexity: number; // 0-1 scale
     criticalPath: string[]; // sequence of action IDs
   };
+}
+
+// Add these interface definitions to support visualization imports
+
+/**
+ * Base visualization interface
+ */
+export interface BaseVisualization {
+  clear(): void;
+  generateGraph(): VisualizationGraph;
+}
+
+/**
+ * Agent visualization interface
+ */
+export interface AgentVisualization extends BaseVisualization {
+  visualizeAgentActivity(sessionId: string): VisualizationGraph;
+  visualizeAgentCollaboration(sessionId: string): VisualizationGraph;
+  visualizeAgentCommunication(sessionId: string): VisualizationGraph;
+}
+
+/**
+ * Team visualization interface
+ */
+export interface TeamVisualization extends BaseVisualization {
+  visualizeTeamStructure(sessionId: string): VisualizationGraph;
+  visualizeTeamEvolution(sessionId: string): VisualizationGraph;
+  visualizeTeamRoles(sessionId: string): VisualizationGraph;
+}
+
+/**
+ * Meeting process visualization interface
+ */
+export interface MeetingProcessVisualization extends BaseVisualization {
+  visualizeTimeline(meetingId: string): VisualizationGraph;
+  visualizeFocusTransition(meetingId: string): VisualizationGraph;
+  visualizeInsightDiscovery(meetingId: string): VisualizationGraph;
+}
+
+/**
+ * Content visualization interface
+ */
+export interface ContentVisualization extends BaseVisualization {
+  visualizeTopics(meetingId: string): VisualizationGraph;
+  visualizeActionItems(meetingId: string): VisualizationGraph;
+  visualizeSentiment(meetingId: string): VisualizationGraph;
+  visualizeParticipation(meetingId: string): VisualizationGraph;
+}
+
+/**
+ * Collaboration visualization interface
+ */
+export interface CollaborationVisualization extends BaseVisualization {
+  visualizeCollaborationPatterns(meetingId: string): VisualizationGraph;
+  visualizeConsensusBuilding(meetingId: string): VisualizationGraph;
+  visualizeConflictResolution(meetingId: string): VisualizationGraph;
+  visualizeKnowledgeFlow(meetingId: string): VisualizationGraph;
 } 

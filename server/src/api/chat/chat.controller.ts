@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import { ServiceRegistry } from '../../langgraph/agentic-meeting-analysis/services/service-registry';
+import { MeetingAnalysisServiceRegistry } from '../../langgraph/agentic-meeting-analysis/services/service-registry';
 import { UserMessage } from '../../langgraph/core/chat/chat-agent-interface';
 import { ChatMessage } from '../../langgraph/agentic-meeting-analysis/services/message-store.service';
 import { AnalysisGoalType } from '../../langgraph/agentic-meeting-analysis/interfaces/agent.interface';
@@ -53,7 +53,7 @@ function createSuccessResponse(res: Response, status: number, data: any, meta?: 
 
 // Initialize the service registry
 const logger = new ConsoleLogger();
-const serviceRegistry = ServiceRegistry.getInstance({
+const serviceRegistry = MeetingAnalysisServiceRegistry.getInstance({
   storageType: 'file',
   storagePath: process.env.STORAGE_PATH || './data',
   logger

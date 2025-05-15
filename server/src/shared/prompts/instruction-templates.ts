@@ -687,10 +687,10 @@ Skip any preamble and provide only the JSON response.
             type: 'object',
             description: 'Overall emotional tone of the meeting',
             properties: {
-              primary: { type: 'string' },
-              secondary: { type: 'string' },
-              intensity: { type: 'number' },
-              description: { type: 'string' }
+              primary: { type: 'string', description: 'The primary emotion of the meeting' },
+              secondary: { type: 'string', description: 'The secondary emotion of the meeting' },
+              intensity: { type: 'number', description: 'The intensity of the emotion' },
+              description: { type: 'string', description: 'The description of the emotion' }
             }
           },
           emotionalProgression: {
@@ -699,10 +699,10 @@ Skip any preamble and provide only the JSON response.
             items: {
               type: 'object',
               properties: {
-                segment: { type: 'string' },
-                dominantEmotion: { type: 'string' },
-                trigger: { type: 'string' },
-                timestamp: { type: 'number' }
+                segment: { type: 'string', description: 'The segment of the meeting' },
+                dominantEmotion: { type: 'string', description: 'The dominant emotion of the segment' },
+                trigger: { type: 'string', description: 'The trigger of the emotion' },
+                timestamp: { type: 'number', description: 'The timestamp of the emotion' }
               }
             }
           },
@@ -710,9 +710,9 @@ Skip any preamble and provide only the JSON response.
             type: 'object',
             description: 'Assessment of participant engagement',
             properties: {
-              overall: { type: 'number' },
-              variance: { type: 'number' },
-              disengagementPoints: { type: 'array' }
+              overall: { type: 'number', description: 'The overall engagement level of the meeting' },
+              variance: { type: 'number', description: 'The variance in engagement level of the meeting' },
+              disengagementPoints: { type: 'array', description: 'The points of disengagement in the meeting' }
             }
           },
           participantEmotions: {
@@ -721,10 +721,10 @@ Skip any preamble and provide only the JSON response.
             items: {
               type: 'object',
               properties: {
-                participantId: { type: 'string' },
-                dominantEmotions: { type: 'array' },
-                emotionalShifts: { type: 'array' },
-                engagementScore: { type: 'number' }
+                participantId: { type: 'string', description: 'The id of the participant' },
+                dominantEmotions: { type: 'array', description: 'The dominant emotions of the participant' },
+                emotionalShifts: { type: 'array', description: 'The emotional shifts of the participant' },
+                engagementScore: { type: 'number', description: 'The engagement score of the participant' }
               }
             }
           },
@@ -734,10 +734,10 @@ Skip any preamble and provide only the JSON response.
             items: {
               type: 'object',
               properties: {
-                trigger: { type: 'string' },
-                resultingEmotion: { type: 'string' },
-                intensity: { type: 'number' },
-                participants: { type: 'array' }
+                trigger: { type: 'string', description: 'The trigger of the emotion' },
+                resultingEmotion: { type: 'string', description: 'The resulting emotion of the emotion' },
+                intensity: { type: 'number', description: 'The intensity of the emotion' },
+                participants: { type: 'array', description: 'The participants who experienced the emotion' }
               }
             }
           }
@@ -782,13 +782,13 @@ Skip any preamble and provide only the JSON response.
             items: {
               type: 'object',
               properties: {
-                participantId: { type: 'string' },
-                name: { type: 'string' },
-                role: { type: 'string' },
-                contributionLevel: { type: 'number' },
-                speakingTime: { type: 'number' },
-                topicalFocus: { type: 'array' },
-                interactionStyle: { type: 'string' }
+                participantId: { type: 'string', description: 'The id of the participant' },
+                name: { type: 'string', description: 'The name of the participant' },
+                role: { type: 'string', description: 'The role of the participant' },
+                contributionLevel: { type: 'number', description: 'The contribution level of the participant' },
+                speakingTime: { type: 'number', description: 'The speaking time of the participant' },
+                topicalFocus: { type: 'array', description: 'The topical focus of the participant' },
+                interactionStyle: { type: 'string', description: 'The interaction style of the participant' }
               }
             }
           },
@@ -798,10 +798,10 @@ Skip any preamble and provide only the JSON response.
             items: {
               type: 'object',
               properties: {
-                participants: { type: 'array' },
-                type: { type: 'string' },
-                frequency: { type: 'number' },
-                context: { type: 'string' }
+                participants: { type: 'array', description: 'The participants involved in the interaction' },
+                type: { type: 'string', description: 'The type of interaction' },
+                frequency: { type: 'number', description: 'The frequency of the interaction' },
+                context: { type: 'string', description: 'The context of the interaction' }
               }
             }
           },
@@ -809,30 +809,30 @@ Skip any preamble and provide only the JSON response.
             type: 'object',
             description: 'Metrics of team collaboration',
             properties: {
-              overallCollaboration: { type: 'number' },
-              turntakingBalance: { type: 'number' },
-              crossParticipantReferences: { type: 'number' },
-              ideaBuildingInstances: { type: 'number' }
+              overallCollaboration: { type: 'number', description: 'The overall collaboration level of the meeting' },
+              turntakingBalance: { type: 'number', description: 'The balance of turn-taking in the meeting' },
+              crossParticipantReferences: { type: 'number', description: 'The number of cross-participant references in the meeting' },
+              ideaBuildingInstances: { type: 'number', description: 'The number of idea building instances in the meeting' }
             }
           },
           dominanceAnalysis: {
             type: 'object',
             description: 'Analysis of conversation dominance',
             properties: {
-              dominantParticipants: { type: 'array' },
-              dominanceScore: { type: 'number' },
-              silentParticipants: { type: 'array' },
-              interruptionPatterns: { type: 'array' }
+              dominantParticipants: { type: 'array', description: 'The participants who are dominant in the meeting' },
+              dominanceScore: { type: 'number', description: 'The dominance score of the meeting' },
+              silentParticipants: { type: 'array', description: 'The participants who are silent in the meeting' },
+              interruptionPatterns: { type: 'array', description: 'The patterns of interruption in the meeting' }
             }
           },
           groupDynamics: {
             type: 'object',
             description: 'Overall group dynamics assessment',
             properties: {
-              cohesionLevel: { type: 'number' },
-              decisionMakingPattern: { type: 'string' },
-              communicationIssues: { type: 'array' },
-              strengths: { type: 'array' }
+              cohesionLevel: { type: 'number', description: 'The cohesion level of the meeting' },
+              decisionMakingPattern: { type: 'string', description: 'The pattern of decision making in the meeting' },
+              communicationIssues: { type: 'array', description: 'The issues of communication in the meeting' },
+              strengths: { type: 'array', description: 'The strengths of the meeting' }
             }
           }
         }

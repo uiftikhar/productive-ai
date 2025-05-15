@@ -1,7 +1,7 @@
 import { ConsoleLogger } from '../../../shared/logger/console-logger';
 import { Logger } from '../../../shared/logger/logger.interface';
 import { ServiceFactory } from '../factories/service-factory';
-import { SupervisorCoordinationService } from './supervisor-coordination.service';
+import { MeetingAnalysisSupervisorService } from './meeting-analysis-supervisor.service';
 import { SessionService } from './session.service';
 import { MessageStore } from './message-store.service';
 import { TopicExtractionService } from '../interfaces/topic-extraction.interface';
@@ -21,6 +21,8 @@ import { AgentGraphVisualizationService } from '../visualization/agent-graph-vis
 import { v4 as uuidv4 } from 'uuid';
 import { OpenAIConnector } from '../../../connectors/openai-connector';
 import { PineconeConnector } from '../../../connectors/pinecone-connector';
+import { MeetingAnalysisInstructionTemplateService } from './meeting-analysis-instruction-template.service';
+import { InstructionTemplateService } from '../../../shared/services/instruction-template.service';
 
 /**
  * Service registry options
@@ -84,17 +86,13 @@ export interface SessionProgress {
 }
 
 /**
- * Service Registry for Meeting Analysis Services
- * 
- * This singleton registry manages shared services across the meeting
- * analysis system. It allows services to register themselves and
- * be discovered by other components.
+ * Service registry for the meeting analysis subsystem
  */
-export class ServiceRegistry {
-  private static instance: ServiceRegistry;
+export class MeetingAnalysisServiceRegistry {
+  private static instance: MeetingAnalysisServiceRegistry;
   
   private logger: Logger;
-  private supervisorCoordinationService: SupervisorCoordinationService;
+  private meetingAnalysisSupervisor: MeetingAnalysisSupervisorService;
   private sessionService: SessionService;
   private messageStore: MessageStore;
   private initialized: boolean = false;
@@ -117,6 +115,8 @@ export class ServiceRegistry {
   
   private openAIConnector?: OpenAIConnector;
   private pineconeConnector?: PineconeConnector;
+  private instructionTemplateService?: InstructionTemplateService;
+  private meetingAnalysisInstructionTemplates?: MeetingAnalysisInstructionTemplateService;
   private services: Map<string, any> = new Map();
   private id: string;
   
@@ -132,21 +132,19 @@ export class ServiceRegistry {
     this.logger.debug('Created Service Registry instance', { id: this.id });
     
     // Initialize supervisor coordination service
-    this.supervisorCoordinationService = ServiceFactory.getSupervisorCoordinationService({
-      storageType: options.storageType || 'file',
-      storagePath: options.storagePath || './data',
+    this.meetingAnalysisSupervisor = ServiceFactory.getMeetingAnalysisSupervisor({
       logger: this.logger
     });
     
     // Initialize session service
     this.sessionService = new SessionService({
-      stateManager: this.supervisorCoordinationService['persistentState'],
+      stateManager: this.meetingAnalysisSupervisor['persistentState'],
       logger: this.logger
     });
     
     // Initialize message store
     this.messageStore = new MessageStore({
-      stateManager: this.supervisorCoordinationService['persistentState'],
+      stateManager: this.meetingAnalysisSupervisor['persistentState'],
       logger: this.logger
     });
     
@@ -156,18 +154,26 @@ export class ServiceRegistry {
   /**
    * Get the singleton instance
    */
-  public static getInstance(options: ServiceRegistryOptions = {}): ServiceRegistry {
+  public static getInstance(options: ServiceRegistryOptions = {}): MeetingAnalysisServiceRegistry {
     if (!this.instance) {
-      this.instance = new ServiceRegistry(options);
+      this.instance = new MeetingAnalysisServiceRegistry(options);
     }
     return this.instance;
   }
   
   /**
-   * Get the supervisor coordination service
+   * Get the meeting analysis supervisor service
    */
-  getSupervisorCoordinationService(): SupervisorCoordinationService {
-    return this.supervisorCoordinationService;
+  getMeetingAnalysisSupervisor(): MeetingAnalysisSupervisorService {
+    return this.meetingAnalysisSupervisor;
+  }
+  
+  /**
+   * Backward compatibility method
+   * @deprecated Use getMeetingAnalysisSupervisor instead
+   */
+  getSupervisorCoordinationService(): MeetingAnalysisSupervisorService {
+    return this.meetingAnalysisSupervisor;
   }
   
   /**
@@ -197,9 +203,9 @@ export class ServiceRegistry {
     this.logger.info('Initializing all services...');
     
     // Initialize the persistent state manager if it has an initialize method
-    if (typeof this.supervisorCoordinationService['persistentState'].initialize === 'function') {
+    if (typeof this.meetingAnalysisSupervisor['persistentState'].initialize === 'function') {
       this.logger.info('Initializing persistent state manager...');
-      await this.supervisorCoordinationService['persistentState'].initialize();
+      await this.meetingAnalysisSupervisor['persistentState'].initialize();
     }
     
     // Initialize any services that require async initialization
@@ -655,6 +661,37 @@ export class ServiceRegistry {
    * Reset the registry (primarily for testing)
    */
   public static resetInstance(): void {
-    ServiceRegistry.instance = new ServiceRegistry({});
+    MeetingAnalysisServiceRegistry.instance = new MeetingAnalysisServiceRegistry({});
+  }
+
+  /**
+   * Register the instruction template service
+   */
+  public registerInstructionTemplateService(service: InstructionTemplateService): void {
+    this.instructionTemplateService = service;
+    this.registerService('instructionTemplateService', service);
+    this.logger.info('Instruction template service registered');
+  }
+  
+  /**
+   * Get the instruction template service
+   */
+  public getInstructionTemplateService(): InstructionTemplateService | undefined {
+    return this.instructionTemplateService;
+  }
+
+  /**
+   * Register the meeting analysis instruction template service
+   */
+  registerMeetingAnalysisInstructionTemplates(service: MeetingAnalysisInstructionTemplateService): void {
+    this.meetingAnalysisInstructionTemplates = service;
+    this.registerService('meetingAnalysisInstructionTemplates', service);
+  }
+  
+  /**
+   * Get the meeting analysis instruction template service
+   */
+  getMeetingAnalysisInstructionTemplates(): MeetingAnalysisInstructionTemplateService | undefined {
+    return this.meetingAnalysisInstructionTemplates;
   }
 } 

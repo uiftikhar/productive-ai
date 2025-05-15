@@ -1,7 +1,7 @@
 /**
  * Helper functions for setting up mock services in tests
  */
-import { ServiceRegistry } from '../../langgraph/agentic-meeting-analysis/services/service-registry';
+import { MeetingAnalysisServiceRegistry } from '../../langgraph/agentic-meeting-analysis/services/service-registry';
 import { ConsoleLogger } from '../../shared/logger/console-logger';
 import { LogLevel } from '../../shared/logger/logger.interface';
 
@@ -18,7 +18,7 @@ interface ServiceRegistryTestOptions {
 /**
  * Set up mock services for testing
  */
-export function setupMockServices(): ServiceRegistry {
+export function setupMockServices(): MeetingAnalysisServiceRegistry {
   // Create logger with default settings (no arguments needed for ConsoleLogger)
   const logger = new ConsoleLogger();
 
@@ -33,7 +33,7 @@ export function setupMockServices(): ServiceRegistry {
   };
   
   // Get the service registry instance using the provided options
-  const serviceRegistry = ServiceRegistry.getInstance(options);
+  const serviceRegistry = MeetingAnalysisServiceRegistry.getInstance(options);
   
   // Initialize services properly with a promise
   try {
