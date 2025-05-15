@@ -23,6 +23,14 @@ import { MemoryStorageAdapter } from '../../core/state/storage-adapters/memory-s
 import { AnalysisResult } from '../../core/chat/response-formatter.service';
 import { createHierarchicalAgentTeam } from '../factories/hierarchical-team-factory';
 import { createMeetingAnalysisGraph } from '../graph/meeting-analysis-graph';
+import { END, StateGraph } from '@langchain/langgraph';
+import { GraphDebuggerService } from './graph-debugger.service';
+import { AgentRole } from '../interfaces/agent.interface';
+import { 
+  MeetingAnalysisStateSchema, 
+  createInitialState 
+} from '../graph/state-schema';
+import { MeetingAnalysisServiceRegistry } from '../services/service-registry';
 
 /**
  * Interface for the session mapping from meeting ID to session ID
@@ -380,6 +388,12 @@ interface AgentResultCollection {
   };
 }
 
+// Fix StateGraphEndpoint definition
+const StateGraphEndpoint = {
+  END: "__end__",
+  START: "__start__"
+} as const;
+
 /**
  * Meeting Analysis Supervisor Service
  * Extends the core SupervisorService with meeting-specific coordination capabilities
@@ -392,6 +406,8 @@ export class MeetingAnalysisSupervisorService extends SupervisorService {
   private useRagByDefault: boolean;
   protected persistentState: PersistentStateManager;
   protected integrationRegistry: IntegrationRegistry;
+  private memoryCache: Map<string, any> = new Map(); // Add memory cache property
+  private openAiConnector: any; // Add openAiConnector property
   
   /**
    * Create a new meeting analysis supervisor service
@@ -445,7 +461,7 @@ export class MeetingAnalysisSupervisorService extends SupervisorService {
         meetingId,
         title: input.title || `Meeting ${meetingId}`,
         description: input.description,
-        date: new Date(startTime).toISOString(),
+        date: new Date(startTime).toISOString().split('T')[0],
         participants: input.participants || [],  // Use empty array as fallback instead of extract function
         context: input.context
       };
@@ -1304,28 +1320,124 @@ export class MeetingAnalysisSupervisorService extends SupervisorService {
    * Get an analysis session by ID
    */
   async getAnalysisSession(sessionId: string): Promise<AnalysisSession | null> {
+    const logger = this.getLogger();
+    logger?.debug(`Getting analysis session with ID: ${sessionId}`);
+    
     try {
-      // Ensure we have the proper key format for the session storage
-      let sessionKey = sessionId;
+      // Prepare all possible key formats to check
+      const possibleKeys = [
+        `analysis_session:${sessionId}`,
+        sessionId,
+        // If sessionId already has the prefix, don't duplicate it
+        sessionId.startsWith('analysis_session:') ? null : `analysis_session:${sessionId.replace('session-', '')}`
+      ].filter(Boolean) as string[];
       
-      // Check if we need to add the analysis_session: prefix
-      if (!sessionId.startsWith('analysis_session:')) {
-        sessionKey = `analysis_session:${sessionId}`;
+      // For additional robustness, if sessionId has session- prefix, also try without it
+      if (sessionId.startsWith('session-')) {
+        const unprefixedId = sessionId.substring(8); // Remove 'session-'
+        possibleKeys.push(`analysis_session:${unprefixedId}`);
       }
-
-      this.getLogger()?.debug(`Loading analysis session with key: ${sessionKey}`);
+      
+      logger?.debug(`Checking possible keys for session: ${possibleKeys.join(', ')}`);
+      
+      // Try each possible key format
+      let sessionKey: string | null = null;
+      for (const key of possibleKeys) {
+        logger?.debug(`Checking if session exists with key: ${key}`);
+        const exists = await this.persistentState.hasState(key);
+        if (exists) {
+          logger?.info(`Found session with key: ${key}`);
+          sessionKey = key;
+          break;
+        }
+      }
+      
+      if (!sessionKey) {
+        // Log all attempted keys for debugging
+        logger?.warn(`Session not found with any key format. Tried: ${possibleKeys.join(', ')}`);
+        
+        // As a last resort, try a direct scan of all keys
+        logger?.debug(`Attempting to scan all keys for pattern matching session ID`);
+        try {
+          const allKeys = await this.persistentState.listKeys('*');
+          const matchingKeys = allKeys.filter(key => 
+            key.includes(sessionId) || 
+            (sessionId.startsWith('session-') && key.includes(sessionId.substring(8)))
+          );
+          
+          if (matchingKeys.length > 0) {
+            logger?.info(`Found possible matching keys through scan: ${matchingKeys.join(', ')}`);
+            sessionKey = matchingKeys[0]; // Use the first match
+          } else {
+            logger?.warn(`No matching keys found during scan`);
+            return null;
+          }
+        } catch (scanError) {
+          logger?.warn(`Error scanning for keys: ${scanError instanceof Error ? scanError.message : String(scanError)}`);
+          return null;
+        }
+      }
+      
+      logger?.debug(`Loading analysis session with key: ${sessionKey}`);
       
       // Try to load the session
-      const analysisSession = await this.persistentState.loadState<AnalysisSession>(sessionKey);
-      
-      if (!analysisSession) {
-        this.getLogger()?.warn(`Analysis session not found for ${sessionId}`);
+      try {
+        const analysisSession = await this.persistentState.loadState<AnalysisSession>(sessionKey);
+        
+        if (!analysisSession) {
+          logger?.warn(`Analysis session not found for ${sessionId} (session exists but load returned null)`);
+          return null;
+        }
+        
+        logger?.debug(`Successfully loaded session: ${sessionId}`, { 
+          status: analysisSession.status,
+          meetingId: analysisSession.meetingId
+        });
+        
+        return analysisSession;
+      } catch (loadError) {
+        logger?.error(`Error loading session ${sessionId} from persistent storage:`, { 
+          error: loadError instanceof Error ? loadError.stack : loadError,
+          sessionKey
+        });
+        
+        // Try reading the raw file as a fallback option
+        try {
+          if (this.persistentState['storageAdapter'] && 
+              typeof this.persistentState['storageAdapter'].get === 'function') {
+            logger?.debug(`Attempting direct storage adapter access for key: ${sessionKey}`);
+            const rawData = await this.persistentState['storageAdapter'].get(sessionKey);
+            
+            if (rawData) {
+              logger?.info(`Retrieved session data directly from storage adapter`);
+              if (typeof rawData === 'string') {
+                try {
+                  const parsed = JSON.parse(rawData);
+                  return (parsed.data || parsed) as AnalysisSession;
+                } catch (parseError) {
+                  logger?.error(`Failed to parse raw session data: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+                }
+              } else if (typeof rawData === 'object' && rawData !== null) {
+                // If it's already an object, check if it has the expected structure
+                if ('data' in rawData) {
+                  return rawData.data as AnalysisSession;
+                } else {
+                  return rawData as AnalysisSession;
+                }
+              }
+            }
+          }
+        } catch (directAccessError) {
+          logger?.error(`Error in direct storage access fallback: ${directAccessError instanceof Error ? directAccessError.message : String(directAccessError)}`);
+        }
+        
         return null;
       }
-      
-      return analysisSession;
     } catch (error) {
-      this.getLogger()?.error(`Error loading analysis session ${sessionId}`, { error });
+      logger?.error(`Error loading analysis session ${sessionId}:`, { 
+        error: error instanceof Error ? error.stack : error,
+        sessionId
+      });
       return null;
     }
   }
@@ -1348,7 +1460,7 @@ export class MeetingAnalysisSupervisorService extends SupervisorService {
    */
   async startHierarchicalAnalysis(
     meetingId: string,
-    analysisSessionId: string,
+    sessionId: string,
     transcript: string,
     options: {
       title?: string;
@@ -1359,243 +1471,55 @@ export class MeetingAnalysisSupervisorService extends SupervisorService {
     }
   ): Promise<any> {
     try {
-      this.getLogger()?.info(`Starting hierarchical analysis for meeting ${meetingId}`);
+      this.getLogger()?.info(`Starting hierarchical analysis for meeting ${meetingId}`, { sessionId });
       
-      // Create or update the meeting record first
-      const meetingExists = await this.persistentState.hasState(`meeting:${meetingId}`);
-      if (!meetingExists) {
-        this.getLogger()?.info(`Creating new meeting record for ${meetingId}`);
-        // Create a basic meeting record that we'll update with analysis results later
-        await this.persistentState.saveState(
-          `meeting:${meetingId}`,
-          {
-            meetingId,
-            sessionId: analysisSessionId,
-            createdAt: Date.now(),
-            title: options.title || `Meeting ${meetingId}`,
-            description: options.description || '',
-            participants: options.participants || [],
-            // Initialize empty analysis object
-            analysis: {
-              id: analysisSessionId,
-              status: 'in_progress',
-              progress: {
-                overallProgress: 0,
-                goals: []
-              },
-              startTime: Date.now()
-            }
-          },
-          { 
-            ttl: 7 * 24 * 60 * 60, // 7 days TTL
-            description: 'Meeting record for analysis'
-          }
-        );
-      }
-      
-      // Create hierarchical agent team
-      const team = await createHierarchicalAgentTeam({
-        debugMode: true,
-        analysisGoal: options.analysisGoal,
-        meetingId // Pass meetingId to the team
+      // Create or update the meeting record
+      await this.createMeetingRecord(meetingId, {
+        title: options.title || 'Meeting Analysis',
+        description: options.description || 'Automatic analysis of meeting transcript',
+        participants: options.participants || [],
       });
       
-      // Create analysis graph
-      const graph = createMeetingAnalysisGraph({
-        supervisorAgent: team.supervisor,
-        managerAgents: team.managers,
-        workerAgents: team.workers,
-        logger: this.getLogger(),
-      });
+      // Create the analysis graph key
+      const analysisGraphKey = `graph:${meetingId}:${sessionId}`;
       
-      // Store graph reference
-      await this.persistentState.saveState(
-        `analysis:${analysisSessionId}:graph`, 
-        graph,
-        { 
-          ttl: 24 * 60 * 60, // 24 hours TTL
-          description: 'Analysis graph storage'
-        }
-      );
+      // Log graph initialization
+      this.getLogger()?.info(`Initializing graph with key: ${analysisGraphKey}`);
       
-      // Start analysis in the background
-      (async () => {
-        try {
-          // Prepare initial state
-          const initialState = {
-            messages: [],
-            transcript,
-            meetingId, // Make sure meetingId is in the state
-            analysisGoal: options.analysisGoal,
-            teamStructure: {
-              supervisor: team.supervisor.id,
-              managers: team.managers.reduce((acc: any, manager: any) => {
-                acc[manager.id] = team.workers
-                  .filter((worker: any) => worker.managerId === manager.id)
-                  .map((worker: any) => worker.id);
-                return acc;
-              }, {})
-            },
-            currentNode: 'supervisor',
-            nextNode: 'supervisor',
-            results: {}
-          };
-          
-          // Define callbacks for tracking progress
-          const callbacks = [];
-          
-          // Only add progress callbacks if onProgress is provided
-          if (options.onProgress && typeof options.onProgress === 'function') {
-            // Set up tracking for node execution
-            let visitedNodes = new Set<string>();
-            let completedNodes = new Set<string>();
-            let lastNodeStarted: string | null = null;
-            
-            // Make a safe copy of the onProgress function to avoid linter errors
-            const onProgressCallback = options.onProgress;
-            
-            const progressCallback = {
-              handleNodeStart: (nodeName: string) => {
-                lastNodeStarted = nodeName;
-                visitedNodes.add(nodeName);
-                
-                // Calculate progress based on completed nodes
-                const totalNodes = graph.getNodes ? graph.getNodes().length : 1;
-                const progress: HierarchicalAnalysisProgress = {
-                  overallProgress: Math.round((completedNodes.size / totalNodes) * 100),
-                  currentStep: nodeName,
-                  visitedNodes: visitedNodes.size,
-                  completedNodes: completedNodes.size,
-                  totalNodes: totalNodes,
-                  goals: []
-                };
-                
-                // Update meeting analysis progress
-                this._updateAnalysisProgress(meetingId, progress).catch(err => {
-                  this.getLogger()?.error(`Error updating progress for ${meetingId}`, { error: err });
-                });
-                
-                onProgressCallback(progress);
-              },
-              handleNodeEnd: (nodeName: string) => {
-                completedNodes.add(nodeName);
-                
-                // Calculate progress based on completed nodes
-                const totalNodes = graph.getNodes ? graph.getNodes().length : 1;
-                const progress: HierarchicalAnalysisProgress = {
-                  overallProgress: Math.round((completedNodes.size / totalNodes) * 100),
-                  currentStep: lastNodeStarted,
-                  visitedNodes: visitedNodes.size,
-                  completedNodes: completedNodes.size,
-                  totalNodes: totalNodes,
-                  goals: []
-                };
-                
-                // Update meeting analysis progress
-                this._updateAnalysisProgress(meetingId, progress).catch(err => {
-                  this.getLogger()?.error(`Error updating progress for ${meetingId}`, { error: err });
-                });
-                
-                onProgressCallback(progress);
-              }
-            };
-            
-            callbacks.push(progressCallback);
-          }
-          
-          try {
-            // Execute the graph with callbacks for progress tracking
-            this.getLogger()?.info(`Invoking graph for meeting ${meetingId}`);
-            const finalState = await graph.invoke(initialState, { 
-              callbacks: callbacks 
-            });
-            
-            // Update analysis status to completed
-            await this.updateMeetingAnalysis(meetingId, {
-              id: analysisSessionId,
-              status: 'completed',
-              progress: {
-                overallProgress: 100,
-                goals: []
-              },
-              completedTime: Date.now(),
-              results: finalState.results || { fallback: "Analysis completed but no detailed results available" }
-            });
-            
-            this.getLogger()?.info(`Completed hierarchical analysis for meeting ${meetingId}`);
-          } catch (graphError: any) {
-            // Enhanced error logging for graph execution errors
-            this.getLogger()?.error(`Error executing graph for meeting ${meetingId}:`, { 
-              error: {
-                message: graphError.message,
-                stack: graphError.stack,
-                name: graphError.name,
-                code: graphError.code,
-                state: graphError.state || 'unknown'
-              }
-            });
-            
-            // Update analysis status to failed but don't crash
-            await this.updateMeetingAnalysis(meetingId, {
-              id: analysisSessionId,
-              status: 'failed',
-              error: graphError.message || 'Unknown error in graph execution',
-              results: { error: 'Analysis failed', reason: graphError.message }
-            }).catch(updateError => {
-              this.getLogger()?.error(`Error updating failed status for ${meetingId}:`, { error: updateError });
-            });
-          }
-        } catch (error: any) {
-          // Enhanced error logging with stack trace
-          this.getLogger()?.error(`Error in hierarchical analysis for meeting ${meetingId}:`, { 
-            error: {
-              message: error.message,
-              stack: error.stack,
-              name: error.name,
-              code: error.code
-            }
-          });
-          
-          // Update analysis status to failed
-          await this.updateMeetingAnalysis(meetingId, {
-            id: analysisSessionId,
-            status: 'failed',
-            error: error.message || 'Unknown error in hierarchical analysis',
-            results: { error: 'Analysis failed', reason: error.message }
-          }).catch(updateError => {
-            this.getLogger()?.error(`Error updating failed status for ${meetingId}:`, { error: updateError });
-          });
-        }
-      })();
+      // Attempt to invoke the graph with the transcript
+      await this.invokeGraph(meetingId, sessionId, transcript, options);
       
+      // Return successful result
       return {
+        success: true,
         meetingId,
-        analysisSessionId,
-        status: 'in_progress'
+        sessionId
       };
-    } catch (error: any) {
-      // Enhanced error logging with stack trace
+    } catch (unknownError: unknown) {
+      // Properly type the error
+      const error = unknownError instanceof Error ? unknownError : new Error(String(unknownError));
+      
       this.getLogger()?.error(`Error starting hierarchical analysis for meeting ${meetingId}:`, { 
         error: {
           message: error.message,
           stack: error.stack,
           name: error.name,
-          code: error.code
+          code: (error as any).code
         }
       });
       
-      // Try to update the meeting status to failed if possible
+      // Try to update analysis status
       try {
-        const meetingExists = await this.persistentState.hasState(`meeting:${meetingId}`);
-        if (meetingExists) {
+        if (this.persistentState) {
           await this.updateMeetingAnalysis(meetingId, {
-            id: analysisSessionId,
+            id: sessionId,
             status: 'failed',
             error: error.message || 'Unknown error in analysis initialization'
           });
         }
       } catch (updateError) {
-        this.getLogger()?.error(`Failed to update error state for meeting ${meetingId}`, { error: updateError });
+        // Just log, don't rethrow
+        this.getLogger()?.error(`Failed to update meeting analysis status: ${updateError}`);
       }
       
       // Rethrow with more information
@@ -1869,5 +1793,333 @@ export class MeetingAnalysisSupervisorService extends SupervisorService {
     progress: HierarchicalAnalysisProgress
   ): Promise<void> {
     return this._updateAnalysisProgress(meetingId, progress);
+  }
+
+  /**
+   * Create a meeting record and store it in persistent state
+   */
+  private async createMeetingRecord(meetingId: string, metadata: any): Promise<void> {
+    try {
+      if (!this.persistentState) {
+        this.getLogger()?.error(`Cannot create meeting record: persistentState is not available`);
+        return;
+      }
+
+      // Create the meeting record with basic structure
+      const meetingRecord = {
+        id: meetingId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        status: 'created',
+        metadata: {
+          ...metadata,
+          createdAt: Date.now()
+        },
+        analysis: {
+          status: 'pending',
+          progress: {
+            overallProgress: 0,
+            goals: []
+          }
+        }
+      };
+
+      // Save the meeting record
+      await this.persistentState.saveState(`meeting:${meetingId}`, meetingRecord);
+      this.getLogger()?.info(`Meeting record created for ${meetingId}`);
+    } catch (error) {
+      this.getLogger()?.error(`Error creating meeting record: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Save the graph state to persistent storage
+   */
+  private async saveGraphState(graphKey: string, graphState: any): Promise<void> {
+    try {
+      if (!this.persistentState) {
+        this.getLogger()?.error(`Cannot save graph state: persistentState is not available`);
+        return;
+      }
+
+      // Save the graph state
+      await this.persistentState.saveState(graphKey, graphState);
+      this.getLogger()?.debug(`Graph state saved for ${graphKey}`);
+    } catch (error) {
+      this.getLogger()?.error(`Error saving graph state: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Load the graph state from persistent storage
+   */
+  private async loadGraphState(graphKey: string): Promise<any> {
+    try {
+      if (!this.persistentState) {
+        this.getLogger()?.error(`Cannot load graph state: persistentState is not available`);
+        return null;
+      }
+
+      // Load the graph state
+      const graphState = await this.persistentState.loadState(graphKey);
+      this.getLogger()?.debug(`Graph state loaded for ${graphKey}: ${graphState ? 'found' : 'not found'}`);
+      return graphState;
+    } catch (error) {
+      this.getLogger()?.error(`Error loading graph state: ${error instanceof Error ? error.message : String(error)}`);
+      return null;
+    }
+  }
+
+  /**
+   * Invoke the meeting analysis graph
+   */
+  private async invokeGraph(
+    meetingId: string, 
+    sessionId: string, 
+    transcript: string,
+    options: {
+      onProgress?: (progress: HierarchicalAnalysisProgress) => void
+    } = {}
+  ): Promise<void> {
+    try {
+      this.getLogger()?.info(`Starting hierarchical graph analysis for meeting ${meetingId}, session ${sessionId}`);
+
+      // Get service registry to access graph-related services
+      const serviceRegistry = await this.getServiceRegistry();
+      
+      // Access the graph debugger service if available
+      let graphDebugger: any = null;
+      try {
+        graphDebugger = serviceRegistry.getService('graphDebugger');
+        this.getLogger()?.debug('Graph debugger service found');
+      } catch (error) {
+        this.getLogger()?.debug('Graph debugger service not available');
+      }
+      
+      // Create initial metadata
+      const metadata: MeetingMetadata = {
+        meetingId,
+        title: `Meeting Analysis ${new Date().toLocaleDateString()}`,
+        description: "Automatic analysis of meeting transcript",
+        participants: [],  // Will be populated during analysis
+        date: new Date().toISOString().split('T')[0] // Use date instead of timestamp/createdAt
+      };
+      
+      // Create initial state for the graph
+      const initialState = createInitialState(
+        sessionId,
+        meetingId,
+        transcript,
+        metadata,
+        AnalysisGoalType.FULL_ANALYSIS
+      );
+      
+      // Get the graph client
+      const graphClient = await this.getOrCreateGraphClient(meetingId, sessionId);
+      
+      // Create an array to hold graph execution callbacks
+      const callbacks: any[] = [];
+      
+      // Add progress callback if provided
+      if (options && options.onProgress && typeof options.onProgress === 'function') {
+        const progressCallback = async (state: any) => {
+          try {
+            // Calculate progress
+            let progress: HierarchicalAnalysisProgress = {
+              overallProgress: state.progress?.overallProgress || 0,
+              currentStep: state.currentStep || null,
+              completedNodes: state.completedNodes || 0,
+              totalNodes: state.totalNodes || 0,
+              goals: state.goals || []
+            };
+            
+            // Log the progress
+            this.getLogger()?.debug(`Progress update: ${progress.overallProgress}%`, {
+              meetingId,
+              sessionId,
+              currentStep: progress.currentStep
+            });
+            
+            // Update graph visualization if debugger is available
+            if (graphDebugger && typeof graphDebugger.logGraphState === 'function') {
+              graphDebugger.logGraphState(state);
+            }
+            
+            // Call the progress callback
+            if (options && options.onProgress && typeof options.onProgress === 'function') {
+              options.onProgress(progress);
+            }
+          } catch (err) {
+            this.getLogger()?.error(`Error in progress callback: ${err}`);
+          }
+        };
+        
+        // Add the callback to the array
+        callbacks.push({
+          handleChainEnd: progressCallback
+        });
+      }
+      
+      // Log the initial state
+      if (graphDebugger && typeof graphDebugger.validateInitialState === 'function') {
+        graphDebugger.validateInitialState(initialState);
+      }
+      
+      // Save the graph state before starting
+      const graphKey = `graph:${meetingId}:${sessionId}`;
+      await this.saveGraphState(graphKey, {
+        initialState,
+        status: 'starting',
+        startTimestamp: Date.now()
+      });
+      
+      // Invoke the graph with the initial state and callbacks
+      try {
+        // For LangGraph compatibility, use a state format that includes the key expected by StateGraph
+        const result = await graphClient.graph.invoke(
+          initialState,
+          { 
+            recursionLimit: 100,
+            callbacks
+          }
+        );
+        
+        // Save the final state
+        await this.saveGraphState(graphKey, {
+          finalState: result,
+          status: 'completed',
+          completedTimestamp: Date.now()
+        });
+        
+        // Update progress to 100% on successful completion
+        if (options && options.onProgress && typeof options.onProgress === 'function') {
+          options.onProgress({
+            overallProgress: 100,
+            currentStep: 'Completed',
+            completedNodes: result.completedNodes || 0,
+            totalNodes: result.totalNodes || 0,
+            goals: result.goals || []
+          });
+        }
+        
+        this.getLogger()?.info(`Meeting analysis completed for session ${sessionId}`);
+      } catch (graphError: any) {
+        // Save error state
+        await this.saveGraphState(graphKey, {
+          error: graphError.message || 'Unknown error',
+          stack: graphError.stack,
+          status: 'failed',
+          failedTimestamp: Date.now()
+        });
+        
+        this.getLogger()?.error(`Graph execution failed for session ${sessionId}: ${graphError.message}`);
+        throw graphError;
+      }
+    } catch (error) {
+      this.getLogger()?.error(`Error invoking graph: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the service registry instance
+   */
+  private async getServiceRegistry(): Promise<MeetingAnalysisServiceRegistry> {
+    return MeetingAnalysisServiceRegistry.getInstance();
+  }
+
+  /**
+   * Create or get a graph client for the specified meeting and session
+   */
+  private async getOrCreateGraphClient(meetingId: string, sessionId: string): Promise<any> {
+    try {
+      // Check if we already have a client for this meeting
+      const cacheKey = `graphClient:${meetingId}:${sessionId}`;
+      
+      // Check if there's a cached client in memory
+      if (this.memoryCache && this.memoryCache.has(cacheKey)) {
+        this.getLogger()?.debug(`Using cached graph client for meeting ${meetingId}, session ${sessionId}`);
+        return this.memoryCache.get(cacheKey);
+      }
+      
+      // Get service registry
+      const serviceRegistry = await this.getServiceRegistry();
+      
+      // Create a new graph client
+      const { MeetingAnalysisClient } = require('../graph/meeting-analysis-graph');
+      const graphClient = new MeetingAnalysisClient({
+        logger: this.getLogger(),
+        serviceRegistry,
+        supervisorAgent: await this.getSupervisorAgent(),
+        managerAgents: await this.getManagerAgents(),
+        workerAgents: await this.getWorkerAgents()
+      });
+      
+      // Cache the client
+      if (this.memoryCache) {
+        this.memoryCache.set(cacheKey, graphClient);
+      }
+      
+      return graphClient;
+    } catch (error) {
+      this.getLogger()?.error(`Error creating graph client: ${error}`);
+      throw error;
+    }
+  }
+  
+  /**
+   * Get supervisor agent instance
+   */
+  private async getSupervisorAgent(): Promise<any> {
+    const serviceRegistry = await this.getServiceRegistry();
+    
+    // Try to get existing agent
+    try {
+      return serviceRegistry.getService('supervisorAgent');
+    } catch (error) {
+      // Create a new supervisor agent
+      const { EnhancedSupervisorAgent } = require('../agents/coordinator/enhanced-supervisor-agent');
+      const supervisorAgent = new EnhancedSupervisorAgent({
+        logger: this.getLogger(),
+        openAiConnector: this.openAiConnector
+      });
+      
+      // Register the agent
+      serviceRegistry.registerService('supervisorAgent', supervisorAgent);
+      
+      return supervisorAgent;
+    }
+  }
+  
+  /**
+   * Get manager agents
+   */
+  private async getManagerAgents(): Promise<any[]> {
+    // Get service registry
+    const serviceRegistry = await this.getServiceRegistry();
+    
+    // Try to get existing manager agents
+    try {
+      return serviceRegistry.getService('managerAgents') || [];
+    } catch (error) {
+      return [];
+    }
+  }
+  
+  /**
+   * Get worker agents
+   */
+  private async getWorkerAgents(): Promise<any[]> {
+    // Get service registry
+    const serviceRegistry = await this.getServiceRegistry();
+    
+    // Try to get existing worker agents
+    try {
+      return serviceRegistry.getService('workerAgents') || [];
+    } catch (error) {
+      return [];
+    }
   }
 } 

@@ -10,8 +10,7 @@ import { Logger } from '../../../shared/logger/logger.interface';
 import { v4 as uuidv4 } from 'uuid';
 
 import { 
-  MeetingAnalysisState, 
-  MeetingAnalysisStateSchema,
+  MeetingAnalysisStateSchema, 
   createInitialState 
 } from './state-schema';
 import {
@@ -29,6 +28,7 @@ import { SpecialistWorkerAgent } from '../agents/workers/specialist-worker-agent
 import { AgentExpertise, AnalysisGoalType } from '../interfaces/agent.interface';
 import { MeetingTranscript, MeetingMetadata } from '../interfaces/state.interface';
 import { MeetingAnalysisServiceRegistry } from '../services/service-registry';
+import { MeetingAnalysisState } from '../../core/state/meeting-analysis-state';
 
 /**
  * Configuration for creating a meeting analysis graph
@@ -48,7 +48,8 @@ export function createMeetingAnalysisGraph(config: MeetingAnalysisGraphConfig = 
   const logger = config.logger || new ConsoleLogger();
   
   // Create the graph with the state schema
-  const graph: any = new StateGraph(MeetingAnalysisStateSchema);
+  // Use the state schema directly as recommended by LangGraph
+  const builder: any = new StateGraph(MeetingAnalysisStateSchema);
   
   // Get agents from config or create defaults
   const supervisor = config.supervisorAgent || createDefaultSupervisor(logger);
@@ -56,32 +57,32 @@ export function createMeetingAnalysisGraph(config: MeetingAnalysisGraphConfig = 
   const workers = config.workerAgents || [];
   
   // Add system nodes
-  graph.addNode(NodeType.INIT, createInitializeNode({ logger }));
-  graph.addNode(NodeType.ROUTER, createRouterNode({ logger }));
-  graph.addNode(NodeType.FINISH, createFinishNode({ logger }));
+  builder.addNode(NodeType.INIT, createInitializeNode({ logger }));
+  builder.addNode(NodeType.ROUTER, createRouterNode({ logger }));
+  builder.addNode(NodeType.FINISH, createFinishNode({ logger }));
   
   // Add supervisor node
-  graph.addNode('supervisor', createSupervisorNode(supervisor, { logger }));
+  builder.addNode('supervisor', createSupervisorNode(supervisor, { logger }));
   
   // Add manager nodes
   for (const manager of managers) {
-    graph.addNode(manager.id, createManagerNode(manager, { logger }));
+    builder.addNode(manager.id, createManagerNode(manager, { logger }));
   }
   
   // Add worker nodes
   for (const worker of workers) {
-    graph.addNode(worker.id, createWorkerNode(worker, { logger }));
+    builder.addNode(worker.id, createWorkerNode(worker, { logger }));
   }
   
   // Add edges
   // From START to initialize node
-  graph.addEdge(START, NodeType.INIT);
+  builder.addEdge(START, NodeType.INIT);
   
   // From initialize to router
-  graph.addEdge(NodeType.INIT, NodeType.ROUTER);
+  builder.addEdge(NodeType.INIT, NodeType.ROUTER);
   
   // From finish to END
-  graph.addEdge(NodeType.FINISH, END);
+  builder.addEdge(NodeType.FINISH, END);
   
   // Build mapping of all possible node destinations
   const nodeMapping: Record<string, string> = {
@@ -100,23 +101,23 @@ export function createMeetingAnalysisGraph(config: MeetingAnalysisGraphConfig = 
   }
   
   // Add edges from agent nodes back to router
-  graph.addEdge('supervisor', NodeType.ROUTER);
+  builder.addEdge('supervisor', NodeType.ROUTER);
   
   for (const manager of managers) {
-    graph.addEdge(manager.id, NodeType.ROUTER);
+    builder.addEdge(manager.id, NodeType.ROUTER);
   }
   
   for (const worker of workers) {
-    graph.addEdge(worker.id, NodeType.ROUTER);
+    builder.addEdge(worker.id, NodeType.ROUTER);
   }
   
   // Conditional edge from router to any node based on nextNode field
-  graph.addConditionalEdges(
+  builder.addConditionalEdges(
     NodeType.ROUTER,
-    (state: MeetingAnalysisState) => {
+    (state: typeof MeetingAnalysisStateSchema.State) => {
       // If nextNode is not set or invalid, default to supervisor
       if (!state.nextNode || !nodeMapping[state.nextNode]) {
-        logger.warn(`Invalid nextNode: ${state.nextNode}, defaulting to supervisor`);
+        logger.warn(`Invalid nextNode: ${state.nextNode || 'undefined'}, defaulting to supervisor`);
         return 'supervisor';
       }
       return state.nextNode;
@@ -138,7 +139,7 @@ export function createMeetingAnalysisGraph(config: MeetingAnalysisGraphConfig = 
   };
   
   // Attach the helper method to the compiled graph
-  const compiledGraph = graph.compile();
+  const compiledGraph = builder.compile();
   compiledGraph.getNodes = getNodes;
   
   return compiledGraph;
@@ -223,7 +224,7 @@ export class MeetingAnalysisClient {
       return {
         sessionId,
         meetingId,
-        result: result.state.finalResult || result.state.results
+        result: result.state.results || result.state.progress
       };
     } catch (error: any) {
       // Create a structured error object with detailed information
@@ -320,7 +321,7 @@ export class MeetingAnalysisClient {
         progress: state.progress.overallProgress,
         startTime: state.startTime,
         endTime: state.endTime,
-        results: state.finalResult || state.results,
+        results: state.results || state.progress,
         completedAt: Date.now()
       };
       

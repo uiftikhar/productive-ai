@@ -11,10 +11,13 @@ import {
   AgentOutput, 
   AgentRole,
   AnalysisGoalType, 
-  AnalysisTaskStatus 
+  AnalysisTaskStatus,
+  MessageType
 } from '../interfaces/agent.interface';
 import { MeetingTranscript, MeetingMetadata } from '../interfaces/state.interface';
 import { v4 as uuidv4 } from 'uuid';
+import { z } from 'zod';
+import { BaseMessage } from '@langchain/core/messages';
 
 /**
  * Team structure information for hierarchical analysis
@@ -63,133 +66,95 @@ export interface AnalysisProgressInfo {
 }
 
 /**
- * Define the core state schema for meeting analysis using LangGraph's Annotation
+ * Define the meeting analysis state schema using Annotation API
  */
 export const MeetingAnalysisStateSchema = Annotation.Root({
-  // Execution identifiers
-  runId: Annotation<string>({
-    default: () => `run-${uuidv4()}`,
-    value: (curr, update) => update || curr
-  }),
-  
-  sessionId: Annotation<string>(),
-  
-  meetingId: Annotation<string>(),
-  
-  // Input data
-  transcript: Annotation<MeetingTranscript>(),
-  
-  metadata: Annotation<MeetingMetadata>(),
-  
-  analysisGoal: Annotation<AnalysisGoalType>({
-    default: () => AnalysisGoalType.FULL_ANALYSIS,
-    value: (curr, update) => update || curr
-  }),
-  
-  // Hierarchical agent structure - with proper merging behavior
-  teamStructure: Annotation<TeamStructure>({
-    default: () => ({
-      supervisorId: '',
-      managers: {},
-      workers: {}
-    }),
-    value: (curr, update) => {
-      if (!update) return curr;
-      
-      return {
-        supervisorId: update.supervisorId || curr.supervisorId,
-        managers: { ...curr.managers, ...update.managers },
-        workers: { ...curr.workers, ...update.workers }
-      };
-    }
-  }),
-  
-  // Task and process tracking
-  tasks: Annotation<Record<string, TaskAssignment>>({
-    default: () => ({}),
-    value: (curr, update) => ({ ...curr, ...update }),
-  }),
-  
-  // Progress tracking
-  progress: Annotation<AnalysisProgressInfo>({
-    default: () => ({
-      overallProgress: 0,
-      taskProgress: {},
-      stageProgress: {},
-      startTime: Date.now(),
-      lastUpdateTime: Date.now()
-    }),
-    value: (curr, update) => {
-      if (!update) return curr;
-      
-      return {
-        overallProgress: update.overallProgress ?? curr.overallProgress,
-        taskProgress: { ...curr.taskProgress, ...update.taskProgress },
-        stageProgress: { ...curr.stageProgress, ...update.stageProgress },
-        startTime: curr.startTime, // Keep original start time
-        lastUpdateTime: Date.now(),
-        estimatedTimeRemaining: update.estimatedTimeRemaining
-      };
-    }
-  }),
-  
-  // Communication - with proper reducer for message accumulation
+  // Messages between agents
   messages: Annotation<AgentMessage[]>({
+    reducer: (x, y) => x.concat(y),
     default: () => [],
-    value: (curr, update) => {
-      if (!update || !Array.isArray(update)) return curr;
-      return [...curr, ...update];
-    }
   }),
   
-  // Output and results - merge objects when updating
-  results: Annotation<Record<string, AgentOutput>>({
-    default: () => ({}),
-    value: (curr, update) => ({ ...curr, ...update }),
+  // Transcript data
+  transcript: Annotation<string>({
+    reducer: (x, y) => y || x,
+    default: () => '',
   }),
   
-  finalResult: Annotation<any>({
-    default: () => null,
-    value: (curr, update) => update ?? curr
+  // Session and meeting IDs
+  sessionId: Annotation<string>({
+    reducer: (x, y) => y || x,
+    default: () => '',
   }),
   
-  // Execution control - next node routing
-  currentNode: Annotation<string>({
-    default: () => "initialize",
-    value: (curr, update) => update || curr,
+  meetingId: Annotation<string>({
+    reducer: (x, y) => y || x,
+    default: () => '',
   }),
   
-  // Routing determines which node to execute next
+  // Current routing target
   nextNode: Annotation<string>({
-    default: () => "supervisor",
-    value: (curr, update) => update || curr,
+    reducer: (x, y) => y || x,
+    default: () => 'supervisor',
   }),
   
-  // Error tracking
-  error: Annotation<Error | null>({
+  // Current analysis goal
+  currentGoal: Annotation<AnalysisGoalType>({
+    reducer: (x, y) => y || x,
+    default: () => AnalysisGoalType.FULL_ANALYSIS,
+  }),
+  
+  // Analysis progress tracking
+  progress: Annotation<{
+    overallProgress: number;
+    completedNodes: number;
+    totalNodes: number;
+    currentStep?: string;
+  }>({
+    reducer: (x, y) => ({ ...x, ...y }),
+    default: () => ({ 
+      overallProgress: 0, 
+      completedNodes: 0, 
+      totalNodes: 0 
+    }),
+  }),
+  
+  // Analysis metadata
+  metadata: Annotation<MeetingMetadata>({
+    reducer: (x, y) => ({ ...x, ...y }),
+    default: () => ({ 
+      meetingId: '',
+      participants: []
+    }),
+  }),
+  
+  // Analysis results
+  results: Annotation<Record<string, any>>({
+    reducer: (x, y) => ({ ...x, ...y }),
+    default: () => ({}),
+  }),
+  
+  // Final consolidated result
+  finalResult: Annotation<any>({
+    reducer: (x, y) => y || x,
     default: () => null,
-    value: (curr, update) => update ?? curr
   }),
   
-  // Execution metadata
+  // Analysis status
+  status: Annotation<string>({
+    reducer: (x, y) => y || x, 
+    default: () => 'pending',
+  }),
+  
+  // Timestamps
   startTime: Annotation<number>({
+    reducer: (x, y) => y || x,
     default: () => Date.now(),
-    value: (curr, update) => update || curr
   }),
   
   endTime: Annotation<number | null>({
+    reducer: (x, y) => y || x,
     default: () => null,
-    value: (curr, update) => update ?? curr
-  }),
-  
-  lastUpdateTime: Annotation<number>({
-    default: () => Date.now(),
-    value: () => Date.now(), // Always update to current time
-  }),
-  
-  status: Annotation<'initializing' | 'in_progress' | 'completed' | 'failed' | 'canceled'>({
-    default: () => 'initializing',
-    value: (curr, update) => update || curr,
   }),
 });
 
@@ -197,48 +162,51 @@ export const MeetingAnalysisStateSchema = Annotation.Root({
 export type MeetingAnalysisState = any; // Using any as a temporary solution for the state type
 
 /**
- * Create an initial state object with default values
+ * Create initial state for the meeting analysis graph
  */
 export function createInitialState(
   sessionId: string,
   meetingId: string,
-  transcript: MeetingTranscript,
+  transcript: string | MeetingTranscript,
   metadata: MeetingMetadata,
   goal: AnalysisGoalType = AnalysisGoalType.FULL_ANALYSIS,
-  supervisorId: string
-): MeetingAnalysisState {
-  const now = Date.now();
-  
+  supervisorId: string = 'supervisor'
+): typeof MeetingAnalysisStateSchema.State {
+  // Create initial message with transcript content
+  const initialMessage: AgentMessage = {
+    id: `msg-${Date.now()}`,
+    type: MessageType.NOTIFICATION,
+    sender: 'system',
+    recipients: [supervisorId],
+    timestamp: Date.now(),
+    content: {
+      transcript: typeof transcript === 'string' ? transcript : JSON.stringify(transcript),
+      options: {
+        analysisGoal: goal
+      }
+    }
+  };
+
+  // Return the initial state
   return {
-    runId: `run-${uuidv4()}`,
+    messages: [initialMessage],
+    transcript: typeof transcript === 'string' ? transcript : JSON.stringify(transcript),
     sessionId,
     meetingId,
-    transcript,
-    metadata,
-    analysisGoal: goal,
-    teamStructure: {
-      supervisorId,
-      managers: {},
-      workers: {}
-    },
-    tasks: {},
+    nextNode: supervisorId,
+    currentGoal: goal,
     progress: {
       overallProgress: 0,
-      taskProgress: {},
-      stageProgress: {},
-      startTime: now,
-      lastUpdateTime: now
+      completedNodes: 0,
+      totalNodes: 0,
+      currentStep: 'initialization'
     },
-    messages: [],
+    metadata,
     results: {},
     finalResult: null,
-    currentNode: 'initialize',
-    nextNode: 'supervisor',
-    startTime: now,
-    endTime: null,
-    lastUpdateTime: now,
-    status: 'initializing',
-    error: null
+    status: 'processing',
+    startTime: Date.now(),
+    endTime: null
   };
 }
 

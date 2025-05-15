@@ -153,8 +153,19 @@ export class FileStorageAdapter implements StorageAdapter {
     const dirPath = path.dirname(filePath);
     
     try {
+      this.logger?.info(`Storing data for key: ${key}`, { filePath });
+      
       // Ensure the directory exists
-      await fs.mkdir(dirPath, { recursive: true });
+      try {
+        await fs.mkdir(dirPath, { recursive: true });
+      } catch (mkdirError) {
+        this.logger?.error(`Failed to create directory for key ${key}:`, {
+          error: mkdirError instanceof Error ? mkdirError.message : String(mkdirError),
+          stack: mkdirError instanceof Error ? mkdirError.stack : undefined,
+          dirPath
+        });
+        throw new Error(`Failed to create directory: ${mkdirError instanceof Error ? mkdirError.message : String(mkdirError)}`);
+      }
       
       const now = Date.now();
       const expiresAt = this.calculateExpiration(ttl);
@@ -169,21 +180,111 @@ export class FileStorageAdapter implements StorageAdapter {
         }
       };
       
+      let serializedData: string;
+      try {
+        serializedData = JSON.stringify(fileData, null, 2);
+      } catch (jsonError) {
+        this.logger?.error(`Failed to serialize data for key ${key}:`, {
+          error: jsonError instanceof Error ? jsonError.message : String(jsonError),
+          stack: jsonError instanceof Error ? jsonError.stack : undefined,
+          dataType: typeof data,
+          dataKeys: data && typeof data === 'object' ? Object.keys(data) : null
+        });
+        throw new Error(`Failed to serialize data: ${jsonError instanceof Error ? jsonError.message : String(jsonError)}`);
+      }
+      
       if (this.options.enableLocking) {
         await this.acquireLock(key);
       }
       
       try {
-        await fs.writeFile(filePath, JSON.stringify(fileData, null, 2));
-        this.logger?.debug(`Successfully stored data for key: ${key}`);
+        // First write to a temporary file then rename it to avoid partial writes
+        const tempFilePath = `${filePath}.tmp`;
+        
+        try {
+          await fs.writeFile(tempFilePath, serializedData);
+        } catch (writeError) {
+          this.logger?.error(`Failed to write temp file for key ${key}:`, {
+            error: writeError instanceof Error ? writeError.message : String(writeError),
+            stack: writeError instanceof Error ? writeError.stack : undefined,
+            tempFilePath,
+            serializedLength: serializedData.length
+          });
+          throw new Error(`Failed to write temp file: ${writeError instanceof Error ? writeError.message : String(writeError)}`);
+        }
+        
+        // Now rename (atomic operation on most file systems)
+        try {
+          await fs.rename(tempFilePath, filePath);
+        } catch (renameError) {
+          this.logger?.error(`Failed to rename temp file for key ${key}:`, {
+            error: renameError instanceof Error ? renameError.message : String(renameError),
+            stack: renameError instanceof Error ? renameError.stack : undefined,
+            tempFilePath,
+            filePath
+          });
+          
+          // Try a fallback approach - delete and write directly
+          try {
+            await fs.writeFile(filePath, serializedData);
+          } catch (fallbackError) {
+            this.logger?.error(`Fallback write also failed for key ${key}:`, {
+              error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+            });
+            throw new Error(`Failed to store data using fallback: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`);
+          }
+        }
+        
+        this.logger?.info(`Successfully stored data for key: ${key}`, { filePath });
+        
+        // Verify file was created
+        try {
+          const stats = await fs.stat(filePath);
+          this.logger?.debug(`Verified file exists after write: ${key}`, { 
+            filePath, 
+            size: stats.size,
+            modified: stats.mtime 
+          });
+          
+          // Try to read it back to make absolutely sure it's valid
+          const fileContent = await fs.readFile(filePath, 'utf-8');
+          try {
+            JSON.parse(fileContent);
+            this.logger?.debug(`Verified file is valid JSON: ${key}`);
+          } catch (parseError) {
+            this.logger?.error(`File exists but contains invalid JSON: ${key}`, {
+              error: parseError instanceof Error ? parseError.message : String(parseError),
+              contentPreview: fileContent.substring(0, 200) + '...'
+            });
+          }
+        } catch (verifyError) {
+          this.logger?.error(`Failed to verify file creation: ${key}`, { 
+            filePath, 
+            error: verifyError instanceof Error ? verifyError.message : String(verifyError),
+            stack: verifyError instanceof Error ? verifyError.stack : undefined
+          });
+          
+          // Try one more time with direct write
+          await fs.writeFile(filePath, serializedData);
+          this.logger?.info(`Retry write successful for key: ${key}`);
+        }
       } finally {
         if (this.options.enableLocking) {
           await this.releaseLock(key);
         }
       }
     } catch (error) {
-      this.logger?.error(`Failed to set data for key ${key}: ${(error as Error).message}`);
-      throw new Error(`Failed to store data: ${(error as Error).message}`);
+      this.logger?.error(`Failed to set data for key ${key}:`, { 
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        filePath,
+        dirPath,
+        key,
+        dataType: typeof data,
+        dataLength: typeof data === 'string' ? data.length : null,
+        dataKeys: data && typeof data === 'object' ? Object.keys(data) : null
+      });
+      throw new Error(`Failed to store data: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   
@@ -196,28 +297,92 @@ export class FileStorageAdapter implements StorageAdapter {
     const filePath = this.getFilePath(key);
     
     try {
-      const fileContent = await fs.readFile(filePath, 'utf-8');
-      const fileData: FileData = JSON.parse(fileContent);
+      this.logger?.debug(`Retrieving data for key: ${key}`, { filePath });
       
-      // Check if data has expired
-      if (fileData.metadata.expiresAt && fileData.metadata.expiresAt < Date.now()) {
-        this.logger?.debug(`Data for key ${key} has expired`);
-        await this.delete(key).catch(err => {
-          this.logger?.warn(`Failed to delete expired data for key ${key}: ${err.message}`);
+      // Check if file exists first
+      try {
+        await fs.access(filePath);
+      } catch (accessError) {
+        this.logger?.debug(`File not found for key: ${key}`, { filePath });
+        return null;
+      }
+      
+      // Read file content
+      try {
+        const fileContent = await fs.readFile(filePath, 'utf-8');
+        this.logger?.debug(`Successfully read file for key: ${key}`, { 
+          filePath, 
+          contentLength: fileContent.length 
         });
-        return null;
+        
+        // Parse file content
+        try {
+          const fileData: FileData = JSON.parse(fileContent);
+          
+          // Check if the data is expired
+          if (fileData.metadata.expiresAt && fileData.metadata.expiresAt < Date.now()) {
+            this.logger?.debug(`Data expired for key: ${key}`, { 
+              filePath, 
+              expiresAt: new Date(fileData.metadata.expiresAt).toISOString(),
+              now: new Date().toISOString()
+            });
+            
+            // Delete expired file
+            try {
+              await fs.unlink(filePath);
+              this.logger?.debug(`Deleted expired file for key: ${key}`, { filePath });
+            } catch (unlinkError) {
+              this.logger?.warn(`Failed to delete expired file: ${key}`, { 
+                filePath, 
+                error: unlinkError instanceof Error ? unlinkError.message : String(unlinkError)
+              });
+            }
+            
+            return null;
+          }
+          
+          this.logger?.debug(`Successfully retrieved data for key: ${key}`, { 
+            filePath, 
+            version: fileData.metadata.version
+          });
+          
+          return fileData.data;
+        } catch (parseError) {
+          this.logger?.error(`Failed to parse file content for key: ${key}`, { 
+            filePath, 
+            error: parseError instanceof Error ? parseError.message : String(parseError),
+            contentPreview: fileContent.length > 200 ? fileContent.substring(0, 200) + '...' : fileContent
+          });
+          
+          throw new Error(`Failed to parse file content: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+        }
+      } catch (readError) {
+        if (readError instanceof Error && readError.message.includes('parse')) {
+          // Rethrow parsing errors
+          throw readError;
+        }
+        
+        this.logger?.error(`Failed to read file for key: ${key}`, { 
+          filePath, 
+          error: readError instanceof Error ? readError.message : String(readError)
+        });
+        
+        throw new Error(`Failed to read file: ${readError instanceof Error ? readError.message : String(readError)}`);
       }
-      
-      this.logger?.debug(`Retrieved data for key: ${key}`);
-      return fileData.data;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        this.logger?.debug(`No data found for key: ${key}`);
+      if (error instanceof Error && error.message.includes('not found')) {
+        // File not found errors should return null
         return null;
       }
       
-      this.logger?.error(`Failed to get data for key ${key}: ${(error as Error).message}`);
-      throw new Error(`Failed to retrieve data: ${(error as Error).message}`);
+      this.logger?.error(`Error getting data for key ${key}:`, { 
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        filePath,
+        key
+      });
+      
+      throw new Error(`Failed to get data: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   
@@ -463,19 +628,47 @@ export class FileStorageAdapter implements StorageAdapter {
     const filePath = this.getFilePath(key);
     
     try {
-      await fs.access(filePath);
+      this.logger?.debug(`Checking if key exists: ${key}`, { filePath });
       
-      // Check if expired
-      const fileContent = await fs.readFile(filePath, 'utf-8');
-      const fileData: FileData = JSON.parse(fileContent);
-      
-      if (fileData.metadata.expiresAt && fileData.metadata.expiresAt < Date.now()) {
-        // File has expired
+      try {
+        // Check if file exists
+        await fs.access(filePath);
+        
+        // If we need to check expiration, we should read the file
+        if (this.options.defaultTtl !== 0) {
+          // Read file to check expiration
+          const fileContent = await fs.readFile(filePath, 'utf-8');
+          const fileData: FileData = JSON.parse(fileContent);
+          
+          // Check if the data is expired
+          if (fileData.metadata.expiresAt && fileData.metadata.expiresAt < Date.now()) {
+            this.logger?.debug(`File exists but data is expired for key: ${key}`, { 
+              filePath, 
+              expiresAt: new Date(fileData.metadata.expiresAt).toISOString() 
+            });
+            return false;
+          }
+        }
+        
+        this.logger?.debug(`Key exists: ${key}`, { filePath });
+        return true;
+      } catch (accessError) {
+        // If file doesn't exist or can't be accessed
+        this.logger?.debug(`Key does not exist: ${key}`, { 
+          filePath, 
+          error: accessError instanceof Error ? accessError.message : String(accessError)
+        });
         return false;
       }
+    } catch (error) {
+      this.logger?.error(`Error checking if key ${key} exists:`, { 
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        filePath,
+        key
+      });
       
-      return true;
-    } catch {
+      // Return false on error to be safe
       return false;
     }
   }

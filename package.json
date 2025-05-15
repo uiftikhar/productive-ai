@@ -40,5 +40,8 @@
     "url": "https://github.com/uiftikhar/productive-ai.git"
   },
   "author": "Your Name",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@redis/client": "^1.6.1"
+  }
 }

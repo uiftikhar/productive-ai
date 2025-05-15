@@ -15,13 +15,43 @@ import { PineconeKnowledgeConnector } from '../services/pinecone-knowledge-conne
 import { MeetingAnalysisSupervisorService } from '../services';
 
 /**
+ * Redis connection options for services
+ */
+export interface RedisOptions {
+  /**
+   * Redis host
+   */
+  host?: string;
+  
+  /**
+   * Redis port
+   */
+  port?: number;
+  
+  /**
+   * Redis password
+   */
+  password?: string;
+  
+  /**
+   * Redis database number
+   */
+  db?: number;
+  
+  /**
+   * Redis URI (alternative to host/port/password)
+   */
+  uri?: string;
+}
+
+/**
  * Service configuration options
  */
 export interface ServiceFactoryOptions {
   /**
    * Storage type to use
    */
-  storageType?: 'memory' | 'file' | 'custom';
+  storageType?: 'memory' | 'file' | 'redis' | 'custom';
 
   /**
    * Custom storage adapter (if storageType is 'custom')
@@ -32,6 +62,11 @@ export interface ServiceFactoryOptions {
    * Storage path (for file storage)
    */
   storagePath?: string;
+  
+  /**
+   * Redis connection options (for redis storage)
+   */
+  redisOptions?: RedisOptions;
 
   /**
    * Logger to use
@@ -64,25 +99,43 @@ export class ServiceFactory {
     // Create logger
     const logger = options.logger || new ConsoleLogger();
 
-    // Create storage adapter based on options
-    let storageAdapter;
+    // Create persistent state manager with appropriate storage
+    let persistentState;
+    
     if (options.storageType === 'file') {
-      storageAdapter = new FileStorageAdapter({
-        storageDir: options.storagePath || './data',
+      // File-based storage
+      persistentState = new PersistentStateManager({
+        storageType: 'file',
+        storagePath: options.storagePath || './data',
+        logger
+      });
+    } else if (options.storageType === 'redis') {
+      // Redis-based storage (preferred)
+      persistentState = new PersistentStateManager({
+        storageType: 'redis',
+        namespace: 'meeting-analysis',
+        redisOptions: {
+          host: options.redisOptions?.host || process.env.REDIS_HOST || 'localhost',
+          port: options.redisOptions?.port || parseInt(process.env.REDIS_PORT || '6379'),
+          password: options.redisOptions?.password || process.env.REDIS_PASSWORD,
+          db: options.redisOptions?.db || parseInt(process.env.REDIS_DB || '0'),
+          uri: options.redisOptions?.uri || process.env.REDIS_URI
+        },
         logger
       });
     } else if (options.storageType === 'custom' && options.customStorageAdapter) {
-      storageAdapter = options.customStorageAdapter;
+      // Custom storage adapter
+      persistentState = new PersistentStateManager({
+        storageAdapter: options.customStorageAdapter,
+        logger
+      });
     } else {
       // Default to memory storage
-      storageAdapter = new MemoryStorageAdapter();
+      persistentState = new PersistentStateManager({
+        storageType: 'memory',
+        logger
+      });
     }
-
-    // Create state manager
-    const persistentState = new PersistentStateManager({
-      storageAdapter,
-      logger
-    });
 
     // Create state repository
     const stateRepository = new HierarchicalStateRepository({

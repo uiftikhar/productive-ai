@@ -1,6 +1,37 @@
 import { StorageAdapter, StateFilter } from './storage-adapters/storage-adapter.interface';
 import { Logger } from '../../../shared/logger/logger.interface';
 import { deepClone, deepMerge } from '../utils/object-utils';
+import { RedisStorageAdapter } from './storage-adapters/redis-storage.adapter';
+
+/**
+ * Redis connection configuration options
+ */
+export interface RedisConnectionOptions {
+  /**
+   * Redis server host
+   */
+  host?: string;
+  
+  /**
+   * Redis server port
+   */
+  port?: number;
+  
+  /**
+   * Redis server password
+   */
+  password?: string;
+  
+  /**
+   * Database number
+   */
+  db?: number;
+  
+  /**
+   * Connection URI (alternative to host/port/password)
+   */
+  uri?: string;
+}
 
 /**
  * Options for persistent state manager
@@ -8,8 +39,20 @@ import { deepClone, deepMerge } from '../utils/object-utils';
 export interface PersistentStateOptions {
   /**
    * Storage adapter to use for persistence
+   * If not provided, RedisStorageAdapter will be used by default
    */
-  storageAdapter: StorageAdapter;
+  storageAdapter?: StorageAdapter;
+  
+  /**
+   * Storage type to use ('redis' or 'file')
+   * Default is 'redis'
+   */
+  storageType?: 'redis' | 'file' | 'memory';
+  
+  /**
+   * Redis connection options (when using Redis storage)
+   */
+  redisOptions?: RedisConnectionOptions;
   
   /**
    * Optional namespace for the state
@@ -36,6 +79,11 @@ export interface PersistentStateOptions {
    * Whether to enable automatic serialization/deserialization
    */
   autoSerialize?: boolean;
+  
+  /**
+   * Storage directory path (when using file storage)
+   */
+  storagePath?: string;
 }
 
 /**
@@ -124,7 +172,7 @@ interface SerializationOptions {
  * optional time-to-live functionality.
  */
 export class PersistentStateManager {
-  private storageAdapter: StorageAdapter;
+  private storageAdapter!: StorageAdapter; // Using definite assignment assertion
   private options: PersistentStateOptions;
   private logger?: Logger;
   private initialized = false;
@@ -138,11 +186,119 @@ export class PersistentStateManager {
       ttl: 0, // No expiration by default
       compress: false,
       autoSerialize: true, // Set autoSerialize to true by default
+      storageType: 'redis', // Default to Redis
       ...options
     };
     
-    this.storageAdapter = options.storageAdapter;
     this.logger = options.logger;
+    
+    // Initialize storage adapter based on type if not explicitly provided
+    if (options.storageAdapter) {
+      this.storageAdapter = options.storageAdapter;
+    } else {
+      // Create storage adapter based on type
+      switch (this.options.storageType) {
+        case 'redis':
+          this.initializeRedisAdapter(options);
+          break;
+        case 'file':
+          this.initializeFileAdapter(options);
+          break;
+        case 'memory':
+          this.initializeMemoryAdapter();
+          break;
+        default:
+          // Default to Redis
+          this.initializeRedisAdapter(options);
+      }
+    }
+    
+    if (!this.storageAdapter) {
+      throw new Error('Failed to initialize storage adapter');
+    }
+  }
+  
+  /**
+   * Initialize a Redis storage adapter
+   */
+  private initializeRedisAdapter(options: PersistentStateOptions): void {
+    try {
+      // Configure Redis connection
+      let redisConfig: any = {};
+      
+      if (options.redisOptions?.uri) {
+        // If URI is provided, use it directly
+        redisConfig = options.redisOptions.uri;
+      } else if (options.redisOptions) {
+        // Otherwise use individual connection params
+        redisConfig = {
+          host: options.redisOptions.host || 'localhost',
+          port: options.redisOptions.port || 6379,
+          password: options.redisOptions.password,
+          db: options.redisOptions.db || 0
+        };
+      }
+      
+      // Create Redis adapter
+      this.storageAdapter = new RedisStorageAdapter({
+        namespace: this.options.namespace,
+        defaultTtl: this.options.ttl,
+        logger: this.logger,
+        redisConnection: redisConfig
+      });
+      
+      this.logger?.debug('Redis storage adapter initialized');
+    } catch (error) {
+      this.logger?.error(`Failed to initialize Redis adapter: ${(error as Error).message}`);
+      throw new Error(`Failed to initialize Redis adapter: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * Initialize a file storage adapter
+   */
+  private initializeFileAdapter(options: PersistentStateOptions): void {
+    try {
+      // Import FileStorageAdapter dynamically to avoid circular dependencies
+      const { FileStorageAdapter } = require('./storage-adapters/file-storage.adapter');
+      
+      if (!options.storagePath) {
+        throw new Error('storagePath is required for file storage');
+      }
+      
+      this.storageAdapter = new FileStorageAdapter({
+        storageDir: options.storagePath,
+        namespace: this.options.namespace,
+        defaultTtl: this.options.ttl,
+        logger: this.logger
+      });
+      
+      this.logger?.debug(`File storage adapter initialized with path: ${options.storagePath}`);
+    } catch (error) {
+      this.logger?.error(`Failed to initialize file adapter: ${(error as Error).message}`);
+      throw new Error(`Failed to initialize file adapter: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * Initialize a memory storage adapter
+   */
+  private initializeMemoryAdapter(): void {
+    try {
+      // Import MemoryStorageAdapter dynamically to avoid circular dependencies
+      const { MemoryStorageAdapter } = require('./storage-adapters/memory-storage.adapter');
+      
+      this.storageAdapter = new MemoryStorageAdapter({
+        namespace: this.options.namespace,
+        defaultTtl: this.options.ttl,
+        logger: this.logger
+      });
+      
+      this.logger?.debug('Memory storage adapter initialized');
+    } catch (error) {
+      this.logger?.error(`Failed to initialize memory adapter: ${(error as Error).message}`);
+      throw new Error(`Failed to initialize memory adapter: ${(error as Error).message}`);
+    }
   }
   
   /**
@@ -181,6 +337,11 @@ export class PersistentStateManager {
     
     try {
       const now = Date.now();
+      const stateKey = this.getStateKey(stateId);
+      
+      this.logger?.debug(`Saving state for ID: ${stateId} with key: ${stateKey}`, {
+        description: options?.description || 'State save operation'
+      });
       
       // Create new state entry
       const stateEntry: PersistentStateEntry = {
@@ -209,15 +370,40 @@ export class PersistentStateManager {
       
       // Store in adapter
       await this.storageAdapter.set(
-        this.getStateKey(stateId),
+        stateKey,
         dataToStore,
         options?.ttl !== undefined ? options.ttl : this.options.ttl
       );
       
-      this.logger?.debug(`Saved state for ID: ${stateId}`);
+      this.logger?.debug(`Successfully saved state for ID: ${stateId}`);
+      
+      // Verify state was saved if we're in debug mode
+      if (this.logger) {
+        try {
+          const exists = await this.storageAdapter.has(stateKey);
+          if (exists) {
+            this.logger?.debug(`Verified state exists after save: ${stateId}`);
+          } else {
+            this.logger?.warn(`State verification failed - state not found after save: ${stateId}`);
+          }
+        } catch (verifyError) {
+          // Ignore verification errors
+          this.logger?.debug(`Unable to verify state save: ${verifyError}`);
+        }
+      }
     } catch (error) {
-      this.logger?.error(`Failed to save state for ID ${stateId}: ${(error as Error).message}`);
-      throw new Error(`Failed to save state: ${(error as Error).message}`);
+      const err = error as Error;
+      this.logger?.error(`Failed to save state for ID ${stateId}:`, { 
+        error: err.message,
+        stack: err.stack,
+        stateId,
+        stateDataSummary: JSON.stringify({
+          type: typeof stateData,
+          isNull: stateData === null,
+          keys: stateData && typeof stateData === 'object' ? Object.keys(stateData) : null
+        })
+      });
+      throw new Error(`Failed to save state: ${err.message}`);
     }
   }
   
@@ -231,24 +417,65 @@ export class PersistentStateManager {
     this.ensureInitialized();
     
     try {
-      // Retrieve from adapter
-      const rawData = await this.storageAdapter.get(this.getStateKey(stateId));
+      const stateKey = this.getStateKey(stateId);
+      this.logger?.debug(`Loading state for ID: ${stateId} with key: ${stateKey}`);
       
-      if (!rawData) {
-        this.logger?.debug(`No state found for ID: ${stateId}`);
+      // Check if state exists first
+      const exists = await this.storageAdapter.has(stateKey);
+      if (!exists) {
+        this.logger?.debug(`No state found for ID: ${stateId} (key: ${stateKey})`);
         return null;
       }
       
-      // Deserialize if needed
-      const stateEntry = this.options.autoSerialize 
-        ? this.deserializeState(rawData)
-        : rawData as PersistentStateEntry;
+      // Retrieve from adapter
+      const rawData = await this.storageAdapter.get(stateKey);
       
-      this.logger?.debug(`Loaded state for ID: ${stateId} (version: ${stateEntry.metadata.version})`);
-      return stateEntry.data as T;
+      if (!rawData) {
+        this.logger?.warn(`State exists but get returned null/undefined for ID: ${stateId} (key: ${stateKey})`);
+        return null;
+      }
+      
+      // Log raw data type for debugging
+      this.logger?.debug(`Raw data retrieved for ${stateId}:`, {
+        type: typeof rawData,
+        isNull: rawData === null,
+        isString: typeof rawData === 'string',
+        isObject: typeof rawData === 'object' && rawData !== null,
+        length: typeof rawData === 'string' ? rawData.length : null
+      });
+      
+      // Deserialize if needed
+      try {
+        const stateEntry = this.options.autoSerialize 
+          ? this.deserializeState(rawData)
+          : rawData as PersistentStateEntry;
+        
+        if (!stateEntry || !stateEntry.data) {
+          this.logger?.warn(`Deserialized data is invalid for ID: ${stateId}`, {
+            hasData: !!stateEntry?.data,
+            stateEntry: stateEntry ? JSON.stringify(stateEntry).substring(0, 200) + '...' : null
+          });
+          return null;
+        }
+        
+        this.logger?.debug(`Successfully loaded state for ID: ${stateId} (version: ${stateEntry.metadata?.version || 'unknown'})`);
+        return stateEntry.data as T;
+      } catch (deserializeError) {
+        this.logger?.error(`Error deserializing state for ID ${stateId}:`, {
+          error: deserializeError instanceof Error ? deserializeError.stack : deserializeError,
+          rawDataType: typeof rawData,
+          rawDataPreview: typeof rawData === 'string' ? rawData.substring(0, 100) + '...' : null
+        });
+        throw deserializeError;
+      }
     } catch (error) {
-      this.logger?.error(`Failed to load state for ID ${stateId}: ${(error as Error).message}`);
-      throw new Error(`Failed to load state: ${(error as Error).message}`);
+      const err = error as Error;
+      this.logger?.error(`Failed to load state for ID ${stateId}:`, {
+        error: err.message,
+        stack: err.stack,
+        stateId
+      });
+      throw new Error(`Failed to load state: ${err.message}`);
     }
   }
   
@@ -399,10 +626,21 @@ export class PersistentStateManager {
     this.ensureInitialized();
     
     try {
-      return await this.storageAdapter.has(this.getStateKey(stateId));
+      const stateKey = this.getStateKey(stateId);
+      this.logger?.debug(`Checking if state exists for ID: ${stateId} with key: ${stateKey}`);
+      
+      const exists = await this.storageAdapter.has(stateKey);
+      
+      this.logger?.debug(`State exists check for ID ${stateId}: ${exists ? 'Found' : 'Not found'}`);
+      return exists;
     } catch (error) {
-      this.logger?.error(`Failed to check state existence for ID ${stateId}: ${(error as Error).message}`);
-      throw new Error(`Failed to check state existence: ${(error as Error).message}`);
+      const err = error as Error;
+      this.logger?.error(`Failed to check state existence for ID ${stateId}:`, {
+        error: err.message,
+        stack: err.stack,
+        stateId
+      });
+      throw new Error(`Failed to check state existence: ${err.message}`);
     }
   }
   
@@ -574,6 +812,24 @@ export class PersistentStateManager {
     } catch (error) {
       this.logger?.error(`Failed to list keys for pattern ${pattern}`, { error });
       throw new Error(`Failed to list keys: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * Close all resources and connections
+   */
+  async dispose(): Promise<void> {
+    try {
+      // If the storage adapter has a dispose method, call it
+      if (this.storageAdapter && typeof (this.storageAdapter as any).dispose === 'function') {
+        await (this.storageAdapter as any).dispose();
+        this.logger?.debug('Storage adapter disposed');
+      }
+      
+      this.initialized = false;
+      this.logger?.debug('PersistentStateManager disposed');
+    } catch (error) {
+      this.logger?.error(`Error disposing PersistentStateManager: ${(error as Error).message}`);
     }
   }
 } 

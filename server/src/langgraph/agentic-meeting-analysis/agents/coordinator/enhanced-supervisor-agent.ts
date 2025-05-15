@@ -28,15 +28,49 @@ import { StructuredTool } from '@langchain/core/tools';
 import { z } from 'zod';
 import { 
   SupervisorRoutingTool, 
-  SupervisorDecision, 
   createRoutingContext, 
   formatRoutingPrompt 
 } from '../supervisor/supervisor-routing';
 import { ResultSynthesisService } from './result-synthesis.service';
 import { OpenAIConnector } from '../../../../connectors/openai-connector';
+import { HumanMessage } from '@langchain/core/messages';
+import { ConsoleLogger } from '../../../../shared/logger/console-logger';
+import { StateGraph, END } from '@langchain/langgraph';
+import { ToolNode } from '@langchain/langgraph/prebuilt';
 
 /**
- * Configuration options for EnhancedSupervisorAgent
+ * Schema for the supervisor routing tool
+ */
+const routerSchema = z.object({
+  reasoning: z.string().describe("Your step-by-step reasoning about which team should handle the current state of analysis"),
+  nextAction: z.enum([
+    "TOPIC_ANALYSIS", 
+    "ACTION_ITEM_EXTRACTION", 
+    "SUMMARY_GENERATION", 
+    "SENTIMENT_ANALYSIS", 
+    "PARTICIPANT_DYNAMICS", 
+    "DECISION_TRACKING", 
+    "CONTEXT_INTEGRATION", 
+    "FINISH"
+  ]).describe("The next action to take: either a team name or FINISH to complete analysis"),
+  priorityLevel: z.number().min(1).max(10).describe("Priority level from 1-10, with 10 being highest priority"),
+  additionalInstructions: z.string().optional().describe("Any additional instructions for the team")
+});
+
+/**
+ * Interface for supervisor decisions
+ */
+interface SupervisorDecision {
+  reasoning: string;
+  nextAction: 'TOPIC_ANALYSIS' | 'ACTION_ITEM_EXTRACTION' | 'SUMMARY_GENERATION' | 
+             'SENTIMENT_ANALYSIS' | 'PARTICIPANT_DYNAMICS' | 'DECISION_TRACKING' | 
+             'CONTEXT_INTEGRATION' | 'FINISH';
+  priorityLevel: number;
+  additionalInstructions?: string;
+}
+
+/**
+ * Configuration for the enhanced supervisor agent
  */
 export interface EnhancedSupervisorAgentConfig {
   id?: string;
@@ -56,60 +90,42 @@ export interface EnhancedSupervisorAgentConfig {
   maxRetries?: number;
 }
 
-/**
- * Router tool schema for structured decision making
- */
-const routerSchema = z.object({
-  reasoning: z.string().describe('Reasoning behind the routing decision'),
-  next_agent: z.enum([
-    'ResearchTeam',
-    'TopicTeam',
-    'ActionItemTeam',
-    'SummaryTeam',
-    'SentimentTeam',
-    'FINISH'
-  ]).describe('The team or agent that should act next')
-});
-
+// Type definition for router input
 type RouterInput = z.infer<typeof routerSchema>;
 
 /**
- * Router tool for structured decision making by the supervisor
+ * Tool for supervisor routing
  */
 export class SupervisorRouterTool extends StructuredTool {
   name = 'supervisor_route_decision';
   description = 'Determine which team or agent should act next based on the current analysis context';
   schema = routerSchema;
-
-  constructor(private callback?: (decision: RouterInput) => void) {
+  
+  constructor(private callback?: (decision: z.infer<typeof routerSchema>) => void) {
     super();
   }
-
-  async _call(input: RouterInput): Promise<string> {
+  
+  async _call(input: z.infer<typeof routerSchema>): Promise<string> {
+    console.log(`*********Supervisor routing decision: ${input.nextAction} (priority: ${input.priorityLevel})`);
+    // Track the decision if there's a callback
     if (this.callback) {
       this.callback(input);
     }
-    return `Decided to route to: ${input.next_agent}. Reasoning: ${input.reasoning}`;
+    
+    // Return a confirmation that the decision was processed
+    return `Routing decision processed: Next action is ${input.nextAction} with priority ${input.priorityLevel}`;
   }
 }
 
 /**
- * Enhanced Supervisor Agent implementation following hierarchical patterns
- * 
- * This agent is responsible for:
- * - Managing the entire agent hierarchy
- * - Decomposing complex tasks into subtasks
- * - Assigning tasks to appropriate manager agents
- * - Routing work between teams through managers
- * - Resolving escalated issues from managers
- * - Synthesizing final results from all teams
+ * Enhanced supervisor agent implementation
  */
 export class EnhancedSupervisorAgent 
   extends AnalysisCoordinatorAgent
   implements ISupervisorAgent {
-
+  // Define readonly properties to ensure type consistency
   public override readonly role: AgentRole = AgentRole.SUPERVISOR;
-  private routerTool: SupervisorRoutingTool;
+  public routerTool: SupervisorRouterTool;
   
   private maxManagersCount: number;
   private managerRegistry: Map<
@@ -122,186 +138,330 @@ export class EnhancedSupervisorAgent
       availability: boolean;
     }
   > = new Map();
-
+  
   private teamStructure: Map<AgentExpertise, string[]> = new Map();
   private subTasks: Map<string, SubTask> = new Map();
   private agentResults: Map<string, AgentResultCollection> = new Map();
   private lastRoutingDecision: SupervisorDecision | null = null;
   private resultSynthesisService: ResultSynthesisService;
-
+  private routeLLM: ChatOpenAI;
+  private _llm: ChatOpenAI | null = null;
+  
   /**
-   * Create a new Enhanced Supervisor Agent
+   * Create a new enhanced supervisor agent
    */
   constructor(config: EnhancedSupervisorAgentConfig) {
+    // Pass only the properties expected by AnalysisCoordinatorAgentConfig
     super({
-      id: config.id,
+      id: config.id || `supervisor-${uuidv4().slice(0, 8)}`,
       name: config.name || 'Analysis Supervisor',
       logger: config.logger,
       llm: config.llm,
       systemPrompt: config.systemPrompt,
-      maxTeamSize: config.maxTeamSize,
-      qualityThreshold: config.qualityThreshold
+      maxTeamSize: config.maxTeamSize || 8,
+      qualityThreshold: config.qualityThreshold || 0.7
     });
-
-    this.maxManagersCount = config.maxManagersCount || 3;
     
-    // Replace the existing router with the new structured routing tool
-    this.routerTool = new SupervisorRoutingTool(
-      this.logger,
-      (decision) => {
-        this.lastRoutingDecision = decision;
-        this.logger.info(`Router decision: ${decision.nextAction} - ${decision.reasoning}`);
-      }
-    );
+    // Initialize ExpertiseAreas array with proper typing
+    this.expertise = config.expertise || [AgentExpertise.MANAGEMENT];
     
-    // Initialize the synthesis service if provided, or create a new one
+    // Initialize capabilities
+    if (config.capabilities) {
+      this.capabilities = new Set(config.capabilities);
+    } else {
+      this.capabilities = new Set([AnalysisGoalType.FULL_ANALYSIS]);
+    }
+    
+    this.maxManagersCount = config.maxManagersCount || 5;
+    
+    // Initialize result synthesis service
     this.resultSynthesisService = config.resultSynthesisService || new ResultSynthesisService({
       logger: this.logger,
-      llm: config.llm as ChatOpenAI
+      llm: this.getLLM(),
+      confidenceThreshold: config.qualityThreshold || 0.7,
+      maxRetries: config.maxRetries || 3
     });
     
-    this.logger.info(
-      `Initialized ${this.name} with max managers count: ${this.maxManagersCount}`
-    );
+    // Set up the routing LLM with lower temperature for more consistent routing
+    this.routeLLM = new ChatOpenAI({
+      modelName: 'gpt-4',
+      temperature: 0.3,
+    });
+    
+    // Create the router tool with a callback to track decisions
+    this.routerTool = new SupervisorRouterTool((decision) => {
+      this.lastRoutingDecision = decision;
+      this.logger.debug(`Supervisor routing decision: ${decision.nextAction} (priority: ${decision.priorityLevel})`);
+    });
   }
-
+  
   /**
    * Initialize the supervisor agent
    */
   async initialize(config?: Record<string, any>): Promise<void> {
     await super.initialize(config);
-
-    // Subscribe to manager registration messages
-    this.on('notification', this.handleManagerRegistration.bind(this));
     
-    // Subscribe to escalation messages
-    this.on('escalate', this.handleEscalation.bind(this));
-
-    this.logger.info(`${this.name} initialized successfully as a hierarchical supervisor`);
+    this.logger.info(`Initialized Enhanced Supervisor Agent: ${this.id}`);
+    
+    // Register default expertise types
+    [
+      AgentExpertise.TOPIC_ANALYSIS,
+      AgentExpertise.ACTION_ITEM_EXTRACTION,
+      AgentExpertise.SUMMARY_GENERATION,
+      AgentExpertise.SENTIMENT_ANALYSIS,
+    ].forEach(expertise => {
+      this.teamStructure.set(expertise, []);
+    });
+    
+    // Log initialization status
+    this.logger.debug(`Enhanced Supervisor initialized with ${this.teamStructure.size} expertise areas`);
   }
-
+  
   /**
-   * Helper method to get the LLM instance
+   * Get the LLM instance
    */
   protected getLLM(): ChatOpenAI {
-    return this.llm as ChatOpenAI;
+    if (!this._llm) {
+      this._llm = new ChatOpenAI({
+        modelName: 'gpt-4',
+        temperature: 0.5,
+      });
+    }
+    return this._llm;
   }
-
+  
   /**
-   * Use LLM with structured routing tool to determine which agent or team should act next
+   * Decide which agent or team should act next
    */
   async decideNextAgent(context: { messages: AgentMessage[] }): Promise<string> {
-    this.logger.info('Deciding which agent should act next using structured routing');
-
-    // Get completed and pending tasks to build routing context
-    const completedTasks = Array.from(this.subTasks.values())
-      .filter(task => task.status === AnalysisTaskStatus.COMPLETED)
-      .map(task => ({
-        taskId: task.id,
-        type: task.type,
-        status: task.status,
-        output: task.output
-      }));
-    
-    const pendingTasks = Array.from(this.subTasks.values())
-      .filter(task => 
-        task.status === AnalysisTaskStatus.PENDING || 
-        task.status === AnalysisTaskStatus.IN_PROGRESS
-      )
-      .map(task => ({
-        taskId: task.id,
-        type: task.type,
-        status: task.status,
-        priority: task.priority
-      }));
-    
-    // Calculate progress based on task completion
-    const totalTasks = this.subTasks.size;
-    const progress = totalTasks > 0 
-      ? Math.round((completedTasks.length / totalTasks) * 100) 
-      : 0;
-    
-    // Current focus is based on the most recent message or most urgent pending task
-    let currentFocus: string | undefined = undefined;
-    
-    if (context.messages.length > 0) {
-      const latestMessage = context.messages[context.messages.length - 1];
-      if (typeof latestMessage.content === 'object' && latestMessage.content.taskType) {
-        currentFocus = latestMessage.content.taskType;
-      }
-    } else if (pendingTasks.length > 0) {
-      // Sort by priority (lower number = higher priority)
-      const sortedByPriority = [...pendingTasks].sort((a, b) => a.priority - b.priority);
-      currentFocus = sortedByPriority[0].type;
-    }
-    
-    // Create routing context object
-    const routingContext = createRoutingContext(
-      completedTasks,
-      pendingTasks,
-      progress,
-      currentFocus,
-      context.messages.length > 0 ? {
-        sender: context.messages[context.messages.length - 1].sender,
-        content: context.messages[context.messages.length - 1].content,
-        timestamp: context.messages[context.messages.length - 1].timestamp
-      } : undefined
-    );
-    
-    // Format the prompt with routing context
-    const prompt = formatRoutingPrompt(routingContext);
-
     try {
-      // Reset last routing decision
-      this.lastRoutingDecision = null;
+      const { messages } = context;
       
-      // Call LLM with the router tool
-      const llm = this.getLLM();
-      await llm.invoke([
-        { type: 'human', content: prompt }
-      ], {
-        tools: [this.routerTool]
-      });
+      // Log the decision context
+      this.logger.debug(`Deciding next agent with ${messages.length} messages`);
       
-      // If tool was used, the callback would have set lastRoutingDecision
-      if (this.lastRoutingDecision) {
-        // Map the routing decision to an agent/team name
-        return this.mapRoutingDecisionToAgent(this.lastRoutingDecision);
+      // Check for transcript in messages - if this is the first message containing a transcript,
+      // we need to decompose it into tasks
+      if (this.detectTranscriptInMessages(messages)) {
+        // Create initial tasks from transcript if we haven't already
+        const initialTasks = this.createInitialTasksFromTranscript(messages);
+        
+        if (initialTasks && initialTasks.length > 0) {
+          this.logger.info(`Created ${initialTasks.length} initial tasks from transcript`);
+          
+          // Process the first task
+          const firstTask = initialTasks[0];
+          const expertise = firstTask.expertise;
+          
+          // Return the team ID for the first task
+          return this.mapRoutingDecisionToAgent({
+            reasoning: "Initial analysis starting with transcript processing",
+            nextAction: expertise === AgentExpertise.TOPIC_ANALYSIS 
+              ? "TOPIC_ANALYSIS" 
+              : "SUMMARY_GENERATION",
+            priorityLevel: 10,
+            additionalInstructions: "Begin analysis with an overview of the transcript"
+          });
+        }
       }
       
-      // Default to FINISH if no valid response
-      this.logger.warn('No routing decision was made, defaulting to FINISH');
-      return 'FINISH';
+      // Get context for routing decision
+      const routingContext = this.prepareRoutingContext(messages);
+      
+      // Get pending tasks to determine if we're done
+      const pendingTasks = this.getPendingTasks();
+      
+      // If no pending tasks, we're done
+      if (pendingTasks.length === 0) {
+        return END;
+      }
+      
+      try {
+        // Create a standalone router tool for this invocation
+        const standaloneRouterTool = new SupervisorRouterTool((decision) => {
+          this.lastRoutingDecision = decision;
+        });
+        
+        // Prepare routing LLM with tool binding
+        const routingLLM = this.getLLM().bindTools([standaloneRouterTool]);
+        
+        // Create a routing prompt
+        const promptText = `You are the analysis supervisor. Based on progress and pending tasks, determine the next team that should work on the analysis.
+        
+Progress: ${routingContext.progress || 0}%
+Current focus: ${routingContext.currentFocus || 'None'}
+
+Pending tasks: ${pendingTasks.map(t => t.type).join(', ') || 'None'}
+
+Choose the most appropriate team to process next.`;
+        
+        // Get decision from LLM
+        const llmResponse = await routingLLM.invoke(promptText);
+        
+        // Process tool calls if present
+        if (llmResponse.tool_calls && llmResponse.tool_calls.length > 0) {
+          const toolCall = llmResponse.tool_calls[0];
+          
+          // Parse the tool call args - fix the type error by checking for string or object
+          const args = typeof toolCall.args === 'string' 
+            ? JSON.parse(toolCall.args) 
+            : toolCall.args;
+          const decision: SupervisorDecision = {
+            nextAction: args.nextAction,
+            reasoning: args.reasoning,
+            priorityLevel: args.priorityLevel || 5
+          };
+          
+          this.lastRoutingDecision = decision;
+          this.logger.info(`Router decision: ${decision.nextAction} (priority: ${decision.priorityLevel})`);
+          
+          // Map the decision to an agent/team
+          return this.mapRoutingDecisionToAgent(decision);
+        }
+        
+        // If no tool calls, default to a basic decision based on pending tasks
+        const highestPriorityTask = this.getHighestPriorityTask(pendingTasks);
+        const fallbackDecision: SupervisorDecision = {
+          reasoning: "Fallback decision based on priority",
+          nextAction: highestPriorityTask.expertise === AgentExpertise.TOPIC_ANALYSIS 
+            ? "TOPIC_ANALYSIS" 
+            : "SUMMARY_GENERATION",
+          priorityLevel: 7
+        };
+        
+        this.lastRoutingDecision = fallbackDecision;
+        return this.mapRoutingDecisionToAgent(fallbackDecision);
+      } catch (error) {
+        this.logger.error('Error in routing decision', { error });
+        
+        // Fallback to a simple decision if the LLM fails
+        return "TopicTeam";
+      }
     } catch (error) {
-      this.logger.error(`Error during next agent decision: ${error}`);
-      return 'FINISH';
+      this.logger.error('Error in decideNextAgent', { error });
+      return "TopicTeam"; // Default fallback
     }
   }
   
   /**
-   * Map the structured routing decision to a team or agent name
+   * Detect if there's a transcript in the messages
+   */
+  private detectTranscriptInMessages(messages: AgentMessage[]): boolean {
+    for (const message of messages) {
+      if (
+        message.type === MessageType.NOTIFICATION &&
+        message.content?.transcript &&
+        typeof message.content.transcript === 'string'
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+  
+  /**
+   * Create initial tasks from a transcript
+   */
+  private createInitialTasksFromTranscript(messages: AgentMessage[]): any[] {
+    // Extract the transcript
+    let transcript = '';
+    let meetingId = '';
+    let sessionId = '';
+    
+    for (const message of messages) {
+      if (message.type === MessageType.NOTIFICATION && message.content?.transcript) {
+        transcript = message.content.transcript;
+        meetingId = message.content.meetingId || `meeting-${Date.now()}`;
+        sessionId = message.content.sessionId || `session-${Date.now()}`;
+        break;
+      }
+    }
+    
+    if (!transcript) {
+      this.logger.warn('No transcript found in messages');
+      return [];
+    }
+    
+    // Create a set of initial tasks based on expertise
+    const tasks = [
+      // Topic Analysis
+      {
+        id: `task-topic-${uuidv4().slice(0, 8)}`,
+        type: AnalysisGoalType.EXTRACT_TOPICS,
+        status: AnalysisTaskStatus.PENDING,
+        priority: 10,
+        createdAt: Date.now(),
+        expertise: AgentExpertise.TOPIC_ANALYSIS,
+        meetingId,
+        sessionId,
+        context: { transcript },
+      },
+      // Action Item Extraction
+      {
+        id: `task-action-${uuidv4().slice(0, 8)}`,
+        type: AnalysisGoalType.EXTRACT_ACTION_ITEMS,
+        status: AnalysisTaskStatus.PENDING,
+        priority: 7,
+        createdAt: Date.now(),
+        expertise: AgentExpertise.ACTION_ITEM_EXTRACTION,
+        meetingId,
+        sessionId,
+        context: { transcript },
+      },
+      // Summary Generation
+      {
+        id: `task-summary-${uuidv4().slice(0, 8)}`,
+        type: AnalysisGoalType.GENERATE_SUMMARY,
+        status: AnalysisTaskStatus.PENDING,
+        priority: 8,
+        createdAt: Date.now(),
+        expertise: AgentExpertise.SUMMARY_GENERATION,
+        meetingId,
+        sessionId,
+        context: { transcript },
+      },
+      // Sentiment Analysis
+      {
+        id: `task-sentiment-${uuidv4().slice(0, 8)}`,
+        type: AnalysisGoalType.ANALYZE_SENTIMENT,
+        status: AnalysisTaskStatus.PENDING,
+        priority: 5,
+        createdAt: Date.now(),
+        expertise: AgentExpertise.SENTIMENT_ANALYSIS,
+        meetingId,
+        sessionId,
+        context: { transcript },
+      },
+    ];
+    
+    return tasks;
+  }
+  
+  /**
+   * Map a routing decision to an agent or team
    */
   private mapRoutingDecisionToAgent(decision: SupervisorDecision): string {
+    // Map the decision to a team or agent ID
     switch (decision.nextAction) {
       case 'TOPIC_ANALYSIS':
         return 'TopicTeam';
       case 'ACTION_ITEM_EXTRACTION':
-        return 'ActionItemTeam';
-      case 'DECISION_TRACKING':
-        return 'DecisionTeam';
+        return 'ActionTeam';
       case 'SUMMARY_GENERATION':
         return 'SummaryTeam';
       case 'SENTIMENT_ANALYSIS':
         return 'SentimentTeam';
       case 'PARTICIPANT_DYNAMICS':
-        return 'ParticipantTeam';
+        return 'ParticipationTeam';
+      case 'DECISION_TRACKING':
+        return 'DecisionTeam';
       case 'CONTEXT_INTEGRATION':
-        return 'ResearchTeam';
+        return 'ContextTeam';
       case 'FINISH':
-        return 'FINISH';
+        return END;
       default:
-        this.logger.warn(`Unknown routing decision: ${decision.nextAction}, defaulting to FINISH`);
-        return 'FINISH';
+        this.logger.warn(`Unknown action: ${decision.nextAction}, defaulting to TopicTeam`);
+        return 'TopicTeam';
     }
   }
 
@@ -1008,5 +1168,82 @@ export class EnhancedSupervisorAgent
       
       Maintain objectivity and focus on producing accurate, comprehensive meeting analyses.
     `;
+  }
+
+  private getPendingTasks(): any[] {
+    return Array.from(this.subTasks.values())
+      .filter(task => 
+        task.status === 'pending' || 
+        task.status === 'in_progress'
+      );
+  }
+
+  private getHighestPriorityTask(tasks: any[]): any {
+    if (tasks.length === 0) return null;
+    
+    // Sort by priority (lower number = higher priority)
+    return [...tasks].sort((a, b) => 
+      (a.priority || 10) - (b.priority || 10)
+    )[0];
+  }
+
+  /**
+   * Prepare context for routing decision
+   * This creates a structured object with the information needed to decide routing
+   */
+  private prepareRoutingContext(messages: AgentMessage[]): any {
+    // Filter task-related messages to understand progress
+    const taskMessages = messages.filter(msg => 
+      msg.type === MessageType.NOTIFICATION || 
+      msg.type === MessageType.RESPONSE
+    );
+    
+    // Extract task statuses
+    const completedTasks = this.getPendingTasks().filter(task => task.status === 'completed');
+    const pendingTasks = this.getPendingTasks();
+    
+    // Calculate overall progress approximation
+    const progress = pendingTasks.length > 0 
+      ? Math.floor((completedTasks.length / (completedTasks.length + pendingTasks.length)) * 100)
+      : 0;
+    
+    // Determine current focus (if any)
+    const currentFocus = pendingTasks.length > 0 ? pendingTasks[0].type : null;
+    
+    // Create context object
+    return {
+      completedTasks,
+      pendingTasks,
+      progress,
+      currentFocus,
+      messageCount: messages.length,
+      lastMessage: messages.length > 0 ? messages[messages.length - 1] : null
+    };
+  }
+
+  /**
+   * Format routing context into a prompt string for the LLM
+   */
+  private formatRoutingPrompt(routingContext: any): string {
+    // Format context into a prompt for the router tool
+    const taskInfo = Array.isArray(routingContext.pendingTasks) 
+      ? routingContext.pendingTasks.map((task: any) => 
+          `- ${task.type || 'Unknown task'} (Priority: ${task.priority || 'unknown'})`
+        ).join('\n')
+      : 'No pending tasks';
+    
+    // Create prompt string for the LLM
+    const promptText = `You are analyzing the current state of a meeting analysis process. 
+    
+Current analysis progress: ${routingContext.progress || 0}%
+Current focus: ${routingContext.currentFocus || 'None'}
+
+Pending tasks:
+${taskInfo}
+
+Based on the current state, determine which analysis team should work next.
+Consider priorities, dependencies, and logical workflow progression.`;
+
+    return promptText;
   }
 } 

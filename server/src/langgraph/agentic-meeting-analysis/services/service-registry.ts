@@ -25,6 +25,36 @@ import { MeetingAnalysisInstructionTemplateService } from './meeting-analysis-in
 import { InstructionTemplateService } from '../../../shared/services/instruction-template.service';
 
 /**
+ * Redis configuration options
+ */
+interface RedisConnectionOptions {
+  /**
+   * Redis host
+   */
+  host?: string;
+  
+  /**
+   * Redis port
+   */
+  port?: number;
+  
+  /**
+   * Redis password
+   */
+  password?: string;
+  
+  /**
+   * Redis database number
+   */
+  db?: number;
+  
+  /**
+   * Connection URI (alternative to host/port/password)
+   */
+  uri?: string;
+}
+
+/**
  * Service registry options
  */
 interface ServiceRegistryOptions {
@@ -36,12 +66,17 @@ interface ServiceRegistryOptions {
   /**
    * Storage type for persistence
    */
-  storageType?: 'memory' | 'file' | 'custom';
+  storageType?: 'memory' | 'file' | 'redis' | 'custom';
   
   /**
    * Storage path for file storage
    */
   storagePath?: string;
+  
+  /**
+   * Redis connection options (when using Redis storage)
+   */
+  redisOptions?: RedisConnectionOptions;
   
   /**
    * Enable real integrations (vs simulations)
@@ -131,9 +166,12 @@ export class MeetingAnalysisServiceRegistry {
     this.id = uuidv4();
     this.logger.debug('Created Service Registry instance', { id: this.id });
     
-    // Initialize supervisor coordination service
+    // Initialize supervisor coordination service with Redis by default
     this.meetingAnalysisSupervisor = ServiceFactory.getMeetingAnalysisSupervisor({
-      logger: this.logger
+      logger: this.logger,
+      storageType: options.storageType || 'redis',
+      storagePath: options.storagePath,
+      redisOptions: options.redisOptions
     });
     
     // Initialize session service
