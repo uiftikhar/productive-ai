@@ -64,7 +64,7 @@ interface MeetingAnalysisState {
 }
 
 // Create a state graph with this type
-const workflow = new StateGraph<MeetingAnalysisState>({
+const workflow: any = new StateGraph<MeetingAnalysisState>({
   channels: {
     messages: { value: [], reducer: pushMessages },
     transcript: { value: undefined },
@@ -106,9 +106,7 @@ const MeetingAnalysisState = Annotation.Root({
 });
 
 // Create a graph using this annotation
-const graph = new StateGraph({
-  channels: MeetingAnalysisState,
-});
+const graph: any = new StateGraph(MeetingAnalysisState);
 ```
 
 The Annotations API provides several advantages:
@@ -174,9 +172,7 @@ const CollaborationState = Annotation.Root({
   }),
 });
 
-const workflow = new StateGraph({
-  channels: CollaborationState,
-});
+const workflow: any = new StateGraph(CollaborationState);
 
 workflow
   .addNode("agent1", agent1Node)
@@ -219,11 +215,7 @@ const supervisorAgent = await createTeamSupervisor(
 // Create the supervision node
 const supervisorNode = (state: typeof SupervisorState.State) => {
   return supervisorAgent(state);
-};
-
-const workflow = new StateGraph({
-  channels: SupervisorState,
-});
+};;
 
 // Add all nodes
 workflow
@@ -316,9 +308,7 @@ const webScraperNode = (state: typeof ResearchTeamState.State) => {
 };
 
 // Create team graph
-const researchTeam = new StateGraph({
-  channels: ResearchTeamState,
-});
+const researchTeam: any = new StateGraph(ResearchTeamState);
 
 // Add nodes to team graph
 researchTeam
@@ -364,7 +354,7 @@ const TopLevelState = Annotation.Root({
   }),
 });
 
-const mainGraph = new StateGraph({
+const mainGraph: any = new StateGraph({
   channels: TopLevelState,
 });
 
@@ -716,9 +706,7 @@ const PersistentState = Annotation.Root({
 });
 
 // Use memory in your graph
-const workflow = new StateGraph({
-  channels: PersistentState,
-});
+const workflow: any = new StateGraph(PersistentState);
 
 // Load previous state before running
 const sessionId = "user123";
@@ -738,22 +726,14 @@ Combine multiple graphs together for complex workflows:
 
 ```typescript
 // Create subgraphs for different processing stages
-const preprocessingGraph = new StateGraph({
-  channels: PreprocessingState,
-}).compile();
+const preprocessingGraph: any = new StateGraph(PreprocessingState).compile();
 
-const analysisGraph = new StateGraph({
-  channels: AnalysisState,
-}).compile();
+const analysisGraph: any = new StateGraph(AnalysisState).compile();
 
-const synthesisGraph = new StateGraph({
-  channels: SynthesisState,
-}).compile();
+const synthesisGraph: any = new StateGraph(SynthesisState).compile();
 
 // Create a main graph that composes the subgraphs
-const mainGraph = new StateGraph({
-  channels: MainState,
-});
+const mainGraph: any = new StateGraph(MainState);
 
 // Add the subgraphs as nodes
 mainGraph
@@ -819,9 +799,7 @@ const MeetingAnalysisState = Annotation.Root({
 });
 
 // Create the graph
-const meetingAnalysis = new StateGraph({
-  channels: MeetingAnalysisState,
-});
+const meetingAnalysis: any = new StateGraph(MeetingAnalysisState);
 
 // Define all nodes
 meetingAnalysis

@@ -23,6 +23,28 @@ export class StateService {
   }
 
   /**
+   * Create a complete state definition for meeting analysis
+   */
+  createMeetingAnalysisState() {
+    return {
+      messages: this.createMessagesAnnotation(),
+      transcript: this.createStringAnnotation(),
+      topics: this.createArrayAnnotation(),
+      actionItems: this.createArrayAnnotation(),
+      sentiment: Annotation({
+        reducer: (x, y) => y ?? x,
+        default: () => null,
+      }),
+      summary: Annotation({
+        reducer: (x, y) => y ?? x,
+        default: () => null,
+      }),
+      currentPhase: this.createStringAnnotation('initialization'),
+      errors: this.createArrayAnnotation(),
+    };
+  }
+
+  /**
    * Create an annotation for a string
    */
   createStringAnnotation(defaultValue = '') {

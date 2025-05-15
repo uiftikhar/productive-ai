@@ -102,24 +102,24 @@ We'll create a new NestJS application at `server/nestJs/` rather than refactorin
 
 ### Milestone 4.1: Graph Definition
 
-- [ ] Design module for graph construction
-- [ ] Implement node providers for different agent types
-- [ ] Create edge definition services
-- [ ] Set up conditional routing
+- [x] Design module for graph construction
+- [x] Implement node providers for different agent types
+- [x] Create edge definition services
+- [x] Set up conditional routing
 
 ### Milestone 4.2: Workflow Patterns
 
-- [ ] Implement workflow module
-- [ ] Create services for sequential and conditional workflows
-- [ ] Build workflow composition patterns
-- [ ] Implement error recovery for workflows
+- [x] Implement workflow module
+- [x] Create services for sequential and conditional workflows
+- [x] Build workflow composition patterns
+- [x] Implement error recovery for workflows
 
 ### Milestone 4.3: Persistence and Resumability
 
-- [ ] Implement state persistence for ongoing analyses
-- [ ] Create services for workflow resumption
-- [ ] Build workflow checkpointing
-- [ ] Implement retry mechanisms for failed steps
+- [x] Implement state persistence for ongoing analyses
+- [x] Create services for workflow resumption
+- [x] Build workflow checkpointing
+- [x] Implement retry mechanisms for failed steps
 
 ## Phase 5: API and Integration (2-3 weeks)
 

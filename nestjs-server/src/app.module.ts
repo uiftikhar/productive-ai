@@ -7,6 +7,7 @@ import { LoggingModule } from './logging/logging.module';
 import { StorageModule } from './storage/storage.module';
 import { AuthModule } from './auth/auth.module';
 import { LangGraphModule } from './langgraph/langgraph.module';
+import { MeetingAnalysisModule } from './langgraph/meeting-analysis/meeting-analysis.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { LangGraphModule } from './langgraph/langgraph.module';
     StorageModule,
     AuthModule,
     LangGraphModule,
+    MeetingAnalysisModule,
   ],
   controllers: [AppController],
   providers: [AppService],
