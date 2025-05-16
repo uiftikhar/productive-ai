@@ -37,12 +37,18 @@ We'll create a new NestJS application at `server/nestJs/` rather than refactorin
 - [x] Implement configuration management (using `@nestjs/config`)
 - [x] Set up logging module (leveraging `nestjs-pino` or similar)
 - [x] Establish database connections and repositories
+  - [x] Implement MongoDB integration with Mongoose
+  - [x] Create schema-based data models
+  - [x] Set up repository pattern for data access
 - [x] Create file storage service for transcript and analysis results
 - [x] Implement state persistence adapters for LangGraph
 
 ### Milestone 1.3: Authentication and Authorization
 
 - [x] Port authentication mechanisms to NestJS auth module
+  - [x] Implement JWT-based authentication
+  - [x] Create Mongoose-based User model and repository
+  - [x] Set up Passport strategies (local & JWT)
 - [x] Implement guards for protected routes
 - [x] Set up session management
 - [x] Create user service and module
@@ -337,15 +343,189 @@ These features can be implemented incrementally after the basic migration is com
 
 ## Implementation Details
 
+### Database Integration
+
+We chose MongoDB as our primary database with Mongoose for ODM (Object Document Mapping). This provides several benefits:
+
+1. **Schema Flexibility**: MongoDB's document model allows for easy evolution of data structures
+2. **Query Performance**: Fast querying and indexing capabilities for our specific use cases
+3. **Scalability**: Built-in scaling capabilities as our data grows
+
+#### MongoDB Integration Implementation
+
+```typescript
+// MongoDB Configuration in NestJS
+@Module({
+  imports: [
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => {
+        const username = configService.get<string>('MONGO_DB_USERNAME');
+        const password = configService.get<string>('MONGO_DB_PASSWORD');
+        const uri = configService.get<string>('MONGO_DB_URI');
+        const dbName = configService.get<string>('MONGO_DB_NAME', 'meeting-analysis');
+
+        if (!uri || !username || !password) {
+          throw new Error('MongoDB configuration is missing required values');
+        }
+
+        return {
+          uri: uri.replace('<username>', username).replace('<password>', password),
+          dbName,
+          useNewUrlParser: true,
+          useUnifiedTopology: true,
+        };
+      },
+    }),
+  ],
+  exports: [MongooseModule],
+})
+export class DatabaseModule {}
+```
+
+#### Schema and Repository Implementation
+
+We follow a consistent pattern for all MongoDB entities:
+
+1. **Schema Definition**: Using `@nestjs/mongoose` decorators for type-safety
+2. **Repository Pattern**: Each entity has a dedicated repository class
+3. **Dependency Injection**: Repositories are injectable services
+
+```typescript
+// Schema example (User)
+@Schema({ timestamps: true })
+export class User {
+  _id?: Types.ObjectId;
+  id?: string;
+
+  @Prop({ required: true, unique: true })
+  email: string;
+
+  @Prop({ required: true })
+  firstName: string;
+
+  @Prop({ required: true })
+  lastName: string;
+
+  @Prop({ required: true })
+  password: string;
+
+  @Prop({ nullable: true })
+  refreshToken?: string;
+
+  @Prop({ default: false })
+  isAdmin: boolean;
+}
+
+// Repository example
+@Injectable()
+export class UserRepository {
+  constructor(
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
+  ) {}
+
+  async findByEmail(email: string): Promise<User | null> {
+    return this.userModel.findOne({ email }).exec();
+  }
+
+  async create(user: Partial<User>): Promise<User> {
+    const createdUser = new this.userModel(user);
+    return createdUser.save();
+  }
+
+  // Other repository methods...
+}
+```
+
+### Authentication System
+
+We've implemented a JWT-based authentication system with the following features:
+
+1. **JWT Tokens**: Access tokens with configurable expiration
+2. **Refresh Tokens**: Securely stored in the database
+3. **Passport Integration**: Using passport-jwt and passport-local strategies
+4. **Password Hashing**: Secure password storage with bcrypt
+
+#### Auth Module Structure
+
+```typescript
+@Module({
+  imports: [
+    PassportModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        secret: configService.get('JWT_SECRET'),
+        signOptions: { expiresIn: configService.get('JWT_EXPIRATION', '1d') },
+      }),
+    }),
+    UserModule,
+  ],
+  controllers: [AuthController],
+  providers: [AuthService, LocalStrategy, JwtStrategy],
+  exports: [AuthService],
+})
+export class AuthModule {}
+```
+
+#### Authentication Flow
+
+1. **Registration**: Create user with hashed password
+2. **Login**: Validate credentials and issue JWT tokens
+3. **Token Refresh**: Secure mechanism to refresh tokens
+4. **Logout**: Invalidate refresh tokens
+
+### Storage System
+
+We've implemented a flexible file storage system with the following features:
+
+1. **Environment-based Configuration**: Path configuration via environment variables
+2. **Directory Structure**: Organized directories for different data types
+3. **File Operations**: Standardized methods for file operations
+4. **Path Management**: Centralized path management
+
+```typescript
+@Injectable()
+export class StorageService {
+  private baseStoragePath: string;
+  private transcriptsPath: string;
+  private meetingsPath: string;
+  // Other paths...
+
+  constructor(private readonly configService: ConfigService) {
+    this.initializePaths();
+    this.initializeStorageFolders();
+  }
+
+  private initializePaths(): void {
+    this.baseStoragePath = this.configService.get<string>('STORAGE_PATH') || './data/file-storage';
+    
+    // Define all subdirectories
+    this.transcriptsPath = path.join(this.baseStoragePath, 'transcripts');
+    // Other path definitions...
+  }
+
+  // Service methods...
+}
+```
+
 ### Module Structure
 
-Our NestJS application will be organized into these primary modules:
+Our NestJS application is now organized into these primary modules:
 
 ```
 - AppModule (root)
   - ConfigModule
   - DatabaseModule
+    - MongooseModule
+    - MeetingModule
+    - UserModule
   - AuthModule
+    - JwtModule
+    - PassportModule
+  - StorageModule
   - LangGraphModule
     - LlmModule
     - ToolModule
@@ -367,126 +547,6 @@ Our NestJS application will be organized into these primary modules:
     - RestModule
     - WebsocketModule
     - IntegrationModule
-```
-
-### Converting Factory Pattern to NestJS Providers
-
-The current `ServiceFactory` and team factory patterns will be replaced with NestJS providers:
-
-#### Current Approach (ServiceFactory):
-
-```typescript
-export class ServiceFactory {
-  public static createMeetingAnalysisSupervisorService(
-    configOptions: MeetingAnalysisSupervisorOptions,
-  ): MeetingAnalysisSupervisorService {
-    // Complex initialization logic with many dependencies
-    // ...
-    return new MeetingAnalysisSupervisorService(/*...*/);
-  }
-}
-```
-
-#### NestJS Approach:
-
-```typescript
-// Module definition
-@Module({
-  imports: [ConfigModule, LlmModule, ToolModule],
-  providers: [
-    {
-      provide: MeetingAnalysisSupervisorService,
-      useFactory: (
-        configService: ConfigService,
-        llmService: LlmService,
-        toolRegistryService: ToolRegistryService,
-        // other dependencies
-      ) => {
-        const config = configService.get('meetingAnalysis');
-        return new MeetingAnalysisSupervisorService(
-          llmService,
-          toolRegistryService,
-          // other dependencies
-          config
-        );
-      },
-      inject: [ConfigService, LlmService, ToolRegistryService, /* other deps */],
-    },
-    // Other providers
-  ],
-  exports: [MeetingAnalysisSupervisorService],
-})
-export class SupervisorModule {}
-```
-
-### Agent Implementation with DI
-
-Agents will be implemented as injectable services:
-
-```typescript
-@Injectable()
-export class TopicAnalysisAgent extends BaseMeetingAnalysisAgent {
-  constructor(
-    private readonly llmService: LlmService,
-    private readonly toolRegistryService: ToolRegistryService,
-    private readonly promptService: PromptService,
-    @Inject(CONFIG_TOKEN) private readonly config: TopicAnalysisConfig
-  ) {
-    super();
-  }
-
-  // Agent implementation
-}
-```
-
-### Graph Construction in NestJS
-
-Graphs will be built using provider factories:
-
-```typescript
-@Injectable()
-export class MeetingAnalysisGraphService {
-  constructor(
-    @Inject(forwardRef(() => TopicAnalysisAgent))
-    private readonly topicAgent: TopicAnalysisAgent,
-    
-    @Inject(forwardRef(() => ActionItemAgent))
-    private readonly actionItemAgent: ActionItemAgent,
-    
-    // Other agent injections
-    
-    private readonly stateService: StateService,
-    private readonly configService: ConfigService
-  ) {}
-
-  createAnalysisGraph(): StateGraph<MeetingAnalysisState> {
-    const graph = new StateGraph({
-      channels: MeetingAnalysisState,
-    });
-
-    // Add nodes
-    graph
-      .addNode("topicAnalysis", this.createTopicAnalysisNode())
-      .addNode("actionItemExtraction", this.createActionItemNode())
-      // Other nodes
-      
-    // Add edges
-    graph
-      .addEdge(START, "topicAnalysis")
-      .addEdge("topicAnalysis", "actionItemExtraction")
-      // Other edges
-      
-    return graph;
-  }
-
-  private createTopicAnalysisNode() {
-    return (state: MeetingAnalysisState) => {
-      return this.topicAgent.processState(state);
-    };
-  }
-  
-  // Other node factory methods
-}
 ```
 
 ## Testing Strategy
@@ -563,5 +623,8 @@ This migration will significantly improve our codebase by:
 3. **Improving Testing**: Making it easier to test individual components
 4. **Standardizing Structure**: Following industry-standard patterns
 5. **Enabling Scalability**: Building a foundation for future growth
+6. **Database Flexibility**: MongoDB integration for flexible data modeling
+7. **Secure Authentication**: JWT-based authentication with proper token management
+8. **Configurable Storage**: Environment-driven storage configuration
 
 The estimated timeline for the complete migration is 12-16 weeks, but the phased approach allows for incremental deployment and testing throughout the process. 
