@@ -7,4 +7,4 @@ import { LangGraphPersistenceModule } from '../persistence/persistence.module';
   providers: [StateService],
   exports: [StateService],
 })
-export class StateModule {} 
+export class StateModule {}

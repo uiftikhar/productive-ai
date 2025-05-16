@@ -44,11 +44,11 @@ export class ToolService {
           this.logger.debug('Extracting topics from transcript');
           // Implementation will be provided by specialized agents
           // This is just a placeholder for the tool definition
-          return JSON.stringify({ 
+          return JSON.stringify({
             topics: [
               { name: 'Placeholder Topic 1' },
               { name: 'Placeholder Topic 2' },
-            ]
+            ],
           });
         } catch (error) {
           this.logger.error(`Error extracting topics: ${error.message}`);
@@ -70,11 +70,11 @@ export class ToolService {
           this.logger.debug('Extracting action items from transcript');
           // Implementation will be provided by specialized agents
           // This is just a placeholder for the tool definition
-          return JSON.stringify({ 
+          return JSON.stringify({
             actionItems: [
               { description: 'Placeholder Action 1', assignee: 'John Doe' },
               { description: 'Placeholder Action 2', assignee: 'Jane Smith' },
-            ]
+            ],
           });
         } catch (error) {
           this.logger.error(`Error extracting action items: ${error.message}`);
@@ -96,8 +96,8 @@ export class ToolService {
           this.logger.debug('Generating meeting summary');
           // Implementation will be provided by specialized agents
           // This is just a placeholder for the tool definition
-          return JSON.stringify({ 
-            summary: 'This is a placeholder summary of the meeting.'
+          return JSON.stringify({
+            summary: 'This is a placeholder summary of the meeting.',
           });
         } catch (error) {
           this.logger.error(`Error generating summary: ${error.message}`);
@@ -115,4 +115,4 @@ export class ToolService {
     this.registerTool(this.createActionItemTool());
     this.registerTool(this.createSummaryTool());
   }
-} 
+}

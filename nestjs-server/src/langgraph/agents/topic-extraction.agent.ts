@@ -13,12 +13,11 @@ export interface Topic {
 
 @Injectable()
 export class TopicExtractionAgent extends BaseAgent {
-  constructor(
-    protected readonly llmService: LlmService,
-  ) {
+  constructor(protected readonly llmService: LlmService) {
     const config: AgentConfig = {
       name: 'TopicExtractor',
-      systemPrompt: 'You are a specialized agent for extracting key topics from meeting transcripts. Identify main themes, discussions, and subject areas covered in the transcript.',
+      systemPrompt:
+        'You are a specialized agent for extracting key topics from meeting transcripts. Identify main themes, discussions, and subject areas covered in the transcript.',
       llmOptions: {
         temperature: 0.3,
         model: 'gpt-4o',
@@ -32,7 +31,7 @@ export class TopicExtractionAgent extends BaseAgent {
    */
   async extractTopics(transcript: string): Promise<Topic[]> {
     const model = this.getChatModel();
-    
+
     const prompt = `
     Extract the main topics discussed in this meeting transcript. 
     For each topic, include:
@@ -54,18 +53,21 @@ export class TopicExtractionAgent extends BaseAgent {
     ];
 
     const response = await model.invoke(messages);
-    
+
     try {
       // Extract JSON from the response
       const content = response.content.toString();
-      const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || 
-                        content.match(/```\n([\s\S]*?)\n```/) ||
-                        content.match(/(\[\s*\{[\s\S]*\}\s*\])/);
-      
+      const jsonMatch =
+        content.match(/```json\n([\s\S]*?)\n```/) ||
+        content.match(/```\n([\s\S]*?)\n```/) ||
+        content.match(/(\[\s*\{[\s\S]*\}\s*\])/);
+
       const jsonStr = jsonMatch ? jsonMatch[1] : content;
       return JSON.parse(jsonStr) as Topic[];
     } catch (error) {
-      this.logger.error(`Failed to parse topics from response: ${error.message}`);
+      this.logger.error(
+        `Failed to parse topics from response: ${error.message}`,
+      );
       return [];
     }
   }
@@ -75,17 +77,17 @@ export class TopicExtractionAgent extends BaseAgent {
    */
   async processState(state: any): Promise<any> {
     this.logger.debug('Processing state for topic extraction');
-    
+
     if (!state.transcript) {
       this.logger.warn('No transcript found in state');
       return state;
     }
-    
+
     const topics = await this.extractTopics(state.transcript);
-    
+
     return {
       ...state,
       topics,
     };
   }
-} 
+}

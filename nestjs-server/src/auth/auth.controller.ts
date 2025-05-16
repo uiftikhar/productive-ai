@@ -9,10 +9,9 @@ import {
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
-import { Request } from 'express';
 import { User } from './entities/user.entity';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-
+import { Request } from 'express';
 interface RequestWithUser extends Request {
   user: User;
 }
@@ -43,7 +42,10 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('refresh')
-  async refresh(@Req() req: RequestWithUser, @Body() body: { refreshToken: string }) {
+  async refresh(
+    @Req() req: RequestWithUser,
+    @Body() body: { refreshToken: string },
+  ) {
     return this.authService.refreshTokens(req.user.id, body.refreshToken);
   }
 
@@ -64,4 +66,4 @@ export class AuthController {
       isAdmin: req.user.isAdmin,
     };
   }
-} 
+}

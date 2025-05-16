@@ -11,8 +11,14 @@ export interface ParticipationAnalysis {
     key_contributions?: string[];
     interaction_patterns?: Array<{
       interacted_with: string;
-      interaction_type: 'agreement' | 'disagreement' | 'question' | 'answer' | 'support' | 'challenge';
-      frequency: number; 
+      interaction_type:
+        | 'agreement'
+        | 'disagreement'
+        | 'question'
+        | 'answer'
+        | 'support'
+        | 'challenge';
+      frequency: number;
     }>;
   }>;
   group_dynamics: {
@@ -35,12 +41,11 @@ export interface ParticipationAnalysis {
 
 @Injectable()
 export class ParticipationAgent extends BaseAgent {
-  constructor(
-    protected readonly llmService: LlmService,
-  ) {
+  constructor(protected readonly llmService: LlmService) {
     const config: AgentConfig = {
       name: 'ParticipationAgent',
-      systemPrompt: 'You are a specialized agent for analyzing participation patterns and group dynamics in meetings. Identify speaking patterns, interaction dynamics, engagement levels, and collaboration quality.',
+      systemPrompt:
+        'You are a specialized agent for analyzing participation patterns and group dynamics in meetings. Identify speaking patterns, interaction dynamics, engagement levels, and collaboration quality.',
       llmOptions: {
         temperature: 0.3,
         model: 'gpt-4o',
@@ -52,9 +57,12 @@ export class ParticipationAgent extends BaseAgent {
   /**
    * Analyze participation patterns in a transcript
    */
-  async analyzeParticipation(transcript: string, topics?: any[]): Promise<ParticipationAnalysis> {
+  async analyzeParticipation(
+    transcript: string,
+    topics?: any[],
+  ): Promise<ParticipationAnalysis> {
     const model = this.getChatModel();
-    
+
     let prompt = `
     Analyze the participation patterns and group dynamics in this meeting transcript.
     
@@ -80,18 +88,21 @@ export class ParticipationAgent extends BaseAgent {
     ];
 
     const response = await model.invoke(messages);
-    
+
     try {
       // Extract JSON from the response
       const content = response.content.toString();
-      const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || 
-                        content.match(/```\n([\s\S]*?)\n```/) ||
-                        content.match(/(\{[\s\S]*\})/);
-      
+      const jsonMatch =
+        content.match(/```json\n([\s\S]*?)\n```/) ||
+        content.match(/```\n([\s\S]*?)\n```/) ||
+        content.match(/(\{[\s\S]*\})/);
+
       const jsonStr = jsonMatch ? jsonMatch[1] : content;
       return JSON.parse(jsonStr) as ParticipationAnalysis;
     } catch (error) {
-      this.logger.error(`Failed to parse participation analysis from response: ${error.message}`);
+      this.logger.error(
+        `Failed to parse participation analysis from response: ${error.message}`,
+      );
       return {
         participants: [],
         group_dynamics: {
@@ -107,20 +118,20 @@ export class ParticipationAgent extends BaseAgent {
    */
   async processState(state: any): Promise<any> {
     this.logger.debug('Processing state for participation analysis');
-    
+
     if (!state.transcript) {
       this.logger.warn('No transcript found in state');
       return state;
     }
-    
+
     const participation = await this.analyzeParticipation(
       state.transcript,
-      state.topics
+      state.topics,
     );
-    
+
     return {
       ...state,
       participation,
     };
   }
-} 
+}

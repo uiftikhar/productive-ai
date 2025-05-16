@@ -8,7 +8,10 @@ import { ActionItem } from '../action-item.agent';
 import { SentimentAnalysis } from '../sentiment-analysis.agent';
 import { ParticipationAnalysis } from '../participation.agent';
 import { MeetingSummary } from '../summary.agent';
-import { EnrichedContext, RetrievedContext } from '../context-integration.agent';
+import {
+  EnrichedContext,
+  RetrievedContext,
+} from '../context-integration.agent';
 
 export interface SupervisorDecision {
   next_action: string;
@@ -39,14 +42,15 @@ export interface AnalysisState {
 @Injectable()
 export class SupervisorAgent extends BaseAgent {
   protected readonly logger = new Logger(SupervisorAgent.name);
-  
+
   constructor(
     protected readonly llmService: LlmService,
     private readonly agentFactory: AgentFactory,
   ) {
     const config: AgentConfig = {
       name: 'SupervisorAgent',
-      systemPrompt: 'You are a supervisor agent that coordinates the analysis of meeting transcripts. You decide which specialized agents to call next and ensure a complete analysis. Your role is to manage the overall analysis process, handling errors and making decisions about the sequence of operations.',
+      systemPrompt:
+        'You are a supervisor agent that coordinates the analysis of meeting transcripts. You decide which specialized agents to call next and ensure a complete analysis. Your role is to manage the overall analysis process, handling errors and making decisions about the sequence of operations.',
       llmOptions: {
         temperature: 0.2,
         model: 'gpt-4o',
@@ -79,7 +83,7 @@ export class SupervisorAgent extends BaseAgent {
    */
   async determineNextStep(state: AnalysisState): Promise<SupervisorDecision> {
     const model = this.getChatModel();
-    
+
     const prompt = `
     You are coordinating the analysis of a meeting transcript. Given the current state of the analysis, determine the next step to take.
     
@@ -119,22 +123,28 @@ export class SupervisorAgent extends BaseAgent {
     ];
 
     const response = await model.invoke(messages);
-    
+
     try {
       // Extract JSON from the response
       const content = response.content.toString();
-      const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || 
-                        content.match(/```\n([\s\S]*?)\n```/) ||
-                        content.match(/(\{[\s\S]*\})/);
-      
+      const jsonMatch =
+        content.match(/```json\n([\s\S]*?)\n```/) ||
+        content.match(/```\n([\s\S]*?)\n```/) ||
+        content.match(/(\{[\s\S]*\})/);
+
       const jsonStr = jsonMatch ? jsonMatch[1] : content;
       return JSON.parse(jsonStr) as SupervisorDecision;
     } catch (error) {
-      this.logger.error(`Failed to parse supervisor decision from response: ${error.message}`);
-      
+      this.logger.error(
+        `Failed to parse supervisor decision from response: ${error.message}`,
+      );
+
       // Default decision if parsing fails
       return {
-        next_action: state.remaining_steps.length > 0 ? state.remaining_steps[0] : 'complete',
+        next_action:
+          state.remaining_steps.length > 0
+            ? state.remaining_steps[0]
+            : 'complete',
         reason: 'Fallback decision due to parsing error',
         priority: 'medium',
       };
@@ -144,16 +154,19 @@ export class SupervisorAgent extends BaseAgent {
   /**
    * Execute a specific analysis step
    */
-  async executeStep(step: string, state: AnalysisState): Promise<AnalysisState> {
+  async executeStep(
+    step: string,
+    state: AnalysisState,
+  ): Promise<AnalysisState> {
     this.logger.debug(`Executing step: ${step}`);
-    
+
     // Update state to mark step as in progress
     const updatedState = {
       ...state,
       in_progress_steps: [...state.in_progress_steps, step],
-      remaining_steps: state.remaining_steps.filter(s => s !== step),
+      remaining_steps: state.remaining_steps.filter((s) => s !== step),
     };
-    
+
     try {
       // Execute the appropriate step
       switch (step) {
@@ -164,100 +177,120 @@ export class SupervisorAgent extends BaseAgent {
             ...updatedState,
             topics: topicResult,
             completed_steps: [...updatedState.completed_steps, step],
-            in_progress_steps: updatedState.in_progress_steps.filter(s => s !== step),
+            in_progress_steps: updatedState.in_progress_steps.filter(
+              (s) => s !== step,
+            ),
           };
-          
+
         case 'action_item_extraction':
           const actionItemAgent = this.agentFactory.getActionItemAgent();
-          const actionItems = await actionItemAgent.extractActionItems(state.transcript);
+          const actionItems = await actionItemAgent.extractActionItems(
+            state.transcript,
+          );
           return {
             ...updatedState,
             actionItems,
             completed_steps: [...updatedState.completed_steps, step],
-            in_progress_steps: updatedState.in_progress_steps.filter(s => s !== step),
+            in_progress_steps: updatedState.in_progress_steps.filter(
+              (s) => s !== step,
+            ),
           };
-          
+
         case 'sentiment_analysis':
           const sentimentAgent = this.agentFactory.getSentimentAnalysisAgent();
-          const sentiment = await sentimentAgent.analyzeSentiment(state.transcript);
+          const sentiment = await sentimentAgent.analyzeSentiment(
+            state.transcript,
+          );
           return {
             ...updatedState,
             sentiment,
             completed_steps: [...updatedState.completed_steps, step],
-            in_progress_steps: updatedState.in_progress_steps.filter(s => s !== step),
+            in_progress_steps: updatedState.in_progress_steps.filter(
+              (s) => s !== step,
+            ),
           };
-          
+
         case 'participation_analysis':
           const participationAgent = this.agentFactory.getParticipationAgent();
           const participation = await participationAgent.analyzeParticipation(
-            state.transcript, 
-            state.topics
+            state.transcript,
+            state.topics,
           );
           return {
             ...updatedState,
             participation,
             completed_steps: [...updatedState.completed_steps, step],
-            in_progress_steps: updatedState.in_progress_steps.filter(s => s !== step),
+            in_progress_steps: updatedState.in_progress_steps.filter(
+              (s) => s !== step,
+            ),
           };
-          
+
         case 'context_integration':
           if (!state.retrievedContext) {
             // Skip if no retrieved context available
             return {
               ...updatedState,
               completed_steps: [...updatedState.completed_steps, step],
-              in_progress_steps: updatedState.in_progress_steps.filter(s => s !== step),
+              in_progress_steps: updatedState.in_progress_steps.filter(
+                (s) => s !== step,
+              ),
               errors: [
-                ...(updatedState.errors || []), 
+                ...(updatedState.errors || []),
                 {
                   step,
                   error: 'No retrieved context available for integration',
                   timestamp: new Date().toISOString(),
-                }
+                },
               ],
             };
           }
-          
+
           const contextAgent = this.agentFactory.getContextIntegrationAgent();
           const enrichedContext = await contextAgent.integrateContext(
             state.transcript,
             state.topics || [],
-            state.retrievedContext
+            state.retrievedContext,
           );
           return {
             ...updatedState,
             enrichedContext,
             completed_steps: [...updatedState.completed_steps, step],
-            in_progress_steps: updatedState.in_progress_steps.filter(s => s !== step),
+            in_progress_steps: updatedState.in_progress_steps.filter(
+              (s) => s !== step,
+            ),
           };
-          
+
         case 'summary_generation':
           const summaryAgent = this.agentFactory.getSummaryAgent();
           const summary = await summaryAgent.generateSummary(
             state.transcript,
             state.topics,
             state.actionItems,
-            state.sentiment
+            state.sentiment,
           );
           return {
             ...updatedState,
             summary,
             completed_steps: [...updatedState.completed_steps, step],
-            in_progress_steps: updatedState.in_progress_steps.filter(s => s !== step),
+            in_progress_steps: updatedState.in_progress_steps.filter(
+              (s) => s !== step,
+            ),
           };
-          
+
         default:
           this.logger.warn(`Unknown step: ${step}`);
           return {
             ...updatedState,
-            in_progress_steps: updatedState.in_progress_steps.filter(s => s !== step),
+            in_progress_steps: updatedState.in_progress_steps.filter(
+              (s) => s !== step,
+            ),
             errors: [
               ...(updatedState.errors || []),
               {
                 step,
                 error: `Unknown analysis step: ${step}`,
                 timestamp: new Date().toISOString(),
-              }
+              },
             ],
           };
       }
@@ -265,14 +298,16 @@ export class SupervisorAgent extends BaseAgent {
       this.logger.error(`Error executing step ${step}: ${error.message}`);
       return {
         ...updatedState,
-        in_progress_steps: updatedState.in_progress_steps.filter(s => s !== step),
+        in_progress_steps: updatedState.in_progress_steps.filter(
+          (s) => s !== step,
+        ),
         errors: [
           ...(updatedState.errors || []),
           {
             step,
             error: error.message,
             timestamp: new Date().toISOString(),
-          }
+          },
         ],
       };
     }
@@ -281,34 +316,39 @@ export class SupervisorAgent extends BaseAgent {
   /**
    * Run a complete analysis process on a transcript
    */
-  async runAnalysis(transcript: string, retrievedContext?: RetrievedContext[]): Promise<AnalysisState> {
+  async runAnalysis(
+    transcript: string,
+    retrievedContext?: RetrievedContext[],
+  ): Promise<AnalysisState> {
     // Initialize analysis state
     let state = this.initializeState(transcript);
-    
+
     // Add retrieved context if available
     if (retrievedContext) {
       state.retrievedContext = retrievedContext;
     }
-    
+
     // Continue until all steps are completed or an error occurs
     while (state.remaining_steps.length > 0) {
       // Determine next step
       const decision = await this.determineNextStep(state);
-      
+
       // Check if analysis is complete
       if (decision.next_action === 'complete') {
         break;
       }
-      
+
       // Execute the next step
       state = await this.executeStep(decision.next_action, state);
-      
+
       // If there are errors, log them
       if (state.errors && state.errors.length > 0) {
-        this.logger.warn(`Errors encountered during analysis: ${JSON.stringify(state.errors)}`);
+        this.logger.warn(
+          `Errors encountered during analysis: ${JSON.stringify(state.errors)}`,
+        );
       }
     }
-    
+
     return state;
   }
-} 
+}

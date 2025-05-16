@@ -36,28 +36,22 @@ export class StateStorageService {
   /**
    * Load a state checkpoint from disk
    */
-  async loadState(
-    sessionId: string,
-    checkpointId: string,
-  ): Promise<unknown> {
+  async loadState(sessionId: string, checkpointId: string): Promise<unknown> {
     const checkpointPath = this.getCheckpointPath(sessionId, checkpointId);
-    
+
     if (await this.storageService.fileExists(checkpointPath)) {
       const data = await this.storageService.readFile(checkpointPath);
       const checkpoint = JSON.parse(data.toString()) as StateCheckpoint;
       return checkpoint.state;
     }
-    
+
     return null;
   }
 
   /**
    * Delete a state checkpoint from disk
    */
-  async deleteState(
-    sessionId: string,
-    checkpointId: string,
-  ): Promise<void> {
+  async deleteState(sessionId: string, checkpointId: string): Promise<void> {
     const checkpointPath = this.getCheckpointPath(sessionId, checkpointId);
     await this.storageService.deleteFile(checkpointPath);
   }
@@ -70,12 +64,12 @@ export class StateStorageService {
       this.storageService.getSessionsPath(),
       sessionId,
     );
-    
+
     try {
       const files = await this.storageService.listFiles(sessionDir);
       return files
-        .filter(file => file.endsWith('.json'))
-        .map(file => path.basename(file, '.json'));
+        .filter((file) => file.endsWith('.json'))
+        .map((file) => path.basename(file, '.json'));
     } catch (error) {
       return [];
     }
@@ -91,4 +85,4 @@ export class StateStorageService {
       `${checkpointId}.json`,
     );
   }
-} 
+}

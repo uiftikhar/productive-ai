@@ -12,4 +12,4 @@ export class ToolModule implements OnModuleInit {
     // Initialize default tools when the module starts
     this.toolService.initializeDefaultTools();
   }
-} 
+}

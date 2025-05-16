@@ -20,7 +20,7 @@ export interface Team {
 @Injectable()
 export class TeamFormationService {
   private readonly logger = new Logger(TeamFormationService.name);
-  
+
   constructor(
     private readonly agentFactory: AgentFactory,
     private readonly supervisorAgent: SupervisorAgent,
@@ -31,14 +31,14 @@ export class TeamFormationService {
    */
   formTeam(config: TeamConfig): Team {
     this.logger.debug(`Forming team: ${config.name}`);
-    
+
     const members: BaseAgent[] = [];
-    
+
     // Add requested agent types to the team
     for (const member of config.members) {
       try {
         let agent: BaseAgent;
-        
+
         switch (member) {
           case 'topic_extraction':
             agent = this.agentFactory.getTopicExtractionAgent();
@@ -62,27 +62,29 @@ export class TeamFormationService {
             this.logger.warn(`Unknown agent type: ${member}`);
             continue;
         }
-        
+
         members.push(agent);
         this.logger.debug(`Added ${member} agent to team ${config.name}`);
       } catch (error) {
-        this.logger.error(`Failed to add agent ${member} to team: ${error.message}`);
+        this.logger.error(
+          `Failed to add agent ${member} to team: ${error.message}`,
+        );
       }
     }
-    
+
     // Create the team
     const team: Team = {
       name: config.name,
       description: config.description,
       members,
     };
-    
+
     // Add supervisor if enabled
     if (config.supervisorEnabled) {
       team.supervisor = this.supervisorAgent;
       this.logger.debug(`Added supervisor to team ${config.name}`);
     }
-    
+
     return team;
   }
 
@@ -99,7 +101,7 @@ export class TeamFormationService {
         'sentiment_analysis',
         'participation',
         'context_integration',
-        'summary'
+        'summary',
       ],
       supervisorEnabled: true,
     });
@@ -112,11 +114,7 @@ export class TeamFormationService {
     return this.formTeam({
       name: 'Quick Analysis Team',
       description: 'A minimal team for quick meeting analysis',
-      members: [
-        'topic_extraction',
-        'action_item',
-        'summary'
-      ],
+      members: ['topic_extraction', 'action_item', 'summary'],
       supervisorEnabled: true,
     });
   }
@@ -131,10 +129,10 @@ export class TeamFormationService {
       members: ['topic_extraction'],
       supervisorEnabled: true,
     };
-    
+
     return this.formTeam({
       ...defaultConfig,
       ...config,
     });
   }
-} 
+}

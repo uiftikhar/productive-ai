@@ -35,12 +35,11 @@ export interface EnrichedContext {
 
 @Injectable()
 export class ContextIntegrationAgent extends BaseAgent {
-  constructor(
-    protected readonly llmService: LlmService,
-  ) {
+  constructor(protected readonly llmService: LlmService) {
     const config: AgentConfig = {
       name: 'ContextIntegrationAgent',
-      systemPrompt: 'You are a specialized agent for integrating external context into meeting analysis. Connect current discussions with historical information, domain knowledge, and past meetings to provide deeper insights.',
+      systemPrompt:
+        'You are a specialized agent for integrating external context into meeting analysis. Connect current discussions with historical information, domain knowledge, and past meetings to provide deeper insights.',
       llmOptions: {
         temperature: 0.3,
         model: 'gpt-4o',
@@ -53,12 +52,12 @@ export class ContextIntegrationAgent extends BaseAgent {
    * Integrate retrieved context with the current meeting state
    */
   async integrateContext(
-    transcript: string, 
-    topics: any[], 
-    retrievedContext: RetrievedContext[]
+    transcript: string,
+    topics: any[],
+    retrievedContext: RetrievedContext[],
   ): Promise<EnrichedContext> {
     const model = this.getChatModel();
-    
+
     const prompt = `
     You'll be given a meeting transcript, the topics extracted from it, and additional contextual information.
     
@@ -94,18 +93,21 @@ export class ContextIntegrationAgent extends BaseAgent {
     ];
 
     const response = await model.invoke(messages);
-    
+
     try {
       // Extract JSON from the response
       const content = response.content.toString();
-      const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || 
-                        content.match(/```\n([\s\S]*?)\n```/) ||
-                        content.match(/(\{[\s\S]*\})/);
-      
+      const jsonMatch =
+        content.match(/```json\n([\s\S]*?)\n```/) ||
+        content.match(/```\n([\s\S]*?)\n```/) ||
+        content.match(/(\{[\s\S]*\})/);
+
       const jsonStr = jsonMatch ? jsonMatch[1] : content;
       return JSON.parse(jsonStr) as EnrichedContext;
     } catch (error) {
-      this.logger.error(`Failed to parse context integration from response: ${error.message}`);
+      this.logger.error(
+        `Failed to parse context integration from response: ${error.message}`,
+      );
       return {
         original_topics: topics,
         enriched_topics: topics,
@@ -118,21 +120,21 @@ export class ContextIntegrationAgent extends BaseAgent {
    */
   async processState(state: any): Promise<any> {
     this.logger.debug('Processing state for context integration');
-    
+
     if (!state.transcript || !state.topics || !state.retrievedContext) {
       this.logger.warn('Missing required data for context integration');
       return state;
     }
-    
+
     const enrichedContext = await this.integrateContext(
       state.transcript,
       state.topics,
-      state.retrievedContext
+      state.retrievedContext,
     );
-    
+
     return {
       ...state,
       enrichedContext,
     };
   }
-} 
+}

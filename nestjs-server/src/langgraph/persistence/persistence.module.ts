@@ -7,4 +7,4 @@ import { StorageModule } from '../../storage/storage.module';
   providers: [StateStorageService],
   exports: [StateStorageService],
 })
-export class LangGraphPersistenceModule {} 
+export class LangGraphPersistenceModule {}

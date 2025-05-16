@@ -87,7 +87,11 @@ export class StateService {
   /**
    * Save state checkpoint
    */
-  async saveState(sessionId: string, checkpointId: string, state: any): Promise<void> {
+  async saveState(
+    sessionId: string,
+    checkpointId: string,
+    state: any,
+  ): Promise<void> {
     try {
       await this.stateStorage.saveState(sessionId, checkpointId, state);
     } catch (error) {
@@ -115,7 +119,10 @@ export class StateService {
     try {
       await this.stateStorage.deleteState(sessionId, checkpointId);
     } catch (error) {
-      this.logger.error(`Failed to delete state: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to delete state: ${error.message}`,
+        error.stack,
+      );
       throw error;
     }
   }
@@ -127,8 +134,11 @@ export class StateService {
     try {
       return await this.stateStorage.listCheckpoints(sessionId);
     } catch (error) {
-      this.logger.error(`Failed to list checkpoints: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to list checkpoints: ${error.message}`,
+        error.stack,
+      );
       return [];
     }
   }
-} 
+}

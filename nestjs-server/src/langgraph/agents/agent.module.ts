@@ -29,4 +29,4 @@ import { ContextIntegrationAgent } from './context-integration.agent';
     ContextIntegrationAgent,
   ],
 })
-export class AgentModule {} 
+export class AgentModule {}

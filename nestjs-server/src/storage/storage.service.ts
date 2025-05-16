@@ -5,22 +5,43 @@ import * as path from 'path';
 
 @Injectable()
 export class StorageService {
+  private baseStoragePath: string;
+  private transcriptsPath: string;
+  private meetingsPath: string;
+  private teamsPath: string;
+  private resultsPath: string;
+  private sessionsPath: string;
+  private memoryPath: string;
+
   constructor(private readonly configService: ConfigService) {
+    // Initialize paths
+    this.initializePaths();
     // Ensure storage directories exist
     this.initializeStorageFolders();
   }
 
-  private async initializeStorageFolders(): Promise<void> {
-    const storageConfig = this.configService.get('storage');
+  private initializePaths(): void {
+    // Get base storage path from config
+    this.baseStoragePath = this.configService.get<string>('STORAGE_PATH') || './data/file-storage';
     
+    // Define all subdirectories
+    this.transcriptsPath = path.join(this.baseStoragePath, 'transcripts');
+    this.meetingsPath = path.join(this.baseStoragePath, 'meetings');
+    this.teamsPath = path.join(this.baseStoragePath, 'teams');
+    this.resultsPath = path.join(this.baseStoragePath, 'results');
+    this.sessionsPath = path.join(this.baseStoragePath, 'sessions');
+    this.memoryPath = path.join(this.baseStoragePath, 'memory');
+  }
+
+  private async initializeStorageFolders(): Promise<void> {
     // Create all required directories
-    await this.ensureDir(storageConfig.fileStoragePath);
-    await this.ensureDir(storageConfig.transcriptsPath);
-    await this.ensureDir(storageConfig.meetingsPath);
-    await this.ensureDir(storageConfig.teamsPath);
-    await this.ensureDir(storageConfig.resultsPath);
-    await this.ensureDir(storageConfig.sessionsPath);
-    await this.ensureDir(storageConfig.memoryPath);
+    await this.ensureDir(this.baseStoragePath);
+    await this.ensureDir(this.transcriptsPath);
+    await this.ensureDir(this.meetingsPath);
+    await this.ensureDir(this.teamsPath);
+    await this.ensureDir(this.resultsPath);
+    await this.ensureDir(this.sessionsPath);
+    await this.ensureDir(this.memoryPath);
   }
 
   private async ensureDir(dirPath: string): Promise<void> {
@@ -73,32 +94,26 @@ export class StorageService {
   }
 
   getTranscriptsPath(): string {
-    const path = this.configService.get<string>('storage.transcriptsPath');
-    return path || '';
+    return this.transcriptsPath;
   }
 
   getMeetingsPath(): string {
-    const path = this.configService.get<string>('storage.meetingsPath');
-    return path || '';
+    return this.meetingsPath;
   }
 
   getTeamsPath(): string {
-    const path = this.configService.get<string>('storage.teamsPath');
-    return path || '';
+    return this.teamsPath;
   }
 
   getResultsPath(): string {
-    const path = this.configService.get<string>('storage.resultsPath');
-    return path || '';
+    return this.resultsPath;
   }
 
   getSessionsPath(): string {
-    const path = this.configService.get<string>('storage.sessionsPath');
-    return path || '';
+    return this.sessionsPath;
   }
 
   getMemoryPath(): string {
-    const path = this.configService.get<string>('storage.memoryPath');
-    return path || '';
+    return this.memoryPath;
   }
-} 
+}

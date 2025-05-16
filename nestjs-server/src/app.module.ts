@@ -1,23 +1,31 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { ConfigModule } from './config/config.module';
+import { AuthModule } from './auth/auth.module';
 import { DatabaseModule } from './database/database.module';
 import { LoggingModule } from './logging/logging.module';
 import { StorageModule } from './storage/storage.module';
-import { AuthModule } from './auth/auth.module';
 import { LangGraphModule } from './langgraph/langgraph.module';
-import { MeetingAnalysisModule } from './langgraph/meeting-analysis/meeting-analysis.module';
+// import { PineconeModule } from './pinecone/pinecone.module';
+// import { EmbeddingModule } from './embedding/embedding.module';
+// import { RagModule } from './rag/rag.module';
+import { configValidationSchema } from './config/validation.schema';
 
 @Module({
   imports: [
-    ConfigModule,
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validationSchema: configValidationSchema,
+    }),
     LoggingModule,
     DatabaseModule,
-    StorageModule,
     AuthModule,
+    StorageModule,
     LangGraphModule,
-    MeetingAnalysisModule,
+    // PineconeModule,
+    // EmbeddingModule,
+    // RagModule,
   ],
   controllers: [AppController],
   providers: [AppService],

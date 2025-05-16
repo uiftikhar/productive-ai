@@ -4,15 +4,8 @@ import { AgentModule } from '../agent.module';
 import { SupervisorAgent } from './supervisor.agent';
 
 @Module({
-  imports: [
-    LlmModule,
-    AgentModule,
-  ],
-  providers: [
-    SupervisorAgent,
-  ],
-  exports: [
-    SupervisorAgent,
-  ],
+  imports: [LlmModule, AgentModule],
+  providers: [SupervisorAgent],
+  exports: [SupervisorAgent],
 })
-export class SupervisorModule {} 
+export class SupervisorModule {}

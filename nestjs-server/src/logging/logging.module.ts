@@ -5,17 +5,18 @@ import { LoggerModule } from 'nestjs-pino';
   imports: [
     LoggerModule.forRoot({
       pinoHttp: {
-        transport: process.env.NODE_ENV !== 'production' 
-          ? {
-              target: 'pino-pretty',
-              options: {
-                singleLine: true,
-                colorize: true,
-                levelFirst: true,
-                translateTime: 'SYS:standard',
-              },
-            }
-          : undefined,
+        transport:
+          process.env.NODE_ENV !== 'production'
+            ? {
+                target: 'pino-pretty',
+                options: {
+                  singleLine: true,
+                  colorize: true,
+                  levelFirst: true,
+                  translateTime: 'SYS:standard',
+                },
+              }
+            : undefined,
         level: process.env.LOG_LEVEL || 'info',
         autoLogging: process.env.NODE_ENV !== 'test',
         redact: {
@@ -34,4 +35,4 @@ import { LoggerModule } from 'nestjs-pino';
   ],
   exports: [LoggerModule],
 })
-export class LoggingModule {} 
+export class LoggingModule {}

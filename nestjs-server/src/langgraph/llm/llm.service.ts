@@ -22,10 +22,13 @@ export class LlmService {
   private readonly anthropicApiKey: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.defaultModel = this.configService.get<string>('llm.defaultModel') || 'gpt-4o';
-    this.defaultProvider = (this.configService.get<string>('llm.provider') || 'openai') as LLMProvider;
+    this.defaultModel =
+      this.configService.get<string>('llm.defaultModel') || 'gpt-4o';
+    this.defaultProvider = (this.configService.get<string>('llm.provider') ||
+      'openai') as LLMProvider;
     this.openaiApiKey = this.configService.get<string>('llm.apiKey') || '';
-    this.anthropicApiKey = this.configService.get<string>('llm.anthropicApiKey') || '';
+    this.anthropicApiKey =
+      this.configService.get<string>('llm.anthropicApiKey') || '';
   }
 
   /**
@@ -33,7 +36,7 @@ export class LlmService {
    */
   getChatModel(options: LLMOptions = {}): BaseChatModel {
     const provider = options.provider || this.defaultProvider;
-    
+
     switch (provider) {
       case 'openai':
         return this.getOpenAIModel(options);
@@ -42,7 +45,9 @@ export class LlmService {
         // TODO CHeck if this type asserion is necessary or should strong ttype the getAnthropicmodel properly
         return this.getAnthropicModel(options) as unknown as BaseChatModel;
       default:
-        this.logger.warn(`Unknown provider: ${provider}, falling back to OpenAI`);
+        this.logger.warn(
+          `Unknown provider: ${provider}, falling back to OpenAI`,
+        );
         return this.getOpenAIModel(options);
     }
   }
@@ -54,7 +59,7 @@ export class LlmService {
     if (!this.openaiApiKey) {
       throw new Error('OpenAI API key is not configured');
     }
-    
+
     return new ChatOpenAI({
       openAIApiKey: this.openaiApiKey,
       modelName: options.model || this.defaultModel,
@@ -70,7 +75,7 @@ export class LlmService {
     if (!this.anthropicApiKey) {
       throw new Error('Anthropic API key is not configured');
     }
-    
+
     return new ChatAnthropic({
       anthropicApiKey: this.anthropicApiKey,
       modelName: options.model || 'claude-3-opus-20240229',
@@ -78,4 +83,4 @@ export class LlmService {
       maxTokens: options.maxTokens,
     });
   }
-} 
+}

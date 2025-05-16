@@ -19,12 +19,11 @@ export interface MeetingSummary {
 
 @Injectable()
 export class SummaryAgent extends BaseAgent {
-  constructor(
-    protected readonly llmService: LlmService,
-  ) {
+  constructor(protected readonly llmService: LlmService) {
     const config: AgentConfig = {
       name: 'SummaryAgent',
-      systemPrompt: 'You are a specialized agent for creating comprehensive yet concise summaries of meetings. Synthesize key discussions, decisions, action items, and insights from meeting transcripts.',
+      systemPrompt:
+        'You are a specialized agent for creating comprehensive yet concise summaries of meetings. Synthesize key discussions, decisions, action items, and insights from meeting transcripts.',
       llmOptions: {
         temperature: 0.4,
         model: 'gpt-4o',
@@ -37,13 +36,13 @@ export class SummaryAgent extends BaseAgent {
    * Generate a summary from a transcript and analysis data
    */
   async generateSummary(
-    transcript: string, 
-    topics?: any[], 
+    transcript: string,
+    topics?: any[],
     actionItems?: any[],
-    sentiment?: any
+    sentiment?: any,
   ): Promise<MeetingSummary> {
     const model = this.getChatModel();
-    
+
     let prompt = `
     Generate a comprehensive summary of this meeting.
     
@@ -66,11 +65,11 @@ export class SummaryAgent extends BaseAgent {
     if (topics && topics.length > 0) {
       prompt += `\nExtracted Topics:\n${JSON.stringify(topics, null, 2)}`;
     }
-    
+
     if (actionItems && actionItems.length > 0) {
       prompt += `\nAction Items:\n${JSON.stringify(actionItems, null, 2)}`;
     }
-    
+
     if (sentiment) {
       prompt += `\nSentiment Analysis:\n${JSON.stringify(sentiment, null, 2)}`;
     }
@@ -81,21 +80,25 @@ export class SummaryAgent extends BaseAgent {
     ];
 
     const response = await model.invoke(messages);
-    
+
     try {
       // Extract JSON from the response
       const content = response.content.toString();
-      const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || 
-                        content.match(/```\n([\s\S]*?)\n```/) ||
-                        content.match(/(\{[\s\S]*\})/);
-      
+      const jsonMatch =
+        content.match(/```json\n([\s\S]*?)\n```/) ||
+        content.match(/```\n([\s\S]*?)\n```/) ||
+        content.match(/(\{[\s\S]*\})/);
+
       const jsonStr = jsonMatch ? jsonMatch[1] : content;
       return JSON.parse(jsonStr) as MeetingSummary;
     } catch (error) {
-      this.logger.error(`Failed to parse summary from response: ${error.message}`);
+      this.logger.error(
+        `Failed to parse summary from response: ${error.message}`,
+      );
       return {
         title: 'Meeting Summary',
-        executive_summary: 'This is a placeholder summary due to parsing error.',
+        executive_summary:
+          'This is a placeholder summary due to parsing error.',
         key_points: ['Unable to parse summary details'],
         decisions: [],
         next_steps: [],
@@ -108,22 +111,22 @@ export class SummaryAgent extends BaseAgent {
    */
   async processState(state: any): Promise<any> {
     this.logger.debug('Processing state for summary generation');
-    
+
     if (!state.transcript) {
       this.logger.warn('No transcript found in state');
       return state;
     }
-    
+
     const summary = await this.generateSummary(
       state.transcript,
       state.topics,
       state.actionItems,
-      state.sentiment
+      state.sentiment,
     );
-    
+
     return {
       ...state,
       summary,
     };
   }
-} 
+}

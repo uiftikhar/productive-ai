@@ -24,12 +24,11 @@ export interface SentimentAnalysis {
 
 @Injectable()
 export class SentimentAnalysisAgent extends BaseAgent {
-  constructor(
-    protected readonly llmService: LlmService,
-  ) {
+  constructor(protected readonly llmService: LlmService) {
     const config: AgentConfig = {
       name: 'SentimentAnalyzer',
-      systemPrompt: 'You are a specialized agent for analyzing sentiment in meeting transcripts. Identify emotions, tone, and overall sentiment of participants throughout the discussion.',
+      systemPrompt:
+        'You are a specialized agent for analyzing sentiment in meeting transcripts. Identify emotions, tone, and overall sentiment of participants throughout the discussion.',
       llmOptions: {
         temperature: 0.3,
         model: 'gpt-4o',
@@ -43,7 +42,7 @@ export class SentimentAnalysisAgent extends BaseAgent {
    */
   async analyzeSentiment(transcript: string): Promise<SentimentAnalysis> {
     const model = this.getChatModel();
-    
+
     const prompt = `
     Analyze the sentiment in this meeting transcript.
     Please provide:
@@ -66,24 +65,27 @@ export class SentimentAnalysisAgent extends BaseAgent {
     ];
 
     const response = await model.invoke(messages);
-    
+
     try {
       // Extract JSON from the response
       const content = response.content.toString();
-      const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || 
-                        content.match(/```\n([\s\S]*?)\n```/) ||
-                        content.match(/(\{[\s\S]*\})/);
-      
+      const jsonMatch =
+        content.match(/```json\n([\s\S]*?)\n```/) ||
+        content.match(/```\n([\s\S]*?)\n```/) ||
+        content.match(/(\{[\s\S]*\})/);
+
       const jsonStr = jsonMatch ? jsonMatch[1] : content;
       return JSON.parse(jsonStr) as SentimentAnalysis;
     } catch (error) {
-      this.logger.error(`Failed to parse sentiment analysis from response: ${error.message}`);
+      this.logger.error(
+        `Failed to parse sentiment analysis from response: ${error.message}`,
+      );
       return {
         overall: 'neutral',
         score: 0,
         segments: [],
         keyEmotions: [],
-        toneShifts: []
+        toneShifts: [],
       };
     }
   }
@@ -93,17 +95,17 @@ export class SentimentAnalysisAgent extends BaseAgent {
    */
   async processState(state: any): Promise<any> {
     this.logger.debug('Processing state for sentiment analysis');
-    
+
     if (!state.transcript) {
       this.logger.warn('No transcript found in state');
       return state;
     }
-    
+
     const sentiment = await this.analyzeSentiment(state.transcript);
-    
+
     return {
       ...state,
       sentiment,
     };
   }
-} 
+}
