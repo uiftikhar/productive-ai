@@ -8,10 +8,10 @@ import { LoggingModule } from './logging/logging.module';
 import { StorageModule } from './storage/storage.module';
 import { LangGraphModule } from './langgraph/langgraph.module';
 import { PineconeModule } from './pinecone/pinecone.module';
-// import { EmbeddingModule } from './embedding/embedding.module';
+import { EmbeddingModule } from './embedding/embedding.module';
 // import { RagModule } from './rag/rag.module';
 import { configValidationSchema } from './config/validation.schema';
-
+import { LlmService } from './langgraph/llm/llm.service';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -24,10 +24,10 @@ import { configValidationSchema } from './config/validation.schema';
     StorageModule,
     LangGraphModule,
     PineconeModule,
-    // EmbeddingModule,
+    EmbeddingModule,
     // RagModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, LlmService],
 })
 export class AppModule {}
