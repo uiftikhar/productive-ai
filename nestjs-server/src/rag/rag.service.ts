@@ -1,9 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { RetrievalService, RetrievedDocument, RetrievalOptions } from './retrieval.service';
 import { EmbeddingService } from '../embedding/embedding.service';
 import { LlmService } from '../langgraph/llm/llm.service';
 import { VectorIndexes } from '../pinecone/pinecone-index.service';
 import { StateService } from '../langgraph/state/state.service';
+import { IRagService } from './interfaces/rag-service.interface';
+import { IRetrievalService } from './interfaces/retrieval-service.interface';
+import { RETRIEVAL_SERVICE, RAG_SERVICE } from './constants/injection-tokens';
+import { EMBEDDING_SERVICE } from '../embedding/constants/injection-tokens';
+import { LLM_SERVICE } from '../langgraph/llm/constants/injection-tokens';
+import { STATE_SERVICE } from '../langgraph/state/constants/injection-tokens';
 
 export interface RagOptions {
   retrievalOptions?: RetrievalOptions;
@@ -25,14 +31,14 @@ export interface RetrievedContext {
  * RAG Service for enhancing LLM interactions with retrieved context
  */
 @Injectable()
-export class RagService {
+export class RagService implements IRagService {
   private readonly logger = new Logger(RagService.name);
 
   constructor(
-    private readonly retrievalService: RetrievalService,
-    private readonly embeddingService: EmbeddingService,
-    private readonly llmService: LlmService,
-    private readonly stateService: StateService,
+    @Inject(RETRIEVAL_SERVICE) private readonly retrievalService: IRetrievalService,
+    @Inject(EMBEDDING_SERVICE) private readonly embeddingService: EmbeddingService,
+    @Inject(LLM_SERVICE) private readonly llmService: LlmService,
+    @Inject(STATE_SERVICE) private readonly stateService: StateService,
   ) {}
 
   /**
@@ -106,7 +112,7 @@ export class RagService {
             const embedding = await this.embeddingService.generateEmbedding(chunk);
             
             // Store in Pinecone
-            await this.retrievalService['pineconeService'].storeVector(
+            await this.storeVectorInPinecone(
               indexName,
               chunkId,
               embedding,
@@ -254,5 +260,25 @@ export class RagService {
         break;
       }
     }
+  }
+
+  /**
+   * Helper method to store a vector in Pinecone
+   * This is needed because the RetrievalService doesn't expose this directly
+   */
+  private async storeVectorInPinecone(
+    indexName: string,
+    id: string,
+    vector: number[],
+    metadata: Record<string, any>,
+    namespace?: string
+  ): Promise<void> {
+    // Use the injected services directly
+    const pineconeService = Reflect.get(this.embeddingService, 'pineconeService');
+    if (!pineconeService) {
+      throw new Error('Cannot access pineconeService. Service structure may have changed.');
+    }
+    
+    return pineconeService.storeVector(indexName, id, vector, metadata, namespace);
   }
 } 

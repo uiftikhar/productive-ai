@@ -8,6 +8,7 @@ import { StateModule } from '../langgraph/state/state.module';
 import { AdaptiveRagService } from './adaptive-rag.service';
 import { RetrievalService } from './retrieval.service';
 import { RagService } from './rag.service';
+import { RAG_SERVICE, RETRIEVAL_SERVICE, ADAPTIVE_RAG_SERVICE } from './constants/injection-tokens';
 
 @Module({
   imports: [
@@ -22,14 +23,33 @@ import { RagService } from './rag.service';
     }),
   ],
   providers: [
-    RagService,
+    // Service implementations
     RetrievalService,
+    RagService,
     AdaptiveRagService,
+    
+    // Token-based providers for dependency injection
+    {
+      provide: RETRIEVAL_SERVICE,
+      useExisting: RetrievalService
+    },
+    {
+      provide: RAG_SERVICE,
+      useExisting: RagService
+    },
+    {
+      provide: ADAPTIVE_RAG_SERVICE,
+      useExisting: AdaptiveRagService
+    }
   ],
   exports: [
-    RagService,
+    // Export both concrete implementations and tokens
     RetrievalService,
+    RagService,
     AdaptiveRagService,
+    RETRIEVAL_SERVICE,
+    RAG_SERVICE,
+    ADAPTIVE_RAG_SERVICE,
   ],
 })
 export class RagModule {} 

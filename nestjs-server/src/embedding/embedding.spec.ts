@@ -2,17 +2,20 @@
 import { server } from '../test/mocks/server';
 import { http, HttpResponse } from 'msw';
 
-import { Test } from '@nestjs/testing';
+import { Test, TestingModule } from '@nestjs/testing';
 import { EmbeddingService, EmbeddingModel } from './embedding.service';
 import { ConfigService } from '@nestjs/config';
 import { LlmService } from '../langgraph/llm/llm.service';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { EMBEDDING_SERVICE } from './constants/injection-tokens';
+import { LLM_SERVICE } from '../langgraph/llm/constants/injection-tokens';
 
 describe('EmbeddingService', () => {
   let embeddingService: EmbeddingService;
   let mockConfigService: any;
   let mockCacheManager: any;
   let mockLlmService: any;
+  let moduleRef: TestingModule;
 
   beforeEach(async () => {
     // Create mocks
@@ -51,10 +54,19 @@ describe('EmbeddingService', () => {
       generateAnthropicEmbedding: jest.fn().mockResolvedValue(Array(1536).fill(0.1)),
     };
 
-    // Create the test module
-    const moduleRef = await Test.createTestingModule({
+    // Create the test module with token-based injection
+    moduleRef = await Test.createTestingModule({
       providers: [
+        // Concrete implementation
         EmbeddingService,
+        
+        // Token provider
+        {
+          provide: EMBEDDING_SERVICE,
+          useClass: EmbeddingService,
+        },
+        
+        // Mock dependencies
         {
           provide: ConfigService,
           useValue: mockConfigService,
@@ -64,13 +76,22 @@ describe('EmbeddingService', () => {
           useValue: mockCacheManager,
         },
         {
+          provide: LLM_SERVICE,
+          useValue: mockLlmService,
+        },
+        {
           provide: LlmService,
           useValue: mockLlmService,
         },
       ],
     }).compile();
 
-    embeddingService = moduleRef.get<EmbeddingService>(EmbeddingService);
+    // Get service through the token
+    embeddingService = moduleRef.get<EmbeddingService>(EMBEDDING_SERVICE);
+  });
+
+  afterEach(async () => {
+    await moduleRef.close();
   });
 
   describe('generateEmbedding', () => {

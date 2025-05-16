@@ -1,11 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { PineconeService } from '../pinecone/pinecone.service';
 import { EmbeddingService } from '../embedding/embedding.service';
 import { VectorIndexes } from '../pinecone/pinecone-index.service';
-import { Inject } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import * as crypto from 'crypto';
+import { IRetrievalService } from './interfaces/retrieval-service.interface';
+import { RETRIEVAL_SERVICE } from './constants/injection-tokens';
+import { PINECONE_SERVICE } from '../pinecone/constants/injection-tokens';
+import { EMBEDDING_SERVICE } from '../embedding/constants/injection-tokens';
 
 export interface RetrievedDocument {
   id: string;
@@ -24,12 +27,12 @@ export interface RetrievalOptions {
 }
 
 @Injectable()
-export class RetrievalService {
+export class RetrievalService implements IRetrievalService {
   private readonly logger = new Logger(RetrievalService.name);
 
   constructor(
-    private readonly pineconeService: PineconeService,
-    private readonly embeddingService: EmbeddingService,
+    @Inject(PINECONE_SERVICE) private readonly pineconeService: PineconeService,
+    @Inject(EMBEDDING_SERVICE) private readonly embeddingService: EmbeddingService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
@@ -166,7 +169,7 @@ export class RetrievalService {
   /**
    * Simple keyword search (placeholder - would typically use a search engine like Elasticsearch)
    */
-  private async keywordSearch(
+  public async keywordSearch(
     query: string,
     options: RetrievalOptions = {},
   ): Promise<RetrievedDocument[]> {

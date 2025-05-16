@@ -1,10 +1,23 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { RagService, RetrievedContext } from './rag.service';
-import { RetrievalService } from './retrieval.service';
+import { RetrievalService, RetrievedDocument } from './retrieval.service';
 import { AdaptiveRagService } from './adaptive-rag.service';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { http, HttpResponse } from 'msw';
+import { server } from '../test/mocks/server';
 import { Logger } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { 
+  IRetrievalService, 
+  IRagService, 
+  IAdaptiveRagService,
+  RETRIEVAL_SERVICE,
+  RAG_SERVICE,
+  ADAPTIVE_RAG_SERVICE
+} from './index';
+import { EMBEDDING_SERVICE } from '../embedding/constants/injection-tokens';
+import { LLM_SERVICE } from '../langgraph/llm/constants/injection-tokens';
+import { STATE_SERVICE } from '../langgraph/state/constants/injection-tokens';
+import { PINECONE_SERVICE } from '../pinecone/constants/injection-tokens';
 
 // Define the state interface with retrieved context
 interface TranscriptState {
@@ -12,146 +25,197 @@ interface TranscriptState {
   retrievedContext?: RetrievedContext;
 }
 
-describe('RAG Services', () => {
-  let ragService: RagService;
-  let retrievalService: RetrievalService;
-  let adaptiveRagService: AdaptiveRagService;
+describe('RAG Services Integration', () => {
+  let ragService: IRagService;
+  let retrievalService: IRetrievalService;
+  let adaptiveRagService: IAdaptiveRagService;
   let moduleRef: TestingModule;
 
-  // Mock services
-  const mockEmbeddingService = {
-    generateEmbedding: jest.fn().mockResolvedValue([0.1, 0.2, 0.3]),
-    chunkText: jest.fn().mockReturnValue(['chunk1', 'chunk2']),
-  };
-
-  const mockPineconeService = {
-    storeVector: jest.fn().mockResolvedValue(undefined),
-    querySimilar: jest.fn().mockResolvedValue([
-      {
-        id: 'test-doc-1',
-        score: 0.95,
-        metadata: { content: 'This is a test document content for the product roadmap' },
-      },
-    ]),
-  };
-
-  const mockLlmService = {
-    getChatModel: jest.fn().mockReturnValue({
-      invoke: jest.fn().mockResolvedValue({
-        content: '{"strategy": "hybrid", "topK": 5, "minScore": 0.8}',
-      }),
-    }),
+  // Create mock services
+  const mockCacheManager = {
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue(undefined),
   };
 
   const mockStateService = {
     createStateGraph: jest.fn(),
   };
 
-  const mockCacheManager = {
-    get: jest.fn().mockResolvedValue(null),
-    set: jest.fn().mockResolvedValue(undefined),
+  const mockEmbeddingService = {
+    generateEmbedding: jest.fn().mockResolvedValue(Array(1536).fill(0.1)),
+    chunkText: jest.fn().mockReturnValue(['chunk1', 'chunk2']),
+  };
+
+  const mockPineconeService = {
+    querySimilar: jest.fn().mockResolvedValue([
+      {
+        id: 'test-doc-1',
+        score: 0.95,
+        metadata: { 
+          content: 'This is a test document content for the product roadmap',
+          document_id: 'doc-123'
+        },
+      },
+      {
+        id: 'test-doc-2',
+        score: 0.85,
+        metadata: { 
+          content: 'The product roadmap includes several key features planned for Q3',
+          document_id: 'doc-456'
+        },
+      }
+    ]),
+    storeVector: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const mockLlmService = {
+    getChatModel: jest.fn().mockReturnValue({
+      invoke: jest.fn().mockResolvedValue({
+        content: '```json\n{"strategy": "hybrid", "topK": 5, "minScore": 0.8}\n```'
+      })
+    })
   };
 
   beforeAll(async () => {
-    // Create testing module with mocks
+    // Setup MSW handlers for external API calls
+    server.use(
+      // Mock OpenAI Embeddings API
+      http.post('https://api.openai.com/v1/embeddings', async () => {
+        return HttpResponse.json({
+          data: [
+            {
+              embedding: Array(1536).fill(0.1),
+              index: 0,
+              object: 'embedding'
+            }
+          ],
+          model: 'text-embedding-3-large',
+          object: 'list',
+          usage: {
+            prompt_tokens: 10,
+            total_tokens: 10
+          }
+        });
+      }),
+      
+      // Mock Pinecone query API
+      http.post('*/query', async () => {
+        return HttpResponse.json({
+          matches: [
+            {
+              id: 'test-doc-1',
+              score: 0.95,
+              metadata: {
+                content: 'This is a test document content for the product roadmap',
+                document_id: 'doc-123',
+                chunk_index: 0,
+                chunk_count: 2
+              }
+            },
+            {
+              id: 'test-doc-2',
+              score: 0.85,
+              metadata: {
+                content: 'The product roadmap includes several key features planned for Q3',
+                document_id: 'doc-456',
+                chunk_index: 1,
+                chunk_count: 3
+              }
+            }
+          ],
+          namespace: 'documents'
+        });
+      }),
+      
+      // Mock Pinecone upsert API
+      http.post('*/vectors/upsert', async () => {
+        return HttpResponse.json({
+          upsertedCount: 1
+        });
+      }),
+
+      // Mock chat completion API response for strategy determination
+      http.post('https://api.openai.com/v1/chat/completions', async () => {
+        return HttpResponse.json({
+          id: 'chatcmpl-mock-123',
+          object: 'chat.completion',
+          created: Date.now(),
+          model: 'gpt-4o',
+          choices: [
+            {
+              index: 0,
+              message: {
+                role: 'assistant',
+                content: '```json\n{"strategy": "hybrid", "topK": 5, "minScore": 0.8}\n```'
+              },
+              finish_reason: 'stop'
+            }
+          ],
+          usage: {
+            prompt_tokens: 20,
+            completion_tokens: 10,
+            total_tokens: 30
+          }
+        });
+      })
+    );
+
+    // Create testing module using NestJS testing utilities
     moduleRef = await Test.createTestingModule({
-      imports: [ConfigModule.forRoot()],
       providers: [
-        RagService,
+        // Concrete service implementations
         RetrievalService,
+        RagService,
         AdaptiveRagService,
+        
+        // Token-based providers
         {
-          provide: 'EmbeddingService',
-          useValue: mockEmbeddingService,
+          provide: RETRIEVAL_SERVICE,
+          useClass: RetrievalService,
         },
         {
-          provide: 'PineconeService',
-          useValue: mockPineconeService,
+          provide: RAG_SERVICE,
+          useClass: RagService,
         },
         {
-          provide: 'LlmService',
-          useValue: mockLlmService,
+          provide: ADAPTIVE_RAG_SERVICE,
+          useClass: AdaptiveRagService,
         },
-        {
-          provide: 'StateService',
-          useValue: mockStateService,
-        },
+        
+        // Mock dependencies
         {
           provide: CACHE_MANAGER,
           useValue: mockCacheManager,
         },
         {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn((key) => {
-              if (key === 'PINECONE_INDEX') return 'test-index';
-              return 'mock-value';
-            }),
-          },
+          provide: EMBEDDING_SERVICE,
+          useValue: mockEmbeddingService,
+        },
+        {
+          provide: PINECONE_SERVICE,
+          useValue: mockPineconeService,
+        },
+        {
+          provide: LLM_SERVICE,
+          useValue: mockLlmService,
+        },
+        {
+          provide: STATE_SERVICE,
+          useValue: mockStateService,
         },
       ],
-    })
-      .overrideProvider(RetrievalService)
-      .useFactory({
-        factory: () => {
-          return new RetrievalService(
-            mockPineconeService as any,
-            mockEmbeddingService as any,
-            mockCacheManager as any,
-          );
-        },
-      })
-      .overrideProvider(RagService)
-      .useFactory({
-        factory: () => {
-          return new RagService(
-            new RetrievalService(
-              mockPineconeService as any, 
-              mockEmbeddingService as any, 
-              mockCacheManager as any
-            ),
-            mockEmbeddingService as any,
-            mockLlmService as any,
-            mockStateService as any,
-          );
-        },
-      })
-      .overrideProvider(AdaptiveRagService)
-      .useFactory({
-        factory: () => {
-          return new AdaptiveRagService(
-            new RagService(
-              new RetrievalService(
-                mockPineconeService as any, 
-                mockEmbeddingService as any, 
-                mockCacheManager as any
-              ),
-              mockEmbeddingService as any,
-              mockLlmService as any,
-              mockStateService as any,
-            ),
-            new RetrievalService(
-              mockPineconeService as any, 
-              mockEmbeddingService as any, 
-              mockCacheManager as any
-            ),
-            mockLlmService as any,
-          );
-        },
-      })
-      .compile();
+    }).compile();
 
-    // Get services
-    ragService = moduleRef.get<RagService>(RagService);
-    retrievalService = moduleRef.get<RetrievalService>(RetrievalService);
-    adaptiveRagService = moduleRef.get<AdaptiveRagService>(AdaptiveRagService);
+    // Get service instances through the module ref
+    retrievalService = moduleRef.get<IRetrievalService>(RETRIEVAL_SERVICE);
+    ragService = moduleRef.get<IRagService>(RAG_SERVICE);
+    adaptiveRagService = moduleRef.get<IAdaptiveRagService>(ADAPTIVE_RAG_SERVICE);
     
-    // Replace loggers with mock to avoid console noise during tests
-    const mockLogger = { debug: jest.fn(), log: jest.fn(), error: jest.fn(), warn: jest.fn() };
-    jest.spyOn(Logger, 'error').mockImplementation(() => mockLogger as any);
-    jest.spyOn(Logger, 'log').mockImplementation(() => mockLogger as any);
-    jest.spyOn(Logger, 'debug').mockImplementation(() => mockLogger as any);
-    jest.spyOn(Logger, 'warn').mockImplementation(() => mockLogger as any);
+    // Suppress logger output
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
   });
 
   afterAll(async () => {
@@ -163,6 +227,18 @@ describe('RAG Services', () => {
     it('should retrieve relevant documents for a query', async () => {
       // Test query
       const query = "What were the key points discussed in the last meeting about the product roadmap?";
+      
+      // Mock the implementation for this specific test
+      mockPineconeService.querySimilar.mockResolvedValueOnce([
+        {
+          id: 'test-doc-1',
+          score: 0.95,
+          metadata: { 
+            content: 'This is a test document content for the product roadmap',
+            document_id: 'doc-123'
+          },
+        }
+      ]);
       
       const results = await retrievalService.retrieveDocuments(query);
       
@@ -176,7 +252,10 @@ describe('RAG Services', () => {
       expect(results[0]).toHaveProperty('metadata');
       expect(results[0]).toHaveProperty('score', 0.95);
       
-      // Verify that the embedding service was called
+      // Verify content has been properly extracted
+      expect(results[0].content).toContain('product roadmap');
+      
+      // Verify embedding service was called
       expect(mockEmbeddingService.generateEmbedding).toHaveBeenCalledWith(query);
     });
   });
@@ -185,6 +264,20 @@ describe('RAG Services', () => {
     it('should enhance state with retrieved context', async () => {
       const query = "What were the key points discussed in the last meeting about the product roadmap?";
       const state: TranscriptState = { transcript: "Discussion about product roadmap and feature priorities" };
+      
+      // Setup mock documents that will be returned
+      const mockDocuments: RetrievedDocument[] = [
+        {
+          id: 'test-doc-1',
+          content: 'This is a test document content for the product roadmap',
+          metadata: { document_id: 'doc-123' },
+          score: 0.95
+        }
+      ];
+      
+      // Create a one-time mock implementation by getting the interface
+      const retrievalServiceRef = moduleRef.get<IRetrievalService>(RETRIEVAL_SERVICE);
+      jest.spyOn(retrievalServiceRef, 'retrieveDocuments').mockResolvedValueOnce(mockDocuments);
       
       const enhancedState = await ragService.enhanceStateWithContext(state, query);
       
@@ -196,6 +289,9 @@ describe('RAG Services', () => {
         expect(enhancedState.retrievedContext).toHaveProperty('query', query);
         expect(enhancedState.retrievedContext).toHaveProperty('documents');
         expect(Array.isArray(enhancedState.retrievedContext.documents)).toBe(true);
+        
+        // Use the exact mock documents array for comparison to avoid unexpected changes
+        expect(enhancedState.retrievedContext.documents).toEqual(mockDocuments);
       }
     });
   });
@@ -212,7 +308,7 @@ describe('RAG Services', () => {
       expect(result.settings).toHaveProperty('topK', 5);
       expect(result.settings).toHaveProperty('minScore', 0.8);
       
-      // Verify LLM was called
+      // Verify LLM service was called
       expect(mockLlmService.getChatModel).toHaveBeenCalled();
     });
   });

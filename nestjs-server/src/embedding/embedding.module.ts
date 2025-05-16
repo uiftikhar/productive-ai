@@ -1,16 +1,17 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { LangGraphModule } from '../langgraph/langgraph.module';
-import { PineconeModule } from '../pinecone/pinecone.module';
-import { CacheModule } from '@nestjs/cache-manager';
+import { LlmModule } from '../langgraph/llm/llm.module';
 import { EmbeddingService } from './embedding.service';
 import { ChunkingService } from './chunking.service';
 import { DocumentProcessorService } from './document-processor.service';
+import { CacheModule } from '@nestjs/cache-manager';
+import { PineconeModule } from '../pinecone/pinecone.module';
+import { EMBEDDING_SERVICE, CHUNKING_SERVICE, DOCUMENT_PROCESSOR_SERVICE } from './constants/injection-tokens';
 
 @Module({
   imports: [
     ConfigModule,
-    LangGraphModule,
+    LlmModule,
     PineconeModule,
     CacheModule.register({
       ttl: 3600, // 1 hour cache time-to-live
@@ -18,14 +19,35 @@ import { DocumentProcessorService } from './document-processor.service';
     }),
   ],
   providers: [
-    EmbeddingService,
-    ChunkingService ,
-    DocumentProcessorService,
-  ],
-  exports: [
+    // Concrete implementations
     EmbeddingService,
     ChunkingService,
     DocumentProcessorService,
+    
+    // Token-based providers
+    {
+      provide: EMBEDDING_SERVICE,
+      useExisting: EmbeddingService,
+    },
+    {
+      provide: CHUNKING_SERVICE,
+      useExisting: ChunkingService,
+    },
+    {
+      provide: DOCUMENT_PROCESSOR_SERVICE,
+      useExisting: DocumentProcessorService,
+    },
+  ],
+  exports: [
+    // Concrete implementations
+    EmbeddingService,
+    ChunkingService,
+    DocumentProcessorService,
+    
+    // Token-based providers
+    EMBEDDING_SERVICE,
+    CHUNKING_SERVICE,
+    DOCUMENT_PROCESSOR_SERVICE,
   ],
 })
 export class EmbeddingModule {} 

@@ -1,17 +1,22 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
 import { RagService } from './rag.service';
 import { RetrievalService } from './retrieval.service';
 import { LlmService } from '../langgraph/llm/llm.service';
 import { RetrievalOptions } from './retrieval.service';
+import { IAdaptiveRagService } from './interfaces/adaptive-rag.interface';
+import { IRagService } from './interfaces/rag-service.interface';
+import { IRetrievalService } from './interfaces/retrieval-service.interface';
+import { RAG_SERVICE, RETRIEVAL_SERVICE, ADAPTIVE_RAG_SERVICE } from './constants/injection-tokens';
+import { LLM_SERVICE } from '../langgraph/llm/constants/injection-tokens';
 
 @Injectable()
-export class AdaptiveRagService {
+export class AdaptiveRagService implements IAdaptiveRagService {
   private readonly logger = new Logger(AdaptiveRagService.name);
 
   constructor(
-    private readonly ragService: RagService,
-    private readonly retrievalService: RetrievalService,
-    private readonly llmService: LlmService,
+    @Inject(RAG_SERVICE) private readonly ragService: IRagService,
+    @Inject(RETRIEVAL_SERVICE) private readonly retrievalService: IRetrievalService,
+    @Inject(LLM_SERVICE) private readonly llmService: LlmService,
   ) {}
 
   /**
