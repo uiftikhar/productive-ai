@@ -7,7 +7,7 @@ import { DatabaseModule } from './database/database.module';
 import { LoggingModule } from './logging/logging.module';
 import { StorageModule } from './storage/storage.module';
 import { LangGraphModule } from './langgraph/langgraph.module';
-// import { PineconeModule } from './pinecone/pinecone.module';
+import { PineconeModule } from './pinecone/pinecone.module';
 // import { EmbeddingModule } from './embedding/embedding.module';
 // import { RagModule } from './rag/rag.module';
 import { configValidationSchema } from './config/validation.schema';
@@ -23,7 +23,7 @@ import { configValidationSchema } from './config/validation.schema';
     AuthModule,
     StorageModule,
     LangGraphModule,
-    // PineconeModule,
+    PineconeModule,
     // EmbeddingModule,
     // RagModule,
   ],
