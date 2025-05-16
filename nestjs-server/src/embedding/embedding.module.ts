@@ -2,10 +2,10 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { LangGraphModule } from '../langgraph/langgraph.module';
 import { PineconeModule } from '../pinecone/pinecone.module';
+import { CacheModule } from '@nestjs/cache-manager';
 import { EmbeddingService } from './embedding.service';
 import { ChunkingService } from './chunking.service';
 import { DocumentProcessorService } from './document-processor.service';
-import { CacheModule } from '@nestjs/cache-manager';
 
 @Module({
   imports: [
@@ -19,7 +19,7 @@ import { CacheModule } from '@nestjs/cache-manager';
   ],
   providers: [
     EmbeddingService,
-    ChunkingService,
+    ChunkingService ,
     DocumentProcessorService,
   ],
   exports: [

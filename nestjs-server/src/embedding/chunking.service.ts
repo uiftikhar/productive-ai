@@ -27,26 +27,45 @@ export class ChunkingService {
       minChunkSize?: number;
     } = {},
   ): string[] {
+    if (!text || text.trim().length === 0) {
+      return [''];
+    }
+
     const chunkSize = options.chunkSize || 1000;
     const chunkOverlap = options.chunkOverlap || 200;
     const separator = options.separator || ' ';
-    const minChunkSize = options.minChunkSize || 50;
+    const minChunkSize = options.minChunkSize || 1;
     
-    // Simple tokenization by splitting on separator
-    // For production, consider using a proper tokenizer
     const tokens = text.split(separator);
     
+    // If text is shorter than chunk size, return as single chunk
     if (tokens.length <= chunkSize) {
       return [text];
     }
     
     const chunks: string[] = [];
+    let currentChunk: string[] = [];
+    let currentChunkLength = 0;
     
-    for (let i = 0; i < tokens.length; i += chunkSize - chunkOverlap) {
-      const chunk = tokens.slice(i, i + chunkSize).join(separator);
-      if (chunk.trim() && chunk.split(separator).length >= minChunkSize) {
-        chunks.push(chunk);
+    for (const token of tokens) {
+      // Add token to current chunk
+      currentChunk.push(token);
+      currentChunkLength += 1;
+      
+      // If chunk is full, add it to chunks and start a new one with overlap
+      if (currentChunkLength >= chunkSize) {
+        chunks.push(currentChunk.join(separator));
+        
+        // Start new chunk with overlap
+        const overlapTokens = currentChunk.slice(-chunkOverlap);
+        currentChunk = [...overlapTokens];
+        currentChunkLength = overlapTokens.length;
       }
+    }
+    
+    // Add the last chunk if it's not empty and meets minimum size
+    if (currentChunk.length > 0 && currentChunk.length >= minChunkSize) {
+      chunks.push(currentChunk.join(separator));
     }
     
     return chunks;

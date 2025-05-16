@@ -1,6 +1,7 @@
-import { Test, TestingModule } from 'guides/node_modules/@nestjs/testing';
+import { Test, TestingModule } from '@nestjs/testing';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { EmbeddingService } from './embedding/embedding.service';
 
 describe('AppController', () => {
   let appController: AppController;
@@ -8,7 +9,15 @@ describe('AppController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
-      providers: [AppService],
+      providers: [
+        AppService,
+        {
+          provide: EmbeddingService,
+          useValue: {
+            generateEmbedding: jest.fn().mockResolvedValue(Array(1536).fill(0.1)),
+          },
+        },
+      ],
     }).compile();
 
     appController = app.get<AppController>(AppController);
