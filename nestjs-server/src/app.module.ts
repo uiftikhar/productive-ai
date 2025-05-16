@@ -3,21 +3,24 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { configValidationSchema } from './config/validation.schema';
+import { ConfigModule as AppConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
 import { LoggingModule } from './logging/logging.module';
 import { StorageModule } from './storage/storage.module';
 import { LangGraphModule } from './langgraph/langgraph.module';
 import { PineconeModule } from './pinecone/pinecone.module';
 import { EmbeddingModule } from './embedding/embedding.module';
-// import { RagModule } from './rag/rag.module';
-import { configValidationSchema } from './config/validation.schema';
-import { LlmService } from './langgraph/llm/llm.service';
+import { RagModule } from './rag/rag.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: '.env',
       validationSchema: configValidationSchema,
     }),
+    AppConfigModule,
     LoggingModule,
     DatabaseModule,
     AuthModule,
@@ -25,9 +28,9 @@ import { LlmService } from './langgraph/llm/llm.service';
     LangGraphModule,
     PineconeModule,
     EmbeddingModule,
-    // RagModule,
+    RagModule,
   ],
   controllers: [AppController],
-  providers: [AppService, LlmService],
+  providers: [AppService],
 })
 export class AppModule {}
