@@ -865,7 +865,7 @@ export const configValidationSchema = Joi.object({
 Create a test script to verify your embedding implementation:
 
 ```typescript
-// src/embedding/embedding.test.ts
+// src/embedding/embedding.spec.ts
 import { Test } from '@nestjs/testing';
 import { EmbeddingService } from './embedding.service';
 import { ChunkingService } from './chunking.service';

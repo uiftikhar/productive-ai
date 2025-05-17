@@ -9,47 +9,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { MeetingAnalysisService, AnalysisParams } from '@/lib/api/meeting-analysis-service';
+import { MeetingAnalysisService, AnalyzeTranscriptRequest } from '@/lib/api/meeting-analysis-service';
 import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/context/AuthContext';
 
 interface CreateSessionFormProps {
-  onSessionCreated: (sessionId: string) => void;
+  onAnalysisStarted: (sessionId: string) => void;
 }
 
-export function CreateSessionForm({ onSessionCreated }: CreateSessionFormProps) {
+export function CreateSessionForm({ onAnalysisStarted }: CreateSessionFormProps) {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   
   const [analysisGoal, setAnalysisGoal] = useState('full_analysis');
   const [transcript, setTranscript] = useState('');
   const [participants, setParticipants] = useState('');
   const [meetingTitle, setMeetingTitle] = useState('');
-  const [enabledExpertise, setEnabledExpertise] = useState<string[]>([
-    'topic_analysis', 
-    'action_item_extraction', 
-    'summary_generation'
-  ]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Available expertise options
-  const expertiseOptions = [
-    { id: 'topic_analysis', label: 'Topic Analysis' },
-    { id: 'action_item_extraction', label: 'Action Item Extraction' },
-    { id: 'summary_generation', label: 'Summary Generation' },
-    { id: 'sentiment_analysis', label: 'Sentiment Analysis' },
-    { id: 'key_point_extraction', label: 'Key Point Extraction' }
-  ];
-  
-  // Toggle expertise selection
-  const toggleExpertise = (expertise: string) => {
-    if (enabledExpertise.includes(expertise)) {
-      setEnabledExpertise(enabledExpertise.filter(e => e !== expertise));
-    } else {
-      setEnabledExpertise([...enabledExpertise, expertise]);
-    }
-  };
-  
-  // Create and analyze in one step
+  // Submit transcript for analysis
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -57,16 +36,34 @@ export function CreateSessionForm({ onSessionCreated }: CreateSessionFormProps) 
       setError('Please enter a transcript to analyze');
       return;
     }
+
+    if (!isAuthenticated) {
+      setError('You must be logged in to analyze transcripts');
+      return;
+    }
     
     setIsLoading(true);
     setError(null);
     
     try {
-      // Just notify parent that user wants to create a session
-      // The actual session creation will happen in the parent component
-      onSessionCreated("");
+      // Create request payload
+      const request: AnalyzeTranscriptRequest = {
+        transcript: transcript,
+        metadata: {
+          title: meetingTitle || 'Untitled Meeting',
+          participants: participants ? participants.split(',').map(p => p.trim()) : [],
+          analysisType: analysisGoal
+        }
+      };
+      
+      // Send analysis request
+      const response = await MeetingAnalysisService.analyzeTranscript(request);
+      
+      // Notify parent with the session ID
+      onAnalysisStarted(response.sessionId);
     } catch (err: any) {
-      setError(err.message || 'Failed to analyze transcript');
+      setError(err.response?.data?.message || err.message || 'Failed to analyze transcript');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -128,23 +125,7 @@ export function CreateSessionForm({ onSessionCreated }: CreateSessionFormProps) 
         />
       </div>
       
-      <div className="space-y-3">
-        <Label>Enabled Expertise (Optional)</Label>
-        <div className="grid grid-cols-2 gap-2">
-          {expertiseOptions.map((option) => (
-            <div key={option.id} className="flex items-center space-x-2">
-              <Checkbox 
-                id={option.id}
-                checked={enabledExpertise.includes(option.id)}
-                onCheckedChange={() => toggleExpertise(option.id)}
-              />
-              <Label htmlFor={option.id} className="cursor-pointer">{option.label}</Label>
-            </div>
-          ))}
-        </div>
-      </div>
-      
-      <Button type="submit" className="w-full" disabled={isLoading}>
+      <Button type="submit" className="w-full" disabled={isLoading || !isAuthenticated}>
         {isLoading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

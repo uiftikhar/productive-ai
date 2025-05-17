@@ -18,6 +18,8 @@ import { EMBEDDING_SERVICE } from '../embedding/constants/injection-tokens';
 import { LLM_SERVICE } from '../langgraph/llm/constants/injection-tokens';
 import { STATE_SERVICE } from '../langgraph/state/constants/injection-tokens';
 import { PINECONE_SERVICE } from '../pinecone/constants/injection-tokens';
+import { ConfigService } from '@nestjs/config';
+import { DimensionAdapterService } from '../embedding/dimension-adapter.service';
 
 // Define the state interface with retrieved context
 interface TranscriptState {
@@ -73,6 +75,21 @@ describe('RAG Services Integration', () => {
       invoke: jest.fn().mockResolvedValue({
         content: '```json\n{"strategy": "hybrid", "topK": 5, "minScore": 0.8}\n```'
       })
+    })
+  };
+
+  const mockConfigService = {
+    get: jest.fn().mockImplementation((key, defaultValue) => {
+      if (key === 'PINECONE_DIMENSIONS') return 1024;
+      return defaultValue;
+    })
+  };
+
+  const mockDimensionAdapter = {
+    getTargetDimension: jest.fn().mockReturnValue(1024),
+    needsAdaptation: jest.fn().mockReturnValue(true),
+    adaptDimension: jest.fn().mockImplementation((embedding) => {
+      return embedding.slice(0, 1024); // Just return first 1024 dimensions
     })
   };
 
@@ -203,6 +220,14 @@ describe('RAG Services Integration', () => {
           provide: STATE_SERVICE,
           useValue: mockStateService,
         },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService
+        },
+        {
+          provide: DimensionAdapterService,
+          useFactory: () => mockDimensionAdapter
+        }
       ],
     }).compile();
 

@@ -5,9 +5,11 @@ import { EmbeddingModule } from '../embedding/embedding.module';
 import { LlmModule } from '../langgraph/llm/llm.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { StateModule } from '../langgraph/state/state.module';
+import { MeetingAnalysisModule } from '../langgraph/meeting-analysis/meeting-analysis.module';
 import { AdaptiveRagService } from './adaptive-rag.service';
 import { RetrievalService } from './retrieval.service';
 import { RagService } from './rag.service';
+import { RagController } from './rag.controller';
 import { RAG_SERVICE, RETRIEVAL_SERVICE, ADAPTIVE_RAG_SERVICE } from './constants/injection-tokens';
 
 @Module({
@@ -17,10 +19,14 @@ import { RAG_SERVICE, RETRIEVAL_SERVICE, ADAPTIVE_RAG_SERVICE } from './constant
     EmbeddingModule,
     LlmModule,
     StateModule,
+    MeetingAnalysisModule,
     CacheModule.register({
       ttl: 1800, // 30 minutes
       max: 100,
     }),
+  ],
+  controllers: [
+    RagController,
   ],
   providers: [
     // Service implementations
@@ -31,11 +37,11 @@ import { RAG_SERVICE, RETRIEVAL_SERVICE, ADAPTIVE_RAG_SERVICE } from './constant
     // Token-based providers for dependency injection
     {
       provide: RETRIEVAL_SERVICE,
-      useExisting: RetrievalService
+      useClass: RetrievalService
     },
     {
       provide: RAG_SERVICE,
-      useExisting: RagService
+      useClass: RagService
     },
     {
       provide: ADAPTIVE_RAG_SERVICE,

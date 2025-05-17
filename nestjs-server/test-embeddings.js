@@ -22,7 +22,7 @@ build.on('close', (code) => {
   
   try {
     // Try to require the compiled test file
-    const { testEmbeddings } = require('./dist/embedding/embedding.test');
+    const { testEmbeddings } = require('./dist/embedding/embedding.spec');
     
     testEmbeddings()
       .then(() => {
@@ -37,7 +37,7 @@ build.on('close', (code) => {
     console.error('Failed to load test file:', error.message);
     console.log('Trying to run with ts-node instead...');
     
-    const tsNode = spawn('npx', ['ts-node', 'src/embedding/embedding.test.ts'], {
+    const tsNode = spawn('npx', ['ts-node', 'src/embedding/embedding.spec.ts'], {
       cwd: process.cwd(),
       stdio: 'inherit',
     });

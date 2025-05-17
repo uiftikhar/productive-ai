@@ -8,6 +8,9 @@ import { RETRIEVAL_SERVICE } from './constants/injection-tokens';
 import { EMBEDDING_SERVICE } from '../embedding/constants/injection-tokens';
 import { LLM_SERVICE } from '../langgraph/llm/constants/injection-tokens';
 import { STATE_SERVICE } from '../langgraph/state/constants/injection-tokens';
+import { PINECONE_SERVICE } from '../pinecone/constants/injection-tokens';
+import { DimensionAdapterService } from '../embedding/dimension-adapter.service';
+import { ConfigService } from '@nestjs/config';
 import { server } from '../test/mocks/server';
 import { http, HttpResponse } from 'msw';
 import { VectorIndexes } from '../pinecone/pinecone-index.service';
@@ -18,6 +21,10 @@ describe('RagService', () => {
   let mockEmbeddingService: any;
   let mockLlmService: any;
   let mockStateService: any;
+  let mockPineconeService: any;
+  let mockDimensionAdapter: any;
+  let mockConfigService: any;
+  let moduleRef: any;
   
   beforeEach(async () => {
     // Setup MSW handlers
@@ -92,7 +99,33 @@ describe('RagService', () => {
       })
     };
     
-    const moduleRef = await Test.createTestingModule({
+    mockPineconeService = {
+      storeVector: jest.fn().mockResolvedValue(undefined),
+      queryVectors: jest.fn().mockResolvedValue({
+        matches: [
+          { id: 'doc-1-chunk-0', score: 0.85, metadata: { content: 'Previous meeting discussed project timeline issues.' } },
+          { id: 'doc-2-chunk-0', score: 0.78, metadata: { content: 'Budget constraints affecting project timeline.' } }
+        ]
+      })
+    };
+    
+    // Mock ConfigService
+    mockConfigService = {
+      get: jest.fn().mockImplementation((key, defaultValue) => {
+        if (key === 'PINECONE_DIMENSIONS') return 1024;
+        return defaultValue;
+      })
+    };
+    
+    mockDimensionAdapter = {
+      getTargetDimension: jest.fn().mockReturnValue(1024),
+      needsAdaptation: jest.fn().mockReturnValue(true),
+      adaptDimension: jest.fn().mockImplementation((embedding) => {
+        return embedding.slice(0, 1024); // Just return first 1024 dimensions
+      })
+    };
+    
+    moduleRef = await Test.createTestingModule({
       providers: [
         RagService,
         {
@@ -110,11 +143,33 @@ describe('RagService', () => {
         {
           provide: STATE_SERVICE,
           useValue: mockStateService
+        },
+        {
+          provide: PINECONE_SERVICE,
+          useValue: mockPineconeService
+        },
+        {
+          provide: ConfigService,
+          useValue: mockConfigService
+        },
+        {
+          provide: DimensionAdapterService,
+          useFactory: () => mockDimensionAdapter
         }
       ]
     }).compile();
     
-    ragService = moduleRef.get<RagService>(RagService);
+    ragService = moduleRef.get(RagService);
+  });
+  
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+  
+  afterAll(async () => {
+    if (moduleRef) {
+      await moduleRef.close();
+    }
   });
   
   it('should retrieve context based on query', async () => {
@@ -154,10 +209,6 @@ describe('RagService', () => {
       }
     ];
     
-    // Setup spies
-    const chunkTextSpy = jest.spyOn(ragService, 'chunkText').mockReturnValue(['Meeting about project timeline.']);
-    const storeVectorInPineconeSpy = jest.spyOn<any, any>(ragService, 'storeVectorInPinecone').mockResolvedValue(undefined);
-    
     // Act
     const result = await ragService.processDocumentsForRag(documents, {
       indexName: VectorIndexes.MEETING_ANALYSIS,
@@ -167,8 +218,9 @@ describe('RagService', () => {
     // Assert
     expect(result).toBeDefined();
     expect(result.length).toBeGreaterThan(0);
-    expect(chunkTextSpy).toHaveBeenCalled();
-    expect(storeVectorInPineconeSpy).toHaveBeenCalled();
+    expect(mockEmbeddingService.generateEmbedding).toHaveBeenCalled();
+    expect(mockDimensionAdapter.adaptDimension).toHaveBeenCalled();
+    expect(mockPineconeService.storeVector).toHaveBeenCalled();
   });
   
   it('should enhance state with retrieved context', async () => {
@@ -212,7 +264,7 @@ describe('RagService', () => {
       addNode: jest.fn().mockReturnThis(),
       addEdge: jest.fn().mockReturnThis(),
       addConditionalEdges: jest.fn().mockReturnThis(),
-      edges: [{ source: 'START', target: 'topic_extraction' }]
+      edges: [{ source: '__start__', target: 'topic_extraction' }]
     };
     
     // Act
@@ -221,5 +273,6 @@ describe('RagService', () => {
     // Assert
     expect(mockGraph.addNode).toHaveBeenCalledWith('rag_retrieval', expect.any(Function));
     expect(mockGraph.addEdge).toHaveBeenCalledWith('rag_retrieval', 'topic_extraction');
+    expect(mockGraph.addEdge).toHaveBeenCalledWith('__start__', 'rag_retrieval');
   });
 }); 

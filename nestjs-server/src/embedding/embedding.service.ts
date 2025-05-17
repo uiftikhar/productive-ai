@@ -13,6 +13,7 @@ export enum EmbeddingModel {
   OPENAI_3_SMALL = 'text-embedding-3-small',
   OPENAI_3_LARGE = 'text-embedding-3-large',
   ANTHROPIC = 'claude-3-embedding',
+  LLAMA = 'llama-text-embed-v2',
 }
 
 export interface EmbeddingOptions {
@@ -55,11 +56,22 @@ export class EmbeddingService {
     // Initialize LangChain OpenAI embeddings for more advanced features
     this.openaiEmbeddings = new OpenAIEmbeddings({
       openAIApiKey: this.configService.get<string>('OPENAI_API_KEY'),
-      modelName: this.defaultModel,
+      modelName: this.mapToSupportedModel(this.defaultModel),
       dimensions: this.defaultDimensions,
       timeout: 60000, // 60 second timeout
       maxRetries: 3,
     });
+  }
+
+  /**
+   * Map potentially unsupported models to supported ones
+   */
+  private mapToSupportedModel(model: string): string {
+    if (model === EmbeddingModel.LLAMA) {
+      this.logger.warn(`Mapping unsupported model ${model} to ${EmbeddingModel.OPENAI_3_LARGE}`);
+      return EmbeddingModel.OPENAI_3_LARGE;
+    }
+    return model;
   }
 
   /**
@@ -69,7 +81,8 @@ export class EmbeddingService {
     text: string,
     options: EmbeddingOptions = {},
   ): Promise<number[]> {
-    const model = options.model || this.defaultModel;
+    const requestedModel = options.model || this.defaultModel;
+    const model = this.mapToSupportedModel(requestedModel);
     const useCaching = options.useCaching !== false; // Default to true
     
     // Check cache first if caching is enabled
@@ -135,6 +148,13 @@ export class EmbeddingService {
       return response.data[0].embedding;
     } else if (model === EmbeddingModel.ANTHROPIC) {
       throw new Error('Anthropic embedding API not yet implemented');
+    } else if (model === EmbeddingModel.LLAMA) {
+      // Fallback to OpenAI 3 Large for Llama embedding requests
+      const response = await this.openai.embeddings.create({
+        model: EmbeddingModel.OPENAI_3_LARGE,
+        input: text,
+      });
+      return response.data[0].embedding;
     } else {
       throw new Error(`Unsupported embedding model: ${model}`);
     }

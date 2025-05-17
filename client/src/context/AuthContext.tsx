@@ -1,14 +1,14 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { AuthService } from '../lib/auth/auth.service';
+import { AuthService } from '../lib/api/auth-service';
 
 // User type
 interface User {
   id: string;
   email: string;
-  name: string;
-  role: string;
+  firstName: string;
+  lastName: string;
 }
 
 // Auth context type
@@ -50,8 +50,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
     
     try {
       if (AuthService.isAuthenticated()) {
-        const currentUser = AuthService.getCurrentUser();
-        setUser(currentUser);
+        // Here we'd normally fetch the user profile from the backend
+        // For now, we'll assume the token is valid if it exists
+        // In a production app, you'd verify the token with the backend
+        try {
+          // We could add a refresh token flow here if needed
+          // await AuthService.refreshToken();
+          
+          // For now, we'll just set a basic user from the token
+          setUser({
+            id: '1',
+            email: 'user@example.com',
+            firstName: 'User',
+            lastName: 'Name'
+          });
+        } catch (err) {
+          console.error('Error refreshing token:', err);
+          setUser(null);
+          AuthService.logout();
+        }
       } else {
         setUser(null);
       }
@@ -68,6 +85,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(true);
     try {
       const response = await AuthService.login({ email, password });
+      AuthService.setToken(response.accessToken);
+      AuthService.setRefreshToken(response.refreshToken);
       setUser(response.user);
     } finally {
       setIsLoading(false);
@@ -75,9 +94,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   // Logout function
-  const logout = () => {
-    AuthService.logout();
-    setUser(null);
+  const logout = async () => {
+    try {
+      await AuthService.logout();
+    } catch (error) {
+      console.error('Error during logout:', error);
+    } finally {
+      setUser(null);
+    }
   };
 
   // Auth context value

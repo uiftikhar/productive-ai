@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { LlmModule } from '../langgraph/llm/llm.module';
+import { CacheModule } from '@nestjs/cache-manager';
 import { EmbeddingService } from './embedding.service';
 import { ChunkingService } from './chunking.service';
 import { DocumentProcessorService } from './document-processor.service';
-import { CacheModule } from '@nestjs/cache-manager';
 import { PineconeModule } from '../pinecone/pinecone.module';
 import { EMBEDDING_SERVICE, CHUNKING_SERVICE, DOCUMENT_PROCESSOR_SERVICE } from './constants/injection-tokens';
+import { LlmModule } from '../langgraph/llm/llm.module';
+import { DimensionAdapterService } from './dimension-adapter.service';
 
 @Module({
   imports: [
@@ -14,20 +15,17 @@ import { EMBEDDING_SERVICE, CHUNKING_SERVICE, DOCUMENT_PROCESSOR_SERVICE } from 
     LlmModule,
     PineconeModule,
     CacheModule.register({
-      ttl: 3600, // 1 hour cache time-to-live
-      max: 1000, // Maximum number of items in cache
+      ttl: 60 * 60 * 1000, // 1 hour cache TTL
+      max: 100, // Maximum number of items in cache
     }),
   ],
   providers: [
-    // Concrete implementations
     EmbeddingService,
     ChunkingService,
     DocumentProcessorService,
-    
-    // Token-based providers
     {
       provide: EMBEDDING_SERVICE,
-      useExisting: EmbeddingService,
+      useClass: EmbeddingService,
     },
     {
       provide: CHUNKING_SERVICE,
@@ -37,17 +35,13 @@ import { EMBEDDING_SERVICE, CHUNKING_SERVICE, DOCUMENT_PROCESSOR_SERVICE } from 
       provide: DOCUMENT_PROCESSOR_SERVICE,
       useExisting: DocumentProcessorService,
     },
+    DimensionAdapterService,
   ],
   exports: [
-    // Concrete implementations
-    EmbeddingService,
-    ChunkingService,
-    DocumentProcessorService,
-    
-    // Token-based providers
     EMBEDDING_SERVICE,
     CHUNKING_SERVICE,
     DOCUMENT_PROCESSOR_SERVICE,
+    DimensionAdapterService,
   ],
 })
 export class EmbeddingModule {} 

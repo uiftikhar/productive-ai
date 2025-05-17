@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { AuthService, LoginCredentials } from '../../lib/auth/auth.service';
+import { AuthService } from '../../lib/api/auth-service';
+import { useRouter } from 'next/navigation';
 
 interface LoginFormProps {
   onSuccess?: () => void;
@@ -13,6 +14,7 @@ export default function LoginForm({ onSuccess, onError }: LoginFormProps) {
   const [password, setPassword] = useState('temp123456');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,14 +22,19 @@ export default function LoginForm({ onSuccess, onError }: LoginFormProps) {
     setError(null);
 
     try {
-      const credentials: LoginCredentials = { email, password };
-      await AuthService.login(credentials);
+      const response = await AuthService.login({ email, password });
+      
+      // Store tokens in local storage
+      AuthService.setToken(response.accessToken);
+      AuthService.setRefreshToken(response.refreshToken);
       
       if (onSuccess) {
         onSuccess();
+      } else {
+        router.push('/dashboard');
       }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Login failed';
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || (err instanceof Error ? err.message : 'Login failed');
       setError(errorMessage);
       
       if (onError && err instanceof Error) {
@@ -45,17 +52,22 @@ export default function LoginForm({ onSuccess, onError }: LoginFormProps) {
     setError(null);
 
     try {
-      const credentials: LoginCredentials = { 
+      const response = await AuthService.login({ 
         email: 'abc@gmail.com', 
         password: 'temp123456' 
-      };
-      await AuthService.login(credentials);
+      });
+      
+      // Store tokens in local storage
+      AuthService.setToken(response.accessToken);
+      AuthService.setRefreshToken(response.refreshToken);
       
       if (onSuccess) {
         onSuccess();
+      } else {
+        router.push('/dashboard');
       }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Login failed';
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || (err instanceof Error ? err.message : 'Login failed');
       setError(errorMessage);
       
       if (onError && err instanceof Error) {

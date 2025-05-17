@@ -39,6 +39,7 @@ import { StateStorageService } from '../persistence/state-storage.service';
 import { StorageService } from '../../storage/storage.service';
 import { IRetrievalService } from '../../rag/interfaces/retrieval-service.interface';
 import { Cache } from 'cache-manager';
+import { DimensionAdapterService } from '../../embedding/dimension-adapter.service';
 
 // Define the analysis result interface based on the service implementation
 interface AnalysisResult {
@@ -541,6 +542,15 @@ Alice (CEO): Great. Let's wrap up here and reconvene next week.
       addRagToGraph: jest.fn()
     };
     
+    // Create the mock for DimensionAdapterService
+    const mockDimensionAdapter = {
+      getTargetDimension: jest.fn().mockReturnValue(1024),
+      needsAdaptation: jest.fn().mockReturnValue(true),
+      adaptDimension: jest.fn().mockImplementation((embedding) => {
+        return embedding.slice(0, 1024); // Just return first 1024 dimensions
+      })
+    };
+    
     // Create the test module with all dependencies properly mocked
     moduleRef = await Test.createTestingModule({
       providers: [
@@ -655,6 +665,10 @@ Alice (CEO): Great. Let's wrap up here and reconvene next week.
         {
           provide: RAG_SERVICE,
           useValue: mockRagService
+        },
+        {
+          provide: DimensionAdapterService,
+          useValue: mockDimensionAdapter
         }
       ]
     })

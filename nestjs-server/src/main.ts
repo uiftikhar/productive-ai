@@ -21,7 +21,12 @@ async function bootstrap() {
   );
 
   // Enable CORS
-  app.enableCors();
+  app.enableCors({
+    origin: ['http://localhost:3000', 'http://localhost:8080'], // Allow both Next.js and other clients
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true, // Allow cookies and authentication headers
+    allowedHeaders: 'Origin,X-Requested-With,Content-Type,Accept,Authorization',
+  });
 
   // Swagger documentation setup
   const config = new DocumentBuilder()
@@ -37,7 +42,7 @@ async function bootstrap() {
 
   // Get config
   const configService = app.get(ConfigService);
-  const port = configService.get<number>('server.port') || 3000;
+  const port = configService.get<number>('server.port') || 3001; // Set default port to 3001
 
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}`);

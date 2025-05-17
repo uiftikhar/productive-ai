@@ -5,17 +5,15 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react';
-import axios from 'axios';
-
-// API URL for auth endpoints
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+import { AuthService } from '../../lib/api/auth-service';
 
 // Registration form validation schema
 const registerSchema = z.object({
   email: z.string().email('Please enter a valid email'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -41,32 +39,19 @@ const RegisterForm: React.FC = () => {
       setIsLoading(true);
       setError(null);
 
-      console.log('Registering user with:', API_URL);
-
-      // Register user via API
-      await axios.post(`${API_URL}/auth/register`, {
+      // Register user via AuthService
+      const response = await AuthService.signup({
         email: data.email,
         password: data.password,
-      }, {
-        withCredentials: true, // Important for CORS with cookies
-        headers: {
-          'Content-Type': 'application/json',
-        }
+        firstName: data.firstName,
+        lastName: data.lastName,
       });
 
-      // Auto-login after successful registration
-      const result = await signIn('credentials', {
-        redirect: false,
-        email: data.email,
-        password: data.password,
-      });
+      // Store tokens
+      AuthService.setToken(response.accessToken);
+      AuthService.setRefreshToken(response.refreshToken);
 
-      if (result?.error) {
-        setError(result.error);
-        return;
-      }
-
-      // Redirect to dashboard on successful login
+      // Redirect to dashboard on successful registration
       router.push('/dashboard');
     } catch (err: any) {
       console.error('Registration error details:', err);
@@ -100,6 +85,38 @@ const RegisterForm: React.FC = () => {
           />
           {errors.email && (
             <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="firstName" className="block mb-2 text-sm font-medium">
+            First Name
+          </label>
+          <input
+            id="firstName"
+            type="text"
+            {...register('firstName')}
+            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={isLoading}
+          />
+          {errors.firstName && (
+            <p className="mt-1 text-sm text-red-600">{errors.firstName.message}</p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="lastName" className="block mb-2 text-sm font-medium">
+            Last Name
+          </label>
+          <input
+            id="lastName"
+            type="text"
+            {...register('lastName')}
+            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={isLoading}
+          />
+          {errors.lastName && (
+            <p className="mt-1 text-sm text-red-600">{errors.lastName.message}</p>
           )}
         </div>
         
