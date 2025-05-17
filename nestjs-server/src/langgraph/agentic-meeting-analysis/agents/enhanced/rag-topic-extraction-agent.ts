@@ -109,18 +109,20 @@ export class RagTopicExtractionAgent extends RagMeetingAnalysisAgent {
       return [];
     }
     
-    return topics.map(topic => {
-      // Ensure all required properties are present
-      return {
-        name: topic.name || 'Unnamed Topic',
-        description: topic.description || '',
-        relevance: typeof topic.relevance === 'number' ? topic.relevance : 5,
-        subtopics: Array.isArray(topic.subtopics) ? topic.subtopics : [],
-        keywords: Array.isArray(topic.keywords) ? topic.keywords : [],
-        participants: Array.isArray(topic.participants) ? topic.participants : [],
-        duration: typeof topic.duration === 'number' ? topic.duration : undefined,
-      };
-    });
+    return topics
+      .filter(topic => topic && topic.name && typeof topic.name === 'string' && topic.name.trim() !== '')
+      .map(topic => {
+        // Ensure all required properties are present
+        return {
+          name: topic.name,
+          description: topic.description || '',
+          relevance: typeof topic.relevance === 'number' ? topic.relevance : 5,
+          subtopics: Array.isArray(topic.subtopics) ? topic.subtopics : [],
+          keywords: Array.isArray(topic.keywords) ? topic.keywords : [],
+          participants: Array.isArray(topic.participants) ? topic.participants : [],
+          duration: typeof topic.duration === 'number' ? topic.duration : undefined,
+        };
+      });
   }
   
   /**
