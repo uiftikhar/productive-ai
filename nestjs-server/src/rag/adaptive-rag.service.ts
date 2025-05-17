@@ -6,7 +6,11 @@ import { RetrievalOptions } from './retrieval.service';
 import { IAdaptiveRagService } from './interfaces/adaptive-rag.interface';
 import { IRagService } from './interfaces/rag-service.interface';
 import { IRetrievalService } from './interfaces/retrieval-service.interface';
-import { RAG_SERVICE, RETRIEVAL_SERVICE, ADAPTIVE_RAG_SERVICE } from './constants/injection-tokens';
+import {
+  RAG_SERVICE,
+  RETRIEVAL_SERVICE,
+  ADAPTIVE_RAG_SERVICE,
+} from './constants/injection-tokens';
 import { LLM_SERVICE } from '../langgraph/llm/constants/injection-tokens';
 
 @Injectable()
@@ -15,7 +19,8 @@ export class AdaptiveRagService implements IAdaptiveRagService {
 
   constructor(
     @Inject(RAG_SERVICE) private readonly ragService: IRagService,
-    @Inject(RETRIEVAL_SERVICE) private readonly retrievalService: IRetrievalService,
+    @Inject(RETRIEVAL_SERVICE)
+    private readonly retrievalService: IRetrievalService,
     @Inject(LLM_SERVICE) private readonly llmService: LlmService,
   ) {}
 
@@ -28,7 +33,7 @@ export class AdaptiveRagService implements IAdaptiveRagService {
   }> {
     try {
       const model = this.llmService.getChatModel();
-      
+
       const response = await model.invoke([
         {
           role: 'system',
@@ -49,17 +54,18 @@ export class AdaptiveRagService implements IAdaptiveRagService {
           content: `Analyze this query: "${query}"`,
         },
       ]);
-      
+
       // Parse the response
       try {
         const content = response.content.toString();
-        const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/) || 
-                          content.match(/```\n([\s\S]*?)\n```/) ||
-                          content.match(/(\{[\s\S]*\})/);
-        
+        const jsonMatch =
+          content.match(/```json\n([\s\S]*?)\n```/) ||
+          content.match(/```\n([\s\S]*?)\n```/) ||
+          content.match(/(\{[\s\S]*\})/);
+
         const jsonStr = jsonMatch ? jsonMatch[1] : content;
         const result = JSON.parse(jsonStr);
-        
+
         return {
           strategy: result.strategy,
           settings: {
@@ -75,7 +81,9 @@ export class AdaptiveRagService implements IAdaptiveRagService {
         };
       }
     } catch (error) {
-      this.logger.error(`Error determining retrieval strategy: ${error.message}`);
+      this.logger.error(
+        `Error determining retrieval strategy: ${error.message}`,
+      );
       return {
         strategy: 'semantic',
         settings: {},
@@ -94,40 +102,53 @@ export class AdaptiveRagService implements IAdaptiveRagService {
       try {
         // Extract query from state
         const query = queryExtractor(state);
-        
+
         if (!query) {
           this.logger.warn('No query extracted from state');
           return {};
         }
-        
+
         // Determine retrieval strategy
-        const { strategy, settings } = await this.determineRetrievalStrategy(query);
-        
+        const { strategy, settings } =
+          await this.determineRetrievalStrategy(query);
+
         // Merge settings with base options
         const options: RetrievalOptions = {
           ...baseOptions,
           ...settings,
         };
-        
+
         // Retrieve based on strategy
         let documents;
         switch (strategy) {
           case 'semantic':
-            documents = await this.retrievalService.retrieveDocuments(query, options);
+            documents = await this.retrievalService.retrieveDocuments(
+              query,
+              options,
+            );
             break;
           case 'keyword':
-            documents = await this.retrievalService['keywordSearch'](query, options);
+            documents = await this.retrievalService['keywordSearch'](
+              query,
+              options,
+            );
             break;
           case 'hybrid':
-            documents = await this.retrievalService.hybridSearch(query, options);
+            documents = await this.retrievalService.hybridSearch(
+              query,
+              options,
+            );
             break;
           case 'none':
             documents = [];
             break;
           default:
-            documents = await this.retrievalService.retrieveDocuments(query, options);
+            documents = await this.retrievalService.retrieveDocuments(
+              query,
+              options,
+            );
         }
-        
+
         // Create retrieved context
         const retrievedContext = {
           query,
@@ -135,7 +156,7 @@ export class AdaptiveRagService implements IAdaptiveRagService {
           strategy,
           timestamp: new Date().toISOString(),
         };
-        
+
         return { retrievedContext } as unknown as Partial<T>;
       } catch (error) {
         this.logger.error(`Error in adaptive RAG node: ${error.message}`);
@@ -149,24 +170,24 @@ export class AdaptiveRagService implements IAdaptiveRagService {
    */
   addAdaptiveRagToGraph(graph: any, options: RetrievalOptions = {}): void {
     // Add adaptive RAG node
-    graph.addNode('adaptive_rag', this.createAdaptiveRagNode(
-      (state) => state.transcript || '',
-      options,
-    ));
-    
+    graph.addNode(
+      'adaptive_rag',
+      this.createAdaptiveRagNode((state) => state.transcript || '', options),
+    );
+
     // Modify graph edges
     graph.addEdge('adaptive_rag', 'topic_extraction');
-    
+
     // Replace start edge
     const edges = graph['edges'];
-    const startEdges = edges.filter(e => e.source === '__start__');
-    
+    const startEdges = edges.filter((e) => e.source === '__start__');
+
     for (const edge of startEdges) {
       if (edge.target === 'topic_extraction') {
-        graph['edges'] = edges.filter(e => e !== edge);
+        graph['edges'] = edges.filter((e) => e !== edge);
         graph.addEdge('__start__', 'adaptive_rag');
         break;
       }
     }
   }
-} 
+}

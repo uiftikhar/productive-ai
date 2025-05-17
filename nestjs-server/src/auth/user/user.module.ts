@@ -10,4 +10,4 @@ import { UserRepository } from '../repositories/user.repository';
   providers: [UserRepository],
   exports: [MongooseModule, UserRepository],
 })
-export class UserModule {} 
+export class UserModule {}

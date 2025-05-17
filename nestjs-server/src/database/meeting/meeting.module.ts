@@ -10,4 +10,4 @@ import { MeetingRepository } from '../repositories/meeting.repository';
   providers: [MeetingRepository],
   exports: [MongooseModule, MeetingRepository],
 })
-export class MeetingModule {} 
+export class MeetingModule {}

@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Pinecone, Index, IndexList, ServerlessSpecCloudEnum } from '@pinecone-database/pinecone';
+import {
+  Pinecone,
+  Index,
+  IndexList,
+  ServerlessSpecCloudEnum,
+} from '@pinecone-database/pinecone';
 import { ConfigService } from '@nestjs/config';
 import { PineconeConfigService } from './pinecone-config.service';
 
@@ -111,4 +116,4 @@ export class PineconeIndexService {
   async describeIndex(indexName: VectorIndexes | string): Promise<any> {
     return this.pinecone.describeIndex(indexName);
   }
-} 
+}

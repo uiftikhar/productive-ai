@@ -7,23 +7,25 @@ import { EMBEDDING_SERVICE } from './embedding/constants/injection-tokens';
 export class AppController {
   constructor(
     private readonly appService: AppService,
-    @Optional() @Inject(EMBEDDING_SERVICE) private readonly embeddingService: EmbeddingService,
+    @Optional()
+    @Inject(EMBEDDING_SERVICE)
+    private readonly embeddingService: EmbeddingService,
   ) {}
 
   @Get()
   getHello(): string {
     return this.appService.getHello();
   }
-  
+
   @Post('test-embedding')
   async testEmbedding(@Body() body: { text: string }) {
     if (!this.embeddingService) {
       return {
         error: 'Embedding service not available',
-        status: 'disabled'
+        status: 'disabled',
       };
     }
-    
+
     const embedding = await this.embeddingService.generateEmbedding(body.text);
     return {
       text: body.text,

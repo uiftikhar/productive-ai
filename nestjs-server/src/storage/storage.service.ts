@@ -22,8 +22,9 @@ export class StorageService {
 
   private initializePaths(): void {
     // Get base storage path from config
-    this.baseStoragePath = this.configService.get<string>('STORAGE_PATH') || './data/file-storage';
-    
+    this.baseStoragePath =
+      this.configService.get<string>('STORAGE_PATH') || './data/file-storage';
+
     // Define all subdirectories
     this.transcriptsPath = path.join(this.baseStoragePath, 'transcripts');
     this.meetingsPath = path.join(this.baseStoragePath, 'meetings');

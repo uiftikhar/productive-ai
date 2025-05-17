@@ -30,19 +30,22 @@ export class LlmService {
       this.configService.get<string>('llm.defaultModel') || 'gpt-4o';
     this.defaultProvider = (this.configService.get<string>('llm.provider') ||
       'openai') as LLMProvider;
-    this.openaiApiKey = this.configService.get<string>('llm.apiKey') || 
-      this.configService.get<string>('OPENAI_API_KEY') || '';
+    this.openaiApiKey =
+      this.configService.get<string>('llm.apiKey') ||
+      this.configService.get<string>('OPENAI_API_KEY') ||
+      '';
     this.anthropicApiKey =
-      this.configService.get<string>('llm.anthropicApiKey') || 
-      this.configService.get<string>('ANTHROPIC_API_KEY') || '';
-    
+      this.configService.get<string>('llm.anthropicApiKey') ||
+      this.configService.get<string>('ANTHROPIC_API_KEY') ||
+      '';
+
     // Initialize the clients
     if (this.openaiApiKey) {
       this.openai = new OpenAI({
         apiKey: this.openaiApiKey,
       });
     }
-    
+
     if (this.anthropicApiKey) {
       this.anthropic = new Anthropic({
         apiKey: this.anthropicApiKey,
@@ -102,7 +105,7 @@ export class LlmService {
       maxTokens: options.maxTokens,
     });
   }
-  
+
   /**
    * Generate embeddings using OpenAI
    */
@@ -114,18 +117,18 @@ export class LlmService {
       if (!this.openaiApiKey) {
         throw new Error('OpenAI API key is not configured');
       }
-      
+
       this.openai = new OpenAI({
         apiKey: this.openaiApiKey,
       });
     }
-    
+
     try {
       const response = await this.openai.embeddings.create({
         model,
         input: text,
       });
-      
+
       return response.data[0].embedding;
     } catch (error) {
       this.logger.error(`Error generating OpenAI embedding: ${error.message}`);
@@ -142,21 +145,25 @@ export class LlmService {
       if (!this.anthropicApiKey) {
         throw new Error('Anthropic API key is not configured');
       }
-      
+
       this.anthropic = new Anthropic({
         apiKey: this.anthropicApiKey,
       });
     }
-    
+
     try {
-      // Note: The Anthropic API interface may have changed. 
+      // Note: The Anthropic API interface may have changed.
       // This implementation needs to be updated based on their latest SDK
-      this.logger.warn('Anthropic embedding API may have changed, this method needs updating');
-      
+      this.logger.warn(
+        'Anthropic embedding API may have changed, this method needs updating',
+      );
+
       // Fallback to OpenAI embedding
       return this.generateOpenAIEmbedding(text);
     } catch (error) {
-      this.logger.error(`Error generating Anthropic embedding: ${error.message}`);
+      this.logger.error(
+        `Error generating Anthropic embedding: ${error.message}`,
+      );
       throw error;
     }
   }

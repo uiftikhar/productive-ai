@@ -12,14 +12,19 @@ import { MeetingModule } from './meeting/meeting.module';
         const username = configService.get<string>('MONGO_DB_USERNAME');
         const password = configService.get<string>('MONGO_DB_PASSWORD');
         const uri = configService.get<string>('MONGO_DB_URI');
-        const dbName = configService.get<string>('MONGO_DB_NAME', 'meeting-analysis');
+        const dbName = configService.get<string>(
+          'MONGO_DB_NAME',
+          'meeting-analysis',
+        );
 
         if (!uri || !username || !password) {
           throw new Error('MongoDB configuration is missing required values');
         }
 
         return {
-          uri: uri.replace('<username>', username).replace('<password>', password),
+          uri: uri
+            .replace('<username>', username)
+            .replace('<password>', password),
           dbName,
           useNewUrlParser: true,
           useUnifiedTopology: true,

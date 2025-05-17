@@ -3,7 +3,7 @@ import { RetrievalOptions, RetrievedDocument } from '../retrieval.service';
 export interface IRetrievalService {
   retrieveDocuments(
     query: string,
-    options?: RetrievalOptions
+    options?: RetrievalOptions,
   ): Promise<RetrievedDocument[]>;
 
   hybridSearch(
@@ -11,6 +11,6 @@ export interface IRetrievalService {
     options?: RetrievalOptions & {
       keywordWeight?: number;
       vectorWeight?: number;
-    }
+    },
   ): Promise<RetrievedDocument[]>;
-} 
+}

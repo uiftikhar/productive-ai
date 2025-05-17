@@ -14,7 +14,9 @@ describe('AppController', () => {
         {
           provide: EmbeddingService,
           useValue: {
-            generateEmbedding: jest.fn().mockResolvedValue(Array(1536).fill(0.1)),
+            generateEmbedding: jest
+              .fn()
+              .mockResolvedValue(Array(1536).fill(0.1)),
           },
         },
       ],

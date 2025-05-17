@@ -38,13 +38,13 @@ export abstract class RagEnhancedAgent extends BaseAgent {
       systemPrompt: config.systemPrompt,
       llmOptions: config.llmOptions,
     });
-    
+
     // Set up RAG options with defaults
     const defaultOptions: RagAgentOptions = {
       includeRetrievedContext: true,
       useAdaptiveRetrieval: true,
     };
-    
+
     this.ragOptions = { ...defaultOptions, ...config.ragOptions };
     this.logger = new Logger(`RagAgent:${config.name}`);
   }
@@ -87,19 +87,21 @@ ${formattedDocs}
       }
 
       // Check if we already have retrieved context in the state
-      let retrievedContext = state.retrievedContext as RetrievedContext | undefined;
+      let retrievedContext = state.retrievedContext as
+        | RetrievedContext
+        | undefined;
 
       // If no context or we need fresh context, retrieve it
       if (!retrievedContext) {
         const query = this.extractQueryFromState(state);
-        
+
         if (query) {
           // Retrieve context
           const documents = await this.ragService.getContext(
             query,
             this.ragOptions.retrievalOptions,
           );
-          
+
           retrievedContext = {
             query,
             documents,
@@ -112,7 +114,7 @@ ${formattedDocs}
       if (retrievedContext && retrievedContext.documents.length > 0) {
         // Format the context for the agent
         const formattedContext = this.formatRetrievedContext(retrievedContext);
-        
+
         // Enhance the agent's reasoning with this context
         return this.processWithContext(state, formattedContext);
       }
@@ -128,22 +130,26 @@ ${formattedDocs}
   /**
    * Process input with retrieved context
    */
-  protected async processWithContext(state: any, context: string): Promise<any> {
+  protected async processWithContext(
+    state: any,
+    context: string,
+  ): Promise<any> {
     // Base implementation - override in specialized agents if needed
     const enhancedPrompt = `${this.systemPrompt}\n\n${context}`;
-    
+
     // If state has a transcript, use it as the human message content
-    const content = typeof state === 'object' && state.transcript 
-      ? state.transcript
-      : JSON.stringify(state);
-      
+    const content =
+      typeof state === 'object' && state.transcript
+        ? state.transcript
+        : JSON.stringify(state);
+
     const messages = [
       new SystemMessage(enhancedPrompt),
       new HumanMessage(content),
     ];
-    
+
     const response = await this.getChatModel().invoke(messages);
-    
+
     // Try to parse response as JSON if the state was JSON
     try {
       if (typeof state === 'object') {
@@ -155,4 +161,4 @@ ${formattedDocs}
       return response.content.toString();
     }
   }
-} 
+}

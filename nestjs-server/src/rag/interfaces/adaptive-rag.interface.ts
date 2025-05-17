@@ -8,8 +8,8 @@ export interface IAdaptiveRagService {
 
   createAdaptiveRagNode<T extends Record<string, any>>(
     queryExtractor: (state: T) => string,
-    baseOptions?: RetrievalOptions
+    baseOptions?: RetrievalOptions,
   ): (state: T) => Promise<Partial<T>>;
 
   addAdaptiveRagToGraph(graph: any, options?: RetrievalOptions): void;
-} 
+}

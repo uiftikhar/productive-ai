@@ -11,11 +11,11 @@ export class PineconeInitializer implements OnModuleInit {
   constructor(
     private readonly pineconeService: PineconeService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   async onModuleInit() {
     this.logger.log('Initializing Pinecone indexes...');
-    
+
     // Common configuration for all indexes
     const baseConfig: IndexConfig = {
       metric: 'cosine',
@@ -25,16 +25,10 @@ export class PineconeInitializer implements OnModuleInit {
       embeddingModel: 'llama-text-embed-v2',
       tags: { project: 'productive-ai' },
     };
-    
-    // Define indexes to initialize
-    const indexes = [
-      { name: VectorIndexes.USER_CONTEXT, config: baseConfig },
-      { name: VectorIndexes.MEETING_ANALYSIS, config: baseConfig },
-      { name: VectorIndexes.TRANSCRIPT_EMBEDDINGS, config: baseConfig },
-    ];
-    
+
+
     try {
-      await this.pineconeService.initializeIndexes(indexes);
+      await this.pineconeService.initializeIndexes([{ name: VectorIndexes.MEETING_ANALYSIS, config: baseConfig }]);
       this.logger.log('All Pinecone indexes initialized successfully');
     } catch (error) {
       this.logger.error('Failed to initialize Pinecone indexes', error.stack);

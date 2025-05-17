@@ -36,7 +36,9 @@ export class PineconeConnectionService {
       });
       return response;
     } catch (error) {
-      this.logger.error(`Error querying vectors in ${indexName}: ${error.message}`);
+      this.logger.error(
+        `Error querying vectors in ${indexName}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -52,11 +54,11 @@ export class PineconeConnectionService {
   ) {
     try {
       const index = this.pinecone.index(indexName);
-      
+
       // Default options
       const batchSize = options?.batchSize || 100;
       const concurrency = options?.concurrency || 5;
-      
+
       // Batch processing for large vector sets
       if (vectors.length <= batchSize) {
         await index.namespace(namespace).upsert(vectors);
@@ -67,7 +69,7 @@ export class PineconeConnectionService {
           const batch = vectors.slice(i, i + batchSize);
           batches.push(batch);
         }
-        
+
         // Process batches with controlled concurrency
         await this.processBatchesWithConcurrency(
           batches,
@@ -78,7 +80,9 @@ export class PineconeConnectionService {
         );
       }
     } catch (error) {
-      this.logger.error(`Error upserting vectors to ${indexName}: ${error.message}`);
+      this.logger.error(
+        `Error upserting vectors to ${indexName}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -93,7 +97,7 @@ export class PineconeConnectionService {
   ): Promise<void> {
     const activeTasks: Promise<any>[] = [];
     const results: any[] = [];
-    
+
     for (const item of items) {
       const task = (async () => {
         try {
@@ -103,15 +107,21 @@ export class PineconeConnectionService {
           throw error;
         }
       })();
-      
+
       activeTasks.push(task);
-      
+
       if (activeTasks.length >= concurrency) {
-        results.push(await Promise.race(activeTasks.map((t, i) => t.then(result => ({ result, index: i })))));
+        results.push(
+          await Promise.race(
+            activeTasks.map((t, i) =>
+              t.then((result) => ({ result, index: i })),
+            ),
+          ),
+        );
         activeTasks.splice(results[results.length - 1].index, 1);
       }
     }
-    
+
     // Wait for remaining tasks
     if (activeTasks.length > 0) {
       await Promise.all(activeTasks);
@@ -130,7 +140,9 @@ export class PineconeConnectionService {
       const index = this.pinecone.index(indexName);
       await index.deleteMany({ ids, namespace });
     } catch (error) {
-      this.logger.error(`Error deleting vectors from ${indexName}: ${error.message}`);
+      this.logger.error(
+        `Error deleting vectors from ${indexName}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -147,7 +159,9 @@ export class PineconeConnectionService {
       const index = this.pinecone.index(indexName);
       await index.deleteMany({ filter, namespace });
     } catch (error) {
-      this.logger.error(`Error deleting vectors by filter from ${indexName}: ${error.message}`);
+      this.logger.error(
+        `Error deleting vectors by filter from ${indexName}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -162,10 +176,12 @@ export class PineconeConnectionService {
   ) {
     try {
       const index = this.pinecone.index(indexName).namespace(namespace);
-      const response = await index.fetch( ids);
+      const response = await index.fetch(ids);
       return response;
     } catch (error) {
-      this.logger.error(`Error fetching vectors from ${indexName}: ${error.message}`);
+      this.logger.error(
+        `Error fetching vectors from ${indexName}: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -182,7 +198,9 @@ export class PineconeConnectionService {
       const stats = await index.describeIndexStats();
       return !!stats.namespaces && !!stats.namespaces[namespace];
     } catch (error) {
-      this.logger.error(`Error checking if namespace exists in ${indexName}: ${error.message}`);
+      this.logger.error(
+        `Error checking if namespace exists in ${indexName}: ${error.message}`,
+      );
       return false;
     }
   }
@@ -193,4 +211,4 @@ export class PineconeConnectionService {
   getIndex(indexName: string): Index {
     return this.pinecone.index(indexName);
   }
-} 
+}

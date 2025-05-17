@@ -44,4 +44,4 @@ export class MeetingRepository {
   async remove(id: string): Promise<Meeting | null> {
     return this.meetingModel.findByIdAndDelete(id).exec();
   }
-} 
+}

@@ -1,6 +1,12 @@
 import { Module, Provider } from '@nestjs/common';
-import { RagMeetingAnalysisAgent, RAG_MEETING_ANALYSIS_CONFIG } from './agents/enhanced/rag-meeting-agent';
-import { RagTopicExtractionAgent, RAG_TOPIC_EXTRACTION_CONFIG } from './agents/enhanced/rag-topic-extraction-agent';
+import {
+  RagMeetingAnalysisAgent,
+  RAG_MEETING_ANALYSIS_CONFIG,
+} from './agents/enhanced/rag-meeting-agent';
+import {
+  RagTopicExtractionAgent,
+  RAG_TOPIC_EXTRACTION_CONFIG,
+} from './agents/enhanced/rag-topic-extraction-agent';
 import { AgenticMeetingAnalysisService } from './agentic-meeting-analysis.service';
 import { LlmModule } from '../llm/llm.module';
 import { StateModule } from '../state/state.module';
@@ -12,18 +18,15 @@ import { AgentExpertise } from './interfaces/agent.interface';
  * using RAG capabilities for better context-awareness
  */
 @Module({
-  imports: [
-    LlmModule,
-    StateModule,
-    RagModule,
-  ],
+  imports: [LlmModule, StateModule, RagModule],
   providers: [
     // Configuration factory provider for RagMeetingAnalysisAgent
     {
       provide: RAG_MEETING_ANALYSIS_CONFIG,
       useFactory: () => ({
         name: 'Meeting Analysis Agent',
-        systemPrompt: 'You are an AI assistant specialized in analyzing meeting transcripts.',
+        systemPrompt:
+          'You are an AI assistant specialized in analyzing meeting transcripts.',
         expertise: [AgentExpertise.TOPIC_ANALYSIS],
         ragOptions: {
           includeRetrievedContext: true,
@@ -32,8 +35,8 @@ import { AgentExpertise } from './interfaces/agent.interface';
             namespace: 'transcripts',
             topK: 5,
             minScore: 0.7,
-          }
-        }
+          },
+        },
       }),
     },
     // Configuration factory provider for RagTopicExtractionAgent
@@ -62,11 +65,12 @@ Look for patterns in the conversation that indicate important discussion points.
             namespace: 'topics',
             topK: 5,
             minScore: 0.7,
-          }
+          },
         },
         specializedQueries: {
-          [AgentExpertise.TOPIC_ANALYSIS]: 'What are the main topics discussed in this meeting transcript?'
-        }
+          [AgentExpertise.TOPIC_ANALYSIS]:
+            'What are the main topics discussed in this meeting transcript?',
+        },
       }),
     },
     // Provide the agents and service
@@ -80,4 +84,4 @@ Look for patterns in the conversation that indicate important discussion points.
     AgenticMeetingAnalysisService,
   ],
 })
-export class AgenticMeetingAnalysisModule {} 
+export class AgenticMeetingAnalysisModule {}

@@ -35,12 +35,12 @@ export class AuthService {
 
   async login(user: User) {
     // Ensure we have a valid user ID string
-    const userId = user._id ? user._id.toString() : (user.id || '');
-    
+    const userId = user._id ? user._id.toString() : user.id || '';
+
     if (!userId) {
       throw new Error('User has no valid ID');
     }
-    
+
     const payload = { sub: userId, email: user.email };
 
     const accessToken = this.jwtService.sign(payload, {

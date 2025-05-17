@@ -5,16 +5,14 @@ import { PineconeConnectionService } from './pinecone-connection.service';
 import { PineconeConfigService } from './pinecone-config.service';
 import { PineconeIndexService } from './pinecone-index.service';
 import { PineconeInitializer } from './initialize-indexes';
-import { 
-  PINECONE_SERVICE, 
-  PINECONE_CONNECTION_SERVICE, 
-  PINECONE_INDEX_SERVICE 
+import {
+  PINECONE_SERVICE,
+  PINECONE_CONNECTION_SERVICE,
+  PINECONE_INDEX_SERVICE,
 } from './constants/injection-tokens';
 
 @Module({
-  imports: [
-    ConfigModule,
-  ],
+  imports: [ConfigModule],
   providers: [
     // Concrete implementations
     PineconeService,
@@ -22,7 +20,7 @@ import {
     PineconeConnectionService,
     PineconeIndexService,
     PineconeInitializer,
-    
+
     // Token-based providers
     {
       provide: PINECONE_SERVICE,
@@ -43,11 +41,11 @@ import {
     PineconeConfigService,
     PineconeConnectionService,
     PineconeIndexService,
-    
+
     // Token-based providers
     PINECONE_SERVICE,
     PINECONE_CONNECTION_SERVICE,
     PINECONE_INDEX_SERVICE,
   ],
 })
-export class PineconeModule {} 
+export class PineconeModule {}

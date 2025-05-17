@@ -7,4 +7,4 @@ export * from './document-processor.service';
 export * from './constants/injection-tokens';
 
 // Module
-export * from './embedding.module'; 
+export * from './embedding.module';

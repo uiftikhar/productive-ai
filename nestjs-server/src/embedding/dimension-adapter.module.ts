@@ -7,4 +7,4 @@ import { ConfigModule } from '@nestjs/config';
   providers: [DimensionAdapterService],
   exports: [DimensionAdapterService],
 })
-export class DimensionAdapterModule {} 
+export class DimensionAdapterModule {}

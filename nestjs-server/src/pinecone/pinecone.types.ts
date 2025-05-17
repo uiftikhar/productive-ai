@@ -30,4 +30,4 @@ export interface IndexStats {
   dimension: number;
   indexFullness: number;
   totalVectorCount: number;
-} 
+}

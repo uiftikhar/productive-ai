@@ -76,4 +76,4 @@ export class Meeting {
   updatedAt: Date;
 }
 
-export const MeetingSchema = SchemaFactory.createForClass(Meeting); 
+export const MeetingSchema = SchemaFactory.createForClass(Meeting);

@@ -1,6 +1,10 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { Logger } from '@nestjs/common';
-import { RagEnhancedAgent, RagAgentConfig, RagAgentOptions } from '../../../../rag/agents/rag-enhanced-agent';
+import {
+  RagEnhancedAgent,
+  RagAgentConfig,
+  RagAgentOptions,
+} from '../../../../rag/agents/rag-enhanced-agent';
 import { IRagService } from '../../../../rag/interfaces/rag-service.interface';
 import { RetrievalOptions } from '../../../../rag/retrieval.service';
 import { RAG_SERVICE } from '../../../../rag/constants/injection-tokens';
@@ -48,35 +52,38 @@ export class RagMeetingAnalysisAgent extends RagEnhancedAgent {
         namespace: 'transcripts',
         topK: 5,
         minScore: 0.7,
-      }
+      },
     };
-    
-    super(
-      llmService, 
-      stateService, 
-      ragService, 
-      {
-        name: config.name || 'Meeting Analysis Agent',
-        systemPrompt: config.systemPrompt || 'You are an AI assistant specialized in analyzing meeting transcripts.',
-        llmOptions: config.llmOptions,
-        ragOptions: ragConfig
-      }
-    );
-    
+
+    super(llmService, stateService, ragService, {
+      name: config.name || 'Meeting Analysis Agent',
+      systemPrompt:
+        config.systemPrompt ||
+        'You are an AI assistant specialized in analyzing meeting transcripts.',
+      llmOptions: config.llmOptions,
+      ragOptions: ragConfig,
+    });
+
     this.expertise = config.expertise || [AgentExpertise.TOPIC_ANALYSIS];
     this.specializationPrompt = config.specializationPrompt || '';
     this.processTranscriptsForRag = config.processTranscriptsForRag !== false;
     this.ragConfiguration = ragConfig;
-    
+
     // Set up specialized query templates based on expertise
     this.specializedQueries = {
-      [AgentExpertise.TOPIC_ANALYSIS]: 'What are the main topics discussed in this meeting?',
-      [AgentExpertise.ACTION_ITEM_EXTRACTION]: 'What action items were assigned in this meeting?',
-      [AgentExpertise.DECISION_TRACKING]: 'What key decisions were made in this meeting?',
-      [AgentExpertise.SUMMARY_GENERATION]: 'Provide a comprehensive summary of this meeting',
-      [AgentExpertise.SENTIMENT_ANALYSIS]: 'What was the sentiment and emotional tone of this meeting?',
-      [AgentExpertise.PARTICIPANT_DYNAMICS]: 'How did participants interact during this meeting?',
-      ...config.specializedQueries || {}
+      [AgentExpertise.TOPIC_ANALYSIS]:
+        'What are the main topics discussed in this meeting?',
+      [AgentExpertise.ACTION_ITEM_EXTRACTION]:
+        'What action items were assigned in this meeting?',
+      [AgentExpertise.DECISION_TRACKING]:
+        'What key decisions were made in this meeting?',
+      [AgentExpertise.SUMMARY_GENERATION]:
+        'Provide a comprehensive summary of this meeting',
+      [AgentExpertise.SENTIMENT_ANALYSIS]:
+        'What was the sentiment and emotional tone of this meeting?',
+      [AgentExpertise.PARTICIPANT_DYNAMICS]:
+        'How did participants interact during this meeting?',
+      ...(config.specializedQueries || {}),
     };
   }
 
@@ -86,18 +93,23 @@ export class RagMeetingAnalysisAgent extends RagEnhancedAgent {
   protected extractQueryFromState(state: any): string {
     // If transcript is available, use it as the base query
     let query = '';
-    
+
     if (typeof state === 'object') {
       if (state.transcript) {
         // Start with a shorter version of the transcript to avoid token limits
-        const transcript = typeof state.transcript === 'string' 
-          ? state.transcript.substring(0, 500) 
-          : JSON.stringify(state.transcript).substring(0, 500);
-        
+        const transcript =
+          typeof state.transcript === 'string'
+            ? state.transcript.substring(0, 500)
+            : JSON.stringify(state.transcript).substring(0, 500);
+
         query = transcript;
-        
+
         // If we have topics, add them to focus the query
-        if (state.topics && Array.isArray(state.topics) && state.topics.length > 0) {
+        if (
+          state.topics &&
+          Array.isArray(state.topics) &&
+          state.topics.length > 0
+        ) {
           const topicStr = state.topics.map((t: any) => t.name || t).join(', ');
           query = `Topics: ${topicStr}\n\n${query}`;
         }
@@ -108,13 +120,13 @@ export class RagMeetingAnalysisAgent extends RagEnhancedAgent {
     } else {
       query = String(state);
     }
-    
+
     // Enhance with specialized queries based on expertise
     const expertiseQuery = this.getSpecializedQuery();
     if (expertiseQuery) {
       query = `${expertiseQuery}\n\n${query}`;
     }
-    
+
     return query;
   }
 
@@ -125,7 +137,7 @@ export class RagMeetingAnalysisAgent extends RagEnhancedAgent {
     if (!this.expertise || this.expertise.length === 0) {
       return '';
     }
-    
+
     // Use the first expertise for query specialization
     const primaryExpertise = this.expertise[0];
     return this.specializedQueries[primaryExpertise] || '';
@@ -137,20 +149,20 @@ export class RagMeetingAnalysisAgent extends RagEnhancedAgent {
   protected getSystemPrompt(): string {
     // Get the system prompt from constructor config instead of super.systemPrompt
     let enhancedPrompt = 'You are an AI agent specialized in meeting analysis.';
-    
+
     // Add specialization based on expertise
     if (this.expertise && this.expertise.length > 0) {
       enhancedPrompt += `\n\nYou specialize in: ${this.expertise.join(', ')}.`;
     }
-    
+
     // Add custom specialization prompt if provided
     if (this.specializationPrompt) {
       enhancedPrompt += `\n\n${this.specializationPrompt}`;
     }
-    
+
     return enhancedPrompt;
   }
-  
+
   /**
    * Enhanced formatting for meeting-specific contexts
    */
@@ -163,34 +175,38 @@ export class RagMeetingAnalysisAgent extends RagEnhancedAgent {
     return `
 RELEVANT MEETING CONTEXT:
 ------------------------
-${context.documents.map((doc: any, index: number) => {
-  const metadata = doc.metadata || {};
-  const meetingId = metadata.meetingId || metadata.meeting_id || 'unknown';
-  const date = metadata.date || 'unknown';
-  const relevance = doc.score ? ` (Relevance: ${(doc.score * 100).toFixed(1)}%)` : '';
-  
-  return `[Meeting ${meetingId} - ${date}]${relevance}\n${doc.content}`;
-}).join('\n\n')}
+${context.documents
+  .map((doc: any, index: number) => {
+    const metadata = doc.metadata || {};
+    const meetingId = metadata.meetingId || metadata.meeting_id || 'unknown';
+    const date = metadata.date || 'unknown';
+    const relevance = doc.score
+      ? ` (Relevance: ${(doc.score * 100).toFixed(1)}%)`
+      : '';
+
+    return `[Meeting ${meetingId} - ${date}]${relevance}\n${doc.content}`;
+  })
+  .join('\n\n')}
 ------------------------
 `;
   }
-  
+
   /**
    * Process a transcript with RAG capabilities
    */
   async analyzeTranscript(
-    transcript: string, 
+    transcript: string,
     options?: {
       meetingId?: string;
       participantNames?: string[];
       expertise?: AgentExpertise;
       retrievalOptions?: RetrievalOptions;
-    }
+    },
   ): Promise<any> {
     try {
       const expertise = options?.expertise || this.expertise[0];
       const meetingId = options?.meetingId || `meeting-${Date.now()}`;
-      
+
       // Create a state object with the transcript
       const state = {
         transcript,
@@ -198,7 +214,7 @@ ${context.documents.map((doc: any, index: number) => {
         expertise,
         participants: options?.participantNames || [],
       };
-      
+
       // Prepare retrieval options with meetingId filter
       const retrievalOptions: RetrievalOptions = {
         ...(options?.retrievalOptions || {}),
@@ -211,21 +227,23 @@ ${context.documents.map((doc: any, index: number) => {
 
       // Extract a query from the state to use for retrieval
       const query = this.extractQueryFromState(state);
-      
+
       // First, enhance the state with context
       const enhancedState = await this.ragService.enhanceStateWithContext(
         state,
         query,
-        retrievalOptions
+        retrievalOptions,
       );
-      
+
       // Process the enhanced state
       const result = await this.processState(enhancedState);
-      
+
       return result;
     } catch (error) {
-      this.logger.error(`Error analyzing transcript with RAG: ${error.message}`);
+      this.logger.error(
+        `Error analyzing transcript with RAG: ${error.message}`,
+      );
       throw error;
     }
   }
-} 
+}
