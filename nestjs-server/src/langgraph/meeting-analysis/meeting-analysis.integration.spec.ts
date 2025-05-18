@@ -411,18 +411,12 @@ Alice (CEO): Great. Let's wrap up here and reconvene next week.
 
     const mockSummaryAgent = {
       generateSummary: jest.fn().mockResolvedValue({
-        title: 'Quarterly Review Meeting',
-        executive_summary:
-          'Team discussed project timeline delays, budget constraints, and team collaboration improvements.',
-        key_points: [
-          'Development phase is facing delays',
-          'Budget constraints need resource reallocation',
-          'New communication channel for cross-team collaboration',
-        ],
+        meetingTitle: 'Quarterly Review Meeting',
+        summary: 'Team discussed project timeline delays, budget constraints, and team collaboration improvements.',
         decisions: [
           {
-            description: 'Update project timeline with new milestones',
-            stakeholders: ['Bob'],
+            title: 'Update project timeline with new milestones',
+            content: 'Bob will update the project timeline document with the new milestones by next Friday.',
           },
         ],
         next_steps: ['Reconvene next week'],
@@ -578,18 +572,12 @@ Alice (CEO): Great. Let's wrap up here and reconvene next week.
           toneShifts: [],
         },
         summary: {
-          title: 'Quarterly Review Meeting',
-          executive_summary:
-            'Team discussed project timeline delays, budget constraints, and team collaboration improvements.',
-          key_points: [
-            'Development phase is facing delays',
-            'Budget constraints need resource reallocation',
-            'New communication channel for cross-team collaboration',
-          ],
+          meetingTitle: 'Quarterly Review Meeting',
+          summary: 'Team discussed project timeline delays, budget constraints, and team collaboration improvements.',
           decisions: [
             {
-              description: 'Update project timeline with new milestones',
-              stakeholders: ['Bob'],
+              title: 'Update project timeline with new milestones',
+              content: 'Bob will update the project timeline document with the new milestones by next Friday.',
             },
           ],
           next_steps: ['Reconvene next week'],
@@ -927,7 +915,7 @@ Alice (CEO): Great. Let's wrap up here and reconvene next week.
                 description:
                   'Update project timeline document with new milestones',
                 assignee: 'Bob',
-                dueDate: '2023-07-15',
+                deadline: '2023-07-15',
                 priority: 'high',
                 status: 'pending',
               },
@@ -935,7 +923,7 @@ Alice (CEO): Great. Let's wrap up here and reconvene next week.
                 description:
                   'Schedule budget review meeting with finance department',
                 assignee: 'Charlie',
-                dueDate: '2023-07-10',
+                deadline: '2023-07-10',
                 priority: 'medium',
                 status: 'pending',
               },
@@ -961,18 +949,12 @@ Alice (CEO): Great. Let's wrap up here and reconvene next week.
               toneShifts: [],
             },
             summary: {
-              title: 'Quarterly Review Meeting',
-              executive_summary:
-                'Team discussed project timeline delays, budget constraints, and team collaboration improvements.',
-              key_points: [
-                'Development phase is facing delays',
-                'Budget constraints need resource reallocation',
-                'New communication channel for cross-team collaboration',
-              ],
+              meetingTitle: 'Quarterly Review Meeting',
+              summary: 'Team discussed project timeline delays, budget constraints, and team collaboration improvements.',
               decisions: [
                 {
-                  description: 'Update project timeline with new milestones',
-                  stakeholders: ['Bob'],
+                  title: 'Update project timeline with new milestones',
+                  content: 'Bob will update the project timeline document with the new milestones by next Friday.',
                 },
               ],
               next_steps: ['Reconvene next week'],
