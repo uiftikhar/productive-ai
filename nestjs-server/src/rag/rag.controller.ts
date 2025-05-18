@@ -28,6 +28,7 @@ import { MeetingAnalysisService } from '../langgraph/meeting-analysis/meeting-an
 import { RAG_SERVICE } from './constants/injection-tokens';
 import { ConfigService } from '@nestjs/config';
 import { MEETING_CHUNK_ANALYSIS_PROMPT } from '../instruction-promtps';
+import { WorkflowService } from '../langgraph/graph/workflow.service';
 
 /**
  * Controller for RAG-enhanced meeting analysis endpoints
@@ -37,11 +38,13 @@ import { MEETING_CHUNK_ANALYSIS_PROMPT } from '../instruction-promtps';
 @Controller('rag-meeting-analysis')
 export class RagController {
   private readonly logger = new Logger(RagController.name);
+  private readonly activeRagSessions = new Map<string, string>();
 
   constructor(
     @Inject(RAG_SERVICE) private readonly ragService: RagService,
     private readonly meetingAnalysisService: MeetingAnalysisService,
     private readonly configService: ConfigService,
+    private readonly workflowService: WorkflowService,
   ) {
     this.logger.log('RAG Meeting Analysis Controller initialized');
     this.logger.debug(`Using analysis prompt: ${MEETING_CHUNK_ANALYSIS_PROMPT.substring(0, 50)}...`);
@@ -152,6 +155,31 @@ export class RagController {
       this.logger.log(`Analysis initiated with session ID: ${result.sessionId}`);
       this.logger.debug(`Initial analysis result: ${JSON.stringify(result)}`);
       
+      // Get all of the workflow service sessions
+      const allSessions = this.workflowService.listSessions();
+      
+      // Find the most recent session that isn't the one we got from meeting analysis service
+      const workflowSession = allSessions
+        .filter(session => session.id !== result.sessionId)
+        .sort((a, b) => b.startTime.getTime() - a.startTime.getTime())[0];
+      
+      if (workflowSession) {
+        this.logger.log(`Found matching workflow session ID: ${workflowSession.id}`);
+        // Store the mapping between the returned session ID and the actual workflow session ID
+        this.activeRagSessions.set(result.sessionId, workflowSession.id);
+        
+        // Return the workflow session ID instead
+        return {
+          ...result,
+          sessionId: workflowSession.id,
+          usedRag: ragProcessingSuccessful,
+          ragError: ragError ? {
+            message: ragError.message,
+            type: ragError.constructor.name
+          } : null
+        };
+      }
+      
       return {
         ...result,
         usedRag: ragProcessingSuccessful,
@@ -190,6 +218,13 @@ export class RagController {
     this.logger.log(`Retrieving RAG-enhanced analysis results for session ${sessionId}`);
     
     try {
+      // Check if we have a mapping for this session ID
+      const mappedSessionId = this.activeRagSessions.get(sessionId);
+      if (mappedSessionId) {
+        this.logger.log(`Using mapped session ID: ${mappedSessionId} for original ID: ${sessionId}`);
+        sessionId = mappedSessionId;
+      }
+      
       const results = await this.meetingAnalysisService.getAnalysisResults(sessionId);
       
       this.logger.log(`Successfully retrieved results for session ${sessionId}`);
@@ -204,7 +239,20 @@ export class RagController {
         this.logger.debug(`Found ${results.actionItems.length} action items in analysis`);
       }
       
-      return results;
+      // Always wrap the results in a consistent format
+      return {
+        sessionId,
+        status: results.status,
+        createdAt: results.createdAt,
+        completedAt: results.completedAt,
+        results: {
+          ...results,
+          // Clean any circular references
+          sessionId: undefined,
+          createdAt: undefined,
+          completedAt: undefined
+        }
+      };
     } catch (error) {
       this.logger.error(`Failed to retrieve analysis results for session ${sessionId}: ${error instanceof Error ? error.message : String(error)}`, {
         error: error instanceof Error ? error.stack : String(error),

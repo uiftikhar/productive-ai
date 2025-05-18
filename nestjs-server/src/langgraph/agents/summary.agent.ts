@@ -5,17 +5,13 @@ import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { FINAL_MEETING_SUMMARY_PROMPT } from '../../instruction-promtps';
 
 export interface MeetingSummary {
-  title: string;
-  executive_summary: string;
-  key_points: string[];
+  meetingTitle: string;
+  summary: string;
   decisions: Array<{
-    description: string;
-    rationale?: string;
-    stakeholders?: string[];
+    title: string;
+    content: string;
   }>;
-  next_steps: string[];
-  meeting_effectiveness?: number; // 1-10 scale
-  follow_up_items?: string[];
+  next_steps?: string[];
 }
 
 @Injectable()
@@ -85,10 +81,8 @@ export class SummaryAgent extends BaseAgent {
         `Failed to parse summary from response: ${error.message}`,
       );
       return {
-        title: 'Meeting Summary',
-        executive_summary:
-          'This is a placeholder summary due to parsing error.',
-        key_points: ['Unable to parse summary details'],
+        meetingTitle: 'Meeting Summary',
+        summary: 'This is a placeholder summary due to parsing error.',
         decisions: [],
         next_steps: [],
       };
