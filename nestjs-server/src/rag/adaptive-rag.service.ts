@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { RagService } from './rag.service';
 import { RetrievalService } from './retrieval.service';
 import { LlmService } from '../langgraph/llm/llm.service';
@@ -12,6 +12,7 @@ import {
   ADAPTIVE_RAG_SERVICE,
 } from './constants/injection-tokens';
 import { LLM_SERVICE } from '../langgraph/llm/constants/injection-tokens';
+import { AgentEventService } from '../langgraph/visualization/agent-event.service';
 
 @Injectable()
 export class AdaptiveRagService implements IAdaptiveRagService {
@@ -22,6 +23,8 @@ export class AdaptiveRagService implements IAdaptiveRagService {
     @Inject(RETRIEVAL_SERVICE)
     private readonly retrievalService: IRetrievalService,
     @Inject(LLM_SERVICE) private readonly llmService: LlmService,
+    @Inject(forwardRef(() => AgentEventService))
+    private readonly agentEventService?: AgentEventService,
   ) {}
 
   /**

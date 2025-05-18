@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { BaseAgent, AgentConfig } from './base-agent';
 import { LlmService } from '../llm/llm.service';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { AgentEventService } from '../visualization/agent-event.service';
 
 export interface Topic {
   name: string;
@@ -13,7 +14,11 @@ export interface Topic {
 
 @Injectable()
 export class TopicExtractionAgent extends BaseAgent {
-  constructor(protected readonly llmService: LlmService) {
+  constructor(
+    protected readonly llmService: LlmService,
+    @Inject(forwardRef(() => AgentEventService))
+    agentEventService?: AgentEventService,
+  ) {
     const config: AgentConfig = {
       name: 'TopicExtractor',
       systemPrompt:
@@ -23,7 +28,7 @@ export class TopicExtractionAgent extends BaseAgent {
         model: 'gpt-4o',
       },
     };
-    super(llmService, config);
+    super(llmService, config, agentEventService);
   }
 
   /**

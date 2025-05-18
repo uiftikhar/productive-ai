@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { IRagService } from '../../../../rag/interfaces/rag-service.interface';
 import { RAG_SERVICE } from '../../../../rag/constants/injection-tokens';
 import { LLM_SERVICE } from '../../../llm/constants/injection-tokens';
@@ -8,6 +8,7 @@ import { StateService } from '../../../state/state.service';
 import { AgentExpertise } from '../../interfaces/agent.interface';
 import { Topic } from '../../interfaces/state.interface';
 import { MEETING_CHUNK_ANALYSIS_PROMPT } from '../../../../instruction-promtps';
+import { AgentEventService } from '../../../visualization/agent-event.service';
 
 // Define the token here to avoid circular import
 export const RAG_TOPIC_EXTRACTION_CONFIG = 'RAG_TOPIC_EXTRACTION_CONFIG';
@@ -31,11 +32,13 @@ export class RagTopicExtractionAgent extends RagMeetingAnalysisAgent {
     @Inject(STATE_SERVICE) protected readonly stateService: StateService,
     @Inject(RAG_SERVICE) protected readonly ragService: IRagService,
     @Inject(RAG_TOPIC_EXTRACTION_CONFIG) config: RagMeetingAnalysisConfig,
+    @Inject(forwardRef(() => AgentEventService))
+    agentEventService?: AgentEventService,
   ) {
     super(llmService, stateService, ragService, {
       ...config,
       systemPrompt: config.systemPrompt || MEETING_CHUNK_ANALYSIS_PROMPT,
-    });
+    }, agentEventService);
   }
 
   /**

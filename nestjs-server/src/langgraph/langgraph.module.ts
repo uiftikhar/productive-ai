@@ -9,6 +9,7 @@ import { GraphModule } from './graph/graph.module';
 import { MeetingAnalysisModule } from './meeting-analysis/meeting-analysis.module';
 import { ExternalIntegrationModule } from './tools/external-integration.module';
 import { AgenticMeetingAnalysisModule } from './agentic-meeting-analysis/agentic-meeting-analysis.module';
+import { VisualizationModule } from './visualization/visualization.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AgenticMeetingAnalysisModule } from './agentic-meeting-analysis/agentic
     MeetingAnalysisModule,
     ExternalIntegrationModule,
     AgenticMeetingAnalysisModule,
+    VisualizationModule,
   ],
   exports: [
     LlmModule,
@@ -34,6 +36,7 @@ import { AgenticMeetingAnalysisModule } from './agentic-meeting-analysis/agentic
     MeetingAnalysisModule,
     ExternalIntegrationModule,
     AgenticMeetingAnalysisModule,
+    VisualizationModule,
   ],
 })
 export class LangGraphModule {}

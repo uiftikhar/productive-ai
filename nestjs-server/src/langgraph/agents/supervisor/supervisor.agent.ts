@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { BaseAgent, AgentConfig } from '../base-agent';
 import { LlmService } from '../../llm/llm.service';
 import { AgentFactory } from '../agent.factory';
+import { AgentEventService } from '../../visualization/agent-event.service';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { Topic } from '../topic-extraction.agent';
 import { ActionItem } from '../action-item.agent';
@@ -47,6 +48,8 @@ export class SupervisorAgent extends BaseAgent {
   constructor(
     protected readonly llmService: LlmService,
     private readonly agentFactory: AgentFactory,
+    @Inject(forwardRef(() => AgentEventService))
+    agentEventService?: AgentEventService,
   ) {
     const config: AgentConfig = {
       name: 'SupervisorAgent',
@@ -56,7 +59,7 @@ export class SupervisorAgent extends BaseAgent {
         model: 'gpt-4o',
       },
     };
-    super(llmService, config);
+    super(llmService, config, agentEventService);
   }
 
   /**

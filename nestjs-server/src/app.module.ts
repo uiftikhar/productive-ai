@@ -12,6 +12,7 @@ import { LangGraphModule } from './langgraph/langgraph.module';
 import { PineconeModule } from './pinecone/pinecone.module';
 import { EmbeddingModule } from './embedding/embedding.module';
 import { RagModule } from './rag/rag.module';
+import { VisualizationModule } from './langgraph/visualization/visualization.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { RagModule } from './rag/rag.module';
     PineconeModule,
     EmbeddingModule,
     RagModule,
+    VisualizationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

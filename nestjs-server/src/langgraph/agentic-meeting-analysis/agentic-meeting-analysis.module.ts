@@ -11,6 +11,7 @@ import { AgenticMeetingAnalysisService } from './agentic-meeting-analysis.servic
 import { LlmModule } from '../llm/llm.module';
 import { StateModule } from '../state/state.module';
 import { RagModule } from '../../rag/rag.module';
+import { VisualizationModule } from '../visualization/visualization.module';
 import { AgentExpertise } from './interfaces/agent.interface';
 import { 
   MEETING_CHUNK_ANALYSIS_PROMPT,
@@ -22,7 +23,7 @@ import {
  * using RAG capabilities for better context-awareness
  */
 @Module({
-  imports: [LlmModule, StateModule, RagModule],
+  imports: [LlmModule, StateModule, RagModule, VisualizationModule],
   providers: [
     // Configuration factory provider for RagMeetingAnalysisAgent
     {

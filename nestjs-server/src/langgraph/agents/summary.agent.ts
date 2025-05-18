@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { BaseAgent, AgentConfig } from './base-agent';
 import { LlmService } from '../llm/llm.service';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { AgentEventService } from '../visualization/agent-event.service';
 import { FINAL_MEETING_SUMMARY_PROMPT } from '../../instruction-promtps';
 
 export interface MeetingSummary {
@@ -16,7 +17,11 @@ export interface MeetingSummary {
 
 @Injectable()
 export class SummaryAgent extends BaseAgent {
-  constructor(protected readonly llmService: LlmService) {
+  constructor(
+    protected readonly llmService: LlmService,
+    @Inject(forwardRef(() => AgentEventService))
+    agentEventService?: AgentEventService,
+  ) {
     const config: AgentConfig = {
       name: 'SummaryAgent',
       systemPrompt: FINAL_MEETING_SUMMARY_PROMPT,
@@ -25,7 +30,7 @@ export class SummaryAgent extends BaseAgent {
         model: 'gpt-4o',
       },
     };
-    super(llmService, config);
+    super(llmService, config, agentEventService);
   }
 
   /**

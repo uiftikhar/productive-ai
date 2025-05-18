@@ -1,4 +1,4 @@
-import { Logger, Inject } from '@nestjs/common';
+import { Logger, Inject, forwardRef } from '@nestjs/common';
 import { BaseAgent, AgentConfig } from '../../langgraph/agents/base-agent';
 import { IRetrievalService, IRagService } from '../index';
 import { RetrievalOptions, RetrievedDocument } from '../retrieval.service';
@@ -9,6 +9,7 @@ import { STATE_SERVICE } from '../../langgraph/state/constants/injection-tokens'
 import { LlmService } from '../../langgraph/llm/llm.service';
 import { StateService } from '../../langgraph/state/state.service';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { AgentEventService } from '../../langgraph/visualization/agent-event.service';
 
 export interface RagAgentOptions {
   retrievalOptions?: RetrievalOptions;
@@ -32,12 +33,14 @@ export abstract class RagEnhancedAgent extends BaseAgent {
     @Inject(STATE_SERVICE) protected readonly stateService: StateService,
     @Inject(RAG_SERVICE) protected readonly ragService: IRagService,
     config: RagAgentConfig,
+    @Inject(forwardRef(() => AgentEventService))
+    agentEventService?: AgentEventService,
   ) {
     super(llmService, {
       name: config.name,
       systemPrompt: config.systemPrompt,
       llmOptions: config.llmOptions,
-    });
+    }, agentEventService);
 
     // Set up RAG options with defaults
     const defaultOptions: RagAgentOptions = {

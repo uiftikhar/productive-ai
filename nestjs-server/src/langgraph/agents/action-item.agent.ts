@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { BaseAgent, AgentConfig } from './base-agent';
 import { LlmService } from '../llm/llm.service';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { AgentEventService } from '../visualization/agent-event.service';
 import { EXTRACT_ACTION_ITEMS_PROMPT } from '../../instruction-promtps';
 
 export interface ActionItem {
@@ -15,7 +16,11 @@ export interface ActionItem {
 
 @Injectable()
 export class ActionItemAgent extends BaseAgent {
-  constructor(protected readonly llmService: LlmService) {
+  constructor(
+    protected readonly llmService: LlmService,
+    @Inject(forwardRef(() => AgentEventService))
+    agentEventService?: AgentEventService,
+  ) {
     const config: AgentConfig = {
       name: 'ActionItemExtractor',
       systemPrompt: EXTRACT_ACTION_ITEMS_PROMPT,
@@ -24,7 +29,7 @@ export class ActionItemAgent extends BaseAgent {
         model: 'gpt-4o',
       },
     };
-    super(llmService, config);
+    super(llmService, config, agentEventService);
   }
 
   /**

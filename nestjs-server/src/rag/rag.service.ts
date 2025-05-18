@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import {
   RetrievalService,
   RetrievedDocument,
@@ -20,6 +20,8 @@ import {
   SemanticChunkingOptions,
 } from '../embedding/semantic-chunking.service';
 import { ConfigService } from '@nestjs/config';
+import { v4 as uuidv4 } from 'uuid';
+import { AgentEventService } from '../langgraph/visualization/agent-event.service';
 
 export interface RagOptions {
   retrievalOptions?: RetrievalOptions;
@@ -55,6 +57,8 @@ export class RagService implements IRagService {
     private readonly dimensionAdapter: DimensionAdapterService,
     private readonly semanticChunking: SemanticChunkingService,
     private readonly configService: ConfigService,
+    @Inject(forwardRef(() => AgentEventService))
+    private readonly agentEventService?: AgentEventService,
   ) {
     this.logger.log('RAG Service initialized');
     this.useSemanticChunking =
@@ -66,38 +70,80 @@ export class RagService implements IRagService {
   }
 
   /**
-   * Get relevant context for a query
+   * Get context for a query from the vector store
    */
   async getContext(
     query: string,
     options: RetrievalOptions = {},
+    sessionId?: string,
+    agentId?: string,
   ): Promise<RetrievedDocument[]> {
-    this.logger.log(
-      `Getting context for query: "${query.substring(0, 50)}..."`,
-    );
-    this.logger.log(`Retrieval options: ${JSON.stringify(options)}`);
+    const startTime = Date.now();
+    const operationId = uuidv4();
+
+    // Emit service event if agent event service is available
+    if (this.agentEventService) {
+      this.agentEventService.emitServiceEvent(
+        'rag', 
+        'getContext', 
+        {
+          agentId: agentId || 'unknown',
+          agentType: 'RagService',
+          sessionId: sessionId || 'unknown',
+          timestamp: startTime
+        }, 
+        { text: query },
+        options
+      );
+    }
 
     try {
+      this.logger.debug(`Getting context for query: ${query.substring(0, 50)}...`);
+      this.logger.debug(`Retrieval options: ${JSON.stringify(options)}`);
+
       const documents = await this.retrievalService.retrieveDocuments(
         query,
         options,
       );
-      this.logger.log(`Retrieved ${documents.length} documents for context`);
 
-      if (documents.length > 0) {
-        this.logger.log(
-          `First document sample: ${JSON.stringify(documents[0]?.metadata || {})}`,
+      // Emit service completed event
+      if (this.agentEventService) {
+        this.agentEventService.emitServiceEvent(
+          'rag', 
+          'getContextCompleted', 
+          {
+            agentId: agentId || 'unknown',
+            agentType: 'RagService',
+            sessionId: sessionId || 'unknown',
+            timestamp: Date.now()
+          },
+          { text: query },
+          { ...options, result: {
+            documentCount: documents.length,
+            documentIds: documents.map(doc => doc.id)
+          }}
         );
-      } else {
-        this.logger.log('No documents found for context');
       }
 
       return documents;
     } catch (error) {
-      this.logger.error(
-        `Error retrieving context: ${error.message}`,
-        error.stack,
-      );
+      // Emit service error event
+      if (this.agentEventService) {
+        this.agentEventService.emitServiceEvent(
+          'rag', 
+          'getContextError', 
+          {
+            agentId: agentId || 'unknown',
+            agentType: 'RagService',
+            sessionId: sessionId || 'unknown',
+            timestamp: Date.now()
+          },
+          { text: query },
+          { ...options, error: error.message }
+        );
+      }
+
+      this.logger.error(`Error getting context: ${error.message}`, error.stack);
       throw error;
     }
   }
@@ -400,94 +446,97 @@ export class RagService implements IRagService {
   }
 
   /**
-   * Enhance graph state with RAG context
+   * Enhance a state object with retrieved context
    */
   async enhanceStateWithContext<T extends Record<string, any>>(
     state: T,
     query: string,
     options: RetrievalOptions = {},
   ): Promise<T & { retrievedContext: RetrievedContext }> {
-    if (!query || query.trim().length === 0) {
-      this.logger.warn('Empty query provided to enhanceStateWithContext');
-      return {
-        ...state,
-        retrievedContext: {
-          query: '',
-          documents: [],
-          timestamp: new Date().toISOString(),
+    const startTime = Date.now();
+    const sessionId = state.sessionId || 'unknown';
+    const agentId = state.agentId || 'unknown';
+    
+    // Emit service event
+    if (this.agentEventService) {
+      this.agentEventService.emitServiceEvent(
+        'rag', 
+        'enhanceStateWithContext', 
+        {
+          agentId,
+          agentType: 'RagService',
+          sessionId,
+          timestamp: startTime
         },
-      };
+        { text: query },
+        options
+      );
     }
-
-    this.logger.log(
-      `Enhancing state with RAG context for query: "${query.substring(0, 50)}..."`,
-    );
-
+    
     try {
-      // Retrieve context
-      this.logger.log(
-        `Retrieving documents with options: ${JSON.stringify(options)}`,
-      );
-      const documents = await this.retrievalService.retrieveDocuments(
-        query,
-        options,
+      this.logger.debug(
+        `Enhancing state with context for query: ${query.substring(0, 50)}...`,
       );
 
-      if (documents.length === 0) {
-        this.logger.log(
-          `No relevant context found for query: ${query.substring(0, 30)}...`,
-        );
-        // Create empty context if no documents found
-        return {
-          ...state,
-          retrievedContext: {
-            query,
-            documents: [],
-            timestamp: new Date().toISOString(),
-          },
-        };
-      }
+      const documents = await this.getContext(query, options, sessionId, agentId);
 
-      this.logger.log(
-        `Retrieved ${documents.length} documents for context enhancement`,
-      );
-
-      if (documents.length > 0) {
-        const sources = documents
-          .map((d) => d.metadata?.source || 'unknown')
-          .join(', ');
-        this.logger.log(`Document sources: ${sources}`);
-      }
-
-      // Add retrieved context to state
       const retrievedContext: RetrievedContext = {
         query,
         documents,
         timestamp: new Date().toISOString(),
       };
 
-      // Create a new state with the retrieved context
-      this.logger.log(
-        `Enhancing state with ${documents.length} context documents`,
-      );
-      return {
+      const enhancedState = {
         ...state,
         retrievedContext,
       };
+      
+      // Emit service completed event
+      if (this.agentEventService) {
+        this.agentEventService.emitServiceEvent(
+          'rag', 
+          'enhanceStateWithContextCompleted', 
+          {
+            agentId,
+            agentType: 'RagService',
+            sessionId,
+            timestamp: Date.now()
+          },
+          { text: query },
+          { 
+            ...options, 
+            result: {
+              documentCount: documents.length,
+              documentIds: documents.map(doc => doc.id)
+            },
+            duration: Date.now() - startTime
+          }
+        );
+      }
+      
+      return enhancedState as T & { retrievedContext: RetrievedContext };
     } catch (error) {
+      // Emit service error event
+      if (this.agentEventService) {
+        this.agentEventService.emitServiceEvent(
+          'rag', 
+          'enhanceStateWithContextError', 
+          {
+            agentId,
+            agentType: 'RagService',
+            sessionId,
+            timestamp: Date.now()
+          },
+          { text: query },
+          { ...options, error: error.message }
+        );
+      }
+      
       this.logger.error(
         `Error enhancing state with context: ${error.message}`,
         error.stack,
       );
-      // Return state with empty context on error
-      return {
-        ...state,
-        retrievedContext: {
-          query,
-          documents: [],
-          timestamp: new Date().toISOString(),
-        },
-      };
+      throw error;
     }
   }
 

@@ -7,6 +7,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { StateModule } from '../langgraph/state/state.module';
 import { MeetingAnalysisModule } from '../langgraph/meeting-analysis/meeting-analysis.module';
 import { GraphModule } from '../langgraph/graph/graph.module';
+import { VisualizationModule } from '../langgraph/visualization/visualization.module';
 import { AdaptiveRagService } from './adaptive-rag.service';
 import { RetrievalService } from './retrieval.service';
 import { RagService } from './rag.service';
@@ -26,6 +27,7 @@ import {
     StateModule,
     MeetingAnalysisModule,
     GraphModule,
+    VisualizationModule,
     CacheModule.register({
       ttl: 1800, // 30 minutes
       max: 100,

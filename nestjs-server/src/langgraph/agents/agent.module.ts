@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { LlmModule } from '../llm/llm.module';
+import { VisualizationModule } from '../visualization/visualization.module';
 import { AgentFactory } from './agent.factory';
 import { TopicExtractionAgent } from './topic-extraction.agent';
 import { ActionItemAgent } from './action-item.agent';
@@ -9,7 +10,7 @@ import { ParticipationAgent } from './participation.agent';
 import { ContextIntegrationAgent } from './context-integration.agent';
 
 @Module({
-  imports: [LlmModule],
+  imports: [LlmModule, VisualizationModule],
   providers: [
     AgentFactory,
     TopicExtractionAgent,

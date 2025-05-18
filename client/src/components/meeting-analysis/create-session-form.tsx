@@ -12,6 +12,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MeetingAnalysisService, AnalyzeTranscriptRequest } from '@/lib/api/meeting-analysis-service';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/context/AuthContext';
+import { useAgentVisualization } from '@/hooks/useAgentVisualization';
+import { AgentVisualization } from './visualization/AgentVisualization';
 
 interface CreateSessionFormProps {
   onAnalysisStarted: (sessionId: string) => void;
@@ -27,7 +29,12 @@ export function CreateSessionForm({ onAnalysisStarted }: CreateSessionFormProps)
   const [meetingTitle, setMeetingTitle] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [showVisualization, setShowVisualization] = useState(false);
   
+  // Connect to visualization when a session has been created
+  const { events, connected, isLoading: isLoadingEvents, connectionError } = useAgentVisualization(sessionId || '');
+
   // Submit transcript for analysis
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,82 +66,97 @@ export function CreateSessionForm({ onAnalysisStarted }: CreateSessionFormProps)
       // Send analysis request
       const response = await MeetingAnalysisService.analyzeTranscript(request);
       
+      // Set session ID for visualization
+      setSessionId(response.sessionId);
+      setShowVisualization(true);
+      
       // Notify parent with the session ID
       onAnalysisStarted(response.sessionId);
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to analyze transcript');
-    } finally {
       setIsLoading(false);
     }
   };
   
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-      
-      <div className="space-y-2">
-        <Label htmlFor="meetingTitle">Meeting Title (Optional)</Label>
-        <Input 
-          id="meetingTitle" 
-          value={meetingTitle} 
-          onChange={(e) => setMeetingTitle(e.target.value)} 
-          placeholder="Enter meeting title" 
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="participants">Participants (Optional, comma-separated)</Label>
-        <Input 
-          id="participants" 
-          value={participants} 
-          onChange={(e) => setParticipants(e.target.value)} 
-          placeholder="John Doe, Jane Smith" 
-        />
-      </div>
-      
-      <div className="space-y-2">
-        <Label htmlFor="analysisGoal">Analysis Goal</Label>
-        <Select value={analysisGoal} onValueChange={setAnalysisGoal}>
-          <SelectTrigger id="analysisGoal">
-            <SelectValue placeholder="Select analysis goal" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="full_analysis">Full Analysis</SelectItem>
-            <SelectItem value="action_items_only">Action Items Only</SelectItem>
-            <SelectItem value="summary_only">Summary Only</SelectItem>
-            <SelectItem value="topics_only">Topics Only</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      
-      <div className="space-y-2">
-        <Label htmlFor="transcript">Meeting Transcript</Label>
-        <Textarea 
-          id="transcript" 
-          value={transcript} 
-          onChange={(e) => setTranscript(e.target.value)} 
-          placeholder="Paste your meeting transcript here..." 
-          className="min-h-[200px]"
-          required 
-        />
-      </div>
-      
-      <Button type="submit" className="w-full" disabled={isLoading || !isAuthenticated}>
-        {isLoading ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Analyzing Transcript
-          </>
-        ) : (
-          'Analyze Transcript'
+    <div className="space-y-8">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
-      </Button>
-    </form>
+        
+        <div className="space-y-2">
+          <Label htmlFor="meetingTitle">Meeting Title (Optional)</Label>
+          <Input 
+            id="meetingTitle" 
+            value={meetingTitle} 
+            onChange={(e) => setMeetingTitle(e.target.value)} 
+            placeholder="Enter meeting title" 
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="participants">Participants (Optional, comma-separated)</Label>
+          <Input 
+            id="participants" 
+            value={participants} 
+            onChange={(e) => setParticipants(e.target.value)} 
+            placeholder="John Doe, Jane Smith" 
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="analysisGoal">Analysis Goal</Label>
+          <Select value={analysisGoal} onValueChange={setAnalysisGoal}>
+            <SelectTrigger id="analysisGoal">
+              <SelectValue placeholder="Select analysis goal" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="full_analysis">Full Analysis</SelectItem>
+              <SelectItem value="action_items_only">Action Items Only</SelectItem>
+              <SelectItem value="summary_only">Summary Only</SelectItem>
+              <SelectItem value="topics_only">Topics Only</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="transcript">Meeting Transcript</Label>
+          <Textarea 
+            id="transcript" 
+            value={transcript} 
+            onChange={(e) => setTranscript(e.target.value)} 
+            placeholder="Paste your meeting transcript here..." 
+            className="min-h-[200px]"
+            required 
+          />
+        </div>
+        
+        <Button type="submit" className="w-full" disabled={isLoading || !isAuthenticated}>
+          {isLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Analyzing Transcript
+            </>
+          ) : (
+            'Analyze Transcript'
+          )}
+        </Button>
+      </form>
+      
+      {showVisualization && (
+        <AgentVisualization 
+          events={events} 
+          sessionId={sessionId || ''} 
+          connected={connected}
+          isLoading={isLoadingEvents} 
+          connectionError={connectionError}
+        />
+      )}
+    </div>
   );
 } 

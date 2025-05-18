@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { Logger } from '@nestjs/common';
 import {
   RagEnhancedAgent,
@@ -13,6 +13,7 @@ import { STATE_SERVICE } from '../../../../langgraph/state/constants/injection-t
 import { LlmService } from '../../../llm/llm.service';
 import { StateService } from '../../../state/state.service';
 import { AgentExpertise } from '../../interfaces/agent.interface';
+import { AgentEventService } from '../../../visualization/agent-event.service';
 import {
   EXTRACT_ACTION_ITEMS_PROMPT,
   ANALYZE_PARTICIPATION_PROMPT,
@@ -55,6 +56,8 @@ export class RagMeetingAnalysisAgent extends RagEnhancedAgent {
     @Inject(STATE_SERVICE) protected readonly stateService: StateService,
     @Inject(RAG_SERVICE) protected readonly ragService: IRagService,
     @Inject(RAG_MEETING_ANALYSIS_CONFIG) config: RagMeetingAnalysisConfig,
+    @Inject(forwardRef(() => AgentEventService))
+    agentEventService?: AgentEventService,
   ) {
     // Keep a copy of the configuration for later use
     const ragConfig = config.ragOptions || {
@@ -74,7 +77,7 @@ export class RagMeetingAnalysisAgent extends RagEnhancedAgent {
         'You are an AI assistant specialized in analyzing meeting transcripts.',
       llmOptions: config.llmOptions,
       ragOptions: ragConfig,
-    });
+    }, agentEventService);
 
     this.expertise = config.expertise || [AgentExpertise.TOPIC_ANALYSIS];
     this.specializationPrompt = config.specializationPrompt || '';
