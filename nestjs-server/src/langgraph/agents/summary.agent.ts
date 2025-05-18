@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BaseAgent, AgentConfig } from './base-agent';
 import { LlmService } from '../llm/llm.service';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { FINAL_MEETING_SUMMARY_PROMPT } from '../../instruction-promtps';
 
 export interface MeetingSummary {
   title: string;
@@ -22,8 +23,7 @@ export class SummaryAgent extends BaseAgent {
   constructor(protected readonly llmService: LlmService) {
     const config: AgentConfig = {
       name: 'SummaryAgent',
-      systemPrompt:
-        'You are a specialized agent for creating comprehensive yet concise summaries of meetings. Synthesize key discussions, decisions, action items, and insights from meeting transcripts.',
+      systemPrompt: FINAL_MEETING_SUMMARY_PROMPT,
       llmOptions: {
         temperature: 0.4,
         model: 'gpt-4o',
@@ -45,17 +45,6 @@ export class SummaryAgent extends BaseAgent {
 
     let prompt = `
     Generate a comprehensive summary of this meeting.
-    
-    Include:
-    1. An appropriate title for the meeting
-    2. A concise executive summary (2-3 sentences)
-    3. Key points discussed
-    4. Important decisions made
-    5. Next steps
-    6. Rate meeting effectiveness on a 1-10 scale
-    7. Follow-up items or open questions
-
-    Format the response as a JSON object with these properties.
     
     Transcript:
     ${transcript}

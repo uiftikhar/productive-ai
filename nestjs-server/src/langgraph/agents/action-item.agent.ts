@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BaseAgent, AgentConfig } from './base-agent';
 import { LlmService } from '../llm/llm.service';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { EXTRACT_ACTION_ITEMS_PROMPT } from '../../instruction-promtps';
 
 export interface ActionItem {
   description: string;
@@ -17,8 +18,7 @@ export class ActionItemAgent extends BaseAgent {
   constructor(protected readonly llmService: LlmService) {
     const config: AgentConfig = {
       name: 'ActionItemExtractor',
-      systemPrompt:
-        'You are a specialized agent for identifying action items from meeting transcripts. Extract tasks, responsibilities, deadlines, and assignees from the discussion.',
+      systemPrompt: EXTRACT_ACTION_ITEMS_PROMPT,
       llmOptions: {
         temperature: 0.2,
         model: 'gpt-4o',
@@ -34,16 +34,7 @@ export class ActionItemAgent extends BaseAgent {
     const model = this.getChatModel();
 
     const prompt = `
-    Extract all action items mentioned in this meeting transcript.
-    For each action item, include:
-    - Description of the task
-    - Assignee (who is responsible)
-    - Deadline or timeframe (if mentioned)
-    - Current status (default to "pending")
-    - Priority level (if it can be inferred)
-    - Brief context about why this action is needed
-
-    Format the response as a JSON array of action item objects.
+    Analyze the following meeting transcript and extract all action items:
 
     Transcript:
     ${transcript}

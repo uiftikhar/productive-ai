@@ -26,8 +26,8 @@ import { AnalyzeTranscriptDto } from '../langgraph/meeting-analysis/dto/analyze-
 import { AnalysisResultDto } from '../langgraph/meeting-analysis/dto/analysis-result.dto';
 import { MeetingAnalysisService } from '../langgraph/meeting-analysis/meeting-analysis.service';
 import { RAG_SERVICE } from './constants/injection-tokens';
-import { IRagService } from './interfaces/rag-service.interface';
 import { ConfigService } from '@nestjs/config';
+import { MEETING_CHUNK_ANALYSIS_PROMPT } from '../instruction-promtps';
 
 /**
  * Controller for RAG-enhanced meeting analysis endpoints
@@ -44,14 +44,13 @@ export class RagController {
     private readonly configService: ConfigService,
   ) {
     this.logger.log('RAG Meeting Analysis Controller initialized');
+    this.logger.debug(`Using analysis prompt: ${MEETING_CHUNK_ANALYSIS_PROMPT.substring(0, 50)}...`);
   }
 
   /**
    * Submit a transcript for RAG-enhanced analysis
    */
-  @ApiOperation({
-    summary: 'Analyze a meeting transcript with RAG enhancement',
-  })
+  @ApiOperation({ summary: 'Analyze a meeting transcript with RAG enhancement' })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'RAG-enhanced analysis initiated successfully',
@@ -80,37 +79,30 @@ export class RagController {
   @Post()
   async analyzeTranscriptWithRag(@Body() dto: AnalyzeTranscriptDto) {
     try {
-      this.logger.log(
-        `Received RAG-enhanced transcript analysis request for ${dto.metadata?.title || 'untitled'}`,
-      );
-      this.logger.debug(
-        `Analysis request metadata: ${JSON.stringify(dto.metadata || {})}`,
-      );
-      this.logger.debug(
-        `Transcript length: ${dto.transcript.length} characters`,
-      );
-
+      this.logger.log(`Received RAG-enhanced transcript analysis request for ${dto.metadata?.title || 'untitled'}`);
+      this.logger.debug(`Analysis request metadata: ${JSON.stringify(dto.metadata || {})}`);
+      this.logger.debug(`Transcript length: ${dto.transcript.length} characters`);
+      
       let ragProcessingSuccessful = false;
       let ragError: Error | null = null;
-
+      
       // Try to index the transcript with RAG, but continue even if it fails
       try {
         this.logger.log('Starting RAG processing for transcript');
-
+        
         const documentId = `transcript-${Date.now()}`;
         const metadata = {
           ...dto.metadata,
           source: 'meeting_transcript',
           processed_date: new Date().toISOString(),
         };
-
+        
         this.logger.debug(`Processing document with ID: ${documentId}`);
         this.logger.debug(`Document metadata: ${JSON.stringify(metadata)}`);
-
+        
         // Check if RAG is enabled
-        const ragEnabled =
-          this.configService.get<string>('RAG_ENABLED', 'true') === 'true';
-
+        const ragEnabled = this.configService.get<string>('RAG_ENABLED', 'true') === 'true';
+        
         if (ragEnabled) {
           await this.ragService.processDocumentsForRag([
             {
@@ -119,7 +111,7 @@ export class RagController {
               metadata,
             },
           ]);
-
+          
           this.logger.log('Successfully processed transcript for RAG');
           ragProcessingSuccessful = true;
         } else {
@@ -127,66 +119,53 @@ export class RagController {
         }
       } catch (error) {
         // Log the error but continue with regular analysis
-        this.logger.error(
-          `RAG processing failed but continuing: ${error instanceof Error ? error.message : String(error)}`,
-          {
-            error: error instanceof Error ? error.stack : String(error),
-            context: 'RAG Processing',
-          },
-        );
-
+        this.logger.error(`RAG processing failed but continuing: ${error instanceof Error ? error.message : String(error)}`, {
+          error: error instanceof Error ? error.stack : String(error),
+          context: 'RAG Processing',
+        });
+        
         // Store error for response
         if (error instanceof Error) {
           ragError = error;
         } else {
           ragError = new Error(String(error));
         }
-
+        
         // Check for specific dimension mismatch errors
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
         if (errorMessage.includes('dimension')) {
           this.logger.warn(
             `Detected dimension mismatch error. Check that EMBEDDING_DIMENSIONS (${this.configService.get('EMBEDDING_DIMENSIONS')}) ` +
-              `matches your Pinecone index dimensions. Current error: ${errorMessage}`,
+            `matches your Pinecone index dimensions. Current error: ${errorMessage}`
           );
         }
       }
-
+      
       // Then analyze using meeting analysis service
       this.logger.log('Starting meeting analysis with transcript');
-
+      
       const result = await this.meetingAnalysisService.analyzeTranscript(
         dto.transcript,
         dto.metadata,
       );
-
-      this.logger.log(
-        `Analysis initiated with session ID: ${result.sessionId}`,
-      );
+      
+      this.logger.log(`Analysis initiated with session ID: ${result.sessionId}`);
       this.logger.debug(`Initial analysis result: ${JSON.stringify(result)}`);
-
+      
       return {
         ...result,
         usedRag: ragProcessingSuccessful,
-        ragError: ragError
-          ? {
-              message: ragError.message,
-              type: ragError.constructor.name,
-            }
-          : null,
+        ragError: ragError ? {
+          message: ragError.message,
+          type: ragError.constructor.name
+        } : null
       };
     } catch (error) {
-      this.logger.error(
-        `Analysis failed: ${error instanceof Error ? error.message : String(error)}`,
-        {
-          error: error instanceof Error ? error.stack : String(error),
-          context: 'Transcript Analysis',
-        },
-      );
-      throw new InternalServerErrorException(
-        `Analysis failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      this.logger.error(`Analysis failed: ${error instanceof Error ? error.message : String(error)}`, {
+        error: error instanceof Error ? error.stack : String(error),
+        context: 'Transcript Analysis',
+      });
+      throw new InternalServerErrorException(`Analysis failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -208,44 +187,30 @@ export class RagController {
   @UseGuards(JwtAuthGuard)
   @Get(':sessionId')
   async getRagAnalysisResults(@Param('sessionId') sessionId: string) {
-    this.logger.log(
-      `Retrieving RAG-enhanced analysis results for session ${sessionId}`,
-    );
-
+    this.logger.log(`Retrieving RAG-enhanced analysis results for session ${sessionId}`);
+    
     try {
-      const results =
-        await this.meetingAnalysisService.getAnalysisResults(sessionId);
-
-      this.logger.log(
-        `Successfully retrieved results for session ${sessionId}`,
-      );
+      const results = await this.meetingAnalysisService.getAnalysisResults(sessionId);
+      
+      this.logger.log(`Successfully retrieved results for session ${sessionId}`);
       this.logger.debug(`Analysis status: ${results.status}`);
-
+      
       // Safe property access using optional chaining and type checking
       if (results && 'topics' in results && Array.isArray(results.topics)) {
         this.logger.debug(`Found ${results.topics.length} topics in analysis`);
       }
-
-      if (
-        results &&
-        'actionItems' in results &&
-        Array.isArray(results.actionItems)
-      ) {
-        this.logger.debug(
-          `Found ${results.actionItems.length} action items in analysis`,
-        );
+      
+      if (results && 'actionItems' in results && Array.isArray(results.actionItems)) {
+        this.logger.debug(`Found ${results.actionItems.length} action items in analysis`);
       }
-
+      
       return results;
     } catch (error) {
-      this.logger.error(
-        `Failed to retrieve analysis results for session ${sessionId}: ${error instanceof Error ? error.message : String(error)}`,
-        {
-          error: error instanceof Error ? error.stack : String(error),
-          context: 'Get Analysis Results',
-        },
-      );
+      this.logger.error(`Failed to retrieve analysis results for session ${sessionId}: ${error instanceof Error ? error.message : String(error)}`, {
+        error: error instanceof Error ? error.stack : String(error),
+        context: 'Get Analysis Results',
+      });
       throw error; // Let the exception filter handle the error
     }
   }
-}
+} 

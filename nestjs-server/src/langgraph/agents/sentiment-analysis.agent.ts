@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BaseAgent, AgentConfig } from './base-agent';
 import { LlmService } from '../llm/llm.service';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { SENTIMENT_ANALYSIS_PROMPT } from '../../instruction-promtps';
 
 export interface SentimentAnalysis {
   overall: 'positive' | 'negative' | 'neutral' | 'mixed';
@@ -27,8 +28,7 @@ export class SentimentAnalysisAgent extends BaseAgent {
   constructor(protected readonly llmService: LlmService) {
     const config: AgentConfig = {
       name: 'SentimentAnalyzer',
-      systemPrompt:
-        'You are a specialized agent for analyzing sentiment in meeting transcripts. Identify emotions, tone, and overall sentiment of participants throughout the discussion.',
+      systemPrompt: SENTIMENT_ANALYSIS_PROMPT,
       llmOptions: {
         temperature: 0.3,
         model: 'gpt-4o',
@@ -45,16 +45,7 @@ export class SentimentAnalysisAgent extends BaseAgent {
 
     const prompt = `
     Analyze the sentiment in this meeting transcript.
-    Please provide:
     
-    1. Overall sentiment (positive, negative, neutral, or mixed)
-    2. A sentiment score from -1 (very negative) to 1 (very positive)
-    3. Key segments with their individual sentiment (include speaker and timestamp if available)
-    4. Key emotions detected throughout the meeting
-    5. Any significant tone shifts during the conversation
-    
-    Format the response as a JSON object with these properties.
-
     Transcript:
     ${transcript}
     `;

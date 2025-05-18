@@ -7,6 +7,7 @@ import { LlmService } from '../../../llm/llm.service';
 import { StateService } from '../../../state/state.service';
 import { AgentExpertise } from '../../interfaces/agent.interface';
 import { Topic } from '../../interfaces/state.interface';
+import { MEETING_CHUNK_ANALYSIS_PROMPT } from '../../../../instruction-promtps';
 
 // Define the token here to avoid circular import
 export const RAG_TOPIC_EXTRACTION_CONFIG = 'RAG_TOPIC_EXTRACTION_CONFIG';
@@ -31,7 +32,10 @@ export class RagTopicExtractionAgent extends RagMeetingAnalysisAgent {
     @Inject(RAG_SERVICE) protected readonly ragService: IRagService,
     @Inject(RAG_TOPIC_EXTRACTION_CONFIG) config: RagMeetingAnalysisConfig,
   ) {
-    super(llmService, stateService, ragService, config);
+    super(llmService, stateService, ragService, {
+      ...config,
+      systemPrompt: config.systemPrompt || MEETING_CHUNK_ANALYSIS_PROMPT,
+    });
   }
 
   /**

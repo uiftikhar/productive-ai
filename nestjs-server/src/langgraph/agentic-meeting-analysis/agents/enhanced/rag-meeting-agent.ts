@@ -13,6 +13,17 @@ import { STATE_SERVICE } from '../../../../langgraph/state/constants/injection-t
 import { LlmService } from '../../../llm/llm.service';
 import { StateService } from '../../../state/state.service';
 import { AgentExpertise } from '../../interfaces/agent.interface';
+import {
+  EXTRACT_ACTION_ITEMS_PROMPT,
+  ANALYZE_PARTICIPATION_PROMPT,
+  FINAL_MEETING_SUMMARY_PROMPT,
+  MEETING_CHUNK_ANALYSIS_PROMPT,
+  MEETING_EFFECTIVENESS_PROMPT,
+  CONTEXT_INTEGRATION_PROMPT,
+  COORDINATION_PROMPT,
+  MANAGEMENT_PROMPT,
+  SENTIMENT_ANALYSIS_PROMPT
+} from '../../../../instruction-promtps';
 
 // Define token locally to avoid circular dependency
 export const RAG_MEETING_ANALYSIS_CONFIG = 'RAG_MEETING_ANALYSIS_CONFIG';
@@ -37,6 +48,7 @@ export class RagMeetingAnalysisAgent extends RagEnhancedAgent {
   protected readonly specializedQueries: Record<string, string>;
   protected readonly processTranscriptsForRag: boolean;
   private readonly ragConfiguration: RagAgentOptions;
+  private readonly expertisePrompts: Record<AgentExpertise, string>;
 
   constructor(
     @Inject(LLM_SERVICE) protected readonly llmService: LlmService,
@@ -68,6 +80,19 @@ export class RagMeetingAnalysisAgent extends RagEnhancedAgent {
     this.specializationPrompt = config.specializationPrompt || '';
     this.processTranscriptsForRag = config.processTranscriptsForRag !== false;
     this.ragConfiguration = ragConfig;
+
+    // Set up expertise-specific prompts
+    this.expertisePrompts = {
+      [AgentExpertise.TOPIC_ANALYSIS]: MEETING_CHUNK_ANALYSIS_PROMPT,
+      [AgentExpertise.ACTION_ITEM_EXTRACTION]: EXTRACT_ACTION_ITEMS_PROMPT,
+      [AgentExpertise.PARTICIPANT_DYNAMICS]: ANALYZE_PARTICIPATION_PROMPT,
+      [AgentExpertise.SUMMARY_GENERATION]: FINAL_MEETING_SUMMARY_PROMPT,
+      [AgentExpertise.DECISION_TRACKING]: MEETING_EFFECTIVENESS_PROMPT,
+      [AgentExpertise.SENTIMENT_ANALYSIS]: SENTIMENT_ANALYSIS_PROMPT,
+      [AgentExpertise.CONTEXT_INTEGRATION]: CONTEXT_INTEGRATION_PROMPT,
+      [AgentExpertise.COORDINATION]: COORDINATION_PROMPT,
+      [AgentExpertise.MANAGEMENT]: MANAGEMENT_PROMPT,
+    } as Record<AgentExpertise, string>;
 
     // Set up specialized query templates based on expertise
     this.specializedQueries = {
@@ -147,20 +172,31 @@ export class RagMeetingAnalysisAgent extends RagEnhancedAgent {
    * Override to enhance the system prompt with expertise-specific instructions
    */
   protected getSystemPrompt(): string {
-    // Get the system prompt from constructor config instead of super.systemPrompt
-    let enhancedPrompt = 'You are an AI agent specialized in meeting analysis.';
+    // Get the primary expertise
+    const primaryExpertise = this.expertise[0];
+    
+    // Try to get a specialized prompt for this expertise
+    let expertisePrompt = this.expertisePrompts[primaryExpertise];
+    
+    // If no specialized prompt is available, use a default
+    if (!expertisePrompt) {
+      // Get the system prompt from constructor config instead of super.systemPrompt
+      let enhancedPrompt = 'You are an AI agent specialized in meeting analysis.';
 
-    // Add specialization based on expertise
-    if (this.expertise && this.expertise.length > 0) {
-      enhancedPrompt += `\n\nYou specialize in: ${this.expertise.join(', ')}.`;
+      // Add specialization based on expertise
+      if (this.expertise && this.expertise.length > 0) {
+        enhancedPrompt += `\n\nYou specialize in: ${this.expertise.join(', ')}.`;
+      }
+
+      // Add custom specialization prompt if provided
+      if (this.specializationPrompt) {
+        enhancedPrompt += `\n\n${this.specializationPrompt}`;
+      }
+
+      return enhancedPrompt;
     }
-
-    // Add custom specialization prompt if provided
-    if (this.specializationPrompt) {
-      enhancedPrompt += `\n\n${this.specializationPrompt}`;
-    }
-
-    return enhancedPrompt;
+    
+    return expertisePrompt;
   }
 
   /**

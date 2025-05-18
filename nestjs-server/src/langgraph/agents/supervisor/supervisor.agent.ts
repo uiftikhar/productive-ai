@@ -12,6 +12,7 @@ import {
   EnrichedContext,
   RetrievedContext,
 } from '../context-integration.agent';
+import { COORDINATION_PROMPT, MANAGEMENT_PROMPT } from '../../../instruction-promtps';
 
 export interface SupervisorDecision {
   next_action: string;
@@ -49,8 +50,7 @@ export class SupervisorAgent extends BaseAgent {
   ) {
     const config: AgentConfig = {
       name: 'SupervisorAgent',
-      systemPrompt:
-        'You are a supervisor agent that coordinates the analysis of meeting transcripts. You decide which specialized agents to call next and ensure a complete analysis. Your role is to manage the overall analysis process, handling errors and making decisions about the sequence of operations.',
+      systemPrompt: COORDINATION_PROMPT,
       llmOptions: {
         temperature: 0.2,
         model: 'gpt-4o',
@@ -84,42 +84,34 @@ export class SupervisorAgent extends BaseAgent {
   async determineNextStep(state: AnalysisState): Promise<SupervisorDecision> {
     const model = this.getChatModel();
 
-    const prompt = `
-    You are coordinating the analysis of a meeting transcript. Given the current state of the analysis, determine the next step to take.
-    
-    Current state:
-    - Completed steps: ${state.completed_steps.join(', ') || 'None'}
-    - In progress steps: ${state.in_progress_steps.join(', ') || 'None'}
-    - Remaining steps: ${state.remaining_steps.join(', ') || 'None'}
-    ${state.errors ? `- Errors: ${JSON.stringify(state.errors, null, 2)}` : ''}
-    
-    Available steps:
-    - topic_extraction: Extract key topics from the transcript
-    - action_item_extraction: Identify action items and assignments
-    - sentiment_analysis: Analyze sentiment and emotional content
-    - participation_analysis: Analyze participant engagement and dynamics
-    - context_integration: Integrate relevant contextual information
-    - summary_generation: Generate a comprehensive meeting summary
-    
-    Analysis state information:
-    - Has transcript: ${Boolean(state.transcript)}
-    - Has topics: ${Boolean(state.topics && state.topics.length > 0)}
-    - Has action items: ${Boolean(state.actionItems && state.actionItems.length > 0)}
-    - Has sentiment analysis: ${Boolean(state.sentiment)}
-    - Has participation analysis: ${Boolean(state.participation)}
-    - Has context integration: ${Boolean(state.enrichedContext)}
-    - Has summary: ${Boolean(state.summary)}
-    
-    Respond with a JSON object containing:
-    - next_action: The next step to take (one of the available steps, or "complete" if analysis is finished)
-    - reason: Why this is the appropriate next step
-    - additional_instructions: Any special instructions for this step
-    - priority: The priority level of this step (high, medium, low)
-    `;
-
     const messages = [
-      new SystemMessage(this.systemPrompt),
-      new HumanMessage(prompt),
+      new SystemMessage(MANAGEMENT_PROMPT),
+      new HumanMessage(`
+      You are coordinating the analysis of a meeting transcript. Given the current state of the analysis, determine the next step to take.
+      
+      Current state:
+      - Completed steps: ${state.completed_steps.join(', ') || 'None'}
+      - In progress steps: ${state.in_progress_steps.join(', ') || 'None'}
+      - Remaining steps: ${state.remaining_steps.join(', ') || 'None'}
+      ${state.errors ? `- Errors: ${JSON.stringify(state.errors, null, 2)}` : ''}
+      
+      Available steps:
+      - topic_extraction: Extract key topics from the transcript
+      - action_item_extraction: Identify action items and assignments
+      - sentiment_analysis: Analyze sentiment and emotional content
+      - participation_analysis: Analyze participant engagement and dynamics
+      - context_integration: Integrate relevant contextual information
+      - summary_generation: Generate a comprehensive meeting summary
+      
+      Analysis state information:
+      - Has transcript: ${Boolean(state.transcript)}
+      - Has topics: ${Boolean(state.topics && state.topics.length > 0)}
+      - Has action items: ${Boolean(state.actionItems && state.actionItems.length > 0)}
+      - Has sentiment analysis: ${Boolean(state.sentiment)}
+      - Has participation analysis: ${Boolean(state.participation)}
+      - Has context integration: ${Boolean(state.enrichedContext)}
+      - Has summary: ${Boolean(state.summary)}
+      `),
     ];
 
     const response = await model.invoke(messages);

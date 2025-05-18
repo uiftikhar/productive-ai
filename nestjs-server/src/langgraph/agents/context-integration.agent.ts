@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BaseAgent, AgentConfig } from './base-agent';
 import { LlmService } from '../llm/llm.service';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { CONTEXT_INTEGRATION_PROMPT } from '../../instruction-promtps';
 
 export interface RetrievedContext {
   source: string;
@@ -38,8 +39,7 @@ export class ContextIntegrationAgent extends BaseAgent {
   constructor(protected readonly llmService: LlmService) {
     const config: AgentConfig = {
       name: 'ContextIntegrationAgent',
-      systemPrompt:
-        'You are a specialized agent for integrating external context into meeting analysis. Connect current discussions with historical information, domain knowledge, and past meetings to provide deeper insights.',
+      systemPrompt: CONTEXT_INTEGRATION_PROMPT,
       llmOptions: {
         temperature: 0.3,
         model: 'gpt-4o',
@@ -59,23 +59,7 @@ export class ContextIntegrationAgent extends BaseAgent {
     const model = this.getChatModel();
 
     const prompt = `
-    You'll be given a meeting transcript, the topics extracted from it, and additional contextual information.
-    
-    Your task is to integrate this context with the meeting topics to provide deeper insights.
-    
-    Please:
-    1. Enhance the existing topics with relevant context
-    2. Connect to related meetings if mentioned in the context
-    3. Add background knowledge and domain-specific insights
-    4. Provide historical context when applicable
-    
-    Format the response as a JSON object with these properties:
-    - original_topics: the input topics
-    - enriched_topics: enhanced topics with context
-    - related_meetings: related meetings found in context
-    - background_knowledge: relevant domain knowledge
-    - historical_context: historical information relevant to discussions
-    - domain_specific_insights: specialized insights based on the domain
+    Integrate the provided context with the current meeting transcript and topics.
     
     Meeting Transcript:
     ${transcript}
