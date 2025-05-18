@@ -12,6 +12,7 @@ import {
   HttpCode,
   Inject,
   InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -65,9 +66,6 @@ export class RagController {
           type: 'string',
           enum: ['pending', 'in_progress', 'completed', 'failed'],
         },
-        topicCount: { type: 'number' },
-        actionItemCount: { type: 'number' },
-        usedRag: { type: 'boolean' },
       },
     },
   })
@@ -83,8 +81,44 @@ export class RagController {
   async analyzeTranscriptWithRag(@Body() dto: AnalyzeTranscriptDto) {
     try {
       this.logger.log(`Received RAG-enhanced transcript analysis request for ${dto.metadata?.title || 'untitled'}`);
-      this.logger.debug(`Analysis request metadata: ${JSON.stringify(dto.metadata || {})}`);
-      this.logger.debug(`Transcript length: ${dto.transcript.length} characters`);
+      
+      // Create session immediately
+      const sessionId = await this.workflowService.createSession({
+        transcript: dto.transcript,
+        metadata: dto.metadata
+      });
+      
+      this.logger.log(`Analysis initiated with session ID: ${sessionId}`);
+      
+      // Start RAG processing and analysis process in background
+      this.processTranscriptWithRag(sessionId, dto).catch(error => {
+        this.logger.error(`Analysis failed for session ${sessionId}: ${error.message}`, error.stack);
+      });
+      
+      // Return session ID immediately
+      return { 
+        sessionId,
+        status: 'pending'
+      };
+    } catch (error) {
+      this.logger.error(`Failed to create analysis session: ${error instanceof Error ? error.message : String(error)}`, {
+        error: error instanceof Error ? error.stack : String(error),
+        context: 'Session Creation',
+      });
+      throw new InternalServerErrorException(`Failed to create analysis session: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  
+  /**
+   * Process transcript with RAG in the background
+   * This is a private method that runs asynchronously after returning the session ID
+   */
+  private async processTranscriptWithRag(sessionId: string, dto: AnalyzeTranscriptDto) {
+    try {
+      this.logger.debug(`Starting background processing for session ${sessionId}`);
+      
+      // Update session status to in_progress
+      await this.workflowService.updateSessionStatus(sessionId, 'in_progress');
       
       let ragProcessingSuccessful = false;
       let ragError: Error | null = null;
@@ -98,10 +132,10 @@ export class RagController {
           ...dto.metadata,
           source: 'meeting_transcript',
           processed_date: new Date().toISOString(),
+          sessionId,
         };
         
         this.logger.debug(`Processing document with ID: ${documentId}`);
-        this.logger.debug(`Document metadata: ${JSON.stringify(metadata)}`);
         
         // Check if RAG is enabled
         const ragEnabled = this.configService.get<string>('RAG_ENABLED', 'true') === 'true';
@@ -133,67 +167,96 @@ export class RagController {
         } else {
           ragError = new Error(String(error));
         }
-        
-        // Check for specific dimension mismatch errors
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        if (errorMessage.includes('dimension')) {
-          this.logger.warn(
-            `Detected dimension mismatch error. Check that EMBEDDING_DIMENSIONS (${this.configService.get('EMBEDDING_DIMENSIONS')}) ` +
-            `matches your Pinecone index dimensions. Current error: ${errorMessage}`
-          );
-        }
       }
       
-      // Then analyze using meeting analysis service
-      this.logger.log('Starting meeting analysis with transcript');
+      // Run analysis using workflow service
+      this.logger.log(`Starting analysis for session ${sessionId}`);
+      await this.workflowService.runAnalysis(sessionId);
       
-      const result = await this.meetingAnalysisService.analyzeTranscript(
-        dto.transcript,
-        dto.metadata,
-      );
-      
-      this.logger.log(`Analysis initiated with session ID: ${result.sessionId}`);
-      this.logger.debug(`Initial analysis result: ${JSON.stringify(result)}`);
-      
-      // Get all of the workflow service sessions
-      const allSessions = this.workflowService.listSessions();
-      
-      // Find the most recent session that isn't the one we got from meeting analysis service
-      const workflowSession = allSessions
-        .filter(session => session.id !== result.sessionId)
-        .sort((a, b) => b.startTime.getTime() - a.startTime.getTime())[0];
-      
-      if (workflowSession) {
-        this.logger.log(`Found matching workflow session ID: ${workflowSession.id}`);
-        // Store the mapping between the returned session ID and the actual workflow session ID
-        this.activeRagSessions.set(result.sessionId, workflowSession.id);
-        
-        // Return the workflow session ID instead
-        return {
-          ...result,
-          sessionId: workflowSession.id,
-          usedRag: ragProcessingSuccessful,
-          ragError: ragError ? {
-            message: ragError.message,
-            type: ragError.constructor.name
-          } : null
-        };
-      }
-      
-      return {
-        ...result,
+      // Update metadata with RAG information
+      const metadata = {
         usedRag: ragProcessingSuccessful,
         ragError: ragError ? {
           message: ragError.message,
           type: ragError.constructor.name
         } : null
       };
+      
+      await this.workflowService.updateSessionMetadata(sessionId, metadata);
+      
+      this.logger.log(`Analysis completed for session ${sessionId}`);
     } catch (error) {
-      this.logger.error(`Analysis failed: ${error instanceof Error ? error.message : String(error)}`, {
+      this.logger.error(`Analysis failed for session ${sessionId}: ${error instanceof Error ? error.message : String(error)}`, {
         error: error instanceof Error ? error.stack : String(error),
-        context: 'Transcript Analysis',
+        context: 'Background Processing',
       });
-      throw new InternalServerErrorException(`Analysis failed: ${error instanceof Error ? error.message : String(error)}`);
+      
+      // Update session status to failed
+      await this.workflowService.updateSessionStatus(sessionId, 'failed', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  /**
+   * Get the status of an analysis session
+   */
+  @ApiOperation({ summary: 'Get the status of an analysis session' })
+  @ApiParam({ name: 'sessionId', description: 'Unique session identifier' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Analysis status retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        status: {
+          type: 'string',
+          enum: ['pending', 'in_progress', 'completed', 'failed'],
+        },
+        progress: { type: 'number' },
+        error: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Session not found' })
+  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
+  @UseGuards(JwtAuthGuard)
+  @Get(':sessionId/status')
+  async getAnalysisStatus(@Param('sessionId') sessionId: string) {
+    try {
+      // Check if we have a mapping for this session ID
+      const mappedSessionId = this.activeRagSessions.get(sessionId);
+      if (mappedSessionId) {
+        sessionId = mappedSessionId;
+      }
+      
+      // Get session info
+      const sessionInfo = this.workflowService.getSessionInfo(sessionId);
+      
+      if (!sessionInfo) {
+        this.logger.warn(`Session not found: ${sessionId}`);
+        throw new NotFoundException(`Session not found: ${sessionId}`);
+      }
+      
+      // Return status information
+      return {
+        sessionId,
+        status: sessionInfo.status,
+        progress: sessionInfo.status === 'completed' ? 100 : 
+                 sessionInfo.status === 'failed' ? 100 : 
+                 sessionInfo.status === 'in_progress' ? 50 : 
+                 sessionInfo.status === 'pending' ? 0 : 0,
+        error: sessionInfo.error,
+        metadata: sessionInfo.metadata
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      
+      this.logger.error(`Failed to get status for session ${sessionId}: ${error.message}`);
+      throw new InternalServerErrorException(`Failed to get status: ${error.message}`);
     }
   }
 
@@ -225,40 +288,105 @@ export class RagController {
         sessionId = mappedSessionId;
       }
       
-      const results = await this.meetingAnalysisService.getAnalysisResults(sessionId);
+      // Get session info for status and timing
+      const sessionInfo = this.workflowService.getSessionInfo(sessionId);
+      
+      // Load analysis results from workflow service
+      this.logger.log(`Loading analysis results for session ${sessionId}`);
+      let results = await this.workflowService.loadAnalysisResults(sessionId);
+      
+      if (!results && sessionInfo) {
+        this.logger.warn(`No results found yet for session ${sessionId}, returning status information`);
+        // Return partial response with status information
+        return {
+          sessionId,
+          status: sessionInfo.status,
+          createdAt: sessionInfo.startTime?.toISOString(),
+          message: 'Analysis in progress. Results not available yet.',
+          results: {
+            transcript: '',
+            topics: [],
+            actionItems: [],
+          }
+        };
+      } else if (!results) {
+        this.logger.warn(`No results or session info found for ${sessionId}`);
+        throw new NotFoundException(`No results found for session ${sessionId}`);
+      }
+      
+      if (!sessionInfo) {
+        this.logger.warn(`Session info not found for ${sessionId}`);
+        throw new NotFoundException(`Session not found: ${sessionId}`);
+      }
       
       this.logger.log(`Successfully retrieved results for session ${sessionId}`);
-      this.logger.debug(`Analysis status: ${results.status}`);
-      
-      // Safe property access using optional chaining and type checking
-      if (results && 'topics' in results && Array.isArray(results.topics)) {
-        this.logger.debug(`Found ${results.topics.length} topics in analysis`);
-      }
-      
-      if (results && 'actionItems' in results && Array.isArray(results.actionItems)) {
-        this.logger.debug(`Found ${results.actionItems.length} action items in analysis`);
-      }
       
       // Always wrap the results in a consistent format
       return {
         sessionId,
-        status: results.status,
-        createdAt: results.createdAt,
-        completedAt: results.completedAt,
+        status: sessionInfo?.status || 'unknown',
+        createdAt: sessionInfo?.startTime?.toISOString(),
+        completedAt: sessionInfo?.endTime?.toISOString(),
         results: {
           ...results,
-          // Clean any circular references
-          sessionId: undefined,
-          createdAt: undefined,
-          completedAt: undefined
         }
       };
     } catch (error) {
-      this.logger.error(`Failed to retrieve analysis results for session ${sessionId}: ${error instanceof Error ? error.message : String(error)}`, {
-        error: error instanceof Error ? error.stack : String(error),
-        context: 'Get Analysis Results',
-      });
-      throw error; // Let the exception filter handle the error
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      
+      this.logger.error(`Failed to retrieve results for session ${sessionId}: ${error.message}`);
+      throw new InternalServerErrorException(`Failed to retrieve results: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get visualization status for a session
+   */
+  @ApiOperation({ summary: 'Get visualization status for a session' })
+  @ApiParam({ name: 'sessionId', description: 'Analysis session ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Visualization status',
+    schema: {
+      type: 'object',
+      properties: {
+        sessionId: { type: 'string' },
+        visualizationReady: { type: 'boolean' },
+        eventsCount: { type: 'number' },
+        connectionCount: { type: 'number' },
+      },
+    },
+  })
+  @UseGuards(JwtAuthGuard)
+  @Get('/:sessionId/visualization-status')
+  async getVisualizationStatus(@Param('sessionId') sessionId: string) {
+    try {
+      this.logger.log(`Retrieving visualization status for session ${sessionId}`);
+      
+      // Check if session exists
+      const sessionInfo = this.workflowService.getSessionInfo(sessionId);
+      if (!sessionInfo) {
+        throw new NotFoundException(`Session not found: ${sessionId}`);
+      }
+      
+      // Get connection count and event count from the workflow service
+      const visualizationStatus = await this.workflowService.getVisualizationStatus(sessionId);
+      
+      return {
+        sessionId,
+        status: sessionInfo.status,
+        createdAt: sessionInfo.startTime?.toISOString(),
+        ...visualizationStatus
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      
+      this.logger.error(`Failed to retrieve visualization status for session ${sessionId}: ${error.message}`);
+      throw new InternalServerErrorException(`Failed to retrieve visualization status: ${error.message}`);
     }
   }
 } 

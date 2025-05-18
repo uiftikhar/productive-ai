@@ -38,11 +38,42 @@ export class VisualizationGateway implements OnGatewayInit, OnGatewayConnection,
   afterInit() {
     this.logger.log('Visualization Gateway initialized');
     
-    // Subscribe to all agent and service events
+    // Verify server initialization
+    if (!this.server) {
+      this.logger.error('WebSocket server not initialized - events will not be broadcast');
+      return;
+    }
+    
+    this.logger.log('WebSocket server successfully initialized');
+    
+    // Subscribe to all agent, service, and workflow events
     this.eventEmitter.onAny((eventName, payload) => {
-      if (typeof eventName === 'string' && 
-         (eventName.startsWith('agent.') || eventName.startsWith('service.'))) {
-        this.broadcastEvent(eventName, payload);
+      if (typeof eventName === 'string') {
+        if (eventName.startsWith('agent.') || eventName.startsWith('service.')) {
+          this.broadcastEvent(eventName, payload);
+        } else if (eventName === 'workflow.event' || eventName.startsWith('workflow.')) {
+          this.broadcastWorkflowEvent(
+            eventName.replace('workflow.', ''),
+            payload,
+          );
+        }
+      }
+    });
+
+    // Handle connection count requests
+    this.eventEmitter.on('connection.count.request', (sessionId: string) => {
+      try {
+        // Get the number of clients connected to this session
+        const clients = this.sessionsToClients.get(sessionId) || [];
+        const count = clients.length;
+        
+        this.logger.debug(`Responding to connection count request for session ${sessionId}: ${count} connections`);
+        
+        // Emit the response
+        this.eventEmitter.emit(`connection.count.${sessionId}.response`, count);
+      } catch (error) {
+        this.logger.error(`Error handling connection count request: ${error.message}`);
+        this.eventEmitter.emit(`connection.count.${sessionId}.response`, 0);
       }
     });
   }
@@ -52,6 +83,11 @@ export class VisualizationGateway implements OnGatewayInit, OnGatewayConnection,
    */
   handleConnection(client: Socket) {
     this.logger.log(`Client connected: ${client.id}`);
+    
+    // Set ping interval for faster disconnection detection
+    client.conn.on('heartbeat', () => {
+      this.logger.debug(`Heartbeat from client ${client.id}`);
+    });
   }
   
   /**
@@ -60,15 +96,32 @@ export class VisualizationGateway implements OnGatewayInit, OnGatewayConnection,
   handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
     
-    // Clean up session mappings
-    const sessionId = this.clientsToSessions.get(client.id);
+    try {
+      // Clean up client subscriptions
+      const sessionId = this.clientsToSessions.get(client.id);
+      if (sessionId) {
+        this.logger.log(`Removing client ${client.id} from session ${sessionId}`);
+        this.cleanupClientSubscriptions(client.id);
+      }
+    } catch (error) {
+      this.logger.error(`Error cleaning up disconnected client ${client.id}: ${error.message}`);
+    }
+  }
+  
+  /**
+   * Clean up client subscriptions when a client disconnects
+   */
+  private cleanupClientSubscriptions(clientId: string) {
+    const sessionId = this.clientsToSessions.get(clientId);
     if (sessionId) {
       const clients = this.sessionsToClients.get(sessionId) || [];
       this.sessionsToClients.set(
         sessionId,
-        clients.filter(id => id !== client.id)
+        clients.filter(id => id !== clientId)
       );
-      this.clientsToSessions.delete(client.id);
+      this.clientsToSessions.delete(clientId);
+      
+      this.logger.debug(`Removed client ${clientId} from session ${sessionId}`);
     }
   }
   
@@ -85,6 +138,9 @@ export class VisualizationGateway implements OnGatewayInit, OnGatewayConnection,
     }
     
     try {
+      // Clean up any existing subscriptions
+      this.cleanupClientSubscriptions(client.id);
+      
       // Register client for this session's events
       this.clientsToSessions.set(client.id, sessionId);
       const sessionClients = this.sessionsToClients.get(sessionId) || [];
@@ -135,6 +191,51 @@ export class VisualizationGateway implements OnGatewayInit, OnGatewayConnection,
   }
   
   /**
+   * Broadcast a workflow event to clients subscribed to the session
+   */
+  private async broadcastWorkflowEvent(eventName: string, payload: any) {
+    // Ensure the payload has a sessionId
+    const { sessionId } = payload;
+    if (!sessionId) {
+      this.logger.warn(`Workflow event ${eventName} has no sessionId, cannot broadcast`);
+      return;
+    }
+    
+    // Create the event object
+    const eventObject = { 
+      event: eventName, 
+      data: payload,
+      type: 'workflow',
+      timestamp: payload.timestamp || Date.now()
+    };
+    
+    try {
+      // Store in session history
+      await this.sessionHistoryService.addEvent(sessionId, eventObject);
+      
+      // Send to all clients subscribed to this session
+      const clients = this.sessionsToClients.get(sessionId) || [];
+      if (clients.length === 0) {
+        this.logger.debug(`No clients subscribed to session ${sessionId} for event ${eventName}`);
+        return;
+      }
+      
+      // Check if server is properly initialized before broadcasting
+      if (!this.server || !this.server.sockets || !this.server.sockets.sockets) {
+        this.logger.error(`Cannot broadcast workflow event: server not fully initialized`);
+        return;
+      }
+      
+      // Broadcast to all connected clients for this session
+      this.broadcastToSessionClients(sessionId, 'workflowEvent', eventObject);
+      
+      this.logger.debug(`Broadcast workflow event ${eventName} for session ${sessionId}`);
+    } catch (error) {
+      this.logger.error(`Error broadcasting workflow event ${eventName}: ${error.message}`);
+    }
+  }
+  
+  /**
    * Broadcast an event to all clients subscribed to the session
    */
   private async broadcastEvent(eventName: string, payload: any) {
@@ -149,7 +250,7 @@ export class VisualizationGateway implements OnGatewayInit, OnGatewayConnection,
     const eventObject = { 
       event: eventName, 
       data: payload,
-      timestamp: Date.now()
+      timestamp: payload.timestamp || Date.now()
     };
     
     try {
@@ -157,40 +258,62 @@ export class VisualizationGateway implements OnGatewayInit, OnGatewayConnection,
       await this.sessionHistoryService.addEvent(sessionId, eventObject);
       
       // Send to all clients subscribed to this session
-      const clients = this.sessionsToClients.get(sessionId) || [];
-      if (clients.length === 0) {
-        this.logger.debug(`No clients subscribed to session ${sessionId} for event ${eventName}`);
-        return;
+      this.broadcastToSessionClients(sessionId, 'agentEvent', eventObject);
+    } catch (error) {
+      this.logger.error(`Error broadcasting event ${eventName}: ${error.message}`);
+    }
+  }
+  
+  /**
+   * Broadcast an event to all clients subscribed to a session
+   */
+  private broadcastToSessionClients(sessionId: string, eventType: string, eventData: any) {
+    // Check if server and sockets are properly initialized
+    if (!this.server || !this.server.sockets) {
+      this.logger.error(`Cannot broadcast event: server or sockets not initialized`);
+      return;
+    }
+    
+    const clients = this.sessionsToClients.get(sessionId) || [];
+    if (clients.length === 0) {
+      this.logger.debug(`No clients subscribed to session ${sessionId}`);
+      return;
+    }
+    
+    let sentCount = 0;
+    for (const clientId of clients) {
+      // Safely check if sockets map exists before trying to access it
+      if (!this.server.sockets.sockets) {
+        this.logger.error(`Socket map not initialized, cannot broadcast to client ${clientId}`);
+        continue;
       }
       
-      let sentCount = 0;
-      for (const clientId of clients) {
-        const socket = this.server.sockets.sockets.get(clientId);
-        if (socket && socket.connected) {
-          socket.emit('agentEvent', eventObject);
-          sentCount++;
-        } else if (!socket) {
-          this.logger.debug(`Client ${clientId} socket not found, removing from session ${sessionId}`);
-          // Clean up stale client references
-          this.clientsToSessions.delete(clientId);
-        } else if (!socket.connected) {
-          this.logger.debug(`Client ${clientId} socket exists but not connected, skipping event`);
-        }
+      const socket = this.server.sockets.sockets.get(clientId);
+      if (socket && socket.connected) {
+        socket.emit(eventType, eventData);
+        sentCount++;
+      } else if (!socket) {
+        this.logger.debug(`Client ${clientId} socket not found, removing from session ${sessionId}`);
+        // Clean up stale client references
+        this.clientsToSessions.delete(clientId);
+      } else if (!socket.connected) {
+        this.logger.debug(`Client ${clientId} socket exists but not connected, skipping event`);
       }
-      
+    }
+    
+    // Only update active clients if sockets map exists
+    if (this.server.sockets.sockets) {
       // Update the session clients list (filter out missing sockets)
       const activeClients = clients.filter(clientId => 
         this.server.sockets.sockets.has(clientId) && 
         this.server.sockets.sockets.get(clientId)?.connected
       );
       this.sessionsToClients.set(sessionId, activeClients);
-      
-      this.logger.debug(
-        `Broadcast ${eventName} to ${sentCount}/${clients.length} clients for session ${sessionId}`
-      );
-    } catch (error) {
-      this.logger.error(`Error broadcasting event ${eventName}: ${error.message}`);
     }
+    
+    this.logger.debug(
+      `Broadcast ${eventType} to ${sentCount}/${clients.length} clients for session ${sessionId}`
+    );
   }
   
   /**

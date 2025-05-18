@@ -4,6 +4,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { AgentEventService } from './agent-event.service';
 import { SessionHistoryService } from './session-history.service';
 import { VisualizationGateway } from './visualization.gateway';
+import { MockVisualizationHelper } from './mock-visualization.helper';
 
 @Module({
   imports: [
@@ -17,7 +18,8 @@ import { VisualizationGateway } from './visualization.gateway';
     AgentEventService,
     VisualizationGateway,
     SessionHistoryService,
+    MockVisualizationHelper,
   ],
-  exports: [AgentEventService],
+  exports: [AgentEventService, MockVisualizationHelper],
 })
 export class VisualizationModule {} 

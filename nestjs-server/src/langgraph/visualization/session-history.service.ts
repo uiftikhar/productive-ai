@@ -108,4 +108,24 @@ export class SessionHistoryService {
   private getSessionCacheKey(sessionId: string): string {
     return `visualization:session:${sessionId}`;
   }
+
+  /**
+   * Get all events for a session
+   */
+  async getEventsForSession(sessionId: string): Promise<any[]> {
+    try {
+      // Get cached events first
+      const cachedEvents = await this.cacheManager.get(`session:${sessionId}:events`);
+      if (cachedEvents) {
+        this.logger.debug(`Retrieved ${(cachedEvents as any[]).length} events for session ${sessionId} from cache`);
+        return cachedEvents as any[];
+      }
+      
+      this.logger.debug(`No cached events found for session ${sessionId}`);
+      return [];
+    } catch (error) {
+      this.logger.error(`Failed to get events for session ${sessionId}: ${error.message}`);
+      return [];
+    }
+  }
 } 

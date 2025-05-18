@@ -6,14 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { MeetingAnalysisService, AnalyzeTranscriptRequest } from '@/lib/api/meeting-analysis-service';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/context/AuthContext';
-import { useAgentVisualization } from '@/hooks/useAgentVisualization';
-import { AgentVisualization } from './visualization/AgentVisualization';
 
 interface CreateSessionFormProps {
   onAnalysisStarted: (sessionId: string) => void;
@@ -29,12 +26,7 @@ export function CreateSessionForm({ onAnalysisStarted }: CreateSessionFormProps)
   const [meetingTitle, setMeetingTitle] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [showVisualization, setShowVisualization] = useState(false);
   
-  // Connect to visualization when a session has been created
-  const { events, connected, isLoading: isLoadingEvents, connectionError } = useAgentVisualization(sessionId || '');
-
   // Submit transcript for analysis
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,16 +51,15 @@ export function CreateSessionForm({ onAnalysisStarted }: CreateSessionFormProps)
         metadata: {
           title: meetingTitle || 'Untitled Meeting',
           participants: participants ? participants.split(',').map(p => p.trim()) : [],
-          analysisType: analysisGoal
+          analysisType: analysisGoal as 'full_analysis' | 'action_items_only' | 'summary_only' | 'topics_only'
         }
       };
       
       // Send analysis request
       const response = await MeetingAnalysisService.analyzeTranscript(request);
       
-      // Set session ID for visualization
-      setSessionId(response.sessionId);
-      setShowVisualization(true);
+      // Immediately redirect to session page
+      router.push(`/meeting-analysis/${response.sessionId}`);
       
       // Notify parent with the session ID
       onAnalysisStarted(response.sessionId);
@@ -147,16 +138,6 @@ export function CreateSessionForm({ onAnalysisStarted }: CreateSessionFormProps)
           )}
         </Button>
       </form>
-      
-      {showVisualization && (
-        <AgentVisualization 
-          events={events} 
-          sessionId={sessionId || ''} 
-          connected={connected}
-          isLoading={isLoadingEvents} 
-          connectionError={connectionError}
-        />
-      )}
     </div>
   );
 } 

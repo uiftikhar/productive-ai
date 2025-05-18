@@ -1,4 +1,4 @@
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { AuthService } from './auth-service';
 import { 
   AnalysisResult, 
@@ -6,7 +6,7 @@ import {
 } from '@/types/meeting-analysis';
 import Cookies from 'js-cookie';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 export interface AnalyzeTranscriptRequest {
   transcript: string;
@@ -14,8 +14,16 @@ export interface AnalyzeTranscriptRequest {
     title?: string;
     participants?: string[];
     date?: string;
+    analysisType?: 'full_analysis' | 'action_items_only' | 'summary_only' | 'topics_only';
     [key: string]: any;
   };
+}
+
+export interface AnalysisStatusResponse {
+  sessionId: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  progress?: number;
+  error?: string;
 }
 
 // Re-export the types for convenience
@@ -24,8 +32,8 @@ export type {
   MeetingAnalysisResponse
 };
 
-// Create an axios instance with authorization header
-const getAuthHeaders = () => {
+// Create an axios request config with authorization header
+const getAxiosConfig = (): AxiosRequestConfig => {
   const token = AuthService.getToken();
   
   // Ensure token is in cookies for server components
@@ -56,110 +64,104 @@ const getAuthHeaders = () => {
 };
 
 export const MeetingAnalysisService = {
-  async analyzeTranscript(data: AnalyzeTranscriptRequest): Promise<{ sessionId: string }> {
+  /**
+   * Submit transcript for RAG-enhanced analysis
+   */
+  async analyzeTranscript(
+    request: AnalyzeTranscriptRequest,
+  ): Promise<{ sessionId: string }> {
     try {
       console.log(`Sending transcript analysis request to ${API_URL}/rag-meeting-analysis`);
-      console.log(`Auth token exists: ${!!AuthService.getToken()}`);
-      
       const response = await axios.post(
         `${API_URL}/rag-meeting-analysis`,
-        data,
-        getAuthHeaders()
+        {
+          transcript: request.transcript,
+          metadata: {
+            ...(request.metadata || {}),
+            title: request.metadata?.title || 'Untitled Meeting',
+            analysisType: request.metadata?.analysisType || 'full_analysis',
+          },
+        },
+        getAxiosConfig()
       );
 
-      console.log('Analysis response:', response.data);
+      console.log(`Analysis initiated with sessionId: ${response.data.sessionId}`);
       return response.data;
-    } catch (error: unknown) {
-      console.error('Analyze transcript error:', error);
-
-      // Properly type the error as AxiosError for TypeScript
-      if (axios.isAxiosError(error)) {
-        const axiosError = error as AxiosError;
-        
-        // Handle authentication errors
-        if (axiosError.response?.status === 401) {
-          console.error('Authentication error: Token invalid or expired');
-          AuthService.clearToken(); // Clear invalid token
-        }
-
-        // Provide better error message if available
-        if (axiosError.response?.data) {
-          console.error('Server error details:', axiosError.response.data);
-        }
-
-        // Log the detailed request that failed
-        if (axiosError.config) {
-          console.error('Failed request details:', {
-            url: axiosError.config.url,
-            method: axiosError.config.method,
-            headers: axiosError.config.headers,
-            // Don't log full data as it might be huge, just log that there was data
-            data: axiosError.config.data ? 'Request had data payload' : 'No data payload'
-          });
-        }
-      }
-
+    } catch (error) {
+      console.error('Failed to analyze transcript:', error);
       throw error;
     }
   },
 
-  async getAnalysisResults(sessionId: string): Promise<MeetingAnalysisResponse> {
+  /**
+   * Get analysis results by sessionId
+   */
+  async getAnalysisResults(sessionId: string): Promise<any> {
     try {
-      // Get a fresh set of headers (to ensure token sync)
-      const authConfig = getAuthHeaders();
-      
       console.log(`Fetching analysis results from ${API_URL}/rag-meeting-analysis/${sessionId}`);
-      console.log(`Auth token exists: ${!!AuthService.getToken()}`);
-      console.log(`Auth headers:`, JSON.stringify(authConfig.headers));
-      
-      // Check document cookies for debugging
-      console.log(`Document cookies:`, document.cookie ? 'Present' : 'Empty');
-      
       const response = await axios.get(
         `${API_URL}/rag-meeting-analysis/${sessionId}`,
-        authConfig
+        getAxiosConfig()
       );
-      
-      console.log('Results response status:', response.status);
+
       return response.data;
-    } catch (error: unknown) {
-      console.error('Get analysis results error:', error);
-
-      // Properly type the error as AxiosError for TypeScript
-      if (axios.isAxiosError(error)) {
-        const axiosError = error as AxiosError;
-        
-        // Handle authentication errors
-        if (axiosError.response?.status === 401) {
-          console.error('Authentication error: Token invalid or expired');
-          AuthService.clearToken(); // Clear invalid token
-        }
-
-        // Provide better error message if available
-        if (axiosError.response?.data) {
-          console.error('Server error details:', axiosError.response.data);
-        }
-
-        // Log request details
-        if (axiosError.config) {
-          console.error('Failed request details:', {
-            url: axiosError.config.url,
-            method: axiosError.config.method,
-            headers: axiosError.config.headers
-          });
-        }
-      }
-
+    } catch (error) {
+      console.error('Failed to retrieve analysis results:', error);
       throw error;
     }
   },
 
-  // WebSocket connection helpers
-  getWebSocketUrl(sessionId: string): string {
+  /**
+   * Get analysis status by sessionId
+   */
+  async getAnalysisStatus(sessionId: string): Promise<any> {
+    try {
+      const response = await axios.get(
+        `${API_URL}/rag-meeting-analysis/${sessionId}/status`,
+        getAxiosConfig()
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error('Failed to retrieve analysis status:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get WebSocket URL
+   */
+  getWebSocketUrl() {
+    const apiUrl = API_URL.replace(/^https?:\/\//, '');
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = process.env.NEXT_PUBLIC_API_WS_URL || 'localhost:3001';
-    const token = AuthService.getToken();
-    console.log(`Creating WebSocket URL for session ${sessionId}`);
-    return `${wsProtocol}//${host}/meeting-analysis/ws/${sessionId}?token=${token}`;
+    return `${wsProtocol}//${apiUrl}/visualization`;
+  },
+  
+  /**
+   * Get visualization status for a session
+   */
+  async getVisualizationStatus(sessionId: string): Promise<{
+    visualizationReady: boolean;
+    eventsCount: number;
+    connectionCount: number;
+    status: string;
+  }> {
+    try {
+      console.log(`Checking visualization status for session ${sessionId}`);
+      const response = await axios.get(
+        `${API_URL}/rag-meeting-analysis/${sessionId}/visualization-status`, 
+        getAxiosConfig()
+      );
+      
+      return response.data;
+    } catch (error) {
+      console.error('Failed to get visualization status:', error);
+      return {
+        visualizationReady: false,
+        eventsCount: 0,
+        connectionCount: 0,
+        status: 'unknown'
+      };
+    }
   },
 }; 

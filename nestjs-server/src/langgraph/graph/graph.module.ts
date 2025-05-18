@@ -4,9 +4,10 @@ import { StateModule } from '../state/state.module';
 import { GraphService } from './graph.service';
 import { WorkflowService } from './workflow.service';
 import { SupervisorModule } from '../agents/supervisor/supervisor.module';
+import { VisualizationModule } from '../visualization/visualization.module';
 
 @Module({
-  imports: [AgentModule, StateModule, SupervisorModule],
+  imports: [AgentModule, StateModule, SupervisorModule, VisualizationModule],
   providers: [GraphService, WorkflowService],
   exports: [GraphService, WorkflowService],
 })

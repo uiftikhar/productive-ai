@@ -4,6 +4,18 @@ import { Annotation } from '@langchain/langgraph';
 import { BaseMessage } from '@langchain/core/messages';
 
 /**
+ * Session data interface
+ */
+export interface SessionData {
+  transcript: string;
+  metadata?: Record<string, any>;
+  status?: 'pending' | 'in_progress' | 'completed' | 'failed';
+  createdAt?: string;
+  completedAt?: string;
+  error?: string;
+}
+
+/**
  * Generic state management service for LangGraph
  */
 @Injectable()
@@ -82,6 +94,86 @@ export class StateService {
       reducer: (x, y) => y ?? x,
       default: () => defaultNode,
     });
+  }
+
+  /**
+   * Save session data
+   */
+  async saveSession(sessionId: string, data: SessionData): Promise<void> {
+    try {
+      this.logger.debug(`Saving session data for ${sessionId}`);
+      await this.stateStorage.saveState(sessionId, 'session_data', data);
+    } catch (error) {
+      this.logger.error(`Failed to save session: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Update session data (partial update)
+   */
+  async updateSession(sessionId: string, data: Partial<SessionData>): Promise<void> {
+    try {
+      // Get existing session data
+      const existingData = await this.getSession(sessionId);
+      
+      if (!existingData) {
+        this.logger.warn(`Attempted to update non-existent session: ${sessionId}`);
+        throw new Error(`Session ${sessionId} not found`);
+      }
+      
+      // Merge data
+      const updatedData: SessionData = {
+        ...existingData,
+        ...data,
+      };
+      
+      this.logger.debug(`Updating session data for ${sessionId}`);
+      await this.stateStorage.saveState(sessionId, 'session_data', updatedData);
+    } catch (error) {
+      this.logger.error(`Failed to update session: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Get session data
+   */
+  async getSession(sessionId: string): Promise<SessionData | null> {
+    try {
+      this.logger.debug(`Getting session data for ${sessionId}`);
+      const data = await this.stateStorage.loadState(sessionId, 'session_data');
+      return data as SessionData | null;
+    } catch (error) {
+      this.logger.error(`Failed to get session: ${error.message}`, error.stack);
+      return null;
+    }
+  }
+
+  /**
+   * Save analysis results
+   */
+  async saveResults(sessionId: string, results: any): Promise<void> {
+    try {
+      this.logger.debug(`Saving analysis results for ${sessionId}`);
+      await this.stateStorage.saveState(sessionId, 'analysis_results', results);
+    } catch (error) {
+      this.logger.error(`Failed to save results: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  /**
+   * Get analysis results
+   */
+  async getResults(sessionId: string): Promise<any> {
+    try {
+      this.logger.debug(`Getting analysis results for ${sessionId}`);
+      return await this.stateStorage.loadState(sessionId, 'analysis_results');
+    } catch (error) {
+      this.logger.error(`Failed to get results: ${error.message}`, error.stack);
+      return null;
+    }
   }
 
   /**
