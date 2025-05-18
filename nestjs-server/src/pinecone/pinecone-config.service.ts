@@ -23,17 +23,17 @@ export class PineconeConfigService {
 
   getPinecone(): Pinecone {
     const apiKey = this.configService.get<string>('PINECONE_API_KEY');
-    
+
     if (!apiKey) {
       throw new Error('PINECONE_API_KEY is not defined in the configuration');
     }
-    
+
     if (!PineconeConfigService.instance) {
       PineconeConfigService.instance = new Pinecone({
         apiKey,
       });
     }
-    
+
     return PineconeConfigService.instance;
   }
-} 
+}

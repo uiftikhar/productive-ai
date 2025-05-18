@@ -5,9 +5,7 @@ import { User, UserDocument } from '../entities/user.schema';
 
 @Injectable()
 export class UserRepository {
-  constructor(
-    @InjectModel(User.name) private userModel: Model<UserDocument>,
-  ) {}
+  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
 
   async create(user: Partial<User>): Promise<User> {
     const createdUser = new this.userModel(user);
@@ -31,22 +29,19 @@ export class UserRepository {
   }
 
   async update(id: string, user: Partial<User>): Promise<User | null> {
-    return this.userModel
-      .findByIdAndUpdate(id, user, { new: true })
-      .exec();
+    return this.userModel.findByIdAndUpdate(id, user, { new: true }).exec();
   }
 
   async remove(id: string): Promise<User | null> {
     return this.userModel.findByIdAndDelete(id).exec();
   }
 
-  async updateRefreshToken(userId: string, refreshToken: string | null): Promise<User | null> {
+  async updateRefreshToken(
+    userId: string,
+    refreshToken: string | null,
+  ): Promise<User | null> {
     return this.userModel
-      .findByIdAndUpdate(
-        userId,
-        { refreshToken },
-        { new: true }
-      )
+      .findByIdAndUpdate(userId, { refreshToken }, { new: true })
       .exec();
   }
-} 
+}

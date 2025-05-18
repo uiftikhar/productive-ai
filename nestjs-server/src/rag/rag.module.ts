@@ -6,11 +6,16 @@ import { LlmModule } from '../langgraph/llm/llm.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { StateModule } from '../langgraph/state/state.module';
 import { MeetingAnalysisModule } from '../langgraph/meeting-analysis/meeting-analysis.module';
+import { GraphModule } from '../langgraph/graph/graph.module';
 import { AdaptiveRagService } from './adaptive-rag.service';
 import { RetrievalService } from './retrieval.service';
 import { RagService } from './rag.service';
 import { RagController } from './rag.controller';
-import { RAG_SERVICE, RETRIEVAL_SERVICE, ADAPTIVE_RAG_SERVICE } from './constants/injection-tokens';
+import {
+  RAG_SERVICE,
+  RETRIEVAL_SERVICE,
+  ADAPTIVE_RAG_SERVICE,
+} from './constants/injection-tokens';
 
 @Module({
   imports: [
@@ -20,33 +25,32 @@ import { RAG_SERVICE, RETRIEVAL_SERVICE, ADAPTIVE_RAG_SERVICE } from './constant
     LlmModule,
     StateModule,
     MeetingAnalysisModule,
+    GraphModule,
     CacheModule.register({
       ttl: 1800, // 30 minutes
       max: 100,
     }),
   ],
-  controllers: [
-    RagController,
-  ],
+  controllers: [RagController],
   providers: [
     // Service implementations
     RetrievalService,
     RagService,
     AdaptiveRagService,
-    
+
     // Token-based providers for dependency injection
     {
       provide: RETRIEVAL_SERVICE,
-      useClass: RetrievalService
+      useClass: RetrievalService,
     },
     {
       provide: RAG_SERVICE,
-      useClass: RagService
+      useClass: RagService,
     },
     {
       provide: ADAPTIVE_RAG_SERVICE,
-      useExisting: AdaptiveRagService
-    }
+      useExisting: AdaptiveRagService,
+    },
   ],
   exports: [
     // Export both concrete implementations and tokens
@@ -58,4 +62,4 @@ import { RAG_SERVICE, RETRIEVAL_SERVICE, ADAPTIVE_RAG_SERVICE } from './constant
     ADAPTIVE_RAG_SERVICE,
   ],
 })
-export class RagModule {} 
+export class RagModule {}

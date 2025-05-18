@@ -1,6 +1,6 @@
 /**
  * State interface for meeting analysis
- * 
+ *
  * Defines the structure of the state for meeting analysis.
  */
 
@@ -112,4 +112,4 @@ export interface MeetingAnalysisState {
   status?: 'pending' | 'in_progress' | 'completed' | 'failed';
   currentStep?: string;
   completedSteps?: string[];
-} 
+}

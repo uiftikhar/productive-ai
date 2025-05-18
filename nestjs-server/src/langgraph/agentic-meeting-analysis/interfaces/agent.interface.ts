@@ -1,6 +1,6 @@
 /**
  * Agent interface for meeting analysis
- * 
+ *
  * Defines agent expertise types and common interfaces for meeting analysis agents.
  */
 
@@ -34,14 +34,14 @@ export interface IMeetingAnalysisAgent {
    * Identifies what tasks the agent can perform
    */
   getExpertise(): AgentExpertise[];
-  
+
   /**
    * Process a state object and return the enhanced state
    */
   processState(state: any): Promise<any>;
-  
+
   /**
    * Analyze a specific part of a meeting
    */
   analyze(transcript: string, options?: Record<string, any>): Promise<any>;
-} 
+}

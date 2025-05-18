@@ -18,4 +18,4 @@ afterAll(() => {
   // Close the server to ensure tests don't hang
   server.close();
   console.log('🔶 MSW server stopped');
-}); 
+});

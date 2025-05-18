@@ -46,13 +46,16 @@ export class EmbeddingService {
       'EMBEDDING_MODEL',
       EmbeddingModel.OPENAI_3_LARGE,
     );
-    this.defaultDimensions = this.configService.get<number>('EMBEDDING_DIMENSIONS', 1536);
-    
+    this.defaultDimensions = this.configService.get<number>(
+      'EMBEDDING_DIMENSIONS',
+      1536,
+    );
+
     // Initialize OpenAI client
     this.openai = new OpenAI({
       apiKey: this.configService.get<string>('OPENAI_API_KEY'),
     });
-    
+
     // Initialize LangChain OpenAI embeddings for more advanced features
     this.openaiEmbeddings = new OpenAIEmbeddings({
       openAIApiKey: this.configService.get<string>('OPENAI_API_KEY'),
@@ -68,7 +71,9 @@ export class EmbeddingService {
    */
   private mapToSupportedModel(model: string): string {
     if (model === EmbeddingModel.LLAMA) {
-      this.logger.warn(`Mapping unsupported model ${model} to ${EmbeddingModel.OPENAI_3_LARGE}`);
+      this.logger.warn(
+        `Mapping unsupported model ${model} to ${EmbeddingModel.OPENAI_3_LARGE}`,
+      );
       return EmbeddingModel.OPENAI_3_LARGE;
     }
     return model;
@@ -84,27 +89,30 @@ export class EmbeddingService {
     const requestedModel = options.model || this.defaultModel;
     const model = this.mapToSupportedModel(requestedModel);
     const useCaching = options.useCaching !== false; // Default to true
-    
+
     // Check cache first if caching is enabled
     if (useCaching) {
       const cacheKey = this.generateCacheKey(text, model);
       const cachedEmbedding = await this.cacheManager.get<number[]>(cacheKey);
-      
+
       if (cachedEmbedding) {
-        this.logger.debug(`Cache hit for embedding: ${cacheKey.substring(0, 20)}...`);
+        this.logger.debug(
+          `Cache hit for embedding: ${cacheKey.substring(0, 20)}...`,
+        );
         return cachedEmbedding;
       }
     }
-    
+
     try {
       // Generate embedding based on model
       let embedding: number[];
-      
+
       // For better reliability, use LangChain's OpenAI embeddings
-      if (model === EmbeddingModel.OPENAI_ADA_002 ||
-          model === EmbeddingModel.OPENAI_3_SMALL ||
-          model === EmbeddingModel.OPENAI_3_LARGE) {
-          
+      if (
+        model === EmbeddingModel.OPENAI_ADA_002 ||
+        model === EmbeddingModel.OPENAI_3_SMALL ||
+        model === EmbeddingModel.OPENAI_3_LARGE
+      ) {
         // Use LangChain's embeddings which handle batching, retries, etc.
         const result = await this.openaiEmbeddings.embedQuery(text);
         embedding = result;
@@ -112,31 +120,31 @@ export class EmbeddingService {
         // Fallback to direct API calls for other models
         embedding = await this.generateDirectEmbedding(text, model);
       }
-      
+
       // Normalize if requested
       if (options.normalized) {
         embedding = this.normalizeEmbedding(embedding);
       }
-      
+
       // Cache the result
       if (useCaching) {
         const cacheKey = this.generateCacheKey(text, model);
         await this.cacheManager.set(cacheKey, embedding);
       }
-      
+
       return embedding;
     } catch (error) {
       this.logger.error(`Error generating embedding: ${error.message}`);
       throw error;
     }
   }
-  
+
   /**
    * Generate embeddings directly through API calls
    */
   private async generateDirectEmbedding(
-    text: string, 
-    model: string
+    text: string,
+    model: string,
   ): Promise<number[]> {
     if (model.startsWith('text-embedding')) {
       // OpenAI embedding
@@ -144,7 +152,7 @@ export class EmbeddingService {
         model,
         input: text,
       });
-      
+
       return response.data[0].embedding;
     } else if (model === EmbeddingModel.ANTHROPIC) {
       throw new Error('Anthropic embedding API not yet implemented');
@@ -169,12 +177,13 @@ export class EmbeddingService {
   ): Promise<number[][]> {
     const batchSize = options.batchSize || 20; // Default batch size
     const model = options.model || this.defaultModel;
-    
+
     // For OpenAI models, use LangChain's efficient batching
-    if (model === EmbeddingModel.OPENAI_ADA_002 ||
-        model === EmbeddingModel.OPENAI_3_SMALL ||
-        model === EmbeddingModel.OPENAI_3_LARGE) {
-      
+    if (
+      model === EmbeddingModel.OPENAI_ADA_002 ||
+      model === EmbeddingModel.OPENAI_3_SMALL ||
+      model === EmbeddingModel.OPENAI_3_LARGE
+    ) {
       // Use LangChain's embeddings which handles batching efficiently
       try {
         // Check cache for all texts
@@ -183,71 +192,77 @@ export class EmbeddingService {
             texts.map(async (text) => {
               const cacheKey = this.generateCacheKey(text, model);
               return await this.cacheManager.get<number[]>(cacheKey);
-            })
+            }),
           );
-          
+
           // If all texts are cached, return early
-          if (cachedResults.every(result => result !== null)) {
-            return cachedResults as number[][];
+          if (cachedResults.every((result) => result !== null)) {
+            return cachedResults;
           }
-          
+
           // Filter out texts that need embedding
           const textsToEmbed: string[] = [];
           const indexMap: number[] = [];
-          
+
           texts.forEach((text, i) => {
             if (cachedResults[i] === null) {
               textsToEmbed.push(text);
               indexMap.push(i);
             }
           });
-          
+
           // Generate embeddings for missing texts
-          const embeddings = await this.openaiEmbeddings.embedDocuments(textsToEmbed);
-          
+          const embeddings =
+            await this.openaiEmbeddings.embedDocuments(textsToEmbed);
+
           // Combine cached and new embeddings
           const result: number[][] = [...cachedResults] as number[][];
-          
+
           // Replace null values with new embeddings
           indexMap.forEach((originalIndex, newIndex) => {
             result[originalIndex] = embeddings[newIndex];
-            
+
             // Cache the new embedding
             if (options.useCaching !== false) {
-              const cacheKey = this.generateCacheKey(texts[originalIndex], model);
+              const cacheKey = this.generateCacheKey(
+                texts[originalIndex],
+                model,
+              );
               this.cacheManager.set(cacheKey, embeddings[newIndex]);
             }
           });
-          
+
           return result;
         } else {
           // If caching is disabled, generate all embeddings
           return await this.openaiEmbeddings.embedDocuments(texts);
         }
       } catch (error) {
-        this.logger.error(`Error batch embedding with LangChain: ${error.message}`);
+        this.logger.error(
+          `Error batch embedding with LangChain: ${error.message}`,
+        );
         throw error;
       }
     }
-    
+
     // For other models, manually batch
     const batches: string[][] = [];
-    
+
     // Split into batches
     for (let i = 0; i < texts.length; i += batchSize) {
       batches.push(texts.slice(i, i + batchSize));
     }
-    
+
     // Process batches
     const embeddings: number[][] = [];
-    
+
     for (const batch of batches) {
       const batchEmbeddings = await Promise.all(
         batch.map((text) => this.generateEmbedding(text, options)),
       );
       embeddings.push(...batchEmbeddings);
     }
-    
+
     return embeddings;
   }
 
@@ -264,11 +279,8 @@ export class EmbeddingService {
    */
   private generateCacheKey(text: string, model: string): string {
     // Hash the text to create a deterministic key
-    const hash = crypto
-      .createHash('sha256')
-      .update(text)
-      .digest('hex');
-    
+    const hash = crypto.createHash('sha256').update(text).digest('hex');
+
     return `embedding:${model}:${hash}`;
   }
 
@@ -280,24 +292,24 @@ export class EmbeddingService {
     if (embedding1.length !== embedding2.length) {
       throw new Error('Embeddings must have the same dimensions');
     }
-    
+
     // Calculate dot product
     let dotProduct = 0;
     let norm1 = 0;
     let norm2 = 0;
-    
+
     for (let i = 0; i < embedding1.length; i++) {
       dotProduct += embedding1[i] * embedding2[i];
       norm1 += embedding1[i] * embedding1[i];
       norm2 += embedding2[i] * embedding2[i];
     }
-    
+
     // Prevent division by zero
     if (norm1 === 0 || norm2 === 0) {
       return 0;
     }
-    
+
     // Return cosine similarity
     return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
   }
-} 
+}

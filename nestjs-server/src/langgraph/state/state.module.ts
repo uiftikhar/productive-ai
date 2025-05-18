@@ -8,7 +8,7 @@ import { STATE_SERVICE } from './constants/injection-tokens';
   providers: [
     // Concrete implementation
     StateService,
-    
+
     // Token-based provider
     {
       provide: STATE_SERVICE,
@@ -18,7 +18,7 @@ import { STATE_SERVICE } from './constants/injection-tokens';
   exports: [
     // Concrete implementation
     StateService,
-    
+
     // Token-based provider
     STATE_SERVICE,
   ],

@@ -59,6 +59,12 @@ RAG_ENABLED=true  # Set to false to disable RAG processing
 - `text-embedding-3-large` (OpenAI)
 - `llama-text-embed-v2` (mapped to OpenAI's text-embedding-3-large)
 
+TODO: For the llama mapping we have these logs we should address and verify
+
+```
+ Mapping unsupported model llama-text-embed-v2 to text-embedding-3-large {"req":{"id":2,"method":"POST","url":"/rag-meeting-analysis","query":{},"params":{"path":["rag-meeting-analysis"]},"headers":{"host":"localhost:3000","connection":"keep-alive","content-length":"3752","sec-ch-ua-platform":"\"macOS\"","user-agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36","accept":"application/json","sec-ch-ua":"\"Google Chrome\";v=\"135\", \"Not-A.Brand\";v=\"8\", \"Chromium\";v=\"135\"","content-type":"application/json","sec-ch-ua-mobile":"?0","origin":"http://localhost:3000","sec-fetch-site":"same-origin","sec-fetch-mode":"cors","sec-fetch-dest":"empty","referer":"http://localhost:3000/api/docs","accept-encoding":"gzip, deflate, br, zstd","accept-language":"en-GB,en-US;q=0.9,en;q=0.8"},"remoteAddress":"::1","remotePort":65249},"context":"EmbeddingService"}
+ ```
+
 ## Usage
 
 ### Processing Documents for RAG

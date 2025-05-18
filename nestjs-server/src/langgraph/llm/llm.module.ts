@@ -8,7 +8,7 @@ import { LLM_SERVICE } from './constants/injection-tokens';
   providers: [
     // Concrete implementation
     LlmService,
-    
+
     // Token-based provider
     {
       provide: LLM_SERVICE,
@@ -18,7 +18,7 @@ import { LLM_SERVICE } from './constants/injection-tokens';
   exports: [
     // Concrete implementation
     LlmService,
-    
+
     // Token-based provider
     LLM_SERVICE,
   ],

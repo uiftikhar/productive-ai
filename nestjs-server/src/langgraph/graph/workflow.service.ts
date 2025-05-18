@@ -156,28 +156,30 @@ export class WorkflowService {
     } = {},
   ): Promise<MeetingAnalysisResult> {
     this.logger.log('Starting custom analysis pipeline');
-    
+
     const result: MeetingAnalysisResult = {
       transcript,
       topics: [],
       actionItems: [],
     };
-    
-    const errors: Array<{step: string; error: string; timestamp: string}> = [];
-    
+
+    const errors: Array<{ step: string; error: string; timestamp: string }> =
+      [];
+
     try {
       // Run topic extraction if requested
       if (options.includeTopics !== false) {
         const topicAgent = this.agentFactory.getTopicExtractionAgent();
         result.topics = await topicAgent.extractTopics(transcript);
       }
-      
+
       // Run action item extraction if requested
       if (options.includeActionItems !== false) {
         const actionItemAgent = this.agentFactory.getActionItemAgent();
-        result.actionItems = await actionItemAgent.extractActionItems(transcript);
+        result.actionItems =
+          await actionItemAgent.extractActionItems(transcript);
       }
-      
+
       // Run sentiment analysis if requested
       if (options.includeSentiment) {
         try {
@@ -191,7 +193,7 @@ export class WorkflowService {
           });
         }
       }
-      
+
       // Run summary generation if requested
       if (options.includeSummary) {
         try {
@@ -210,15 +212,18 @@ export class WorkflowService {
           });
         }
       }
-      
+
       // Add any errors to the result
       if (errors.length > 0) {
         result.errors = errors;
       }
-      
+
       return result;
     } catch (error) {
-      this.logger.error(`Custom analysis failed: ${error.message}`, error.stack);
+      this.logger.error(
+        `Custom analysis failed: ${error.message}`,
+        error.stack,
+      );
       return {
         transcript,
         topics: [],

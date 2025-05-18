@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RecordMetadata } from '@pinecone-database/pinecone';
 import { PineconeConnectionService } from './pinecone-connection.service';
-import { PineconeIndexService, VectorIndexes, IndexConfig } from './pinecone-index.service';
+import {
+  PineconeIndexService,
+  VectorIndexes,
+  IndexConfig,
+} from './pinecone-index.service';
 import { VectorRecord, QueryOptions } from './pinecone.types';
 
 @Injectable()
@@ -17,9 +21,12 @@ export class PineconeService {
   /**
    * Initialize required indexes
    */
-  async initializeIndexes(indexes: { name: VectorIndexes | string; config: IndexConfig }[]): Promise<void> {
+  async initializeIndexes(
+    indexes: { name: VectorIndexes | string; config: IndexConfig }[],
+  ): Promise<void> {
     for (const { name, config } of indexes) {
       await this.indexService.ensureIndexExists(name, config);
+      this.logger.log(`Index ${name} initialized successfully`);
     }
     this.logger.log('Pinecone indexes initialized successfully');
   }
@@ -36,7 +43,7 @@ export class PineconeService {
   ): Promise<void> {
     const ns = namespace || this.defaultNamespace;
     const record: VectorRecord<T> = { id, values: vector, metadata };
-    
+
     await this.connectionService.upsertVectors(indexName, [record], ns);
     this.logger.debug(`Vector stored: ${id} in ${indexName}/${ns}`);
   }
@@ -59,7 +66,7 @@ export class PineconeService {
       values: record.vector,
       metadata: record.metadata || ({} as T),
     }));
-    
+
     await this.connectionService.upsertVectors(indexName, vectorRecords, ns);
     this.logger.debug(`${records.length} vectors stored in ${indexName}/${ns}`);
   }
@@ -86,29 +93,30 @@ export class PineconeService {
     }>
   > {
     const ns = options.namespace || this.defaultNamespace;
-    
+
     const queryOptions: QueryOptions = {
       topK: options.topK || 10,
       filter: options.filter,
       includeValues: options.includeValues || false,
       includeMetadata: true,
     };
-    
+
     const response = await this.connectionService.queryVectors<T>(
       indexName,
       queryVector,
       queryOptions,
       ns,
     );
-    
+
     // Filter results by minimum score if specified
     let matches = response.matches || [];
     if (options.minScore !== undefined) {
       matches = matches.filter(
-        (match) => match.score !== undefined && match.score >= (options.minScore || 0),
+        (match) =>
+          match.score !== undefined && match.score >= (options.minScore || 0),
       );
     }
-    
+
     // Transform to simplified format
     return matches.map((match) => ({
       id: match.id,
@@ -162,11 +170,18 @@ export class PineconeService {
     >
   > {
     const ns = namespace || this.defaultNamespace;
-    const response = await this.connectionService.fetchVectors<T>(indexName, ids, ns);
-    
+    const response = await this.connectionService.fetchVectors<T>(
+      indexName,
+      ids,
+      ns,
+    );
+
     // Transform to better typed records
-    const result: Record<string, { id: string; values: number[]; metadata: T }> = {};
-    
+    const result: Record<
+      string,
+      { id: string; values: number[]; metadata: T }
+    > = {};
+
     if (response.records) {
       for (const [id, record] of Object.entries(response.records)) {
         result[id] = {
@@ -176,14 +191,17 @@ export class PineconeService {
         };
       }
     }
-    
+
     return result;
   }
 
   /**
    * Check if namespace exists
    */
-  async namespaceExists(indexName: string, namespace: string): Promise<boolean> {
+  async namespaceExists(
+    indexName: string,
+    namespace: string,
+  ): Promise<boolean> {
     return this.connectionService.namespaceExists(indexName, namespace);
   }
 
@@ -200,4 +218,4 @@ export class PineconeService {
   getDefaultNamespace(): string {
     return this.defaultNamespace;
   }
-} 
+}

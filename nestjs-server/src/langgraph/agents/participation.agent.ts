@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BaseAgent, AgentConfig } from './base-agent';
 import { LlmService } from '../llm/llm.service';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { ANALYZE_PARTICIPATION_PROMPT } from '../../instruction-promtps';
 
 export interface ParticipationAnalysis {
   participants: Array<{
@@ -44,8 +45,7 @@ export class ParticipationAgent extends BaseAgent {
   constructor(protected readonly llmService: LlmService) {
     const config: AgentConfig = {
       name: 'ParticipationAgent',
-      systemPrompt:
-        'You are a specialized agent for analyzing participation patterns and group dynamics in meetings. Identify speaking patterns, interaction dynamics, engagement levels, and collaboration quality.',
+      systemPrompt: ANALYZE_PARTICIPATION_PROMPT,
       llmOptions: {
         temperature: 0.3,
         model: 'gpt-4o',
@@ -65,13 +65,6 @@ export class ParticipationAgent extends BaseAgent {
 
     let prompt = `
     Analyze the participation patterns and group dynamics in this meeting transcript.
-    
-    Include:
-    1. For each participant: speaking time percentage (approximate), contribution quality, key contributions
-    2. Group dynamics: dominant speakers, whether participation was balanced, collaboration score (1-10)
-    3. Engagement patterns: topics with high/low engagement, any shifts in engagement
-    
-    Format the response as a JSON object with these properties.
     
     Transcript:
     ${transcript}

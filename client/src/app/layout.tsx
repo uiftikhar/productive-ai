@@ -7,6 +7,7 @@ import { ReactQueryProvider } from "@/providers/ReactQueryProvider";
 import { TranscriptProvider } from "@/components/TranscriptProvider";
 import { AuthProvider } from '../context/AuthContext';
 import AutoLogin from '../components/auth/AutoLogin';
+import { AuthCheck } from '@/components/auth-check';
 
 const inter = Inter({
   variable: "--font-sans",
@@ -34,6 +35,7 @@ export default function RootLayout({
         className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
       >
         <AuthProvider>
+          <AuthCheck />
           <AutoLogin enabled={true}>
             <NextAuthProvider>
               <ReactQueryProvider>
