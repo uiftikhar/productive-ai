@@ -40,11 +40,7 @@ The system is built on several key components:
 
 ```mermaid
 graph TD
-    A[User Input] --> B[Supervisor Agent]
-    B --> C[Topic Extraction Agent]
-    B --> D[Action Item Agent]
-    B --> E[Sentiment Analysis Agent]
-    B --> F[Summary Agent]
+    ALearn nho L
     
     C --> G[RAG Enhancement]
     D --> G

@@ -1,3 +1,13 @@
+# Implementation Plan: Email Triage System
+
+## Introduction
+
+This implementation guide outlines the development plan for the second phase of FollowThrough AI:
+2. Email Triage System
+
+We'll leverage our existing LangGraph architecture, enhancing it with Model Context Protocol (MCP) for external integrations and Zapier for connecting with email and task management services.
+
+
 ## Phase 2: Email Triage System (Weeks 7-12)
 
 ### Week 7-8: Email Classification & Prioritization
@@ -1960,177 +1970,637 @@ export class EmailTriageProvider {
 ### Zapier Integration for Email Triage
 
 **Files to Create:**
-- `src/zapier/email-triage/triage-zap.service.ts`
-- `src/zapier/email-triage/triage-zap.controller.ts`
+- `src/zapier/email-triage-webhook.controller.ts`
+- `src/zapier/dtos/email-triage.dto.ts`
+- `src/email/snooze/snooze.service.ts`
+- `src/email/delegation/delegation.service.ts`
+- `src/email/followup/followup.service.ts`
 
-**Email Triage Zap Service Implementation:**
+**Email Triage Zapier Controller Implementation:**
 
 ```typescript
-// src/zapier/email-triage/triage-zap.service.ts
-import { Injectable, Logger } from '@nestjs/common';
-import { ZapierService } from '../zapier.service';
-import { EmailCategory } from '../../email/classification/models/email-category.enum';
-import { EmailPriority } from '../../email/classification/models/email-priority.enum';
+// src/zapier/email-triage-webhook.controller.ts
+import { 
+  Controller, 
+  Post, 
+  Get, 
+  Body, 
+  Query, 
+  Headers, 
+  UseGuards,
+  UnauthorizedException 
+} from '@nestjs/common';
+import { ZapierService } from './zapier.service';
+import { ZapierApiKeyGuard } from './guards/zapier-api-key.guard';
+import { EmailClassifierService } from '../email/classification/email-classifier.service';
+import { SnoozeService } from '../email/snooze/snooze.service';
+import { DelegationService } from '../email/delegation/delegation.service';
+import { FollowupService } from '../email/followup/followup.service';
+import { SnoozeEmailDto, DelegateEmailDto, CreateFollowupDto } from './dtos/email-triage.dto';
 
-@Injectable()
-export class TriageZapService {
-  private readonly logger = new Logger(TriageZapService.name);
-
+@Controller('api/zapier')
+@UseGuards(ZapierApiKeyGuard)
+export class EmailTriageWebhookController {
   constructor(
     private zapierService: ZapierService,
+    private emailClassifierService: EmailClassifierService,
+    private snoozeService: SnoozeService,
+    private delegationService: DelegationService,
+    private followupService: FollowupService,
   ) {}
 
-  async createTriageNotificationZap(
-    emailProvider: string,
-    notificationChannel: string,
-    priorityThreshold: EmailPriority = EmailPriority.URGENT,
+  @Get('triggers/classified-emails')
+  async getClassifiedEmails(
+    @Headers('x-user-id') userId: string,
+    @Query('provider') provider: string,
+    @Query('priority') priority?: string,
+    @Query('category') category?: string,
+    @Query('since') since?: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('User ID is required');
+    }
+    
+    // Get emails
+    const emails = await this.zapierService.getRecentEmails(userId, provider, 'INBOX', since);
+    
+    // Filter classified emails
+    return emails.filter(email => {
+      // Only include emails that have been classified
+      if (!email.metadata?.classification) return false;
+      
+      // Filter by priority if specified
+      if (priority && email.metadata.classification.priority !== priority) return false;
+      
+      // Filter by category if specified
+      if (category && email.metadata.classification.category !== category) return false;
+      
+      return true;
+    });
+  }
+
+  @Post('actions/snooze')
+  async snoozeEmail(
+    @Headers('x-user-id') userId: string,
+    @Body() body: SnoozeEmailDto
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('User ID is required');
+    }
+    
+    // Snooze the email
+    const { emailId, provider, snoozeUntil, reason } = body;
+    const snoozeRequest = await this.snoozeService.snoozeEmail(
+      userId,
+      provider,
+      emailId,
+      snoozeUntil,
+      reason,
+    );
+    
+    return snoozeRequest;
+  }
+
+  @Post('actions/delegate')
+  async delegateEmail(
+    @Headers('x-user-id') userId: string,
+    @Body() body: DelegateEmailDto
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('User ID is required');
+    }
+    
+    // Delegate the email
+    const { emailId, provider, delegateTo, notes } = body;
+    const delegationRequest = await this.delegationService.delegateEmail(
+      userId,
+      emailId,
+      provider,
+      delegateTo,
+      notes,
+    );
+    
+    return delegationRequest;
+  }
+
+  @Post('actions/followup')
+  async createFollowup(
+    @Headers('x-user-id') userId: string,
+    @Body() body: CreateFollowupDto
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('User ID is required');
+    }
+    
+    // Create the followup
+    const { emailId, provider, reminderDate, notes } = body;
+    const followupRequest = await this.followupService.createFollowupReminder(
+      userId,
+      provider,
+      emailId,
+      reminderDate,
+      notes,
+    );
+    
+    return followupRequest;
+  }
+}
+```
+
+**Email Triage DTOs:**
+
+```typescript
+// src/zapier/dtos/email-triage.dto.ts
+import { IsString, IsNotEmpty, IsOptional, IsDateString } from 'class-validator';
+
+export class SnoozeEmailDto {
+  @IsString()
+  @IsNotEmpty()
+  emailId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  provider: string;
+
+  @IsDateString()
+  @IsNotEmpty()
+  snoozeUntil: string;
+
+  @IsString()
+  @IsOptional()
+  reason?: string;
+}
+
+export class DelegateEmailDto {
+  @IsString()
+  @IsNotEmpty()
+  emailId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  provider: string;
+
+  @IsString()
+  @IsNotEmpty()
+  delegateTo: string;
+
+  @IsString()
+  @IsOptional()
+  notes?: string;
+}
+
+export class CreateFollowupDto {
+  @IsString()
+  @IsNotEmpty()
+  emailId: string;
+
+  @IsString()
+  @IsNotEmpty()
+  provider: string;
+
+  @IsDateString()
+  @IsNotEmpty()
+  reminderDate: string;
+
+  @IsString()
+  @IsOptional()
+  notes?: string;
+}
+```
+
+**Snooze Service Implementation:**
+
+```typescript
+// src/email/snooze/snooze.service.ts
+import { Injectable, Logger } from '@nestjs/common';
+import { EmailService } from '../email.service';
+
+@Injectable()
+export class SnoozeService {
+  private readonly logger = new Logger(SnoozeService.name);
+  private readonly snoozedEmails = new Map<string, any>();
+
+  constructor(
+    private emailService: EmailService,
+  ) {}
+
+  async snoozeEmail(
+    userId: string, 
+    provider: string, 
+    emailId: string, 
+    snoozeUntil: string,
+    reason?: string,
   ): Promise<any> {
     try {
-      return await this.zapierService.executeZap(
-        'createZap',
-        {
-          trigger: {
-            app: emailProvider,
-            event: 'new_email',
-          },
-          action: {
-            app: notificationChannel,
-            event: 'send_notification',
-            inputData: {
-              title: 'Urgent Email: {{subject}}',
-              message: 'From: {{from}} - {{snippet}}',
-              priority: 'high',
-              url: '{{url}}',
-            },
-            conditions: [
-              {
-                field: 'classification.priority',
-                operator: 'equals',
-                value: priorityThreshold,
-              },
-            ],
-          },
-        }
-      );
+      // Get the email
+      const email = await this.emailService.getEmail(userId, provider, emailId);
+      
+      if (!email) {
+        throw new Error(`Email not found: ${emailId}`);
+      }
+      
+      // Create snooze record
+      const snoozeId = `snooze-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+      const snoozeRecord = {
+        id: snoozeId,
+        emailId,
+        userId,
+        provider,
+        snoozeUntil: new Date(snoozeUntil),
+        reason,
+        createdAt: new Date(),
+        status: 'snoozed',
+      };
+      
+      // Store snooze record
+      this.snoozedEmails.set(snoozeId, snoozeRecord);
+      
+      // Update email metadata to mark as snoozed
+      await this.emailService.updateEmailMetadata(userId, provider, emailId, {
+        ...email.metadata,
+        snoozed: true,
+        snoozeId,
+        snoozeUntil,
+      });
+      
+      return snoozeRecord;
     } catch (error) {
-      this.logger.error(`Failed to create triage notification Zap: ${error.message}`);
+      this.logger.error(`Failed to snooze email: ${error.message}`);
       throw error;
     }
   }
 
-  async createEmailCategorizationZap(
-    emailProvider: string,
-    categories: EmailCategory[] = Object.values(EmailCategory),
-  ): Promise<any> {
-    try {
-      return await this.zapierService.executeZap(
-        'createZap',
-        {
-          trigger: {
-            app: emailProvider,
-            event: 'new_email',
-          },
-          action: {
-            app: emailProvider,
-            event: 'add_label',
-            inputData: {
-              label: '{{classification.category}}',
-            },
-            conditions: [
-              {
-                field: 'classification.category',
-                operator: 'in',
-                value: categories,
-              },
-            ],
-          },
-        }
-      );
-    } catch (error) {
-      this.logger.error(`Failed to create email categorization Zap: ${error.message}`);
-      throw error;
+  async getSnoozedEmails(userId: string): Promise<any[]> {
+    const userSnoozed: any[] = [];
+    
+    for (const [_, record] of this.snoozedEmails.entries()) {
+      if (record.userId === userId && record.status === 'snoozed') {
+        userSnoozed.push(record);
+      }
     }
+    
+    return userSnoozed;
   }
 
-  async createAutoReplyZap(
-    emailProvider: string,
-    triggerCategory: EmailCategory = EmailCategory.INFORMATION,
-  ): Promise<any> {
+  async unsnoozeMail(userId: string, snoozeId: string): Promise<any> {
     try {
-      return await this.zapierService.executeZap(
-        'createZap',
+      const record = this.snoozedEmails.get(snoozeId);
+      
+      if (!record || record.userId !== userId) {
+        throw new Error(`Snooze record not found: ${snoozeId}`);
+      }
+      
+      // Update status
+      record.status = 'unsnooze';
+      record.updatedAt = new Date();
+      
+      // Store updated record
+      this.snoozedEmails.set(snoozeId, record);
+      
+      // Update email metadata
+      await this.emailService.updateEmailMetadata(
+        userId, 
+        record.provider, 
+        record.emailId, 
         {
-          trigger: {
-            app: emailProvider,
-            event: 'new_email',
-          },
-          action: {
-            app: emailProvider,
-            event: 'send_email',
-            inputData: {
-              to: '{{from}}',
-              subject: 'Re: {{subject}}',
-              body: 'Thank you for your email. I have received your message and will respond as soon as possible.',
-            },
-            conditions: [
-              {
-                field: 'classification.category',
-                operator: 'equals',
-                value: triggerCategory,
-              },
-              {
-                field: 'auto_replied',
-                operator: 'equals',
-                value: false,
-              },
-            ],
-          },
+          snoozed: false,
         }
       );
+      
+      return record;
     } catch (error) {
-      this.logger.error(`Failed to create auto-reply Zap: ${error.message}`);
-      throw error;
-    }
-  }
-  
-  async createSnoozeZap(
-    emailProvider: string,
-    snoozeHours: number = 24,
-  ): Promise<any> {
-    try {
-      return await this.zapierService.executeZap(
-        'createZap',
-        {
-          trigger: {
-            app: emailProvider,
-            event: 'new_email',
-          },
-          action: {
-            app: 'followthrough',
-            event: 'snooze_email',
-            inputData: {
-              emailId: '{{id}}',
-              provider: emailProvider,
-              snoozeUntil: `{{formatDate(addHours(now, ${snoozeHours}))}}`,
-              reason: 'Automatically snoozed via Zapier',
-            },
-            conditions: [
-              {
-                field: 'classification.priority',
-                operator: 'equals',
-                value: EmailPriority.LOW,
-              },
-            ],
-          },
-        }
-      );
-    } catch (error) {
-      this.logger.error(`Failed to create snooze Zap: ${error.message}`);
+      this.logger.error(`Failed to unsnooze email: ${error.message}`);
       throw error;
     }
   }
 }
 ```
+
+**Delegation Service Implementation:**
+
+```typescript
+// src/email/delegation/delegation.service.ts
+import { Injectable, Logger } from '@nestjs/common';
+import { EmailService } from '../email.service';
+import { NotificationsService } from '../../notifications/notifications.service';
+
+@Injectable()
+export class DelegationService {
+  private readonly logger = new Logger(DelegationService.name);
+  private readonly delegations = new Map<string, any>();
+
+  constructor(
+    private emailService: EmailService,
+    private notificationsService: NotificationsService,
+  ) {}
+
+  async delegateEmail(
+    userId: string,
+    emailId: string,
+    provider: string,
+    delegateTo: string,
+    notes?: string,
+  ): Promise<any> {
+    try {
+      // Get the email
+      const email = await this.emailService.getEmail(userId, provider, emailId);
+      
+      if (!email) {
+        throw new Error(`Email not found: ${emailId}`);
+      }
+      
+      // Create delegation record
+      const delegationId = `delegation-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+      const delegation = {
+        id: delegationId,
+        emailId,
+        userId,
+        provider,
+        delegatedTo: delegateTo,
+        notes,
+        createdAt: new Date(),
+        status: 'pending',
+      };
+      
+      // Store delegation record
+      this.delegations.set(delegationId, delegation);
+      
+      // Update email metadata to mark as delegated
+      await this.emailService.updateEmailMetadata(userId, provider, emailId, {
+        ...email.metadata,
+        delegated: true,
+        delegationId,
+        delegatedTo,
+      });
+      
+      // Notify the delegated user (in a real implementation, this would send an email)
+      // For now, just log it
+      this.logger.log(`Email ${emailId} delegated to ${delegateTo}`);
+      
+      return delegation;
+    } catch (error) {
+      this.logger.error(`Failed to delegate email: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async getDelegations(userId: string): Promise<any[]> {
+    const userDelegations: any[] = [];
+    
+    for (const [_, delegation] of this.delegations.entries()) {
+      if (delegation.userId === userId) {
+        userDelegations.push(delegation);
+      }
+    }
+    
+    return userDelegations;
+  }
+
+  async acceptDelegation(delegationId: string): Promise<any> {
+    try {
+      const delegation = this.delegations.get(delegationId);
+      
+      if (!delegation) {
+        throw new Error(`Delegation not found: ${delegationId}`);
+      }
+      
+      // Update status
+      delegation.status = 'accepted';
+      delegation.updatedAt = new Date();
+      
+      // Store updated delegation
+      this.delegations.set(delegationId, delegation);
+      
+      // Notify the original user
+      await this.notificationsService.sendNotification(
+        delegation.userId,
+        {
+          type: 'delegation_accepted',
+          title: 'Delegation Accepted',
+          body: `Your delegated email has been accepted by ${delegation.delegatedTo}`,
+          data: {
+            delegationId,
+            emailId: delegation.emailId,
+          },
+        }
+      );
+      
+      return delegation;
+    } catch (error) {
+      this.logger.error(`Failed to accept delegation: ${error.message}`);
+      throw error;
+    }
+  }
+}
+```
+
+**Followup Service Implementation:**
+
+```typescript
+// src/email/followup/followup.service.ts
+import { Injectable, Logger } from '@nestjs/common';
+import { EmailService } from '../email.service';
+import { NotificationsService } from '../../notifications/notifications.service';
+
+@Injectable()
+export class FollowupService {
+  private readonly logger = new Logger(FollowupService.name);
+  private readonly followups = new Map<string, any>();
+
+  constructor(
+    private emailService: EmailService,
+    private notificationsService: NotificationsService,
+  ) {}
+
+  async createFollowupReminder(
+    userId: string,
+    provider: string,
+    emailId: string,
+    reminderDate: string,
+    notes?: string,
+  ): Promise<any> {
+    try {
+      // Get the email
+      const email = await this.emailService.getEmail(userId, provider, emailId);
+      
+      if (!email) {
+        throw new Error(`Email not found: ${emailId}`);
+      }
+      
+      // Create followup record
+      const followupId = `followup-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+      const followup = {
+        id: followupId,
+        emailId,
+        userId,
+        provider,
+        reminderDate: new Date(reminderDate),
+        notes,
+        createdAt: new Date(),
+        status: 'pending',
+      };
+      
+      // Store followup record
+      this.followups.set(followupId, followup);
+      
+      // Update email metadata to mark as having followup
+      await this.emailService.updateEmailMetadata(userId, provider, emailId, {
+        ...email.metadata,
+        hasFollowup: true,
+        followupId,
+        reminderDate,
+      });
+      
+      return followup;
+    } catch (error) {
+      this.logger.error(`Failed to create followup: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async getFollowups(userId: string): Promise<any[]> {
+    const userFollowups: any[] = [];
+    
+    for (const [_, followup] of this.followups.entries()) {
+      if (followup.userId === userId) {
+        userFollowups.push(followup);
+      }
+    }
+    
+    return userFollowups;
+  }
+
+  async completeFollowup(userId: string, followupId: string): Promise<any> {
+    try {
+      const followup = this.followups.get(followupId);
+      
+      if (!followup || followup.userId !== userId) {
+        throw new Error(`Followup not found: ${followupId}`);
+      }
+      
+      // Update status
+      followup.status = 'completed';
+      followup.completedAt = new Date();
+      
+      // Store updated followup
+      this.followups.set(followupId, followup);
+      
+      return followup;
+    } catch (error) {
+      this.logger.error(`Failed to complete followup: ${error.message}`);
+      throw error;
+    }
+  }
+
+  // This would be called by a scheduler in a real implementation
+  async checkDueFollowups(): Promise<void> {
+    const now = new Date();
+    
+    for (const [followupId, followup] of this.followups.entries()) {
+      if (followup.status === 'pending' && followup.reminderDate <= now) {
+        // Send notification to user
+        await this.notificationsService.sendNotification(
+          followup.userId,
+          {
+            type: 'followup_reminder',
+            title: 'Followup Reminder',
+            body: `You have a followup reminder for an email: ${followup.notes || 'No notes'}`,
+            data: {
+              followupId,
+              emailId: followup.emailId,
+            },
+          }
+        );
+        
+        // Update status to reminded
+        followup.status = 'reminded';
+        followup.remindedAt = now;
+        
+        // Store updated followup
+        this.followups.set(followupId, followup);
+      }
+    }
+  }
+}
+```
+
+**Update Zapier Module:**
+
+To include the email triage features in the Zapier integration, update the Zapier module:
+
+```typescript
+// src/zapier/zapier.module.ts
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { ZapierService } from './zapier.service';
+import { ZapierWebhookController } from './zapier-webhook.controller';
+import { ZapierAuthController } from './zapier-auth.controller';
+import { EmailTriageWebhookController } from './email-triage-webhook.controller';
+import { EmailModule } from '../email/email.module';
+import { TasksModule } from '../tasks/tasks.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { EmailClassifierModule } from '../email/classification/email-classifier.module';
+import { SnoozeModule } from '../email/snooze/snooze.module';
+import { DelegationModule } from '../email/delegation/delegation.module';
+import { FollowupModule } from '../email/followup/followup.module';
+
+@Module({
+  imports: [
+    ConfigModule,
+    EmailModule,
+    TasksModule,
+    NotificationsModule,
+    EmailClassifierModule,
+    SnoozeModule,
+    DelegationModule,
+    FollowupModule,
+  ],
+  controllers: [
+    ZapierWebhookController,
+    ZapierAuthController,
+    EmailTriageWebhookController,
+  ],
+  providers: [
+    ZapierService,
+  ],
+  exports: [
+    ZapierService,
+  ],
+})
+export class ZapierModule {}
+```
+
+**Setting Up Zapier Integration in the Web Interface:**
+
+After implementing the REST API endpoints, you can create the integration in the Zapier Web Builder:
+
+1. Go to [Zapier Developer Platform](https://developer.zapier.com/)
+2. Create a new integration
+3. Set up authentication (use the OAuth2 configuration)
+4. Add the following triggers and actions:
+
+**Triggers:**
+- New Email (using `/api/zapier/triggers/emails` endpoint)
+- New Classified Email (using `/api/zapier/triggers/classified-emails` endpoint)
+
+**Actions:**
+- Create Task (using `/api/zapier/actions/tasks` endpoint)
+- Snooze Email (using `/api/zapier/actions/snooze` endpoint)
+- Delegate Email (using `/api/zapier/actions/delegate` endpoint)
+- Create Followup (using `/api/zapier/actions/followup` endpoint)
+
+**Searches:**
+- Find Task (using `/api/zapier/searches/tasks` endpoint)
+
+**Testing and Deployment:**
+
+After setting up the integration:
+
+1. Test each endpoint with sample data
+2. Invite team members to test the integration
+3. Make it public (optional) by submitting for review
+
+This implementation approach allows for easier maintenance since all code resides within your NestJS application, without the need to maintain a separate Zapier CLI project.
 
 ## Conclusion
 

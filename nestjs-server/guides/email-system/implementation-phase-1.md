@@ -2,9 +2,8 @@
 
 ## Introduction
 
-This implementation guide outlines the development plan for the first two phases of FollowThrough AI:
+This implementation guide outlines the development plan for the first phase of FollowThrough AI:
 1. Email Management and Automated Task System
-2. Email Triage System
 
 We'll leverage our existing LangGraph architecture, enhancing it with Model Context Protocol (MCP) for external integrations and Zapier for connecting with email and task management services.
 
@@ -12,10 +11,9 @@ We'll leverage our existing LangGraph architecture, enhancing it with Model Cont
 
 Our implementation will extend our current LangGraph system with:
 
-1. **MCP Integration Layer**: Connects our system to external resources via the standardized Model Context Protocol
-2. **Email Processing System**: Handles email fetching, parsing, and analysis
-3. **Task Management Integration**: Creates and tracks tasks across multiple platforms
-4. **Email Triage System**: Prioritizes and manages emails intelligently
+1. **MCP Integration Layer**: ✅ COMPLETED - Connects our system to external resources via the standardized Model Context Protocol
+2. **Email Processing System**: ⏳ IN PROGRESS - Handles email fetching, parsing, and analysis
+3. **Task Management Integration**: ✅ COMPLETED - Creates and tracks tasks across multiple platforms
 
 ```mermaid
 graph TD
@@ -58,14 +56,14 @@ graph TD
 
 ### Week 1-2: System Architecture & Email Integration
 
-#### 1. Set up MCP Architecture
+#### 1. Set up MCP Architecture ✅ COMPLETED
 
-**Files to Create:**
-- `src/mcp/mcp.module.ts`
-- `src/mcp/mcp.service.ts`
-- `src/mcp/adapters/langchain-adapter.ts`
-- `src/mcp/models/resource.model.ts`
-- `src/mcp/models/tool.model.ts`
+**Files Created:**
+- `src/mcp/mcp.module.ts` ✅ COMPLETED
+- `src/mcp/mcp.service.ts` ✅ COMPLETED
+- `src/mcp/adapters/langchain-adapter.ts` ✅ COMPLETED
+- `src/mcp/models/resource.model.ts` ✅ COMPLETED
+- `src/mcp/models/tool.model.ts` ✅ COMPLETED
 
 **MCP Module Implementation:**
 
@@ -100,13 +98,88 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { LangchainMcpAdapter } from './adapters/langchain-adapter';
+import { MultiServerMCPClient } from '@langchain/mcp-adapters';
 
 @Injectable()
 export class MCPService {
   private readonly logger = new Logger(MCPService.name);
   private clients: Map<string, Client> = new Map();
+  private multiServerClient: MultiServerMCPClient | null = null;
 
-  constructor(private configService: ConfigService) {}
+  constructor(
+    private configService: ConfigService,
+    private langchainAdapter: LangchainMcpAdapter,
+  ) {}
+
+  /**
+   * Initialize a multi-server client for accessing all configured MCP servers
+   */
+  async initializeMultiServerClient(): Promise<MultiServerMCPClient> {
+    if (this.multiServerClient) {
+      return this.multiServerClient;
+    }
+
+    const serverConfigs = {};
+    
+    // Add Gmail MCP server if configured
+    const gmailMcpServer = this.configService.get<string>('GMAIL_MCP_SERVER');
+    if (gmailMcpServer) {
+      serverConfigs['gmail'] = { url: gmailMcpServer };
+    }
+    
+    // Add Outlook MCP server if configured
+    const outlookMcpServer = this.configService.get<string>('OUTLOOK_MCP_SERVER');
+    if (outlookMcpServer) {
+      serverConfigs['outlook'] = { url: outlookMcpServer };
+    }
+    
+    // Add task management servers if configured
+    const jiraMcpServer = this.configService.get<string>('JIRA_MCP_SERVER');
+    if (jiraMcpServer) {
+      serverConfigs['jira'] = { url: jiraMcpServer };
+    }
+    
+    const asanaMcpServer = this.configService.get<string>('ASANA_MCP_SERVER');
+    if (asanaMcpServer) {
+      serverConfigs['asana'] = { url: asanaMcpServer };
+    }
+    
+    const trelloMcpServer = this.configService.get<string>('TRELLO_MCP_SERVER');
+    if (trelloMcpServer) {
+      serverConfigs['trello'] = { url: trelloMcpServer };
+    }
+    
+    // Add Zapier MCP server if configured
+    const zapierMcpServer = this.configService.get<string>('ZAPIER_MCP_SERVER');
+    if (zapierMcpServer) {
+      serverConfigs['zapier'] = { url: zapierMcpServer };
+    }
+    
+    if (Object.keys(serverConfigs).length === 0) {
+      this.logger.warn('No MCP servers configured');
+      throw new Error('No MCP servers configured');
+    }
+    
+    this.multiServerClient = await this.langchainAdapter.createMultiServerClient(serverConfigs);
+    return this.multiServerClient;
+  }
+
+  /**
+   * Get all available tools from all configured MCP servers
+   */
+  async getAllAvailableTools(): Promise<any[]> {
+    const client = await this.initializeMultiServerClient();
+    return await this.langchainAdapter.loadAllTools(client);
+  }
+
+  /**
+   * Get tools from specific MCP servers
+   */
+  async getToolsFromServers(serverNames: string[]): Promise<any[]> {
+    const client = await this.initializeMultiServerClient();
+    return await this.langchainAdapter.loadToolsFromServers(client, serverNames);
+  }
 
   async connectToServer(serverUrl: string): Promise<boolean> {
     try {
@@ -114,16 +187,7 @@ export class MCPService {
         return true;
       }
 
-      const client = new Client({
-        name: 'followthrough-mcp-client',
-        version: '1.0.0',
-      });
-
-      const transport = new StreamableHTTPClientTransport(
-        new URL(serverUrl)
-      );
-
-      await client.connect(transport);
+      const client = await this.langchainAdapter.createMcpClient(serverUrl);
       this.clients.set(serverUrl, client);
       
       this.logger.log(`Connected to MCP server: ${serverUrl}`);
@@ -134,15 +198,19 @@ export class MCPService {
     }
   }
 
-  async getResources(serverUrl: string, resourceType: string): Promise<any[]> {
+  async getResources(serverUrl: string, resourceType?: string): Promise<any[]> {
     try {
       const client = await this.getOrCreateClient(serverUrl);
       const resources = await client.listResources();
       
       // Filter resources by type if specified
-      return resourceType 
-        ? resources.filter(resource => resource.type === resourceType)
-        : resources;
+      if (resourceType && Array.isArray(resources)) {
+        return resources.filter(resource => 
+          resource && typeof resource === 'object' && 'type' in resource && resource.type === resourceType
+        );
+      }
+      
+      return Array.isArray(resources) ? resources : [];
     } catch (error) {
       this.logger.error(`Failed to get resources: ${error.message}`);
       return [];
@@ -160,6 +228,55 @@ export class MCPService {
       return result;
     } catch (error) {
       this.logger.error(`Failed to execute tool: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async loadTools(serverUrl: string): Promise<any[]> {
+    try {
+      const client = await this.getOrCreateClient(serverUrl);
+      const serverName = new URL(serverUrl).hostname;
+      return await this.langchainAdapter.loadServerTools(serverName, client);
+    } catch (error) {
+      this.logger.error(`Failed to load tools: ${error.message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Execute a tool by its name with the provided parameters using the multi-server client
+   */
+  async executeToolAcrossServers(toolName: string, params: any): Promise<any> {
+    try {
+      const client = await this.initializeMultiServerClient();
+      
+      // If tool name contains server prefix (server__toolName), we need to get the right client
+      if (toolName.includes('__')) {
+        const [serverName, actualToolName] = toolName.split('__', 2);
+        const serverClient = await client.getClient(serverName);
+        
+        if (!serverClient) {
+          throw new Error(`No client found for server: ${serverName}`);
+        }
+        
+        return await serverClient.callTool({
+          name: actualToolName,
+          arguments: params,
+        });
+      }
+      
+      // If no server prefix, try executing on all servers until one succeeds
+      const tools = await this.langchainAdapter.loadAllTools(client);
+      const matchingTool = tools.find(tool => tool.name === toolName);
+      
+      if (!matchingTool) {
+        throw new Error(`No tool found with name: ${toolName}`);
+      }
+      
+      // Execute using the tool's execute method
+      return await matchingTool.invoke(params);
+    } catch (error) {
+      this.logger.error(`Failed to execute tool across servers: ${error.message}`);
       throw error;
     }
   }
@@ -187,9 +304,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { BaseTool } from '@langchain/core/tools';
-import { convertLangchainToolToMCPTool } from 'langchain-mcp-adapters';
+import { Tool as LangchainTool } from '@langchain/core/tools';
+import { MultiServerMCPClient, loadMcpTools } from '@langchain/mcp-adapters';
 
 @Injectable()
 export class LangchainMcpAdapter {
@@ -200,14 +316,66 @@ export class LangchainMcpAdapter {
   ) {}
 
   /**
-   * Converts LangChain tools to MCP format for registering with an MCP server
+   * Creates a multi-server MCP client to interact with multiple MCP-enabled services
    */
-  convertLangchainToolsToMcpTools(tools: BaseTool[]): any[] {
-    return tools.map(tool => convertLangchainToolToMCPTool(tool));
+  async createMultiServerClient(serverConfigs: {[key: string]: {url: string, headers?: Record<string, string>}}): Promise<MultiServerMCPClient> {
+    try {
+      const config = {
+        mcpServers: {},
+        prefixToolNameWithServerName: true,
+      };
+      
+      // Convert server configs to the required format
+      Object.entries(serverConfigs).forEach(([serverName, serverConfig]) => {
+        config.mcpServers[serverName] = {
+          url: serverConfig.url,
+          type: 'http',
+          headers: serverConfig.headers,
+        };
+      });
+      
+      this.logger.log(`Creating MultiServerMCPClient with ${Object.keys(serverConfigs).length} servers`);
+      return new MultiServerMCPClient(config);
+    } catch (error) {
+      this.logger.error(`Failed to create MultiServerMCPClient: ${error.message}`);
+      throw error;
+    }
   }
 
   /**
-   * Creates an MCP client that can be used to interact with external MCP-enabled systems
+   * Load all tools from a multi-server client
+   */
+  async loadAllTools(client: MultiServerMCPClient): Promise<any[]> {
+    try {
+      // Initialize connections to all servers
+      await client.initializeConnections();
+      
+      // Get all tools
+      return await client.getTools();
+    } catch (error) {
+      this.logger.error(`Failed to load tools from MultiServerMCPClient: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Load tools from specific servers in a multi-server client
+   */
+  async loadToolsFromServers(client: MultiServerMCPClient, serverNames: string[]): Promise<any[]> {
+    try {
+      // Initialize connections
+      await client.initializeConnections();
+      
+      // Get tools from specified servers
+      return await client.getTools(...serverNames);
+    } catch (error) {
+      this.logger.error(`Failed to load tools from servers ${serverNames.join(', ')}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Creates a single MCP client for a specific server
    */
   async createMcpClient(serverUrl: string, clientName: string = 'langchain-mcp-client'): Promise<Client> {
     try {
@@ -229,27 +397,21 @@ export class LangchainMcpAdapter {
   }
 
   /**
-   * Registers LangChain tools with an MCP server
+   * Load tools from a single server
    */
-  async registerToolsWithMcpServer(
-    server: any,
-    tools: BaseTool[],
-  ): Promise<void> {
+  async loadServerTools(serverName: string, client: Client): Promise<any[]> {
     try {
-      const mcpTools = this.convertLangchainToolsToMcpTools(tools);
-      
-      // Register each tool with the MCP server
-      for (const tool of mcpTools) {
-        server.setRequestHandler(tool.schema, tool.handler);
-      }
-      
-      this.logger.log(`Registered ${mcpTools.length} tools with MCP server`);
+      return await loadMcpTools(serverName, client, {
+        throwOnLoadError: false,
+        prefixToolNameWithServerName: true,
+      });
     } catch (error) {
-      this.logger.error(`Failed to register tools with MCP server: ${error.message}`);
-      throw error;
+      this.logger.error(`Failed to load tools from server ${serverName}: ${error.message}`);
+      return [];
     }
   }
 }
+```
 
 **Resource Model Implementation:**
 
@@ -377,15 +539,20 @@ export class Tool {
 }
 ```
 
-#### 2. Create Email Integration Service
+#### 2. Create Email Integration Service ✅ COMPLETED
 
-**Files to Create:**
-- `src/email/email.module.ts`
-- `src/email/email.service.ts`
-- `src/email/models/email.model.ts`
-- `src/email/models/thread.model.ts`
-- `src/email/connectors/gmail.connector.ts`
-- `src/email/connectors/outlook.connector.ts`
+**Files Created:**
+- `src/email/email.module.ts` ✅ COMPLETED
+- `src/email/email.service.ts` ✅ COMPLETED
+- `src/email/models/email.model.ts` ✅ COMPLETED
+- `src/email/models/thread.model.ts` ✅ COMPLETED
+- `src/email/connectors/gmail.connector.ts` ✅ COMPLETED
+- `src/email/connectors/outlook.connector.ts` ✅ COMPLETED
+- `src/email/connectors/email-connector.factory.ts` ✅ COMPLETED
+- `src/email/connectors/email-connector.interface.ts` ✅ COMPLETED
+- `src/email/models/email-address.model.ts` ✅ COMPLETED
+- `src/email/models/email-attachment.model.ts` ✅ COMPLETED
+- `src/email/dtos/email-query.dto.ts` ✅ COMPLETED
 
 **Email Service Implementation:**
 
@@ -529,14 +696,57 @@ export class EmailService {
 }
 ```
 
-#### 3. Implement Zapier Integration
+#### 3. Implement Zapier Integration ⏳ IN PROGRESS
 
 **Files to Create:**
 - `src/zapier/zapier.module.ts`
 - `src/zapier/zapier.service.ts`
-- `src/zapier/models/zap.model.ts`
-- `src/zapier/triggers/email.trigger.ts`
-- `src/zapier/actions/task.action.ts`
+- `src/zapier/zapier-webhook.controller.ts`
+- `src/zapier/dtos/zapier-webhook.dto.ts`
+- `src/zapier/guards/zapier-api-key.guard.ts`
+- `src/zapier/zapier-auth.controller.ts`
+
+**Zapier Integration Approach:**
+
+Instead of building a separate Zapier CLI application, we'll focus on creating REST API endpoints in our NestJS application that Zapier can connect to through its Web Builder interface. This enables us to:
+
+1. Make our services available to Zapier without maintaining a separate codebase
+2. Leverage our existing authentication system
+3. Handle webhooks and real-time data directly in our application
+
+**Zapier Module Implementation:**
+
+```typescript
+// src/zapier/zapier.module.ts
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { ZapierService } from './zapier.service';
+import { ZapierWebhookController } from './zapier-webhook.controller';
+import { ZapierAuthController } from './zapier-auth.controller';
+import { EmailModule } from '../email/email.module';
+import { TasksModule } from '../tasks/tasks.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+
+@Module({
+  imports: [
+    ConfigModule,
+    EmailModule,
+    TasksModule,
+    NotificationsModule,
+  ],
+  controllers: [
+    ZapierWebhookController,
+    ZapierAuthController,
+  ],
+  providers: [
+    ZapierService,
+  ],
+  exports: [
+    ZapierService,
+  ],
+})
+export class ZapierModule {}
+```
 
 **Zapier Service Implementation:**
 
@@ -544,98 +754,410 @@ export class EmailService {
 // src/zapier/zapier.service.ts
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MCPService } from '../mcp/mcp.service';
+import { EmailService } from '../email/email.service';
+import { TasksService } from '../tasks/tasks.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ZapierService {
   private readonly logger = new Logger(ZapierService.name);
-  private readonly zapierServerUrl: string;
-
+  private readonly apiKey: string;
+  
   constructor(
     private configService: ConfigService,
-    private mcpService: MCPService,
+    private emailService: EmailService,
+    private tasksService: TasksService,
+    private notificationsService: NotificationsService,
   ) {
-    this.zapierServerUrl = this.configService.get<string>('ZAPIER_MCP_SERVER');
+    this.apiKey = this.configService.get<string>('ZAPIER_API_KEY');
   }
-
-  async executeZap(zapId: string, inputData: any): Promise<any> {
+  
+  validateApiKey(apiKey: string): boolean {
+    return this.apiKey === apiKey;
+  }
+  
+  async getRecentEmails(userId: string, provider: string, folder: string, since: string): Promise<any[]> {
     try {
-      const result = await this.mcpService.executeTool(
-        this.zapierServerUrl,
-        'executeZap',
+      const sinceDate = since ? new Date(since) : new Date(Date.now() - 24 * 60 * 60 * 1000);
+      
+      const emails = await this.emailService.getEmails(userId, provider, {
+        folder,
+        startDate: sinceDate,
+        includeMetadata: true,
+      });
+      
+      return emails.map(email => ({
+        id: email.id,
+        threadId: email.threadId,
+        subject: email.subject,
+        from: email.from,
+        to: email.to,
+        date: email.date,
+        body: email.body,
+        isRead: email.isRead,
+        hasAttachments: email.hasAttachments,
+        metadata: email.metadata,
+      }));
+    } catch (error) {
+      this.logger.error(`Failed to get recent emails: ${error.message}`);
+      throw error;
+    }
+  }
+  
+  async createTask(userId: string, taskData: any): Promise<any> {
+    try {
+      const platform = taskData.platform || 'jira';
+      delete taskData.platform;
+      
+      const task = await this.tasksService.createTask(userId, platform, taskData);
+      
+      // Notify the user about task creation
+      await this.notificationsService.sendNotification(
+        userId,
         {
-          zapId,
-          inputData,
+          type: 'task_created',
+          title: 'Task Created via Zapier',
+          body: `A new task "${task.title}" was created in ${platform}.`,
+          data: {
+            taskId: task.id,
+            platform,
+          },
         }
       );
       
-      return result;
+      return task;
     } catch (error) {
-      this.logger.error(`Failed to execute Zap: ${error.message}`);
+      this.logger.error(`Failed to create task: ${error.message}`);
       throw error;
     }
   }
 
-  async getZaps(): Promise<any[]> {
+  async searchTasks(userId: string, platform: string, options: any = {}): Promise<any[]> {
     try {
-      const result = await this.mcpService.executeTool(
-        this.zapierServerUrl,
-        'getZaps',
-        {}
-      );
-      
-      return result.zaps;
+      return await this.tasksService.getTasks(userId, platform, options);
     } catch (error) {
-      this.logger.error(`Failed to get Zaps: ${error.message}`);
-      return [];
-    }
-  }
-
-  async createEmailToTaskZap(
-    emailProvider: string, 
-    taskPlatform: string,
-    filterCriteria: any,
-    mappingRules: any
-  ): Promise<any> {
-    try {
-      const result = await this.mcpService.executeTool(
-        this.zapierServerUrl,
-        'createZap',
-        {
-          trigger: {
-            app: emailProvider,
-            event: 'new_email',
-            inputData: filterCriteria,
-          },
-          action: {
-            app: taskPlatform,
-            event: 'create_task',
-            inputData: mappingRules,
-          }
-        }
-      );
-      
-      return result.zap;
-    } catch (error) {
-      this.logger.error(`Failed to create Zap: ${error.message}`);
+      this.logger.error(`Failed to search tasks: ${error.message}`);
       throw error;
     }
   }
 }
 ```
 
-### Week 3-4: Email Processing & Analysis
+**Zapier API Key Guard:**
 
-#### 1. Enhance Email Models
+```typescript
+// src/zapier/guards/zapier-api-key.guard.ts
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { ZapierService } from '../zapier.service';
 
-**Files to Create/Update:**
-- `src/email/models/email-attachment.model.ts`
-- `src/email/models/email-address.model.ts`
-- `src/email/dtos/email-query.dto.ts`
-- Update `src/email/models/email.model.ts`
-- Update `src/email/models/thread.model.ts`
+@Injectable()
+export class ZapierApiKeyGuard implements CanActivate {
+  constructor(private zapierService: ZapierService) {}
 
-#### 2. Implement Email Processing Service
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest();
+    const apiKey = request.headers['x-api-key'];
+    
+    if (!apiKey) {
+      throw new UnauthorizedException('API key is required');
+    }
+    
+    const isValid = this.zapierService.validateApiKey(apiKey);
+    
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid API key');
+    }
+    
+    return true;
+  }
+}
+```
+
+**Zapier Webhook Controller:**
+
+```typescript
+// src/zapier/zapier-webhook.controller.ts
+import { 
+  Controller, 
+  Post, 
+  Get, 
+  Body, 
+  Query, 
+  UseGuards, 
+  Headers,
+  UnauthorizedException 
+} from '@nestjs/common';
+import { ZapierService } from './zapier.service';
+import { ZapierApiKeyGuard } from './guards/zapier-api-key.guard';
+
+@Controller('api/zapier')
+@UseGuards(ZapierApiKeyGuard)
+export class ZapierWebhookController {
+  constructor(
+    private zapierService: ZapierService,
+  ) {}
+
+  @Get('test-auth')
+  testAuth(@Headers('x-user-id') userId: string) {
+    return { success: true, userId };
+  }
+
+  @Get('triggers/emails')
+  async getEmails(
+    @Headers('x-user-id') userId: string,
+    @Query('provider') provider: string,
+    @Query('folder') folder: string = 'INBOX',
+    @Query('since') since?: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('User ID is required');
+    }
+    
+    const emails = await this.zapierService.getRecentEmails(
+      userId,
+      provider,
+      folder,
+      since
+    );
+    
+    return emails;
+  }
+
+  @Post('actions/tasks')
+  async createTask(
+    @Headers('x-user-id') userId: string,
+    @Body() taskData: any,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('User ID is required');
+    }
+    
+    const task = await this.zapierService.createTask(userId, taskData);
+    return task;
+  }
+
+  @Get('searches/tasks')
+  async searchTasks(
+    @Headers('x-user-id') userId: string,
+    @Query('platform') platform: string,
+    @Query('query') query?: string,
+    @Query('status') status?: string,
+  ) {
+    if (!userId) {
+      throw new UnauthorizedException('User ID is required');
+    }
+    
+    const options: any = {};
+    if (query) options.query = query;
+    if (status) options.status = status;
+    
+    const tasks = await this.zapierService.searchTasks(userId, platform, options);
+    return tasks;
+  }
+}
+```
+
+**Zapier Auth Controller:**
+
+```typescript
+// src/zapier/zapier-auth.controller.ts
+import { 
+  Controller, 
+  Get, 
+  Post, 
+  Body, 
+  Query, 
+  Redirect, 
+  UnauthorizedException 
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { AuthService } from '../auth/auth.service';
+
+@Controller('auth/zapier')
+export class ZapierAuthController {
+  constructor(
+    private configService: ConfigService,
+    private authService: AuthService,
+  ) {}
+
+  @Get('authorize')
+  @Redirect()
+  async authorize(
+    @Query('client_id') clientId: string,
+    @Query('redirect_uri') redirectUri: string,
+    @Query('state') state: string,
+    @Query('response_type') responseType: string,
+  ) {
+    // Validate client ID
+    if (clientId !== this.configService.get<string>('ZAPIER_CLIENT_ID')) {
+      throw new UnauthorizedException('Invalid client ID');
+    }
+    
+    // Create authorization code (in a real system, you would store this with an expiration)
+    const authCode = `auth_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+    
+    // Construct the redirect URL with the authorization code
+    const redirectUrl = `${redirectUri}?code=${authCode}&state=${state}`;
+    
+    return { url: redirectUrl };
+  }
+
+  @Post('token')
+  async getToken(
+    @Body('client_id') clientId: string,
+    @Body('client_secret') clientSecret: string,
+    @Body('code') code: string,
+    @Body('grant_type') grantType: string,
+    @Body('redirect_uri') redirectUri: string,
+  ) {
+    // Validate client credentials
+    if (
+      clientId !== this.configService.get<string>('ZAPIER_CLIENT_ID') ||
+      clientSecret !== this.configService.get<string>('ZAPIER_CLIENT_SECRET')
+    ) {
+      throw new UnauthorizedException('Invalid client credentials');
+    }
+    
+    // Validate the grant type
+    if (grantType !== 'authorization_code') {
+      throw new UnauthorizedException('Invalid grant type');
+    }
+    
+    // In a real system, validate the authorization code and get the associated user
+    // For now, we'll just generate tokens
+    const userId = 'user123'; // This would come from validating the auth code
+    
+    // Generate tokens
+    const accessToken = await this.authService.generateZapierAccessToken(userId);
+    const refreshToken = await this.authService.generateZapierRefreshToken(userId);
+    
+    return {
+      access_token: accessToken,
+      token_type: 'Bearer',
+      expires_in: 7200, // 2 hours (in seconds)
+      refresh_token: refreshToken,
+      scope: 'read write',
+      user_id: userId,
+      email: 'user@example.com', // This would come from the user profile
+    };
+  }
+
+  @Post('refresh')
+  async refreshToken(
+    @Body('client_id') clientId: string,
+    @Body('client_secret') clientSecret: string,
+    @Body('refresh_token') refreshToken: string,
+    @Body('grant_type') grantType: string,
+  ) {
+    // Validate client credentials
+    if (
+      clientId !== this.configService.get<string>('ZAPIER_CLIENT_ID') ||
+      clientSecret !== this.configService.get<string>('ZAPIER_CLIENT_SECRET')
+    ) {
+      throw new UnauthorizedException('Invalid client credentials');
+    }
+    
+    // Validate the grant type
+    if (grantType !== 'refresh_token') {
+      throw new UnauthorizedException('Invalid grant type');
+    }
+    
+    // In a real system, validate the refresh token and get the associated user
+    // For now, we'll just generate a new access token
+    const userId = 'user123'; // This would come from validating the refresh token
+    
+    // Generate new tokens
+    const accessToken = await this.authService.generateZapierAccessToken(userId);
+    const newRefreshToken = await this.authService.generateZapierRefreshToken(userId);
+    
+    return {
+      access_token: accessToken,
+      token_type: 'Bearer',
+      expires_in: 7200, // 2 hours (in seconds)
+      refresh_token: newRefreshToken,
+      scope: 'read write',
+    };
+  }
+}
+```
+
+**Zapier Integration Guide**:
+
+To integrate with Zapier, follow these steps:
+
+1. Ensure the API endpoints are accessible and properly secured:
+   - `/auth/zapier/authorize` - OAuth authorization endpoint
+   - `/auth/zapier/token` - OAuth token endpoint
+   - `/auth/zapier/refresh` - OAuth token refresh endpoint
+   - `/api/zapier/test-auth` - Authentication test endpoint
+   - `/api/zapier/triggers/emails` - Email trigger endpoint
+   - `/api/zapier/actions/tasks` - Task creation endpoint
+   - `/api/zapier/searches/tasks` - Task search endpoint
+
+2. Set up the Zapier integration in the [Zapier Developer Platform](https://developer.zapier.com/):
+   - Create a new Integration
+   - Configure OAuth authentication
+   - Add triggers for new emails
+   - Add actions for task creation
+   - Add searches for task lookup
+   - Test your integration
+   - Submit for review if planning to make it public
+
+3. Configure environment variables:
+```bash
+# In your NestJS application
+ZAPIER_API_KEY=your_secure_api_key
+ZAPIER_CLIENT_ID=your_client_id
+ZAPIER_CLIENT_SECRET=your_client_secret
+```
+
+4. Update your `main.ts` file to register the ZapierModule:
+
+```typescript
+// src/main.ts
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  // Add any global middleware, pipes, etc.
+  await app.listen(3000);
+}
+bootstrap();
+```
+
+```typescript
+// src/app.module.ts
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { ZapierModule } from './zapier/zapier.module';
+// Other imports...
+
+@Module({
+  imports: [
+    ConfigModule.forRoot(),
+    ZapierModule,
+    // Other modules...
+  ],
+  // ...
+})
+export class AppModule {}
+```
+
+With this approach, your NestJS application will expose the necessary endpoints for Zapier integration, allowing you to use the Zapier Web Builder to create Zaps that connect your application with other services.
+
+### Week 3-4: Email Processing & Analysis ⏳ IN PROGRESS
+
+#### 1. Enhance Email Models ✅ COMPLETED
+
+**Files Created/Updated:**
+- `src/email/models/email-attachment.model.ts` ✅ COMPLETED
+- `src/email/models/email-address.model.ts` ✅ COMPLETED
+- `src/email/dtos/email-query.dto.ts` ✅ COMPLETED
+- Updated `src/email/models/email.model.ts` ✅ COMPLETED
+- Updated `src/email/models/thread.model.ts` ✅ COMPLETED
+
+#### 2. Implement Email Processing Service ⏳ IN PROGRESS
 
 **Files to Create:**
 - `src/email/processors/email-processor.service.ts`
@@ -887,17 +1409,17 @@ export class EmailThreaderService {
 }
 ```
 
-### Week 5-6: Task Execution Automation
+### Week 5-6: Task Execution Automation ✅ COMPLETED
 
-#### 1. Task Management Service
+#### 1. Task Management Service ✅ COMPLETED
 
-**Files to Create:**
-- `src/tasks/tasks.module.ts`
-- `src/tasks/tasks.service.ts`
-- `src/tasks/models/task.model.ts`
-- `src/tasks/connectors/jira.connector.ts`
-- `src/tasks/connectors/asana.connector.ts`
-- `src/tasks/connectors/trello.connector.ts`
+**Files Created:**
+- `src/tasks/tasks.module.ts` ✅ COMPLETED
+- `src/tasks/tasks.service.ts` ✅ COMPLETED
+- `src/tasks/models/task.model.ts` ✅ COMPLETED
+- `src/tasks/connectors/jira.connector.ts` ✅ COMPLETED
+- `src/tasks/connectors/asana.connector.ts` ✅ COMPLETED
+- `src/tasks/connectors/trello.connector.ts` ⏳ IN PROGRESS
 
 **Task Service Implementation:**
 
@@ -1045,148 +1567,22 @@ export class TasksService {
 }
 ```
 
-#### 2. Task Extraction Service
+#### 2. Task Extraction Service ✅ COMPLETED
 
-**Files to Create:**
-- `src/tasks/extractors/email-task-extractor.service.ts`
-- `src/tasks/extractors/email-thread-task-extractor.service.ts`
-- `src/tasks/strategies/extraction-strategy.interface.ts`
-- `src/tasks/strategies/llm-extraction-strategy.service.ts`
-- `src/tasks/strategies/rule-based-extraction-strategy.service.ts`
+**Files Created:**
+- `src/tasks/extractors/email-task-extractor.service.ts` ✅ COMPLETED
+- `src/tasks/strategies/extraction-strategy.interface.ts` ✅ COMPLETED
+- `src/tasks/strategies/llm-extraction-strategy.service.ts` ✅ COMPLETED
+- `src/tasks/strategies/rule-based-extraction-strategy.service.ts` ✅ COMPLETED
 
-**Email Task Extractor Implementation:**
+#### 3. Implement Approval Workflow ✅ COMPLETED
 
-```typescript
-// src/tasks/extractors/email-task-extractor.service.ts
-import { Injectable, Logger } from '@nestjs/common';
-import { LlmService } from '../../langgraph/llm/llm.service';
-import { Email } from '../../email/models/email.model';
-import { Task } from '../models/task.model';
-import { IExtractionStrategy } from '../strategies/extraction-strategy.interface';
-import { LlmExtractionStrategy } from '../strategies/llm-extraction-strategy.service';
-import { RuleBasedExtractionStrategy } from '../strategies/rule-based-extraction-strategy.service';
-
-@Injectable()
-export class EmailTaskExtractorService {
-  private readonly logger = new Logger(EmailTaskExtractorService.name);
-  private readonly strategies: IExtractionStrategy[];
-
-  constructor(
-    private llmService: LlmService,
-    private llmStrategy: LlmExtractionStrategy,
-    private ruleBasedStrategy: RuleBasedExtractionStrategy,
-  ) {
-    // Order matters - try rule-based first (faster), then LLM (more powerful but slower)
-    this.strategies = [
-      this.ruleBasedStrategy,
-      this.llmStrategy,
-    ];
-  }
-
-  async extractTasks(email: Email): Promise<Task[]> {
-    try {
-      let tasks: Task[] = [];
-      
-      // Try each strategy in order until one succeeds
-      for (const strategy of this.strategies) {
-        tasks = await strategy.extractTasks(email);
-        
-        if (tasks.length > 0) {
-          this.logger.debug(`Extracted ${tasks.length} tasks using ${strategy.constructor.name}`);
-          break;
-        }
-      }
-      
-      // Enrich tasks with email context
-      tasks = tasks.map(task => ({
-        ...task,
-        metadata: {
-          ...task.metadata,
-          source: {
-            type: 'email',
-            id: email.id,
-            threadId: email.threadId,
-          },
-        },
-      }));
-      
-      return tasks;
-    } catch (error) {
-      this.logger.error(`Failed to extract tasks from email: ${error.message}`);
-      return [];
-    }
-  }
-
-  async validateAndEnrichTask(task: Partial<Task>): Promise<Task> {
-    try {
-      // Set default values for required fields
-      if (!task.title) {
-        throw new Error('Task must have a title');
-      }
-      
-      // Create a due date if not set but mentioned in the description
-      if (!task.dueDate && task.description) {
-        task.dueDate = await this.extractDueDateFromText(task.description);
-      }
-      
-      // Ensure proper formatting
-      if (task.dueDate && typeof task.dueDate === 'string') {
-        task.dueDate = new Date(task.dueDate).toISOString();
-      }
-      
-      // Add default priority if not set
-      if (!task.priority) {
-        task.priority = 'medium';
-      }
-      
-      return new Task(task);
-    } catch (error) {
-      this.logger.error(`Failed to validate and enrich task: ${error.message}`);
-      throw error;
-    }
-  }
-  
-  private async extractDueDateFromText(text: string): Promise<string | null> {
-    try {
-      const model = this.llmService.getChatModel({
-        temperature: 0.1,
-        model: 'gpt-4o',
-      });
-      
-      const response = await model.invoke([
-        {
-          role: 'system',
-          content: 'You are a date extraction assistant. Extract any due dates or deadlines mentioned in the text. Return ONLY an ISO date string (YYYY-MM-DD) or "null" if no date is found.',
-        },
-        {
-          role: 'user',
-          content: text,
-        },
-      ]);
-      
-      const content = response.content.toString().trim();
-      
-      if (content === 'null' || !content) {
-        return null;
-      }
-      
-      return content;
-    } catch (error) {
-      this.logger.error(`Failed to extract due date: ${error.message}`);
-      return null;
-    }
-  }
-}
-```
-
-#### 3. Implement Approval Workflow
-
-**Files to Create:**
-- `src/tasks/approval/approval-workflow.service.ts`
-- `src/tasks/approval/approval-request.model.ts`
-- `src/tasks/approval/approval-status.enum.ts`
-- `src/notifications/notifications.module.ts`
-- `src/notifications/notifications.service.ts`
+**Files Created:**
+- `src/tasks/approval/approval-workflow.service.ts` ✅ COMPLETED
+- `src/tasks/approval/approval-request.model.ts` ✅ COMPLETED
+- `src/tasks/approval/approval-status.enum.ts` ✅ COMPLETED
+- `src/notifications/notifications.module.ts` ✅ COMPLETED
+- `src/notifications/notifications.service.ts` ✅ COMPLETED
 
 **Approval Workflow Implementation:**
 
@@ -1322,13 +1718,20 @@ export class ApprovalWorkflowService {
 }
 ```
 
+## Documentation
+
+**Files Created:**
+- `nestjs-server/guides/email-system/README.md` ✅ COMPLETED
+
 ## Conclusion
 
 This implementation guide covers the development plan for the first phase of FollowThrough AI:
 
-1. **Email Management and Automated Task System**
-   - MCP integration for external communication
-   - Email service with Gmail and Outlook integration
-   - Email processing and analysis
-   - Task management with Jira, Asana, and Trello integration
-   - Task extraction and approval workflow
+1. **Email Management and Automated Task System** ⏳ IN PROGRESS
+   - ✅ MCP integration for external communication
+   - ⏳ Email service with Gmail and Outlook integration
+   - ⏳ Email processing and analysis
+   - ✅ Task extraction strategies and service
+   - ✅ Notifications service for approval workflows
+   - ✅ Task management with platform connectors
+   - ✅ Task approval workflow

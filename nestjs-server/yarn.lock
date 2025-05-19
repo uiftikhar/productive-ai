@@ -948,17 +948,17 @@
     zod "^3.22.3"
     zod-to-json-schema "^3.22.5"
 
-"@langchain/core@^0.3.55":
-  version "0.3.55"
-  resolved "https://registry.npmjs.org/@langchain/core/-/core-0.3.55.tgz"
-  integrity sha512-SojY2ugpT6t9eYfFB9Ysvyhhyh+KJTGXs50hdHUE9tAEQWp3WAwoxe4djwJnOZ6fSpWYdpFt2UT2ksHVDy2vXA==
+"@langchain/core@^0.3.56":
+  version "0.3.56"
+  resolved "https://registry.yarnpkg.com/@langchain/core/-/core-0.3.56.tgz#02f96f67366f54c9cec5b35c484e739dabb1785c"
+  integrity sha512-eF9MyInM9RLNisAygiCrzHnqzOnuzGWy4f1SAqAis+XIMhcA98WuZDNWxyX9pP3aKQGc47FAJ/9XWJwv5KiquA==
   dependencies:
     "@cfworker/json-schema" "^4.0.2"
     ansi-styles "^5.0.0"
     camelcase "6"
     decamelize "1.2.0"
     js-tiktoken "^1.0.12"
-    langsmith "^0.3.16"
+    langsmith "^0.3.29"
     mustache "^4.2.0"
     p-queue "^6.6.2"
     p-retry "4"
@@ -992,6 +992,17 @@
     "@langchain/langgraph-sdk" "~0.0.32"
     uuid "^10.0.0"
     zod "^3.23.8"
+
+"@langchain/mcp-adapters@^0.4.5":
+  version "0.4.5"
+  resolved "https://registry.yarnpkg.com/@langchain/mcp-adapters/-/mcp-adapters-0.4.5.tgz#08bb86bca6f4a9ea5470b9a974ba28a68bf82320"
+  integrity sha512-Hkm6wor14utKqmmtNIriibFYDkHKCDqWWVrWSoJnQ2IF1Ex8DQPIYyAgrSKlIPVP4CtR5u/Vklvg5kPzFmeCvw==
+  dependencies:
+    "@modelcontextprotocol/sdk" "^1.11.2"
+    debug "^4.4.0"
+    zod "^3.24.2"
+  optionalDependencies:
+    extended-eventsource "^1.x"
 
 "@langchain/openai@>=0.1.0 <0.6.0", "@langchain/openai@>=0.2.0 <0.6.0":
   version "0.5.10"
@@ -1028,7 +1039,7 @@
   resolved "https://registry.npmjs.org/@microsoft/tsdoc/-/tsdoc-0.15.1.tgz"
   integrity sha512-4aErSrCR/On/e5G2hDP0wjooqDdauzEbIq8hIkIe5pXV0rtWJZvdCEKL0ykZxex+IxIwBp0eGeV48hQN07dXtw==
 
-"@modelcontextprotocol/sdk@^1.11.4":
+"@modelcontextprotocol/sdk@^1.11.2", "@modelcontextprotocol/sdk@^1.11.4":
   version "1.11.4"
   resolved "https://registry.yarnpkg.com/@modelcontextprotocol/sdk/-/sdk-1.11.4.tgz#2021c76e208874e1b8551ee24609d921c3372bde"
   integrity sha512-OTbhe5slIjiOtLxXhKalkKGhIQrwvhgCDs/C2r8kcBTy5HR/g43aDQU0l7r8O0VGbJPTNJvDc7ZdQMdQDJXmbw==
@@ -3661,6 +3672,11 @@ ext-name@^5.0.0:
   dependencies:
     ext-list "^2.0.0"
     sort-keys-length "^1.0.0"
+
+extended-eventsource@^1.x:
+  version "1.7.0"
+  resolved "https://registry.yarnpkg.com/extended-eventsource/-/extended-eventsource-1.7.0.tgz#8dd50a96aeca1571f407fc2d4bc08c234b140f19"
+  integrity sha512-s8rtvZuYcKBpzytHb5g95cHbZ1J99WeMnV18oKc5wKoxkHzlzpPc/bNAm7Da2Db0BDw0CAu1z3LpH+7UsyzIpw==
 
 external-editor@^3.1.0:
   version "3.1.0"
