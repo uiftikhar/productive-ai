@@ -27,6 +27,7 @@
     "@langchain/core": "^0.3.55",
     "@langchain/langgraph": "^0.2.72",
     "@langchain/pinecone": "^0.2.0",
+    "@modelcontextprotocol/sdk": "^1.11.4",
     "@nestjs/cache-manager": "^3.0.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
