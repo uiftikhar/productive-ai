@@ -26,7 +26,17 @@
     "setup:client": "cd client && yarn install",
     "clean": "yarn clean:server && yarn clean:client",
     "clean:server": "cd server && yarn clean",
-    "clean:client": "cd client && rm -rf .next node_modules"
+    "clean:client": "cd client && rm -rf .next node_modules",
+    "client:dev": "cd client && npm run dev",
+    "server:dev": "cd server && npm run start:dev",
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "client:build": "cd client && npm run build",
+    "server:build": "cd server && npm run build",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "prod:deploy": "npm run build && npm run docker:build && npm run docker:up"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -22,10 +22,12 @@ COPY package*.json ./
 RUN npm ci --only=production
 
 # Copy built application from build stage
-COPY --from=build /app/.next ./.next
-COPY --from=build /app/public ./public
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/data ./data
+
+# Create data directories if they don't exist
+RUN mkdir -p data/file-storage/meetings data/file-storage/memory data/file-storage/results \
+    data/file-storage/sessions data/file-storage/teams data/file-storage/transcripts
 
 # Environment variables
 ENV NODE_ENV=production
@@ -34,4 +36,4 @@ ENV NODE_ENV=production
 EXPOSE 3000
 
 # Start the application
-CMD ["npm", "start"] 
+CMD ["node", "dist/main"] 
