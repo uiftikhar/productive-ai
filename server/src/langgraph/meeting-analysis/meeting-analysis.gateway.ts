@@ -10,19 +10,8 @@ import {
 import { UseGuards, Logger, OnModuleInit } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { MeetingAnalysisService } from './meeting-analysis.service';
-import { SessionInfo } from '../graph/workflow.service';
+import { MeetingAnalysisService, AnalysisProgressEvent } from './meeting-analysis.service';
 import { OnEvent } from '@nestjs/event-emitter';
-import { AnalysisProgressEvent } from './meeting-analysis.service';
-
-interface AnalysisProgressUpdate {
-  sessionId: string;
-  phase: string;
-  progress: number;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
-  message?: string;
-  timestamp: string;
-}
 
 interface SubscribeResponse {
   status: string;
@@ -122,12 +111,6 @@ export class MeetingAnalysisGateway
     return { event: 'unsubscribed', data: { status: 'success', sessionId } };
   }
 
-  @SubscribeMessage('get_sessions')
-  async handleGetSessions(): Promise<WsResponse<SessionInfo[]>> {
-    const sessions = await this.meetingAnalysisService.getAllSessions();
-    return { event: 'sessions', data: sessions };
-  }
-
   /**
    * Listen for analysis progress events and publish to subscribers
    */
@@ -140,7 +123,7 @@ export class MeetingAnalysisGateway
   /**
    * Publish a progress update to all subscribers of a session
    */
-  publishProgressUpdate(update: AnalysisProgressUpdate): void {
+  publishProgressUpdate(update: AnalysisProgressEvent): void {
     const { sessionId } = update;
 
     if (!this.sessions.has(sessionId)) {

@@ -8,16 +8,18 @@ import { useRouter } from 'next/navigation';
 import { AuthService } from '../../lib/api/auth-service';
 
 // Registration form validation schema
-const registerSchema = z.object({
-  email: z.string().email('Please enter a valid email'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
-  firstName: z.string().min(1, 'First name is required'),
-  lastName: z.string().min(1, 'Last name is required'),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
-});
+const registerSchema = z
+  .object({
+    email: z.string().email('Please enter a valid email'),
+    password: z.string().min(6, 'Password must be at least 6 characters'),
+    confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
+    firstName: z.string().min(1, 'First name is required'),
+    lastName: z.string().min(1, 'Last name is required'),
+  })
+  .refine(data => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ['confirmPassword'],
+  });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
@@ -62,109 +64,107 @@ const RegisterForm: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto p-6 bg-white rounded-lg shadow-md dark:bg-gray-800">
-      <h2 className="mb-6 text-2xl font-bold text-center">Create an Account</h2>
-      
+    <div className='mx-auto w-full max-w-md rounded-lg bg-white p-6 shadow-md dark:bg-gray-800'>
+      <h2 className='mb-6 text-center text-2xl font-bold'>Create an Account</h2>
+
       {error && (
-        <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+        <div className='mb-4 rounded border border-red-400 bg-red-100 p-3 text-red-700'>
           {error}
         </div>
       )}
-      
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+
+      <form onSubmit={handleSubmit(onSubmit)} className='space-y-4'>
         <div>
-          <label htmlFor="email" className="block mb-2 text-sm font-medium">
+          <label htmlFor='email' className='mb-2 block text-sm font-medium'>
             Email
           </label>
           <input
-            id="email"
-            type="email"
+            id='email'
+            type='email'
             {...register('email')}
-            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className='w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500'
             disabled={isLoading}
           />
-          {errors.email && (
-            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
-          )}
+          {errors.email && <p className='mt-1 text-sm text-red-600'>{errors.email.message}</p>}
         </div>
 
         <div>
-          <label htmlFor="firstName" className="block mb-2 text-sm font-medium">
+          <label htmlFor='firstName' className='mb-2 block text-sm font-medium'>
             First Name
           </label>
           <input
-            id="firstName"
-            type="text"
+            id='firstName'
+            type='text'
             {...register('firstName')}
-            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className='w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500'
             disabled={isLoading}
           />
           {errors.firstName && (
-            <p className="mt-1 text-sm text-red-600">{errors.firstName.message}</p>
+            <p className='mt-1 text-sm text-red-600'>{errors.firstName.message}</p>
           )}
         </div>
 
         <div>
-          <label htmlFor="lastName" className="block mb-2 text-sm font-medium">
+          <label htmlFor='lastName' className='mb-2 block text-sm font-medium'>
             Last Name
           </label>
           <input
-            id="lastName"
-            type="text"
+            id='lastName'
+            type='text'
             {...register('lastName')}
-            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className='w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500'
             disabled={isLoading}
           />
           {errors.lastName && (
-            <p className="mt-1 text-sm text-red-600">{errors.lastName.message}</p>
+            <p className='mt-1 text-sm text-red-600'>{errors.lastName.message}</p>
           )}
         </div>
-        
+
         <div>
-          <label htmlFor="password" className="block mb-2 text-sm font-medium">
+          <label htmlFor='password' className='mb-2 block text-sm font-medium'>
             Password
           </label>
           <input
-            id="password"
-            type="password"
+            id='password'
+            type='password'
             {...register('password')}
-            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className='w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500'
             disabled={isLoading}
           />
           {errors.password && (
-            <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+            <p className='mt-1 text-sm text-red-600'>{errors.password.message}</p>
           )}
         </div>
-        
+
         <div>
-          <label htmlFor="confirmPassword" className="block mb-2 text-sm font-medium">
+          <label htmlFor='confirmPassword' className='mb-2 block text-sm font-medium'>
             Confirm Password
           </label>
           <input
-            id="confirmPassword"
-            type="password"
+            id='confirmPassword'
+            type='password'
             {...register('confirmPassword')}
-            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className='w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500'
             disabled={isLoading}
           />
           {errors.confirmPassword && (
-            <p className="mt-1 text-sm text-red-600">{errors.confirmPassword.message}</p>
+            <p className='mt-1 text-sm text-red-600'>{errors.confirmPassword.message}</p>
           )}
         </div>
-        
+
         <button
-          type="submit"
+          type='submit'
           disabled={isLoading}
-          className="w-full py-2 px-4 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+          className='w-full rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50'
         >
           {isLoading ? 'Creating account...' : 'Create account'}
         </button>
       </form>
-      
-      <div className="mt-4 text-center">
-        <p className="text-sm">
+
+      <div className='mt-4 text-center'>
+        <p className='text-sm'>
           Already have an account?{' '}
-          <a href="/auth/login" className="text-blue-600 hover:underline">
+          <a href='/auth/login' className='text-blue-600 hover:underline'>
             Sign in
           </a>
         </p>
@@ -173,4 +173,4 @@ const RegisterForm: React.FC = () => {
   );
 };
 
-export default RegisterForm; 
+export default RegisterForm;

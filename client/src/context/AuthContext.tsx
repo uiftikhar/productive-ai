@@ -49,13 +49,13 @@ function parseJwt(token: string): User | null {
     );
 
     const payload = JSON.parse(jsonPayload);
-    
+
     // Basic validation of expected fields
     if (!payload.sub && !payload.id && !payload.email) {
       console.error('Invalid token payload:', payload);
       return null;
     }
-    
+
     return {
       id: payload.sub || payload.id,
       email: payload.email,
@@ -95,6 +95,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
 
     initializeAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Login function
@@ -102,16 +103,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(true);
     try {
       const response = await AuthService.login({ email, password });
-      
+
       // Set tokens in localStorage and cookies
       AuthService.setToken(response.accessToken);
       AuthService.setRefreshToken(response.refreshToken);
-      
+
       // Parse the token to set user info
       const userInfo = parseJwt(response.accessToken);
       setUser(userInfo);
       setIsAuthenticated(true);
-      
+
       console.log('Login successful, token stored in both localStorage and cookies');
       return response;
     } catch (error) {
@@ -152,4 +153,4 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-export default AuthContext; 
+export default AuthContext;

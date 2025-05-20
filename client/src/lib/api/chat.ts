@@ -143,10 +143,9 @@ export const chatApi = {
    * Get analysis status
    */
   async getAnalysisStatus(meetingId: string): Promise<AnalysisStatusResponse> {
-    const response = await axios.get(
-      `${API_URL}/api/chat/transcript/${meetingId}/status`,
-      { withCredentials: true }
-    );
+    const response = await axios.get(`${API_URL}/api/chat/transcript/${meetingId}/status`, {
+      withCredentials: true,
+    });
     return response.data;
   },
 
@@ -154,10 +153,9 @@ export const chatApi = {
    * Get related meetings
    */
   async getRelatedMeetings(meetingId: string): Promise<any[]> {
-    const response = await axios.get(
-      `${API_URL}/api/chat/transcript/${meetingId}/related`,
-      { withCredentials: true }
-    );
+    const response = await axios.get(`${API_URL}/api/chat/transcript/${meetingId}/related`, {
+      withCredentials: true,
+    });
     return response.data;
   },
-}; 
+};

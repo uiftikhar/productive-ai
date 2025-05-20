@@ -8,27 +8,33 @@ export function getAuthToken(): string | undefined {
   try {
     const cookieStore = cookies();
     const allCookies = cookieStore.getAll();
-    
+
     // Debug: List all cookie names
-    console.log('Available cookies:', allCookies.map(c => c.name));
-    
+    console.log(
+      'Available cookies:',
+      allCookies.map(c => c.name)
+    );
+
     // Try to get the token from different possible cookie names
-    const token = cookieStore.get('auth_token')?.value || 
-                  cookieStore.get('token')?.value ||
-                  cookieStore.get('accessToken')?.value;
-    
+    const token =
+      cookieStore.get('auth_token')?.value ||
+      cookieStore.get('token')?.value ||
+      cookieStore.get('accessToken')?.value;
+
     console.log('Found auth token in cookies:', !!token);
-    
+
     if (!token) {
       // Check all cookies for partial matches in case of naming inconsistency
       for (const cookie of allCookies) {
-        if (cookie.name.toLowerCase().includes('token') || 
-            cookie.name.toLowerCase().includes('auth')) {
+        if (
+          cookie.name.toLowerCase().includes('token') ||
+          cookie.name.toLowerCase().includes('auth')
+        ) {
           console.log(`Found potential auth cookie: ${cookie.name}`);
         }
       }
     }
-    
+
     return token;
   } catch (error) {
     console.error('Error reading cookies:', error);
@@ -51,9 +57,9 @@ export function isAuthenticated(): boolean {
  */
 export function getAuthHeaders(): HeadersInit {
   const token = getAuthToken();
-  
+
   return {
-    'Authorization': token ? `Bearer ${token}` : '',
+    Authorization: token ? `Bearer ${token}` : '',
     'Content-Type': 'application/json',
   };
 }
@@ -65,11 +71,11 @@ export function getAuthHeaders(): HeadersInit {
  */
 export function requireAuth(): string {
   const token = getAuthToken();
-  
+
   if (!token) {
     console.log('No auth token found, redirecting to login');
     redirect('/auth/login');
   }
-  
+
   return token;
-} 
+}

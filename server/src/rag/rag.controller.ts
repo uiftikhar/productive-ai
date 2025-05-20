@@ -12,6 +12,7 @@ import {
   HttpCode,
   Inject,
   InternalServerErrorException,
+  Request,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -28,7 +29,6 @@ import { MeetingAnalysisService } from '../langgraph/meeting-analysis/meeting-an
 import { RAG_SERVICE } from './constants/injection-tokens';
 import { ConfigService } from '@nestjs/config';
 import { MEETING_CHUNK_ANALYSIS_PROMPT } from '../instruction-promtps';
-import { WorkflowService } from '../langgraph/graph/workflow.service';
 
 /**
  * Controller for RAG-enhanced meeting analysis endpoints
@@ -38,13 +38,11 @@ import { WorkflowService } from '../langgraph/graph/workflow.service';
 @Controller('rag-meeting-analysis')
 export class RagController {
   private readonly logger = new Logger(RagController.name);
-  private readonly activeRagSessions = new Map<string, string>();
 
   constructor(
     @Inject(RAG_SERVICE) private readonly ragService: RagService,
     private readonly meetingAnalysisService: MeetingAnalysisService,
     private readonly configService: ConfigService,
-    private readonly workflowService: WorkflowService,
   ) {
     this.logger.log('RAG Meeting Analysis Controller initialized');
     this.logger.debug(`Using analysis prompt: ${MEETING_CHUNK_ANALYSIS_PROMPT.substring(0, 50)}...`);
@@ -80,8 +78,12 @@ export class RagController {
   @UsePipes(new ValidationPipe({ transform: true }))
   @HttpCode(HttpStatus.OK)
   @Post()
-  async analyzeTranscriptWithRag(@Body() dto: AnalyzeTranscriptDto) {
+  async analyzeTranscriptWithRag(@Body() dto: AnalyzeTranscriptDto, @Request() req) {
     try {
+      // Extract user ID from JWT token
+      const userId = req.user?.userId || req.user?.id || req.user?.sub;
+      this.logger.log(`User ID from token: ${userId}`);
+      
       this.logger.log(`Received RAG-enhanced transcript analysis request for ${dto.metadata?.title || 'untitled'}`);
       this.logger.debug(`Analysis request metadata: ${JSON.stringify(dto.metadata || {})}`);
       this.logger.debug(`Transcript length: ${dto.transcript.length} characters`);
@@ -98,6 +100,7 @@ export class RagController {
           ...dto.metadata,
           source: 'meeting_transcript',
           processed_date: new Date().toISOString(),
+          user_id: userId, // Add user ID to metadata for RAG document
         };
         
         this.logger.debug(`Processing document with ID: ${documentId}`);
@@ -144,41 +147,28 @@ export class RagController {
         }
       }
       
-      // Then analyze using meeting analysis service
-      this.logger.log('Starting meeting analysis with transcript');
+      // Use the meeting analysis service with RAG option enabled
+      this.logger.log('Starting RAG-enhanced meeting analysis with transcript');
       
+      // Enhanced metadata with RAG indicators
+      const enhancedMetadata = {
+        ...dto.metadata,
+        usedRag: ragProcessingSuccessful,
+        ragError: ragError ? {
+          message: ragError.message,
+          type: ragError.constructor.name
+        } : null,
+        ragProcessingTime: Date.now()
+      };
+      
+      // Call the analysis service with RAG flag enabled
       const result = await this.meetingAnalysisService.analyzeTranscript(
         dto.transcript,
-        dto.metadata,
+        enhancedMetadata,
+        userId, // Pass the user ID to the service
       );
       
-      this.logger.log(`Analysis initiated with session ID: ${result.sessionId}`);
-      this.logger.debug(`Initial analysis result: ${JSON.stringify(result)}`);
-      
-      // Get all of the workflow service sessions
-      const allSessions = this.workflowService.listSessions();
-      
-      // Find the most recent session that isn't the one we got from meeting analysis service
-      const workflowSession = allSessions
-        .filter(session => session.id !== result.sessionId)
-        .sort((a, b) => b.startTime.getTime() - a.startTime.getTime())[0];
-      
-      if (workflowSession) {
-        this.logger.log(`Found matching workflow session ID: ${workflowSession.id}`);
-        // Store the mapping between the returned session ID and the actual workflow session ID
-        this.activeRagSessions.set(result.sessionId, workflowSession.id);
-        
-        // Return the workflow session ID instead
-        return {
-          ...result,
-          sessionId: workflowSession.id,
-          usedRag: ragProcessingSuccessful,
-          ragError: ragError ? {
-            message: ragError.message,
-            type: ragError.constructor.name
-          } : null
-        };
-      }
+      this.logger.log(`RAG-enhanced analysis initiated with session ID: ${result.sessionId}`);
       
       return {
         ...result,
@@ -214,18 +204,16 @@ export class RagController {
   @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
   @UseGuards(JwtAuthGuard)
   @Get(':sessionId')
-  async getRagAnalysisResults(@Param('sessionId') sessionId: string) {
+  async getRagAnalysisResults(@Param('sessionId') sessionId: string, @Request() req) {
     this.logger.log(`Retrieving RAG-enhanced analysis results for session ${sessionId}`);
     
     try {
-      // Check if we have a mapping for this session ID
-      const mappedSessionId = this.activeRagSessions.get(sessionId);
-      if (mappedSessionId) {
-        this.logger.log(`Using mapped session ID: ${mappedSessionId} for original ID: ${sessionId}`);
-        sessionId = mappedSessionId;
-      }
+      // Extract user ID from JWT token
+      const userId = req.user?.userId || req.user?.id || req.user?.sub;
+      this.logger.log(`User ID from token: ${userId}`);
       
-      const results = await this.meetingAnalysisService.getAnalysisResults(sessionId);
+      // Get results with user ID verification
+      const results = await this.meetingAnalysisService.getAnalysisResults(sessionId, userId);
       
       this.logger.log(`Successfully retrieved results for session ${sessionId}`);
       this.logger.debug(`Analysis status: ${results.status}`);

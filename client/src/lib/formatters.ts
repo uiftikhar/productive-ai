@@ -3,7 +3,7 @@
  */
 export function formatDateToLocal(date: Date | string): string {
   const convertedDate = typeof date === 'string' ? new Date(date) : date;
-  
+
   return convertedDate.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -24,4 +24,4 @@ export function formatBytes(bytes: number, decimals: number = 2): string {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
 
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-} 
+}

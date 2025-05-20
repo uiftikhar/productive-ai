@@ -1,33 +1,44 @@
-FROM node:18-alpine AS build
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Copy package files and install dependencies
-COPY package*.json ./
-RUN npm ci
+RUN yarn global add @nestjs/cli
 
-# Copy source code
-COPY . .
+# Copy yarn.lock from root and package.json from server
+COPY yarn.lock ./
+COPY server/package.json ./
+
+RUN yarn install
+
+# Copy server source code
+COPY server/ ./
 
 # Build the application
-RUN npm run build
+RUN yarn build
 
 # Production stage
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
 
 WORKDIR /app
 
-# Copy package files and install production dependencies only
-COPY package*.json ./
-RUN npm ci --only=production
+# Copy yarn.lock from root and package.json from server
+COPY yarn.lock ./
+COPY server/package.json ./
+
+RUN yarn install --production
 
 # Copy built application from build stage
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/data ./data
 
-# Create data directories if they don't exist
-RUN mkdir -p data/file-storage/meetings data/file-storage/memory data/file-storage/results \
-    data/file-storage/sessions data/file-storage/teams data/file-storage/transcripts
+# Create data directories with proper permissions
+RUN mkdir -p data/file-storage/meetings \
+    data/file-storage/memory \
+    data/file-storage/results \
+    data/file-storage/sessions \
+    data/file-storage/teams \
+    data/file-storage/transcripts && \
+    chmod -R 777 data/file-storage
 
 # Environment variables
 ENV NODE_ENV=production

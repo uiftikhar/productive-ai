@@ -20,7 +20,7 @@ export class ErrorBoundary extends Component<Props, State> {
     super(props);
     this.state = {
       hasError: false,
-      error: null
+      error: null,
     };
   }
 
@@ -28,7 +28,7 @@ export class ErrorBoundary extends Component<Props, State> {
     // Update state so the next render will show the fallback UI
     return {
       hasError: true,
-      error
+      error,
     };
   }
 
@@ -46,4 +46,4 @@ export class ErrorBoundary extends Component<Props, State> {
 
     return this.props.children;
   }
-} 
+}

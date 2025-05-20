@@ -14,7 +14,7 @@ const mockTranscripts: Transcript[] = [
     duration: 45 * 60, // 45 minutes
     speakerCount: 5,
     fileSize: 2400000, // ~2.4MB
-    fileType: '.txt'
+    fileType: '.txt',
   },
   {
     id: '2',
@@ -25,7 +25,7 @@ const mockTranscripts: Transcript[] = [
     duration: 32 * 60, // 32 minutes
     speakerCount: 3,
     fileSize: 1800000, // ~1.8MB
-    fileType: '.vtt'
+    fileType: '.vtt',
   },
   {
     id: '3',
@@ -35,8 +35,8 @@ const mockTranscripts: Transcript[] = [
     duration: 15 * 60, // 15 minutes
     speakerCount: 8,
     fileSize: 950000, // ~950KB
-    fileType: '.srt'
-  }
+    fileType: '.srt',
+  },
 ];
 
 interface TranscriptContextType {
@@ -98,11 +98,7 @@ export function TranscriptProvider({ children }: TranscriptProviderProps) {
   };
 
   const updateTranscript = (id: string, updates: Partial<Transcript>) => {
-    setTranscripts(prev => 
-      prev.map(t => 
-        t.id === id ? { ...t, ...updates } : t
-      )
-    );
+    setTranscripts(prev => prev.map(t => (t.id === id ? { ...t, ...updates } : t)));
   };
 
   const deleteTranscript = (id: string) => {
@@ -122,26 +118,27 @@ export function TranscriptProvider({ children }: TranscriptProviderProps) {
     try {
       // Create form data to send to the API
       const formData = new FormData();
-      
+
       // Server expects a plain text file with a transcript
-      // Since we don't have the actual transcript text, we'll send a structured 
+      // Since we don't have the actual transcript text, we'll send a structured
       // representation of the transcript data that the server can process
-      const transcriptText = transcript.summary || 
+      const transcriptText =
+        transcript.summary ||
         `Title: ${transcript.title}\nDate: ${transcript.uploadDate}\n` +
-        (transcript.tags ? `Tags: ${transcript.tags.join(', ')}\n` : '') +
-        `This is a structured representation of transcript ID: ${transcript.id}`;
-      
+          (transcript.tags ? `Tags: ${transcript.tags.join(', ')}\n` : '') +
+          `This is a structured representation of transcript ID: ${transcript.id}`;
+
       const transcriptBlob = new Blob([transcriptText], { type: 'text/plain' });
-      
+
       // Append the transcript as a file with just the name "transcript"
       formData.append('transcript', transcriptBlob, 'transcript.txt');
-      
+
       // Add optional metadata as form fields
       formData.append('meetingTitle', transcript.title || 'Untitled Meeting');
       if (transcript.tags && transcript.tags.length) {
         formData.append('participantIds', JSON.stringify(transcript.tags));
       }
-      
+
       console.log('Form data:', formData.get('transcript'));
       // Call the API endpoint
       // Centralize API URL
@@ -149,29 +146,32 @@ export function TranscriptProvider({ children }: TranscriptProviderProps) {
         method: 'POST',
         body: formData,
       });
-      
+
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
       }
-      
+
       const result = await response.json();
-      
+
       console.log('Result:', result);
       // Update the transcript with the analysis results
       updateTranscript(id, {
         status: TranscriptStatus.ANALYZED,
         summary: result.analysis?.summary || '',
-        keyPoints: Array.isArray(result.analysis?.decisions) ? 
-          result.analysis.decisions.map((d: any) => d.title) : [],
-        speakerCount: typeof result.analysis?.speakerCount === 'number' 
-          ? result.analysis.speakerCount 
-          : transcript.speakerCount,
-        tags: Array.isArray(result.analysis?.tags) ? 
-          result.analysis.tags : (transcript.tags || ['Auto-tagged'])
+        keyPoints: Array.isArray(result.analysis?.decisions)
+          ? result.analysis.decisions.map((d: any) => d.title)
+          : [],
+        speakerCount:
+          typeof result.analysis?.speakerCount === 'number'
+            ? result.analysis.speakerCount
+            : transcript.speakerCount,
+        tags: Array.isArray(result.analysis?.tags)
+          ? result.analysis.tags
+          : transcript.tags || ['Auto-tagged'],
       });
     } catch (error) {
       console.error('Error analyzing transcript:', error);
-      
+
       // Update status to ERROR if analysis failed
       updateTranscript(id, { status: TranscriptStatus.ERROR });
       throw error;
@@ -180,40 +180,40 @@ export function TranscriptProvider({ children }: TranscriptProviderProps) {
 
   const analyzeUploadedTranscript = async (file: File): Promise<Transcript> => {
     const tempId = `temp-${Date.now()}`;
-    
+
     // Create a temporary transcript object
     const tempTranscript: Transcript = {
       id: tempId,
-      title: file.name.replace(/\.[^/.]+$/, ""), // Remove file extension from name
+      title: file.name.replace(/\.[^/.]+$/, ''), // Remove file extension from name
       uploadDate: new Date(),
       status: TranscriptStatus.PROCESSING,
       fileSize: file.size,
       fileType: file.name.substring(file.name.lastIndexOf('.')),
       speakerCount: 0,
       duration: 0,
-      isTemporary: true // Mark as temporary
+      isTemporary: true, // Mark as temporary
     };
-    
+
     // Add to state
     addTranscript(tempTranscript);
-    
+
     try {
       // Create form data for API
       const formData = new FormData();
       formData.append('transcript', file);
-      
+
       // Call the summary API endpoint
       const response = await fetch('http://localhost:3000/api/generate-summary/summary', {
         method: 'POST',
         body: formData,
       });
-      
+
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
       }
-      
+
       const result = await response.json();
-      
+
       // Update with analysis results
       const analyzedTranscript: Transcript = {
         ...tempTranscript,
@@ -221,16 +221,16 @@ export function TranscriptProvider({ children }: TranscriptProviderProps) {
         summary: result.summary || '',
         keyPoints: Array.isArray(result.keyPoints) ? result.keyPoints : [],
         speakerCount: typeof result.speakerCount === 'number' ? result.speakerCount : 0,
-        tags: Array.isArray(result.tags) ? result.tags : ['Auto-tagged']
+        tags: Array.isArray(result.tags) ? result.tags : ['Auto-tagged'],
       };
-      
+
       // Update in state
       updateTranscript(tempId, analyzedTranscript);
-      
+
       return analyzedTranscript;
     } catch (error) {
       console.error('Error analyzing transcript:', error);
-      
+
       // Update status to ERROR
       updateTranscript(tempId, { status: TranscriptStatus.ERROR });
       throw error;
@@ -249,9 +249,5 @@ export function TranscriptProvider({ children }: TranscriptProviderProps) {
     analyzeUploadedTranscript,
   };
 
-  return (
-    <TranscriptContext.Provider value={value}>
-      {children}
-    </TranscriptContext.Provider>
-  );
-} 
+  return <TranscriptContext.Provider value={value}>{children}</TranscriptContext.Provider>;
+}

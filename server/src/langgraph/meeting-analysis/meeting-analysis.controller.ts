@@ -10,6 +10,7 @@ import {
   UsePipes,
   HttpStatus,
   HttpCode,
+  Request,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -22,7 +23,6 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { MeetingAnalysisService } from './meeting-analysis.service';
 import { AnalyzeTranscriptDto } from './dto/analyze-transcript.dto';
 import { AnalysisResultDto } from './dto/analysis-result.dto';
-import { SessionInfo } from '../graph/workflow.service';
 
 /**
  * Controller for meeting analysis endpoints
@@ -70,11 +70,16 @@ export class MeetingAnalysisController {
   @UsePipes(new ValidationPipe({ transform: true }))
   @HttpCode(HttpStatus.OK)
   @Post()
-  async analyzeTranscript(@Body() dto: AnalyzeTranscriptDto) {
+  async analyzeTranscript(@Body() dto: AnalyzeTranscriptDto, @Request() req) {
     this.logger.log('Received transcript analysis request');
+    // Extract user ID from JWT token
+    const userId = req.user?.userId || req.user?.id || req.user?.sub;
+    this.logger.log(`User ID from token: ${userId}`);
+    
     return this.meetingAnalysisService.analyzeTranscript(
       dto.transcript,
       dto.metadata,
+      userId, // Pass the userId to the service
     );
   }
 
@@ -95,39 +100,12 @@ export class MeetingAnalysisController {
   @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
   @UseGuards(JwtAuthGuard)
   @Get(':sessionId')
-  async getAnalysisResults(@Param('sessionId') sessionId: string) {
+  async getAnalysisResults(@Param('sessionId') sessionId: string, @Request() req) {
     this.logger.log(`Retrieving analysis results for session ${sessionId}`);
-    return this.meetingAnalysisService.getAnalysisResults(sessionId);
-  }
-
-  /**
-   * Get all sessions
-   */
-  @ApiOperation({ summary: 'Get all analysis sessions' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Sessions retrieved successfully',
-    schema: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          startTime: { type: 'string', format: 'date-time' },
-          endTime: { type: 'string', format: 'date-time' },
-          status: {
-            type: 'string',
-            enum: ['pending', 'in_progress', 'completed', 'failed'],
-          },
-        },
-      },
-    },
-  })
-  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Unauthorized' })
-  @UseGuards(JwtAuthGuard)
-  @Get()
-  async getAllSessions(): Promise<SessionInfo[]> {
-    this.logger.log('Retrieving all analysis sessions');
-    return this.meetingAnalysisService.getAllSessions();
+    // Extract user ID from JWT token
+    const userId = req.user?.userId || req.user?.id || req.user?.sub;
+    this.logger.log(`User ID from token: ${userId}`);
+    
+    return this.meetingAnalysisService.getAnalysisResults(sessionId, userId);
   }
 }

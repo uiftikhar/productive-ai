@@ -2,7 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
@@ -33,15 +40,15 @@ export default function TestMeetingAnalysisPage() {
   const [results, setResults] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
-  
+
   // Server runs on PORT 3000
   const apiBaseUrl = 'http://localhost:3000';
-  
+
   // Add log message
   const addLog = (message: string) => {
     setLogs(prevLogs => [...prevLogs, `[${new Date().toLocaleTimeString()}] ${message}`]);
   };
-  
+
   // Start the test
   const startTest = async () => {
     setStatus('creating');
@@ -50,7 +57,7 @@ export default function TestMeetingAnalysisPage() {
     setResults(null);
     setError(null);
     setLogs([]);
-    
+
     try {
       // Step 1: Create a session
       addLog('Creating analysis session...');
@@ -59,54 +66,56 @@ export default function TestMeetingAnalysisPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           analysisGoal: 'full_analysis',
-          enabledExpertise: ['topic_analysis', 'action_item_extraction', 'summary_generation']
-        })
+          enabledExpertise: ['topic_analysis', 'action_item_extraction', 'summary_generation'],
+        }),
       });
-      
+
       if (!sessionResponse.ok) {
         throw new Error(`Failed to create session: ${sessionResponse.status}`);
       }
-      
+
       const sessionData = await sessionResponse.json();
       const newSessionId = sessionData.data.sessionId;
       setSessionId(newSessionId);
       addLog(`Session created with ID: ${newSessionId}`);
-      
+
       // Step 2: Submit transcript for analysis
       setStatus('submitting');
       addLog('Submitting transcript for analysis...');
-      const analyzeResponse = await fetch(`${apiBaseUrl}/api/analysis/sessions/${newSessionId}/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transcript,
-          message: 'Please analyze this meeting transcript'
-        })
-      });
-      
+      const analyzeResponse = await fetch(
+        `${apiBaseUrl}/api/analysis/sessions/${newSessionId}/analyze`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            transcript,
+            message: 'Please analyze this meeting transcript',
+          }),
+        }
+      );
+
       if (!analyzeResponse.ok) {
         throw new Error(`Failed to submit transcript: ${analyzeResponse.status}`);
       }
-      
+
       addLog('Transcript submitted successfully');
       setStatus('processing');
       startPolling(newSessionId);
-      
     } catch (err: any) {
       setError(err.message || 'An error occurred');
       setStatus('error');
       addLog(`Error: ${err.message || 'An error occurred'}`);
     }
   };
-  
+
   // Poll for results
   const startPolling = (sid: string) => {
     addLog('Polling for results...');
     let pollCount = 0;
-    
+
     const pollInterval = setInterval(async () => {
       pollCount++;
-      
+
       try {
         const resultsResponse = await fetch(`${apiBaseUrl}/api/analysis/sessions/${sid}/results`);
 
@@ -114,18 +123,18 @@ export default function TestMeetingAnalysisPage() {
         //   method: 'POST',
         //   body: formData,
         // });
-        
+
         if (!resultsResponse.ok) {
           throw new Error(`Failed to get results: ${resultsResponse.status}`);
         }
-        
+
         const resultsData = await resultsResponse.json();
         const currentStatus = resultsData.data.status;
         const currentProgress = resultsData.data.progress || 0;
-        
+
         setProgress(currentProgress);
         addLog(`Poll ${pollCount}: Status = ${currentStatus}, Progress = ${currentProgress}%`);
-        
+
         if (currentStatus === 'completed') {
           clearInterval(pollInterval);
           setStatus('completed');
@@ -137,7 +146,7 @@ export default function TestMeetingAnalysisPage() {
         // Continue polling despite errors
       }
     }, 2000); // Poll every 2 seconds
-    
+
     // Cleanup after 60 seconds to prevent infinite polling
     setTimeout(() => {
       clearInterval(pollInterval);
@@ -147,21 +156,21 @@ export default function TestMeetingAnalysisPage() {
       }
     }, 60000);
   };
-  
+
   // Delete the session
   const deleteSession = async () => {
     if (!sessionId) return;
-    
+
     try {
       addLog('Deleting session...');
       const deleteResponse = await fetch(`${apiBaseUrl}/api/analysis/sessions/${sessionId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
       });
-      
+
       if (!deleteResponse.ok) {
         throw new Error(`Failed to delete session: ${deleteResponse.status}`);
       }
-      
+
       addLog('Session deleted successfully');
       setSessionId(null);
       setStatus('idle');
@@ -169,41 +178,41 @@ export default function TestMeetingAnalysisPage() {
       addLog(`Error deleting session: ${err.message || 'Unknown error'}`);
     }
   };
-  
+
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">Meeting Analysis API Test</h1>
-      
+    <div className='container mx-auto py-8'>
+      <h1 className='mb-6 text-3xl font-bold'>Meeting Analysis API Test</h1>
+
       {error && (
-        <Alert variant="destructive" className="mb-6">
-          <AlertCircle className="h-4 w-4" />
+        <Alert variant='destructive' className='mb-6'>
+          <AlertCircle className='h-4 w-4' />
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+      <div className='grid grid-cols-1 gap-6 md:grid-cols-2'>
         <Card>
           <CardHeader>
             <CardTitle>Test Input</CardTitle>
             <CardDescription>Sample transcript to analyze</CardDescription>
           </CardHeader>
           <CardContent>
-            <Textarea 
-              value={transcript} 
-              onChange={(e) => setTranscript(e.target.value)}
-              className="min-h-[300px]"
+            <Textarea
+              value={transcript}
+              onChange={e => setTranscript(e.target.value)}
+              className='min-h-[300px]'
               disabled={status !== 'idle' && status !== 'error' && status !== 'completed'}
             />
           </CardContent>
-          <CardFooter className="flex justify-between">
+          <CardFooter className='flex justify-between'>
             <Button
               onClick={startTest}
               disabled={status === 'creating' || status === 'submitting' || status === 'processing'}
             >
               {status === 'creating' || status === 'submitting' || status === 'processing' ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
                   {status === 'creating' && 'Creating Session...'}
                   {status === 'submitting' && 'Submitting...'}
                   {status === 'processing' && 'Processing...'}
@@ -212,10 +221,10 @@ export default function TestMeetingAnalysisPage() {
                 'Start Test'
               )}
             </Button>
-            
+
             {sessionId && (
               <Button
-                variant="outline"
+                variant='outline'
                 onClick={deleteSession}
                 disabled={status === 'creating' || status === 'submitting'}
               >
@@ -224,67 +233,69 @@ export default function TestMeetingAnalysisPage() {
             )}
           </CardFooter>
         </Card>
-        
+
         <Card>
           <CardHeader>
             <CardTitle>Results</CardTitle>
             <CardDescription>Analysis output</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className='space-y-4'>
             {status === 'processing' && (
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
+              <div className='space-y-2'>
+                <div className='flex justify-between text-sm'>
                   <span>Processing</span>
                   <span>{progress}%</span>
                 </div>
-                <Progress value={progress} className="h-2" />
+                <Progress value={progress} className='h-2' />
               </div>
             )}
-            
+
             {results && (
-              <div className="space-y-4">
+              <div className='space-y-4'>
                 <div>
-                  <h3 className="font-semibold mb-1">Summary:</h3>
-                  <p className="text-sm">{results.summary}</p>
+                  <h3 className='mb-1 font-semibold'>Summary:</h3>
+                  <p className='text-sm'>{results.summary}</p>
                 </div>
-                
+
                 <div>
-                  <h3 className="font-semibold mb-1">Topics:</h3>
-                  <ul className="list-disc list-inside text-sm">
-                    {results.topics && results.topics.map((topic: string, index: number) => (
-                      <li key={index}>{topic}</li>
-                    ))}
+                  <h3 className='mb-1 font-semibold'>Topics:</h3>
+                  <ul className='list-inside list-disc text-sm'>
+                    {results.topics &&
+                      results.topics.map((topic: string, index: number) => (
+                        <li key={index}>{topic}</li>
+                      ))}
                   </ul>
                 </div>
-                
+
                 <div>
-                  <h3 className="font-semibold mb-1">Action Items:</h3>
-                  <ul className="list-disc list-inside text-sm">
-                    {results.actionItems && results.actionItems.map((item: any, index: number) => (
-                      <li key={index}>
-                        {item.description}
-                        {item.assignee && ` (Assignee: ${item.assignee})`}
-                        {item.dueDate && ` (Due: ${item.dueDate})`}
-                      </li>
-                    ))}
+                  <h3 className='mb-1 font-semibold'>Action Items:</h3>
+                  <ul className='list-inside list-disc text-sm'>
+                    {results.actionItems &&
+                      results.actionItems.map((item: any, index: number) => (
+                        <li key={index}>
+                          {item.description}
+                          {item.assignee && ` (Assignee: ${item.assignee})`}
+                          {item.dueDate && ` (Due: ${item.dueDate})`}
+                        </li>
+                      ))}
                   </ul>
                 </div>
               </div>
             )}
-            
+
             {!results && status !== 'processing' && (
-              <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+              <div className='flex flex-col items-center justify-center py-8 text-gray-400'>
                 {status === 'idle' ? (
                   <p>Start the test to see results</p>
                 ) : status === 'creating' || status === 'submitting' ? (
-                  <div className="flex flex-col items-center">
-                    <Loader2 className="h-8 w-8 animate-spin" />
-                    <p className="mt-2">Setting up analysis...</p>
+                  <div className='flex flex-col items-center'>
+                    <Loader2 className='h-8 w-8 animate-spin' />
+                    <p className='mt-2'>Setting up analysis...</p>
                   </div>
                 ) : status === 'error' ? (
-                  <div className="flex flex-col items-center">
-                    <AlertCircle className="h-8 w-8" />
-                    <p className="mt-2">Error occurred</p>
+                  <div className='flex flex-col items-center'>
+                    <AlertCircle className='h-8 w-8' />
+                    <p className='mt-2'>Error occurred</p>
                   </div>
                 ) : status === 'timeout' ? (
                   <p>Analysis timed out</p>
@@ -295,20 +306,18 @@ export default function TestMeetingAnalysisPage() {
             )}
           </CardContent>
         </Card>
-        
-        <Card className="md:col-span-2">
+
+        <Card className='md:col-span-2'>
           <CardHeader>
             <CardTitle>Test Log</CardTitle>
             <CardDescription>API interaction log</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="bg-black text-green-400 font-mono text-sm p-4 rounded h-[300px] overflow-auto">
+            <div className='h-[300px] overflow-auto rounded bg-black p-4 font-mono text-sm text-green-400'>
               {logs.length === 0 ? (
-                <p className="text-gray-500">Logs will appear here when you start the test</p>
+                <p className='text-gray-500'>Logs will appear here when you start the test</p>
               ) : (
-                logs.map((log, index) => (
-                  <div key={index}>{log}</div>
-                ))
+                logs.map((log, index) => <div key={index}>{log}</div>)
               )}
             </div>
           </CardContent>
@@ -316,4 +325,4 @@ export default function TestMeetingAnalysisPage() {
       </div>
     </div>
   );
-} 
+}

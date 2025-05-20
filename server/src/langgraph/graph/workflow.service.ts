@@ -250,7 +250,7 @@ export class WorkflowService {
     this.logger.log(`Saving analysis results for session ${sessionId}`);
 
     // Save state checkpoint
-    await this.stateService.saveState(sessionId, 'analysis_results', results);
+    await this.stateService.saveState(sessionId, results);
   }
 
   /**

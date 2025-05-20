@@ -98,4 +98,4 @@ export interface AnalysisResult {
 // The full response structure with potentially nested results
 export interface MeetingAnalysisResponse extends AnalysisResult {
   results?: AnalysisResult;
-} 
+}

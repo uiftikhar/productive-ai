@@ -9,13 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 export function SessionList() {
   const router = useRouter();
-  
+
   return (
-    <div className="flex flex-col items-center justify-center py-8 text-center">
-      <p className="text-muted-foreground mb-4">Session-based analysis has been replaced with direct transcript analysis.</p>
-      <Button onClick={() => router.push('/meeting-analysis')}>
-        Go to Meeting Analysis
-      </Button>
+    <div className='flex flex-col items-center justify-center py-8 text-center'>
+      <p className='mb-4 text-muted-foreground'>
+        Session-based analysis has been replaced with direct transcript analysis.
+      </p>
+      <Button onClick={() => router.push('/meeting-analysis')}>Go to Meeting Analysis</Button>
     </div>
   );
-} 
+}

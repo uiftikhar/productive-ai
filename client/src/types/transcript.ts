@@ -6,7 +6,7 @@ export enum TranscriptStatus {
   UPLOADED = 'UPLOADED',
   PROCESSING = 'PROCESSING',
   ANALYZED = 'ANALYZED',
-  ERROR = 'ERROR'
+  ERROR = 'ERROR',
 }
 
 export interface Transcript {
@@ -72,4 +72,4 @@ export interface RelatedTranscript {
   title: string;
   similarity: number; // 0-1 score
   relevantTopics: string[];
-} 
+}

@@ -66,12 +66,9 @@ export function useUpdateTranscript() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<Transcript> }) =>
       transcriptApi.updateTranscript(id, data),
-    onSuccess: (updatedTranscript) => {
+    onSuccess: updatedTranscript => {
       // Update the cache for this specific transcript
-      queryClient.setQueryData(
-        [TRANSCRIPT_DETAIL_KEY, updatedTranscript.id],
-        updatedTranscript
-      );
+      queryClient.setQueryData([TRANSCRIPT_DETAIL_KEY, updatedTranscript.id], updatedTranscript);
 
       // Also invalidate the main list
       queryClient.invalidateQueries({ queryKey: [TRANSCRIPTS_KEY] });
@@ -91,7 +88,7 @@ export function useDeleteTranscript() {
       // Remove the transcript from the transcripts cache
       queryClient.setQueryData([TRANSCRIPTS_KEY], (oldData: Transcript[] | undefined) => {
         if (!oldData) return [];
-        return oldData.filter((transcript) => transcript.id !== id);
+        return oldData.filter(transcript => transcript.id !== id);
       });
 
       // Remove the specific transcript detail from cache
@@ -108,15 +105,12 @@ export function useAnalyzeTranscript() {
 
   return useMutation({
     mutationFn: (id: string) => transcriptApi.analyzeTranscript(id),
-    onSuccess: (updatedTranscript) => {
+    onSuccess: updatedTranscript => {
       // Update the cache for this specific transcript
-      queryClient.setQueryData(
-        [TRANSCRIPT_DETAIL_KEY, updatedTranscript.id],
-        updatedTranscript
-      );
+      queryClient.setQueryData([TRANSCRIPT_DETAIL_KEY, updatedTranscript.id], updatedTranscript);
 
       // Also invalidate the main list
       queryClient.invalidateQueries({ queryKey: [TRANSCRIPTS_KEY] });
     },
   });
-} 
+}

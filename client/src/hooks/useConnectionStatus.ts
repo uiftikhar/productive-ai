@@ -14,7 +14,7 @@ interface UseConnectionStatusOptions {
    * Polling interval in milliseconds
    */
   pollingInterval?: number;
-  
+
   /**
    * Whether to poll immediately on mount
    */
@@ -33,18 +33,18 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): {
   const [status, setStatus] = useState<ConnectionStatus>('loading');
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [details, setDetails] = useState<HealthStatus | null>(null);
-  
+
   const pollingInterval = options.pollingInterval || 30000; // Default: 30 seconds
   const pollImmediately = options.pollImmediately !== false; // Default: true
-  
+
   // Function to check connection status
   const checkConnection = async (): Promise<void> => {
     try {
       const healthStatus = await HealthService.checkHealth();
-      
+
       setLastChecked(new Date());
       setDetails(healthStatus);
-      
+
       if (healthStatus.status === 'OK') {
         setStatus('connected');
       } else if (healthStatus.status === 'DEGRADED') {
@@ -58,24 +58,24 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): {
       setLastChecked(new Date());
     }
   };
-  
+
   // Set up polling
   useEffect(() => {
     if (pollImmediately) {
       checkConnection();
     }
-    
+
     const intervalId = setInterval(checkConnection, pollingInterval);
-    
+
     return () => {
       clearInterval(intervalId);
     };
   }, [pollingInterval, pollImmediately]);
-  
+
   return {
     status,
     lastChecked,
     checkNow: checkConnection,
-    details
+    details,
   };
-} 
+}

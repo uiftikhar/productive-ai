@@ -12,7 +12,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ userId, initialSessionId 
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
+
   // Initialize chat session
   useEffect(() => {
     const initializeSession = async () => {
@@ -20,15 +20,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ userId, initialSessionId 
         try {
           const session = await chatApi.createSession(userId);
           setSessionId(session.id);
-          
+
           // Add system welcome message
           setMessages([
             {
               id: 'welcome',
-              content: 'Hello! I can help you analyze meeting transcripts. What would you like to do?',
+              content:
+                'Hello! I can help you analyze meeting transcripts. What would you like to do?',
               type: 'text',
-              timestamp: Date.now()
-            }
+              timestamp: Date.now(),
+            },
           ]);
         } catch (error) {
           console.error('Failed to create chat session:', error);
@@ -43,40 +44,40 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ userId, initialSessionId 
         }
       }
     };
-    
+
     initializeSession();
   }, [userId, sessionId]);
-  
+
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-  
+
   const handleSendMessage = async () => {
     if (!sessionId || !inputValue.trim()) return;
-    
+
     // Create temporary user message
     const userMessage: ChatMessage = {
       id: `tmp-${Date.now()}`,
       content: inputValue,
       role: 'user',
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
-    
+
     // Update UI immediately with user message
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
-    
+
     try {
       // Send message to API
       const response = await chatApi.sendMessage(sessionId, inputValue);
-      
+
       // Update messages with response
       setMessages(prev => [...prev, response]);
     } catch (error) {
       console.error('Failed to send message:', error);
-      
+
       // Add error message
       setMessages(prev => [
         ...prev,
@@ -84,19 +85,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ userId, initialSessionId 
           id: `error-${Date.now()}`,
           content: 'Sorry, there was an error processing your message. Please try again.',
           type: 'error',
-          timestamp: Date.now()
-        }
+          timestamp: Date.now(),
+        },
       ]);
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   const handleUploadTranscript = async (transcriptText: string) => {
     if (!sessionId) return;
-    
+
     setIsLoading(true);
-    
+
     try {
       // Add message about uploading
       setMessages(prev => [
@@ -105,25 +106,23 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ userId, initialSessionId 
           id: `upload-${Date.now()}`,
           content: 'Uploading and processing your transcript...',
           type: 'loading',
-          timestamp: Date.now()
-        }
+          timestamp: Date.now(),
+        },
       ]);
-      
+
       // Upload transcript
       const uploadResponse = await chatApi.uploadTranscript(
         transcriptText,
         'Meeting Transcript', // Default title
         'Uploaded via chat interface' // Default description
       );
-      
+
       // Start analysis
-      const analysisResponse = await chatApi.analyzeTranscript(
-        uploadResponse.meetingId
-      );
-      
+      const analysisResponse = await chatApi.analyzeTranscript(uploadResponse.meetingId);
+
       // Add confirmation message
       setMessages(prev => [
-        ...prev.filter(msg => msg.type !== 'loading'), // Remove loading message
+        ...prev.filter(msg => (msg as ChatResponse).type !== 'loading'), // Remove loading message
         {
           id: `analysis-${Date.now()}`,
           content: `Transcript uploaded and analysis started. Analysis progress: ${analysisResponse.progress.overallProgress}%`,
@@ -134,50 +133,51 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ userId, initialSessionId 
               type: 'analysis_info',
               data: {
                 meetingId: uploadResponse.meetingId,
-                status: analysisResponse.status
+                status: analysisResponse.status,
               },
               metadata: {
-                progress: analysisResponse.progress
-              }
-            }
-          ]
-        }
+                progress: analysisResponse.progress,
+              },
+            },
+          ],
+        },
       ]);
-      
+
       // Start polling for analysis status
       pollAnalysisStatus(uploadResponse.meetingId);
     } catch (error) {
       console.error('Failed to upload transcript:', error);
-      
+
       // Add error message
       setMessages(prev => [
-        ...prev.filter(msg => msg.type !== 'loading'), // Remove loading message
+        ...prev.filter(msg => (msg as ChatResponse).type !== 'loading'), // Remove loading message
         {
           id: `error-${Date.now()}`,
           content: 'Sorry, there was an error uploading your transcript. Please try again.',
           type: 'error',
-          timestamp: Date.now()
-        }
+          timestamp: Date.now(),
+        },
       ]);
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   const pollAnalysisStatus = async (meetingId: string) => {
     // Poll for status updates every 5 seconds
     const pollInterval = setInterval(async () => {
       try {
         const statusResponse = await chatApi.getAnalysisStatus(meetingId);
-        
+
         // Update the analysis message with new progress
         setMessages(prev => {
           const updatedMessages = [...prev];
           const analysisMessageIndex = updatedMessages.findIndex(
-            msg => msg.type === 'analysis' && 
-                  msg.attachments?.some(att => att.data?.meetingId === meetingId)
+            msg =>
+              (msg as ChatResponse).type === 'analysis' &&
+              (msg as ChatResponse).attachments?.some(att => att.data?.meetingId === meetingId)
           );
-          
+
           if (analysisMessageIndex >= 0) {
             const updatedMessage = {
               ...updatedMessages[analysisMessageIndex],
@@ -187,24 +187,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ userId, initialSessionId 
                   type: 'analysis_info',
                   data: {
                     meetingId,
-                    status: statusResponse.status
+                    status: statusResponse.status,
                   },
                   metadata: {
-                    progress: statusResponse.progress
-                  }
-                }
-              ]
+                    progress: statusResponse.progress,
+                  },
+                },
+              ],
             };
             updatedMessages[analysisMessageIndex] = updatedMessage;
           }
-          
+
           return updatedMessages;
         });
-        
+
         // If analysis is complete, stop polling and show results
         if (statusResponse.status === 'completed') {
           clearInterval(pollInterval);
-          
+
           // Add completion message
           setMessages(prev => [
             ...prev,
@@ -212,10 +212,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ userId, initialSessionId 
               id: `complete-${Date.now()}`,
               content: 'Analysis complete! You can now ask questions about the meeting.',
               type: 'text',
-              timestamp: Date.now()
-            }
+              timestamp: Date.now(),
+            },
           ]);
-          
+
           // Get related meetings (if any)
           try {
             const relatedMeetings = await chatApi.getRelatedMeetings(meetingId);
@@ -230,10 +230,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ userId, initialSessionId 
                   attachments: [
                     {
                       type: 'related_meetings',
-                      data: relatedMeetings
-                    }
-                  ]
-                }
+                      data: relatedMeetings,
+                    },
+                  ],
+                },
               ]);
             }
           } catch (error) {
@@ -241,7 +241,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ userId, initialSessionId 
           }
         } else if (statusResponse.status === 'failed') {
           clearInterval(pollInterval);
-          
+
           // Add failure message
           setMessages(prev => [
             ...prev,
@@ -249,8 +249,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ userId, initialSessionId 
               id: `failed-${Date.now()}`,
               content: 'Analysis failed. Please try again or upload a different transcript.',
               type: 'error',
-              timestamp: Date.now()
-            }
+              timestamp: Date.now(),
+            },
           ]);
         }
       } catch (error) {
@@ -258,102 +258,122 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ userId, initialSessionId 
         clearInterval(pollInterval);
       }
     }, 5000);
-    
+
     // Clean up interval on component unmount
     return () => clearInterval(pollInterval);
   };
-  
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    
+
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = e => {
       const content = e.target?.result as string;
       handleUploadTranscript(content);
     };
     reader.readAsText(file);
   };
-  
+
   const handleKeyPress = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       handleSendMessage();
     }
   };
-  
+
   const formatTimestamp = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString();
   };
-  
+
   return (
-    <div className="flex flex-col h-full max-h-screen bg-gray-50">
-      <div className="p-4 bg-white shadow-sm border-b">
-        <h2 className="text-xl font-semibold">Meeting Analysis Chat</h2>
+    <div className='flex h-full max-h-screen flex-col bg-gray-50'>
+      <div className='border-b bg-white p-4 shadow-sm'>
+        <h2 className='text-xl font-semibold'>Meeting Analysis Chat</h2>
       </div>
-      
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
-          <div 
+
+      <div className='flex-1 space-y-4 overflow-y-auto p-4'>
+        {messages.map(message => (
+          <div
             key={message.id}
-            className={`flex ${message.role === 'user' || !('role' in message) ? 'justify-end' : 'justify-start'}`}
+            className={`flex ${(message as ChatMessage).role === 'user' || !('role' in message) ? 'justify-end' : 'justify-start'}`}
           >
-            <div 
-              className={`max-w-3/4 p-3 rounded-lg ${
-                message.role === 'user' ? 
-                'bg-blue-500 text-white' : 
-                message.type === 'error' ?
-                'bg-red-100 text-red-800' :
-                message.type === 'loading' ?
-                'bg-gray-100 text-gray-800' :
-                'bg-gray-200 text-gray-800'
+            <div
+              className={`max-w-3/4 rounded-lg p-3 ${
+                (message as ChatMessage).role === 'user'
+                  ? 'bg-blue-500 text-white'
+                  : (message as ChatResponse).type === 'error'
+                    ? 'bg-red-100 text-red-800'
+                    : (message as ChatResponse).type === 'loading'
+                      ? 'bg-gray-100 text-gray-800'
+                      : 'bg-gray-200 text-gray-800'
               }`}
             >
-              <div className="whitespace-pre-wrap">{message.content}</div>
-              <div className="text-xs mt-1 opacity-70">
-                {formatTimestamp(message.timestamp)}
-              </div>
+              <div className='whitespace-pre-wrap'>{message.content}</div>
+              <div className='mt-1 text-xs opacity-70'>{formatTimestamp(message.timestamp)}</div>
             </div>
           </div>
         ))}
         <div ref={messagesEndRef} />
       </div>
-      
-      <div className="p-4 bg-white border-t">
-        <div className="flex items-center space-x-2">
-          <button 
-            className="p-2 bg-gray-200 rounded-full hover:bg-gray-300"
+
+      <div className='border-t bg-white p-4'>
+        <div className='flex items-center space-x-2'>
+          <button
+            className='rounded-full bg-gray-200 p-2 hover:bg-gray-300'
             onClick={() => document.getElementById('file-upload')?.click()}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+            <svg
+              xmlns='http://www.w3.org/2000/svg'
+              className='h-5 w-5'
+              fill='none'
+              viewBox='0 0 24 24'
+              stroke='currentColor'
+            >
+              <path
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                strokeWidth={2}
+                d='M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13'
+              />
             </svg>
             <input
-              id="file-upload"
-              type="file"
-              accept=".txt,.md,.json,.vtt"
+              id='file-upload'
+              type='file'
+              accept='.txt,.md,.json,.vtt'
               onChange={handleFileUpload}
-              className="hidden"
+              className='hidden'
             />
           </button>
-          
+
           <textarea
-            className="flex-1 border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Type a message or upload a transcript file..."
+            className='flex-1 rounded-lg border p-2 focus:outline-none focus:ring-2 focus:ring-blue-500'
+            placeholder='Type a message or upload a transcript file...'
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            onChange={e => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
             disabled={isLoading}
             rows={1}
           />
-          
+
           <button
-            className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50"
+            className='rounded-full bg-blue-500 p-2 text-white hover:bg-blue-600 disabled:opacity-50'
             onClick={handleSendMessage}
             disabled={isLoading || !inputValue.trim()}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            <svg
+              xmlns='http://www.w3.org/2000/svg'
+              className='h-5 w-5'
+              fill='none'
+              viewBox='0 0 24 24'
+              stroke='currentColor'
+            >
+              <path
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                strokeWidth={2}
+                d='M12 19l9 2-9-18-9 18 9-2zm0 0v-8'
+              />
             </svg>
           </button>
         </div>
@@ -362,4 +382,4 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ userId, initialSessionId 
   );
 };
 
-export default ChatInterface; 
+export default ChatInterface;

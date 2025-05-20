@@ -20,4 +20,4 @@ export default async function Layout({ children }: DashboardLayoutProps) {
   }
 
   return <DashboardLayout>{children}</DashboardLayout>;
-} 
+}

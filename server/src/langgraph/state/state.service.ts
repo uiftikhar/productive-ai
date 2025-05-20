@@ -85,9 +85,55 @@ export class StateService {
   }
 
   /**
+   * Create initial state for graph execution
+   */
+  async createInitialState(options: {
+    transcript: string;
+    sessionId: string;
+    userId: string;
+    startTime: string;
+    metadata?: Record<string, any>;
+    useRAG?: boolean;
+  }): Promise<any> {
+    this.logger.log(`Creating initial state for graph execution for session ${options.sessionId}`);
+    
+    return {
+      transcript: options.transcript,
+      sessionId: options.sessionId,
+      userId: options.userId,
+      startTime: options.startTime,
+      metadata: options.metadata || {},
+      useRAG: options.useRAG || false,
+      initialized: false,
+      topics: [],
+      actionItems: [],
+      summary: null,
+      sentiment: null,
+      errors: [],
+    };
+  }
+
+  /**
+   * Save state to persistent storage
+   */
+  async saveState(sessionId: string, state: any): Promise<void> {
+    this.logger.log(`Saving state for session ${sessionId}`);
+    // Implementation would typically save to a database
+  }
+
+  /**
+   * Get saved state from persistent storage
+   */
+  async getState(sessionId: string): Promise<any | null> {
+    this.logger.log(`Getting state for session ${sessionId}`);
+    // Implementation would typically retrieve from a database
+    return null;
+  }
+
+  /**
    * Save state checkpoint
    */
-  async saveState(
+  async saveStateCheckpoint(
     sessionId: string,
     checkpointId: string,
     state: any,
