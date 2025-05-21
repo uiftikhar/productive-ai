@@ -8,7 +8,6 @@
   ],
   "scripts": {
     "dev:build": "docker compose build",
-    "dev": "docker compose up",
     "dev:server": "cd server && yarn dev",
     "dev:client": "cd client && yarn dev",
     "build": "yarn build:server && yarn build:client",
@@ -22,17 +21,33 @@
     "lint": "yarn lint:server && yarn lint:client",
     "lint:server": "cd server && yarn lint",
     "lint:client": "cd client && yarn lint",
+    "lint:fix": "yarn lint:fix:server && yarn lint:fix:client",
+    "lint:fix:server": "cd server && yarn lint:fix",
+    "lint:fix:client": "cd client && yarn lint:fix",
+    "format": "yarn format:server && yarn format:client",
+    "format:server": "cd server && yarn format",
+    "format:client": "cd client && yarn format",
+    "format:check": "yarn format:check:server && yarn format:check:client",
+    "format:check:server": "cd server && yarn format:check",
+    "format:check:client": "cd client && yarn format:check",
     "setup": "yarn install && yarn setup:client",
     "setup:client": "cd client && yarn install",
     "clean": "yarn clean:server && yarn clean:client",
     "clean:server": "cd server && yarn clean",
-    "clean:client": "cd client && rm -rf .next node_modules"
+    "clean:client": "cd client && rm -rf .next node_modules",
+    "client:dev": "cd client && npm run dev",
+    "server:dev": "cd server && npm run start:dev",
+    "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
+    "client:build": "cd client && npm run build",
+    "server:build": "cd server && npm run build",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "prod:deploy": "yarn run build && yarn run docker:build && yarn run docker:up"
   },
   "engines": {
     "node": ">=18.0.0"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.0"
   },
   "description": "AI agent platform with specialized agents for various tasks",
   "repository": {

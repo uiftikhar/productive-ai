@@ -22,23 +22,19 @@ export default function MeetingAnalysisPage() {
   // Show login prompt if not authenticated
   if (!isLoading && !isAuthenticated) {
     return (
-      <div className="container mx-auto py-8">
-        <h1 className="text-3xl font-bold mb-6">Meeting Analysis</h1>
-        
+      <div className='container mx-auto py-8'>
+        <h1 className='mb-6 text-3xl font-bold'>Meeting Analysis</h1>
+
         <Card>
           <CardHeader>
             <CardTitle>Authentication Required</CardTitle>
-            <CardDescription>
-              Please log in to use the meeting analysis features
-            </CardDescription>
+            <CardDescription>Please log in to use the meeting analysis features</CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col items-center">
-            <p className="mb-4 text-center">
+          <CardContent className='flex flex-col items-center'>
+            <p className='mb-4 text-center'>
               You need to be logged in to analyze meeting transcripts
             </p>
-            <Button onClick={() => router.push('/auth/login')}>
-              Go to Login
-            </Button>
+            <Button onClick={() => router.push('/auth/login')}>Go to Login</Button>
           </CardContent>
         </Card>
       </div>
@@ -46,15 +42,13 @@ export default function MeetingAnalysisPage() {
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">Meeting Analysis</h1>
-      
+    <div className='container mx-auto py-8'>
+      <h1 className='mb-6 text-3xl font-bold'>Meeting Analysis</h1>
+
       <Card>
         <CardHeader>
           <CardTitle>Create New Analysis</CardTitle>
-          <CardDescription>
-            Start a new meeting analysis by uploading a transcript
-          </CardDescription>
+          <CardDescription>Start a new meeting analysis by uploading a transcript</CardDescription>
         </CardHeader>
         <CardContent>
           <CreateSessionForm onAnalysisStarted={handleAnalysisStarted} />
@@ -62,4 +56,4 @@ export default function MeetingAnalysisPage() {
       </Card>
     </div>
   );
-} 
+}

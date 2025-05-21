@@ -1,0 +1,6 @@
+yarn run v1.22.22
+$ nest start --watch --verbose --debug
+[2J[3J[H[[90m14:28:23[0m] Starting compilation in watch mode...
+
+[[90m14:28:26[0m] Found 0 errors. Watching for file changes.
+

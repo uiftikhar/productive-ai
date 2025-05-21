@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { API_CONFIG } from '../config/api';
 import { fetchWithAuth } from '../lib/utils/auth-fetch';
 
@@ -20,12 +20,12 @@ interface UseAgentProgressOptions {
    * Polling interval in milliseconds
    */
   pollingInterval?: number;
-  
+
   /**
    * Whether to poll immediately on mount
    */
   pollImmediately?: boolean;
-  
+
   /**
    * Whether to automatically stop polling when progress reaches 100%
    */
@@ -51,31 +51,31 @@ export function useAgentProgress(
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
   const [details, setDetails] = useState<Record<string, any> | null>(null);
-  
+
   const pollingInterval = options.pollingInterval || 3000; // Default: 3 seconds
   const pollImmediately = options.pollImmediately !== false; // Default: true
   const stopAtCompletion = options.stopAtCompletion !== false; // Default: true
-  
-  const checkProgress = async (): Promise<void> => {
+
+  const checkProgress = useCallback(async (): Promise<void> => {
     if (!sessionId) {
       setIsLoading(false);
       return;
     }
-    
+
     try {
       setIsLoading(true);
       setError(null);
-      
+
       const response = await fetchWithAuth(
         `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.agents.progress(sessionId)}`
       );
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch agent progress');
       }
-      
+
       const data: AgentProgressResponse = await response.json();
-      
+
       setProgress(data.progress);
       setStatus(data.status);
       setDetails(data.details || null);
@@ -85,31 +85,31 @@ export function useAgentProgress(
       setError(error instanceof Error ? error : new Error('Unknown error'));
       setIsLoading(false);
     }
-  };
-  
+  }, [sessionId, setError, setIsLoading, setProgress, setStatus, setDetails]);
+
   useEffect(() => {
     // Reset state when sessionId changes
     setProgress(0);
     setStatus('pending');
     setError(null);
     setDetails(null);
-    
+
     if (!sessionId) {
       setIsLoading(false);
       return;
     }
-    
+
     if (pollImmediately) {
       checkProgress();
     }
-    
+
     // Set up polling if we have a sessionId
     let intervalId: NodeJS.Timeout | null = null;
-    
+
     if (sessionId) {
       intervalId = setInterval(async () => {
         await checkProgress();
-        
+
         // Stop polling if we're at 100% and stopAtCompletion is true
         if (stopAtCompletion && (progress === 100 || status === 'completed')) {
           if (intervalId) {
@@ -118,20 +118,21 @@ export function useAgentProgress(
         }
       }, pollingInterval);
     }
-    
+
     return () => {
       if (intervalId) {
         clearInterval(intervalId);
       }
     };
-  }, [sessionId, pollingInterval, stopAtCompletion]);
-  
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, pollingInterval, stopAtCompletion, checkProgress, pollImmediately]);
+
   return {
     progress,
     status,
     isLoading,
     error,
     details,
-    checkNow: checkProgress
+    checkNow: checkProgress,
   };
-} 
+}

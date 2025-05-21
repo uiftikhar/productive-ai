@@ -33,7 +33,7 @@ export const transcriptApi = {
   async uploadTranscript(file: File, metadata?: Record<string, any>): Promise<Transcript> {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     // Add metadata if provided
     if (metadata) {
       formData.append('metadata', JSON.stringify(metadata));
@@ -92,4 +92,4 @@ export const transcriptApi = {
     });
     return response.data;
   },
-}; 
+};

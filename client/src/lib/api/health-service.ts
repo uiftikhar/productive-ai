@@ -1,6 +1,6 @@
 /**
  * Health Check Service
- * 
+ *
  * Provides methods to check system health and service status
  */
 import { fetchWithAuth } from '../utils/auth-fetch';
@@ -50,70 +50,76 @@ export const HealthService = {
    */
   async checkHealth(): Promise<HealthStatus> {
     try {
-      const response = await fetchWithAuth(`${API_CONFIG.baseUrl}${API_CONFIG.endpoints.health.base}`);
-      
+      const response = await fetchWithAuth(
+        `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.health.base}`
+      );
+
       if (!response.ok) {
         return { status: 'ERROR' };
       }
-      
+
       return await response.json();
     } catch (error) {
       console.error('Health check failed:', error);
       return { status: 'ERROR' };
     }
   },
-  
+
   /**
    * Check detailed health status
    */
   async checkDetailedHealth(): Promise<DetailedHealthStatus> {
     try {
-      const response = await fetchWithAuth(`${API_CONFIG.baseUrl}${API_CONFIG.endpoints.health.detailed}`);
-      
+      const response = await fetchWithAuth(
+        `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.health.detailed}`
+      );
+
       if (!response.ok) {
-        return { 
-          status: 'ERROR', 
-          uptime: 0, 
-          env: 'unknown', 
-          memory: {}, 
-          cpu: {}
+        return {
+          status: 'ERROR',
+          uptime: 0,
+          env: 'unknown',
+          memory: {},
+          cpu: {},
         };
       }
-      
+
       return await response.json();
     } catch (error) {
       console.error('Detailed health check failed:', error);
-      return { 
-        status: 'ERROR', 
-        uptime: 0, 
-        env: 'unknown', 
-        memory: {}, 
-        cpu: {} 
+      return {
+        status: 'ERROR',
+        uptime: 0,
+        env: 'unknown',
+        memory: {},
+        cpu: {},
       };
     }
   },
-  
+
   /**
    * Check service status
    */
   async checkServiceStatus(): Promise<ServiceStatusResponse> {
     try {
-      const response = await fetchWithAuth(`${API_CONFIG.baseUrl}${API_CONFIG.endpoints.health.serviceStatus}`);
-      
+      const response = await fetchWithAuth(
+        `${API_CONFIG.baseUrl}${API_CONFIG.endpoints.health.serviceStatus}`
+      );
+
       if (!response.ok) {
-        return { 
-          status: 'ERROR', 
-          services: [] 
+        return {
+          status: 'ERROR',
+          services: [],
         };
       }
-      
+
       return await response.json();
     } catch (error) {
       console.error('Service status check failed:', error);
-      return { 
-        status: 'ERROR', 
-        services: [] 
+      return {
+        status: 'ERROR',
+        services: [],
       };
     }
-  }
-}; 
+  },
+};

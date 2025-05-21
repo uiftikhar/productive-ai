@@ -1,63 +1,67 @@
-FROM node:18-alpine AS base
+# syntax=docker/dockerfile:1
+
+FROM node:20-alpine AS base
+
+# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
 
 # Install dependencies only when needed
 FROM base AS deps
 WORKDIR /app
 
-# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
-RUN apk add --no-cache libc6-compat
+# Copy package.json from client directory and yarn.lock from root
+COPY client/package.json ./
+COPY yarn.lock ./
 
-# Copy package files from both root and client
-COPY package.json yarn.lock ./
-COPY client/package.json ./client/
-
-# Install dependencies using workspace protocol
+# Install dependencies with yarn
 RUN yarn install --frozen-lockfile
+
 
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
 
-# Copy all package files and dependencies
+COPY client/.env.production .env.production
+
+# Copy node_modules from deps stage
 COPY --from=deps /app/node_modules ./node_modules
-COPY package.json yarn.lock ./
-COPY client ./client
 
-# Set working directory to client folder
-WORKDIR /app/client
+# Copy client source code
+COPY client/ ./
+# tsconfig.json is already included in the client directory copy
 
-# Build the application (Next.js should be in node_modules)
+# Disable telemetry during build
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Ensure next is available for building
+RUN yarn add next@14.0.3
+
+# Build the Next.js app
 RUN yarn build
 
 # Production image, copy all the files and run next
-FROM base AS runner
+FROM base AS production
 WORKDIR /app
 
-ENV NODE_ENV production
+ENV NODE_ENV=production
+# Disable telemetry during runtime
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Create a non-root user and switch to it
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy all node modules from builder
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/client/node_modules ./node_modules
+COPY --from=builder /app/public ./public
 
-# Specifically copy the next package
-COPY --from=builder /app/node_modules/next ./node_modules/next
-
-# Copy the standalone build
-COPY --from=builder /app/client/.next/standalone ./
-COPY --from=builder /app/client/.next/static ./.next/static
-COPY --from=builder /app/client/public ./public
+# Automatically leverage output traces to reduce image size
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 USER nextjs
 
-# Expose the port
-EXPOSE 3000
+EXPOSE 8080
+ENV PORT=8080
+ENV HOSTNAME="0.0.0.0"
 
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
-
-# Start the application
-CMD ["node", "server.js"] 
+# server.js is created by next build from the standalone output
+CMD ["node", "server.js"]

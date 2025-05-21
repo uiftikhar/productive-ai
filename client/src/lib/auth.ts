@@ -17,19 +17,23 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
-        
+
         try {
           // Call our backend API for authentication
-          const response = await axios.post(`${API_URL}/auth/login`, {
-            email: credentials.email,
-            password: credentials.password,
-          }, {
-            withCredentials: true,
-            headers: {
-              'Content-Type': 'application/json'
+          const response = await axios.post(
+            `${API_URL}/auth/login`,
+            {
+              email: credentials.email,
+              password: credentials.password,
+            },
+            {
+              withCredentials: true,
+              headers: {
+                'Content-Type': 'application/json',
+              },
             }
-          });
-          
+          );
+
           // Return the user object if successful
           if (response.data.user) {
             return {
@@ -38,7 +42,7 @@ export const authOptions: NextAuthOptions = {
               role: response.data.user.role,
             };
           }
-          
+
           return null;
         } catch (error) {
           console.error('Authentication error:', error);
@@ -77,4 +81,4 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   secret: process.env.NEXTAUTH_SECRET || 'your-secret-key',
-}; 
+};

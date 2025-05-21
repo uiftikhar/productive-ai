@@ -5,14 +5,6 @@ export const metadata: Metadata = {
   description: 'View the results of your meeting analysis',
 };
 
-export default async function MeetingAnalysisLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {children}
-    </div>
-  );
-} 
+export default async function MeetingAnalysisLayout({ children }: { children: React.ReactNode }) {
+  return <div className='min-h-screen bg-gray-50'>{children}</div>;
+}
